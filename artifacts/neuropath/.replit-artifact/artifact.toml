@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "NeuroPath"
+version = "1.0.0"
+id = "artifacts/neuropath"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20479
+
+[services.development]
+run = "pnpm --filter @workspace/neuropath run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/neuropath", "run", "build" ]
+publicDir = "artifacts/neuropath/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20479"
+BASE_PATH = "/"
