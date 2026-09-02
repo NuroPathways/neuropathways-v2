@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* iOS / mobile essentials */
+html, body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safe area CSS variables */
+:root {
+  --sat: env(safe-area-inset-top);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+  --sar: env(safe-area-inset-right);
+}
+
+/* Prevent text selection on UI chrome */
+nav, button, [role="button"], label {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@layer base {
+  :root {
+    --background: 210 20% 96%;
+    --foreground: 220 25% 14%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 14%;
+
+    --primary: 216 38% 47%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 15% 43%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 20% 92%;
+    --muted-foreground: 215 13% 55%;
+
+    --accent: 180 29% 61%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 20% 87%;
+    --input: 210 20% 87%;
+    --ring: 216 38% 47%;
+
+    --radius: 0.75rem;
+    --font-inter: 'Inter', sans-serif;
+  }
+
+  .dark {
+    --background: 220 25% 10%;
+    --foreground: 210 20% 96%;
+    --card: 220 20% 14%;
+    --card-foreground: 210 20% 96%;
+    --popover: 220 20% 14%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 216 38% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 15% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 220 20% 20%;
+    --muted-foreground: 215 13% 65%;
+    --accent: 180 29% 65%;
+    --accent-foreground: 220 25% 14%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 20% 22%;
+    --input: 220 20% 22%;
+    --ring: 216 38% 55%;
+  }
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-inter);
+}
