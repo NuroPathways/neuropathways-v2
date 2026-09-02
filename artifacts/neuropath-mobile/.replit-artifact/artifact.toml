@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/neuropath-mobile/"
+title = "NeuroPath Mobile"
+version = "1.0.0"
+id = "artifacts/neuropath-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/neuropath-mobile/" ]
+localPort = 22994
+
+[services.development]
+run = "pnpm --filter @workspace/neuropath-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/neuropath-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/neuropath-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "22994"
+BASE_PATH = "/neuropath-mobile/"
