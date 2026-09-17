@@ -274,7 +274,10 @@ makeCrud("/intervention-plans", interventionPlansTable);
 // bodyToCamel() in the frontend shim converts invite_token → inviteToken, so check both.
 router.post("/behavior-logs", async (req: any, res, next) => {
   const invite_token = req.body?.invite_token ?? req.body?.inviteToken;
-  if (!invite_token) return next(); // no token → fall through to makeCrud (OIDC required)
+  if (!invite_token) {
+    if (!req.user) return res.status(401).json({ error: "Authentication required" });
+    return next();
+  }
   try {
     const csession = await validateClientSession(invite_token);
     if (!csession) return res.status(401).json({ error: "Invalid or expired session" });
@@ -305,7 +308,10 @@ makeCrud("/daily-check-ins", dailyCheckInsTable);
 // Client-session POST for win-logs (bodyToCamel converts invite_token → inviteToken)
 router.post("/win-logs", async (req: any, res, next) => {
   const invite_token = req.body?.invite_token ?? req.body?.inviteToken;
-  if (!invite_token) return next();
+  if (!invite_token) {
+    if (!req.user) return res.status(401).json({ error: "Authentication required" });
+    return next();
+  }
   try {
     const csession = await validateClientSession(invite_token);
     if (!csession) return res.status(401).json({ error: "Invalid or expired session" });
@@ -328,7 +334,10 @@ makeCrud("/win-logs", winLogsTable);
 // Client-session POST for engagement-events (bodyToCamel converts invite_token → inviteToken)
 router.post("/engagement-events", async (req: any, res, next) => {
   const invite_token = req.body?.invite_token ?? req.body?.inviteToken;
-  if (!invite_token) return next();
+  if (!invite_token) {
+    if (!req.user) return res.status(401).json({ error: "Authentication required" });
+    return next();
+  }
   try {
     const csession = await validateClientSession(invite_token);
     if (!csession) return res.status(401).json({ error: "Invalid or expired session" });
@@ -1047,6 +1056,10 @@ router.post("/manage-client-goal", async (req: any, res) => {
     req.body.child_id || (data && (data.child_id || data.childId)) || null;
 
   const clinicianId: string | null = req.user?.id ?? null;
+
+  if (!clinicianId && !req.body.invite_token) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
 
   // Resolve the authenticated child via DB-backed token validation.
   let authChildId: string | null = null;
