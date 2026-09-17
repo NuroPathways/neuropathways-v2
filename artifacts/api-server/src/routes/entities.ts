@@ -12,6 +12,7 @@ import {
 } from "@workspace/db";
 import { eq, and, inArray, or } from "drizzle-orm";
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
+import { decryptBuffer } from "./upload";
 
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
@@ -768,7 +769,8 @@ router.post("/build-client-profile", requireAuth, async (req: any, res) => {
       if (!safePath.startsWith(UPLOAD_DIR)) { failedDocs.push({ id: doc.id, reason: "The file path is not allowed." }); continue; }
       let fileContent: Buffer;
       try {
-        fileContent = await fs.readFile(safePath);
+        const raw = await fs.readFile(safePath);
+        fileContent = decryptBuffer(raw);
       } catch {
         failedDocs.push({ id: doc.id, reason: "The file could not be found on the server." });
         continue;
