@@ -145,27 +145,19 @@ async function generateClientToken(
   return token;
 }
 
-// Validate a client-session token.  Accepts:
-//   • New format (64-char hex) — looked up in client_sessions; expiry checked.
-//   • Legacy format (cs_<childId>_<ts>) — parsed and verified against children table
-//     so that users with old localStorage sessions aren't immediately locked out.
-// Returns { childId } on success, null on failure.
+// Validate a client-session token (DB-backed 64-char hex only).
+// Legacy unsigned cs_<childId>_<ts> tokens are rejected — clients with stale
+// localStorage must re-authenticate.
 async function validateClientSession(token: string | undefined | null): Promise<{ childId: string } | null> {
   if (!token || typeof token !== "string") return null;
-
-  if (!token.startsWith("cs_")) {
-    // New DB-backed token
-    const [row] = await db.select().from(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, token));
-    if (!row?.childId) return null;
-    if (row.expiresAt && row.expiresAt < new Date()) return null;
-    return { childId: row.childId };
+  if (token.startsWith("cs_")) {
+    console.warn(`[NeuroPath] Rejected legacy unsigned token: ${token.slice(0, 12)}…`);
+    return null;
   }
-
-  // Legacy unsigned token — verify the embedded childId still exists in the DB.
-  const m = token.match(/^cs_(.+)_\d+$/);
-  if (!m) return null;
-  const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, m[1]));
-  return child ? { childId: child.id } : null;
+  const [row] = await db.select().from(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, token));
+  if (!row?.childId) return null;
+  if (row.expiresAt && row.expiresAt < new Date()) return null;
+  return { childId: row.childId };
 }
 
 // ──────────────────────────────────────────────
