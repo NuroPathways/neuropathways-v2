@@ -44,7 +44,7 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
       <WinTodayButton userId={user?.id} inviteToken={user?.invite_token} children={profile ? [profile] : []} />
 
       {/* Hero */}
-      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,42%) 0%, hsl(180,29%,50%) 100%)" }}>
+      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(248,32%,45%) 0%, hsl(280,28%,52%) 100%)" }}>
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-4 right-10 w-40 h-40 rounded-full bg-white" />
           <div className="absolute -bottom-8 left-20 w-56 h-56 rounded-full bg-white" />
@@ -61,9 +61,9 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
               </div>
               <p className="text-white/70 text-sm">{getGreeting()},</p>
               <h1 className="text-2xl md:text-3xl font-bold text-white mt-0.5 mb-1">
-                {firstName} 👋
+                {firstName}
               </h1>
-              <p className="text-white/60 text-sm">Your personal behavioral support hub</p>
+              <p className="text-white/60 text-sm">Your personal support hub</p>
             </div>
             {unreadMessages > 0 && (
               <button
@@ -264,7 +264,7 @@ function FamilyDashboard({ user, children, recentLogs, unreadMessages, loading, 
     <div className="min-h-screen bg-background font-inter">
       <WinTodayButton userId={user?.id} inviteToken={user?.invite_token} children={children} defaultChildId={isClientSession ? selectedChildId : undefined} />
 
-      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,42%) 0%, hsl(180,29%,50%) 100%)" }}>
+      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(248,32%,45%) 0%, hsl(280,28%,52%) 100%)" }}>
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-4 right-10 w-40 h-40 rounded-full bg-white" />
           <div className="absolute -bottom-8 left-20 w-56 h-56 rounded-full bg-white" />
@@ -281,9 +281,9 @@ function FamilyDashboard({ user, children, recentLogs, unreadMessages, loading, 
               </div>
               <p className="text-white/70 text-sm">{getGreeting()},</p>
               <h1 className="text-2xl md:text-3xl font-bold text-white mt-0.5 mb-1">
-                {loading ? "..." : firstName} 👋
+                {loading ? "..." : firstName}
               </h1>
-              <p className="text-white/60 text-sm">Your family's behavioral support hub</p>
+              <p className="text-white/60 text-sm">Your family's support hub</p>
             </div>
             {unreadMessages > 0 && (
               <button

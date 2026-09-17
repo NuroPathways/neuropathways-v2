@@ -25,7 +25,7 @@ export default function Splash() {
   }, []);
 
   return (
-    <div className="min-h-screen font-inter overflow-x-hidden" style={{ background: "linear-gradient(135deg, #f0f7ff 0%, #e8f5f0 50%, #f5f0ff 100%)" }}>
+    <div className="min-h-screen font-inter overflow-x-hidden" style={{ background: "linear-gradient(135deg, #f3f0ff 0%, #ede8f5 50%, #f0f4ff 100%)" }}>
 
       {/* Navbar */}
       <nav className="flex items-center justify-between px-6 py-5 max-w-6xl mx-auto">
