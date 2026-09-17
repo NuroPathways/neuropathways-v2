@@ -1,7 +1,7 @@
 import { Router } from "express";
 import path from "node:path";
 import fs from "node:fs/promises";
-import { randomBytes } from "node:crypto";
+import crypto from "node:crypto";
 import { db } from "@workspace/db";
 import {
   childrenTable, familiesTable, behaviorPlansTable, documentsTable,
@@ -12,6 +12,7 @@ import {
 } from "@workspace/db";
 import { eq, and, inArray, or } from "drizzle-orm";
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
+import { decryptBuffer } from "./upload";
 
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
@@ -103,6 +104,32 @@ function requireAuth(req: any, res: any, next: any) {
 }
 
 // ──────────────────────────────────────────────
+// Access code hashing (scrypt, same pattern as clinician passwords)
+// ──────────────────────────────────────────────
+
+function scryptHash(input: string, salt: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(input, salt, 64, (err, key) => {
+      if (err) reject(err);
+      else resolve(key.toString("hex"));
+    });
+  });
+}
+
+async function hashAccessCode(code: string): Promise<string> {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = await scryptHash(code.toUpperCase(), salt);
+  return `${salt}:${hash}`;
+}
+
+async function verifyAccessCode(code: string, stored: string): Promise<boolean> {
+  if (!stored || !stored.includes(":")) return code.toUpperCase() === stored?.toUpperCase();
+  const [salt, storedHash] = stored.split(":");
+  const inputHash = await scryptHash(code.toUpperCase(), salt);
+  return inputHash === storedHash;
+}
+
+// ──────────────────────────────────────────────
 // Client-session token helpers
 // ──────────────────────────────────────────────
 
@@ -112,35 +139,40 @@ function requireAuth(req: any, res: any, next: any) {
 async function generateClientToken(
   childId: string,
   username?: string | null,
-  accessCode?: string | null,
 ): Promise<string> {
-  const token = randomBytes(32).toString("hex");
+  const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-  await db.insert(clientSessionsTable).values({ childId, inviteToken: token, username, accessCode, expiresAt });
+  await db.insert(clientSessionsTable).values({ childId, inviteToken: token, username, expiresAt });
   return token;
 }
 
-// Validate a client-session token.  Accepts:
-//   • New format (64-char hex) — looked up in client_sessions; expiry checked.
-//   • Legacy format (cs_<childId>_<ts>) — parsed and verified against children table
-//     so that users with old localStorage sessions aren't immediately locked out.
-// Returns { childId } on success, null on failure.
+// Validate a client-session token (DB-backed 64-char hex only).
+// Legacy unsigned cs_<childId>_<ts> tokens are rejected — clients with stale
+// localStorage must re-authenticate.
 async function validateClientSession(token: string | undefined | null): Promise<{ childId: string } | null> {
   if (!token || typeof token !== "string") return null;
-
-  if (!token.startsWith("cs_")) {
-    // New DB-backed token
-    const [row] = await db.select().from(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, token));
-    if (!row?.childId) return null;
-    if (row.expiresAt && row.expiresAt < new Date()) return null;
-    return { childId: row.childId };
+  if (token.startsWith("cs_")) {
+    console.warn(`[NeuroPath] Rejected legacy unsigned token: ${token.slice(0, 12)}…`);
+    return null;
   }
+  const [row] = await db.select().from(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, token));
+  if (!row?.childId) return null;
+  if (row.expiresAt && row.expiresAt < new Date()) return null;
+  return { childId: row.childId };
+}
 
-  // Legacy unsigned token — verify the embedded childId still exists in the DB.
-  const m = token.match(/^cs_(.+)_\d+$/);
-  if (!m) return null;
-  const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, m[1]));
-  return child ? { childId: child.id } : null;
+// ──────────────────────────────────────────────
+// Client-session tenant guard: verify a target child is the session
+// holder's child or a sibling in the same family + same clinician.
+// ──────────────────────────────────────────────
+
+async function sessionMayAccessChild(sessionChildId: string, targetChildId: string): Promise<boolean> {
+  if (sessionChildId === targetChildId) return true;
+  const [auth] = await db.select().from(childrenTable).where(eq(childrenTable.id, sessionChildId));
+  const [target] = await db.select().from(childrenTable).where(eq(childrenTable.id, targetChildId));
+  if (!auth?.familyId || auth.familyId !== target?.familyId) return false;
+  if (auth.clinicianId !== target.clinicianId) return false;
+  return true;
 }
 
 // ──────────────────────────────────────────────
@@ -285,12 +317,16 @@ router.post("/behavior-logs", async (req: any, res, next) => {
     const child_id = req.body.child_id || req.body.childId;
     if (!child_id) return res.status(400).json({ error: "child_id required" });
 
-    // Verify the child belongs to this session
+    if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+      await auditLog({ action: "cross_tenant_access_attempt", targetType: "behavior_log", targetId: child_id, success: false, reason: "client session child mismatch" });
+      return res.status(403).json({ error: "Access denied" });
+    }
+
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
     if (!child) return res.status(404).json({ error: "Child not found" });
 
     const data: any = bodyToCamel(req.body);
-    delete data.inviteToken; // don't persist the token
+    delete data.inviteToken;
     data.clinicianId = child.clinicianId;
     data.tenantId = child.clinicianId;
     if (!data.parentId) data.parentId = csession.childId; // fallback identity
@@ -316,6 +352,10 @@ router.post("/win-logs", async (req: any, res, next) => {
     const csession = await validateClientSession(invite_token);
     if (!csession) return res.status(401).json({ error: "Invalid or expired session" });
     const child_id = req.body.child_id || req.body.childId || csession.childId;
+    if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+      await auditLog({ action: "cross_tenant_access_attempt", targetType: "win_log", targetId: child_id, success: false, reason: "client session child mismatch" });
+      return res.status(403).json({ error: "Access denied" });
+    }
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
     if (!child) return res.status(404).json({ error: "Child not found" });
     const data: any = bodyToCamel(req.body);
@@ -344,6 +384,10 @@ router.post("/engagement-events", async (req: any, res, next) => {
     const data: any = bodyToCamel(req.body);
     delete data.inviteToken;
     if (!data.childId) data.childId = csession.childId;
+    if (data.childId !== csession.childId && !(await sessionMayAccessChild(csession.childId, data.childId))) {
+      await auditLog({ action: "cross_tenant_access_attempt", targetType: "engagement_event", targetId: data.childId, success: false, reason: "client session child mismatch" });
+      return res.status(403).json({ error: "Access denied" });
+    }
     const [row] = await db.insert(engagementEventsTable).values(data).returning();
     return res.status(201).json(serialize(row));
   } catch (e: any) {
@@ -501,7 +545,7 @@ router.get("/client-detail", requireAuth, async (req: any, res) => {
     }
 
     const clientAccount = child.username
-      ? { username: child.username, access_code: child.accessCode, email: child.parentEmail }
+      ? { username: child.username, access_code_set: !!child.accessCode, email: child.parentEmail }
       : null;
 
     await auditLog({ userId: req.user.id, userRole: "clinician", action: "client_viewed", targetType: "child", targetId: child_id, tenantId: child.clinicianId ?? undefined });
@@ -551,10 +595,9 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
       plansCount = plans.length;
     }
 
-    // Family account credentials: prefer the child whose username is set
     const primaryChild = children.find(c => c.username) ?? children[0];
     const clientAccount = primaryChild?.username
-      ? { username: primaryChild.username, access_code: primaryChild.accessCode, email: family.email }
+      ? { username: primaryChild.username, access_code_set: !!primaryChild.accessCode, email: family.email }
       : null;
 
     await auditLog({ userId: req.user.id, userRole: "clinician", action: "client_viewed", targetType: "family", targetId: family_id, tenantId: family.clinicianId ?? undefined });
@@ -603,6 +646,8 @@ router.post("/create-client-account", requireAuth, async (req: any, res) => {
     }).returning();
 
     const createdChildren = [];
+    const rawCode = sanitizeStr(clientAccount?.access_code);
+    const hashedCode = rawCode ? await hashAccessCode(rawCode) : null;
     if (children && Array.isArray(children)) {
       for (const c of children) {
         const childName = sanitizeStr(c.child_name ?? c.childName) ?? cleanFamilyName;
@@ -619,9 +664,8 @@ router.post("/create-client-account", requireAuth, async (req: any, res) => {
           triggers: sanitizeStr(c.triggers) ?? null,
           isPatient: c.is_patient ?? c.isPatient ?? true,
           accountType: sanitizeStr(accountType) ?? "individual",
-          // All children in the same family share one set of credentials
           username: sanitizeStr(clientAccount?.username) ?? null,
-          accessCode: sanitizeStr(clientAccount?.access_code) ?? null,
+          accessCode: hashedCode,
           status: "active",
         }).returning();
         createdChildren.push(child);
@@ -725,7 +769,8 @@ router.post("/build-client-profile", requireAuth, async (req: any, res) => {
       if (!safePath.startsWith(UPLOAD_DIR)) { failedDocs.push({ id: doc.id, reason: "The file path is not allowed." }); continue; }
       let fileContent: Buffer;
       try {
-        fileContent = await fs.readFile(safePath);
+        const raw = await fs.readFile(safePath);
+        fileContent = decryptBuffer(raw);
       } catch {
         failedDocs.push({ id: doc.id, reason: "The file could not be found on the server." });
         continue;
@@ -1146,26 +1191,32 @@ router.post("/verify-client-credentials", async (req, res) => {
   const { username, access_code } = req.body;
   if (!username || !access_code) return res.status(400).json({ error: "username and access_code required" });
   try {
-    const [child] = await db.select().from(childrenTable)
-      .where(and(eq(childrenTable.username, username), eq(childrenTable.accessCode, access_code)));
+    const candidates = await db.select().from(childrenTable)
+      .where(eq(childrenTable.username, username));
+
+    let child = null;
+    for (const c of candidates) {
+      if (c.accessCode && await verifyAccessCode(access_code, c.accessCode)) {
+        child = c;
+        break;
+      }
+    }
     if (!child) {
       await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username } });
       return res.json({ error: "Invalid username or access code" });
     }
 
-    // Get sibling children (same family = same family login)
     const siblings = child.familyId
       ? await db.select().from(childrenTable).where(eq(childrenTable.familyId, child.familyId))
       : [child];
 
-    // Pull the caregiver/family name so the portal can greet the account holder
     const [family] = child.familyId
       ? await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId))
       : [undefined];
 
     await auditLog({ action: "login", targetType: "child", targetId: child.id, success: true, tenantId: child.clinicianId ?? undefined });
 
-    const token = await generateClientToken(child.id, username, access_code);
+    const token = await generateClientToken(child.id, username);
     const session = {
       id: child.id,
       invite_token: token,
@@ -1188,14 +1239,26 @@ router.post("/client-session/change-access-code", async (req, res) => {
   if (new_access_code.length < 4)
     return res.status(400).json({ error: "New access code must be at least 4 characters" });
   try {
-    const [child] = await db.select().from(childrenTable)
-      .where(and(eq(childrenTable.username, username), eq(childrenTable.accessCode, current_access_code)));
+    const candidates = await db.select().from(childrenTable)
+      .where(eq(childrenTable.username, username));
+
+    let child = null;
+    for (const c of candidates) {
+      if (c.accessCode && await verifyAccessCode(current_access_code, c.accessCode)) {
+        child = c;
+        break;
+      }
+    }
     if (!child) return res.status(401).json({ error: "Current username or access code is incorrect" });
 
-    const upperCode = new_access_code.toUpperCase();
-    await db.update(childrenTable).set({ accessCode: upperCode }).where(eq(childrenTable.id, child.id));
+    const hashedCode = await hashAccessCode(new_access_code);
+    // Update all siblings sharing the same family credentials
+    if (child.familyId) {
+      await db.update(childrenTable).set({ accessCode: hashedCode }).where(eq(childrenTable.familyId, child.familyId));
+    } else {
+      await db.update(childrenTable).set({ accessCode: hashedCode }).where(eq(childrenTable.id, child.id));
+    }
 
-    // Return a fresh session so the client can update localStorage
     const siblings = child.familyId
       ? await db.select().from(childrenTable).where(eq(childrenTable.familyId, child.familyId))
       : [child];
@@ -1203,7 +1266,7 @@ router.post("/client-session/change-access-code", async (req, res) => {
     const [family] = child.familyId
       ? await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId))
       : [undefined];
-    const newToken = await generateClientToken(child.id, username, upperCode);
+    const newToken = await generateClientToken(child.id, username);
     const session = {
       id: child.id,
       invite_token: newToken,
@@ -1224,8 +1287,16 @@ router.post("/client-session/login", async (req, res) => {
   const { username, access_code } = req.body;
   if (!username || !access_code) return res.status(400).json({ error: "username and access_code required" });
   try {
-    const [child] = await db.select().from(childrenTable)
-      .where(and(eq(childrenTable.username, username), eq(childrenTable.accessCode, access_code)));
+    const candidates = await db.select().from(childrenTable)
+      .where(eq(childrenTable.username, username));
+
+    let child = null;
+    for (const c of candidates) {
+      if (c.accessCode && await verifyAccessCode(access_code, c.accessCode)) {
+        child = c;
+        break;
+      }
+    }
     if (!child) {
       await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username } });
       return res.status(401).json({ error: "Invalid credentials" });
@@ -1241,7 +1312,7 @@ router.post("/client-session/login", async (req, res) => {
 
     await auditLog({ action: "login", targetType: "child", targetId: child.id, success: true, tenantId: child.clinicianId ?? undefined });
 
-    const token = await generateClientToken(child.id, username, access_code);
+    const token = await generateClientToken(child.id, username);
     res.json({
       id: child.id,
       invite_token: token,
@@ -1294,6 +1365,35 @@ router.post("/add-child-to-family", requireAuth, async (req: any, res) => {
     console.info(`[NeuroPath] Child added to family: child=${child.id} family=${family_id}`);
 
     res.status(201).json(serialize({ child }));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ──────────────────────────────────────────────
+// One-time migration: hash existing plaintext access codes
+// ──────────────────────────────────────────────
+
+router.post("/admin/migrate-access-codes", requireAuth, async (req: any, res) => {
+  try {
+    const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
+    if (!profile || profile.appRole !== "clinician") return res.status(403).json({ error: "Clinician only" });
+
+    const allChildren = await db.select().from(childrenTable)
+      .where(eq(childrenTable.clinicianId, req.user.id));
+
+    let migrated = 0;
+    let skipped = 0;
+    for (const child of allChildren) {
+      if (!child.accessCode) { skipped++; continue; }
+      if (child.accessCode.includes(":")) { skipped++; continue; }
+      const hashed = await hashAccessCode(child.accessCode);
+      await db.update(childrenTable).set({ accessCode: hashed }).where(eq(childrenTable.id, child.id));
+      migrated++;
+    }
+
+    await auditLog({ userId: req.user.id, userRole: "clinician", action: "access_codes_migrated", success: true, metadata: { migrated, skipped } });
+    res.json({ ok: true, migrated, skipped });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
