@@ -161,6 +161,20 @@ async function validateClientSession(token: string | undefined | null): Promise<
 }
 
 // ──────────────────────────────────────────────
+// Client-session tenant guard: verify a target child is the session
+// holder's child or a sibling in the same family + same clinician.
+// ──────────────────────────────────────────────
+
+async function sessionMayAccessChild(sessionChildId: string, targetChildId: string): Promise<boolean> {
+  if (sessionChildId === targetChildId) return true;
+  const [auth] = await db.select().from(childrenTable).where(eq(childrenTable.id, sessionChildId));
+  const [target] = await db.select().from(childrenTable).where(eq(childrenTable.id, targetChildId));
+  if (!auth?.familyId || auth.familyId !== target?.familyId) return false;
+  if (auth.clinicianId !== target.clinicianId) return false;
+  return true;
+}
+
+// ──────────────────────────────────────────────
 // Audit log helper
 // ──────────────────────────────────────────────
 
@@ -302,12 +316,16 @@ router.post("/behavior-logs", async (req: any, res, next) => {
     const child_id = req.body.child_id || req.body.childId;
     if (!child_id) return res.status(400).json({ error: "child_id required" });
 
-    // Verify the child belongs to this session
+    if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+      await auditLog({ action: "cross_tenant_access_attempt", targetType: "behavior_log", targetId: child_id, success: false, reason: "client session child mismatch" });
+      return res.status(403).json({ error: "Access denied" });
+    }
+
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
     if (!child) return res.status(404).json({ error: "Child not found" });
 
     const data: any = bodyToCamel(req.body);
-    delete data.inviteToken; // don't persist the token
+    delete data.inviteToken;
     data.clinicianId = child.clinicianId;
     data.tenantId = child.clinicianId;
     if (!data.parentId) data.parentId = csession.childId; // fallback identity
@@ -333,6 +351,10 @@ router.post("/win-logs", async (req: any, res, next) => {
     const csession = await validateClientSession(invite_token);
     if (!csession) return res.status(401).json({ error: "Invalid or expired session" });
     const child_id = req.body.child_id || req.body.childId || csession.childId;
+    if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+      await auditLog({ action: "cross_tenant_access_attempt", targetType: "win_log", targetId: child_id, success: false, reason: "client session child mismatch" });
+      return res.status(403).json({ error: "Access denied" });
+    }
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
     if (!child) return res.status(404).json({ error: "Child not found" });
     const data: any = bodyToCamel(req.body);
@@ -361,6 +383,10 @@ router.post("/engagement-events", async (req: any, res, next) => {
     const data: any = bodyToCamel(req.body);
     delete data.inviteToken;
     if (!data.childId) data.childId = csession.childId;
+    if (data.childId !== csession.childId && !(await sessionMayAccessChild(csession.childId, data.childId))) {
+      await auditLog({ action: "cross_tenant_access_attempt", targetType: "engagement_event", targetId: data.childId, success: false, reason: "client session child mismatch" });
+      return res.status(403).json({ error: "Access denied" });
+    }
     const [row] = await db.insert(engagementEventsTable).values(data).returning();
     return res.status(201).json(serialize(row));
   } catch (e: any) {
