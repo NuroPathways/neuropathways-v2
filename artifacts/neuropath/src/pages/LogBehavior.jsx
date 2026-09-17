@@ -273,32 +273,26 @@ export default function LogBehavior() {
 
   return (
     <div className="min-h-screen bg-background font-inter">
-      {/* Header */}
+      {/* Compact header — back button inline */}
       <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(270,50%,55%) 0%, hsl(250,45%,60%) 100%)" }}>
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-2 right-8 w-24 h-24 rounded-full bg-white" />
-        </div>
-        <div className="relative px-5 pt-5 pb-7 max-w-xl mx-auto">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-white/70 hover:text-white text-sm mb-5 transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
+        <div className="relative px-5 pt-4 pb-5 max-w-xl mx-auto">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <ClipboardList className="w-5 h-5 text-white" />
-            </div>
+            <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors flex-shrink-0">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
             <div>
-              <h1 className="text-xl font-bold text-white">Log Behavior</h1>
-              <p className="text-white/60 text-xs">Document what happened for your clinician</p>
+              <h1 className="text-lg font-bold text-white">Log Behavior</h1>
+              <p className="text-white/60 text-xs">Quick entry for your clinician</p>
             </div>
           </div>
         </div>
       </div>
 
       <div className="p-5 max-w-xl mx-auto space-y-4 -mt-1">
-        {/* Child selector */}
-        {children.length > 0 && (
+        {/* Child selector — hidden when only one child */}
+        {children.length > 1 && (
           <div className="bg-card border border-border rounded-2xl p-4">
-            <p className={LABEL}>Child *</p>
+            <p className={LABEL}>Child</p>
             <Select value={form.child_id} onValueChange={v => set("child_id", v)}>
               <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select child" /></SelectTrigger>
               <SelectContent>
@@ -310,16 +304,14 @@ export default function LogBehavior() {
 
         {!isLoadingAuth && children.length === 0 && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-2xl px-4 py-3">
-            No child profile is linked to your account, so this log can't be saved. Please ask your clinician to set up a child profile for you.
+            No child profile is linked to your account. Ask your clinician to connect one.
           </div>
         )}
 
-        {/* What happened */}
+        {/* Core fields — behavior + severity (the minimum for a useful log) */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="bg-card border border-border rounded-2xl p-5 space-y-4">
-          <h2 className="font-semibold text-foreground text-sm">What Happened?</h2>
-
           <div>
-            <p className={LABEL}>Behavior Type *</p>
+            <p className={LABEL}>What happened?</p>
             {loadingOptions ? (
               <div className="h-10 bg-muted rounded-xl animate-pulse" />
             ) : (
@@ -327,28 +319,13 @@ export default function LogBehavior() {
                 options={behaviorOptions}
                 value={form.behavior_type}
                 onValueChange={handleBehaviorChange}
-                placeholder="Select behavior..."
-                textPlaceholder="Describe the behavior (e.g. Meltdown, Aggression, Refusal)"
+                placeholder="Select or type a behavior..."
+                textPlaceholder="e.g. Meltdown, Aggression, Refusal"
               />
             )}
           </div>
 
-          <div>
-            <p className={LABEL}>What happened before? (Trigger)</p>
-            <Textarea
-              value={form.trigger}
-              onChange={e => set("trigger", e.target.value)}
-              placeholder="Describe what seemed to trigger the behavior..."
-              className="rounded-xl"
-              rows={2}
-            />
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className={LABEL}>Duration</p>
-              <Input value={form.duration} onChange={e => set("duration", e.target.value)} placeholder="e.g. 10 mins" className="rounded-xl" />
-            </div>
             <div>
               <p className={LABEL}>Severity</p>
               <Select value={form.intensity} onValueChange={v => set("intensity", v)}>
@@ -360,52 +337,72 @@ export default function LogBehavior() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <p className={LABEL}>How did it go?</p>
+              <Select value={form.outcome} onValueChange={v => set("outcome", v)}>
+                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="partially">Partially</SelectItem>
+                  <SelectItem value="escalated">Escalated</SelectItem>
+                  <SelectItem value="ongoing">Ongoing</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </motion.div>
 
-        {/* What did you do */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-card border border-border rounded-2xl p-5 space-y-4">
-          <h2 className="font-semibold text-foreground text-sm">What Did You Do?</h2>
-
-          <div>
-            <p className={LABEL}>Strategy / Intervention Used</p>
-            {loadingOptions ? (
-              <div className="h-10 bg-muted rounded-xl animate-pulse" />
-            ) : (
-              <SmartSelect
-                options={interventionOptions}
-                value={form.intervention_used}
-                onValueChange={handleInterventionChange}
-                placeholder="Select strategy used..."
-                textPlaceholder="Describe what you tried..."
+        {/* Optional detail — collapsed by default for speed */}
+        <details className="group">
+          <summary className="flex items-center gap-2 text-sm font-medium text-muted-foreground cursor-pointer py-2 select-none">
+            <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
+            Add more detail (optional)
+          </summary>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card border border-border rounded-2xl p-5 space-y-4 mt-2">
+            <div>
+              <p className={LABEL}>Trigger</p>
+              <Textarea
+                value={form.trigger}
+                onChange={e => set("trigger", e.target.value)}
+                placeholder="What seemed to trigger it..."
+                className="rounded-xl"
+                rows={2}
               />
-            )}
-          </div>
+            </div>
 
-          <div>
-            <p className={LABEL}>How Did It Go?</p>
-            <Select value={form.outcome} onValueChange={v => set("outcome", v)}>
-              <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select outcome" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="resolved">✅ Resolved — Worked well</SelectItem>
-                <SelectItem value="partially">🔄 Partially — Some improvement</SelectItem>
-                <SelectItem value="escalated">⚠️ Escalated — Got worse</SelectItem>
-                <SelectItem value="ongoing">⏳ Ongoing — Still happening</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className={LABEL}>Duration</p>
+                <Input value={form.duration} onChange={e => set("duration", e.target.value)} placeholder="e.g. 10 mins" className="rounded-xl" />
+              </div>
+              <div>
+                <p className={LABEL}>Strategy used</p>
+                {loadingOptions ? (
+                  <div className="h-10 bg-muted rounded-xl animate-pulse" />
+                ) : (
+                  <SmartSelect
+                    options={interventionOptions}
+                    value={form.intervention_used}
+                    onValueChange={handleInterventionChange}
+                    placeholder="Select..."
+                    textPlaceholder="What you tried..."
+                  />
+                )}
+              </div>
+            </div>
 
-          <div>
-            <p className={LABEL}>Additional Notes</p>
-            <Textarea
-              value={form.notes}
-              onChange={e => set("notes", e.target.value)}
-              placeholder="Anything else your clinician should know..."
-              className="rounded-xl"
-              rows={3}
-            />
-          </div>
-        </motion.div>
+            <div>
+              <p className={LABEL}>Notes</p>
+              <Textarea
+                value={form.notes}
+                onChange={e => set("notes", e.target.value)}
+                placeholder="Anything else your clinician should know..."
+                className="rounded-xl"
+                rows={2}
+              />
+            </div>
+          </motion.div>
+        </details>
 
         {saveError && (
           <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
@@ -419,7 +416,7 @@ export default function LogBehavior() {
           disabled={saving || !form.child_id || !behaviorReady}
           className="w-full rounded-xl h-12 text-base font-semibold"
         >
-          {saving ? "Saving..." : "Save Behavior Log"}
+          {saving ? "Saving..." : "Save Log"}
         </Button>
       </div>
     </div>
