@@ -40,13 +40,13 @@ export default function Splash() {
             onClick={() => navigate("/ClinicianLogin")}
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-4 py-2 rounded-xl hover:bg-white/60"
           >
-            Clinician Login
+            Clinician Portal
           </button>
           <button
             onClick={() => navigate("/ClientLogin")}
-            className="text-sm font-medium bg-primary text-white px-4 py-2 rounded-xl hover:bg-primary/90 transition-colors shadow-sm"
+            className="text-sm font-medium bg-primary text-white px-5 py-2.5 rounded-xl hover:bg-primary/90 transition-colors shadow-sm"
           >
-            Client Login
+            Family Login
           </button>
         </div>
       </nav>
@@ -81,36 +81,38 @@ export default function Splash() {
           </div>
         </motion.div>
 
-        {/* Login Cards */}
-        <div className="grid md:grid-cols-2 gap-5 max-w-2xl mx-auto">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
+        {/* Login Cards — parent/family is primary */}
+        <div className="flex flex-col items-center gap-5 max-w-2xl mx-auto">
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="w-full">
             <button
               onClick={() => navigate("/ClientLogin")}
-              className="w-full bg-white/90 backdrop-blur-sm border-2 border-border hover:border-primary/60 rounded-2xl p-8 transition-all group text-left shadow-sm hover:shadow-md"
+              className="w-full bg-white backdrop-blur-sm border-2 border-primary/30 hover:border-primary/60 rounded-2xl p-8 md:p-10 transition-all group text-left shadow-md hover:shadow-lg"
             >
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 text-3xl" style={{ background: "linear-gradient(135deg, #e8f5f0, #d0ede8)" }}>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 text-4xl" style={{ background: "linear-gradient(135deg, #e8f5f0, #d0ede8)" }}>
                 👨‍👩‍👧
               </div>
-              <h2 className="text-xl font-bold text-foreground mb-1.5">Parent / Client Login</h2>
-              <p className="text-sm text-muted-foreground mb-4 leading-relaxed">Access your personalized support tools, behavior strategies, and AI assistance</p>
-              <div className="flex items-center gap-2 text-primary font-semibold text-sm group-hover:gap-3 transition-all">
-                Sign in <ArrowRight className="w-4 h-4" />
+              <h2 className="text-2xl font-bold text-foreground mb-2">Family and Client Login</h2>
+              <p className="text-sm text-muted-foreground mb-5 leading-relaxed max-w-md">Access your personalized support tools, log behaviors, and get AI-powered guidance between sessions</p>
+              <div className="inline-flex items-center gap-2 bg-primary text-white font-semibold text-sm px-6 py-3 rounded-xl group-hover:gap-3 transition-all shadow-sm">
+                Get Started <ArrowRight className="w-4 h-4" />
               </div>
             </button>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="w-full max-w-md">
             <button
               onClick={() => navigate("/ClinicianLogin")}
-              className="w-full bg-white/90 backdrop-blur-sm border-2 border-border hover:border-primary/60 rounded-2xl p-8 transition-all group text-left shadow-sm hover:shadow-md"
+              className="w-full bg-white/80 backdrop-blur-sm border border-border hover:border-primary/40 rounded-2xl px-6 py-5 transition-all group text-left shadow-sm hover:shadow-md"
             >
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 text-3xl" style={{ background: "linear-gradient(135deg, #eef3ff, #dde8ff)" }}>
-                🩺
-              </div>
-              <h2 className="text-xl font-bold text-foreground mb-1.5">Clinician Login</h2>
-              <p className="text-sm text-muted-foreground mb-4 leading-relaxed">Manage clients, upload care plans, and monitor behavioral progress</p>
-              <div className="flex items-center gap-2 text-primary font-semibold text-sm group-hover:gap-3 transition-all">
-                Sign in <ArrowRight className="w-4 h-4" />
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" style={{ background: "linear-gradient(135deg, #eef3ff, #dde8ff)" }}>
+                  🩺
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base font-bold text-foreground">Clinician Portal</h2>
+                  <p className="text-xs text-muted-foreground">Manage clients and care plans</p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
               </div>
             </button>
           </motion.div>
