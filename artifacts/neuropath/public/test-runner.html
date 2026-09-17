@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeuroPathways Frontend Test Runner</title>
+<style>
+  :root {
+    --bg: #fafafa; --fg: #1a1a1a; --card: #fff; --border: #e0e0e0;
+    --pass: #16a34a; --fail: #dc2626; --skip: #ca8a04; --muted: #6b7280;
+    --section-bg: #f3f4f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111; --fg: #e5e5e5; --card: #1a1a1a; --border: #333;
+            --section-bg: #1e1e1e; --muted: #9ca3af; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--fg); padding: 16px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); margin-bottom: 16px; font-size: 0.875rem; }
+  #summary { display: flex; gap: 16px; padding: 12px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  #summary .stat { font-size: 1.25rem; font-weight: 600; }
+  #summary .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; }
+  .pass-color { color: var(--pass); }
+  .fail-color { color: var(--fail); }
+  .skip-color { color: var(--skip); }
+  #progress { flex: 1 1 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  #progress-bar { height: 100%; background: var(--pass); transition: width 0.3s; width: 0%; }
+  .section { margin-bottom: 12px; }
+  .section-title { font-weight: 600; font-size: 0.9rem; padding: 8px 12px; background: var(--section-bg); border-radius: 6px 6px 0 0; border: 1px solid var(--border); border-bottom: none; }
+  .tests { border: 1px solid var(--border); border-radius: 0 0 6px 6px; }
+  .test-row { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--border); align-items: center; font-size: 0.85rem; }
+  .test-row:last-child { border-bottom: none; }
+  .icon { font-size: 1rem; text-align: center; }
+  .detail { color: var(--muted); font-size: 0.75rem; }
+  .running { opacity: 0.5; }
+  #controls { margin-bottom: 16px; display: flex; gap: 8px; }
+  button { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; font-size: 0.85rem; }
+  button:hover { background: var(--section-bg); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #log { margin-top: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; display: none; }
+</style>
+</head>
+<body>
+
+<h1>NeuroPathways Frontend Test Runner</h1>
+<p class="subtitle">Browser-based integration tests — same-origin, real API calls</p>
+
+<div id="controls">
+  <button id="btn-run" onclick="runTests()">Run Tests</button>
+  <button id="btn-log" onclick="toggleLog()">Show Log</button>
+</div>
+
+<div id="summary">
+  <div><div class="stat" id="s-total">0</div><div class="label">Total</div></div>
+  <div><div class="stat pass-color" id="s-pass">0</div><div class="label">Passed</div></div>
+  <div><div class="stat fail-color" id="s-fail">0</div><div class="label">Failed</div></div>
+  <div><div class="stat skip-color" id="s-skip">0</div><div class="label">Skipped</div></div>
+  <div id="progress"><div id="progress-bar"></div></div>
+</div>
+
+<div id="results"></div>
+<pre id="log"></pre>
+
+<script>
+const API = '/api';
+let stats = { total: 0, pass: 0, fail: 0, skip: 0 };
+let sections = [];
+let currentSection = null;
+const logEl = document.getElementById('log');
+const RUN_ID = 'fe_' + Date.now();
+
+function log(msg) {
+  logEl.textContent += msg + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function toggleLog() {
+  logEl.style.display = logEl.style.display === 'none' ? 'block' : 'none';
+}
+
+function updateSummary() {
+  document.getElementById('s-total').textContent = stats.total;
+  document.getElementById('s-pass').textContent = stats.pass;
+  document.getElementById('s-fail').textContent = stats.fail;
+  document.getElementById('s-skip').textContent = stats.skip;
+  const pct = stats.total > 0 ? ((stats.pass / stats.total) * 100) : 0;
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-bar').style.background =
+    stats.fail > 0 ? 'var(--fail)' : 'var(--pass)';
+}
+
+function addSection(title) {
+  const section = { title, tests: [], el: null };
+  const container = document.getElementById('results');
+  const div = document.createElement('div');
+  div.className = 'section';
+  div.innerHTML = `<div class="section-title">${title}</div><div class="tests" id="sec-${sections.length}"></div>`;
+  container.appendChild(div);
+  section.el = div.querySelector('.tests');
+  sections.push(section);
+  currentSection = section;
+}
+
+function addTest(name, status, detail) {
+  stats.total++;
+  if (status === 'pass') stats.pass++;
+  else if (status === 'fail') stats.fail++;
+  else stats.skip++;
+
+  const icons = { pass: '✓', fail: '✗', skip: '⊘' };
+  const colors = { pass: 'pass-color', fail: 'fail-color', skip: 'skip-color' };
+
+  const row = document.createElement('div');
+  row.className = 'test-row';
+  row.innerHTML = `
+    <span class="icon ${colors[status]}">${icons[status]}</span>
+    <span>${name}</span>
+    <span class="detail">${detail || ''}</span>
+  `;
+  currentSection.el.appendChild(row);
+  updateSummary();
+}
+
+async function api(method, path, body, opts = {}) {
+  const config = { method, credentials: 'include', headers: {} };
+  if (body && !(body instanceof FormData)) {
+    config.headers['Content-Type'] = 'application/json';
+    config.body = JSON.stringify(body);
+  } else if (body instanceof FormData) {
+    config.body = body;
+  }
+  if (opts.headers) Object.assign(config.headers, opts.headers);
+  try {
+    const res = await fetch(API + path, config);
+    const text = await res.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch {}
+    log(`${method} ${path} → ${res.status}`);
+    return { status: res.status, json, text, headers: res.headers };
+  } catch (e) {
+    log(`${method} ${path} → ERROR: ${e.message}`);
+    return { status: 0, json: null, text: '', headers: new Headers(), error: e };
+  }
+}
+
+async function runTests() {
+  document.getElementById('btn-run').disabled = true;
+  stats = { total: 0, pass: 0, fail: 0, skip: 0 };
+  document.getElementById('results').innerHTML = '';
+  sections = [];
+  logEl.textContent = '';
+  log('Test run started: ' + new Date().toISOString());
+  log('Run ID: ' + RUN_ID);
+
+  const EMAIL = RUN_ID + '@test.neuropathways.dev';
+  const PASS_W = 'TestPass123!';
+  const CLIENT_USER = RUN_ID + '_client';
+  const CLIENT_CODE = 'TEST1234';
+  let familyId, childId, childId2, bpId, docId, clientToken;
+
+  // ── 1. Health ──
+  addSection('1. Health & Connectivity');
+  let r = await api('GET', '/healthz');
+  addTest('GET /healthz returns 200', r.status === 200 ? 'pass' : 'fail', `got ${r.status}`);
+  addTest('Health body contains ok', r.json?.status === 'ok' ? 'pass' : 'fail');
+
+  // ── 2. Security Headers ──
+  addSection('2. Security Headers');
+  r = await api('GET', '/healthz');
+  const h = r.headers;
+  addTest('X-Content-Type-Options: nosniff',
+    h.get('x-content-type-options')?.includes('nosniff') ? 'pass' : 'fail');
+  addTest('X-Frame-Options present', h.has('x-frame-options') ? 'pass' : 'fail');
+  addTest('X-Powered-By absent', !h.has('x-powered-by') ? 'pass' : 'fail');
+
+  // ── 3. Auth Guards ──
+  addSection('3. Auth Guards — Unauthenticated');
+  const guardRoutes = ['children','families','behavior-plans','documents',
+    'behavior-logs','reward-tokens','messages','users/me','clinician-data'];
+  for (const route of guardRoutes) {
+    r = await api('GET', '/' + route);
+    if (r.status === 429) { addTest(`GET /${route} requires auth`, 'skip', 'rate limited'); continue; }
+    addTest(`GET /${route} requires auth`, r.status === 401 ? 'pass' : 'fail', `got ${r.status}`);
+  }
+
+  // ── 4. Clinician Registration ──
+  addSection('4. Clinician Registration & Login');
+  r = await api('POST', '/clinician/register', {});
+  addTest('Register rejects empty body', r.status === 400 ? 'pass' : 'fail', `got ${r.status}`);
+
+  r = await api('POST', '/clinician/register', { email: 'a@b.com', password: 'short' });
+  addTest('Register rejects short password', r.status === 400 ? 'pass' : 'fail', `got ${r.status}`);
+
+  r = await api('POST', '/clinician/register', {
+    email: EMAIL, password: PASS_W, firstName: 'Test', lastName: 'Clinician'
+  });
+  addTest('Register creates account', r.json?.ok ? 'pass' : 'fail');
+
+  r = await api('POST', '/clinician/register', { email: EMAIL, password: PASS_W });
+  addTest('Duplicate registration → 409', r.status === 409 ? 'pass' : 'fail', `got ${r.status}`);
+
+  r = await api('POST', '/clinician/login', { email: EMAIL, password: 'WrongPass99' });
+  addTest('Login rejects wrong password', r.status === 401 ? 'pass' : 'fail', `got ${r.status}`);
+
+  r = await api('POST', '/clinician/login', { email: EMAIL, password: PASS_W });
+  addTest('Login succeeds', r.json?.ok ? 'pass' : 'fail');
+
+  // ── 5. Authenticated Operations ──
+  addSection('5. Authenticated Clinician Operations');
+  r = await api('GET', '/users/me');
+  addTest('GET /users/me returns user data', r.json?.email ? 'pass' : 'fail');
+
+  r = await api('GET', '/clinician-data');
+  addTest('GET /clinician-data returns 200', r.status === 200 ? 'pass' : 'fail', `got ${r.status}`);
+
+  // ── 6. Create Client Account ──
+  addSection('6. Create Client Account');
+  r = await api('POST', '/create-client-account', {
+    accountType: 'parent_family',
+    familyName: RUN_ID + ' Family',
+    parentName: 'Parent Test',
+    accountEmail: 'parent-' + RUN_ID + '@test.dev',
+    children: [
+      { child_name: 'Child One', age: 8, diagnosis: 'ASD' },
+      { child_name: 'Child Two', age: 5 }
+    ],
+    clientAccount: { username: CLIENT_USER, access_code: CLIENT_CODE }
+  });
+  if (r.json) {
+    familyId = r.json.id;
+    if (r.json.children?.length >= 1) childId = r.json.children[0].id;
+    if (r.json.children?.length >= 2) childId2 = r.json.children[1].id;
+  }
+  addTest('Returns family ID', familyId ? 'pass' : 'fail');
+  addTest('Returns child IDs', childId ? 'pass' : 'fail');
+  log(`  family=${familyId}, child1=${childId}, child2=${childId2}`);
+
+  // ── 7. CRUD — Behavior Plans ──
+  addSection('7. CRUD — Behavior Plans');
+  if (childId) {
+    r = await api('POST', '/behavior-plans', {
+      child_id: childId, behavior_name: 'Test Plan', behavior_description: 'Created by frontend test'
+    });
+    bpId = r.json?.id;
+    addTest('POST /behavior-plans creates plan', bpId ? 'pass' : 'fail');
+
+    if (bpId) {
+      r = await api('GET', '/behavior-plans/' + bpId);
+      addTest('GET /behavior-plans/:id returns 200', r.status === 200 ? 'pass' : 'fail');
+
+      r = await api('PATCH', '/behavior-plans/' + bpId, { behavior_description: 'Updated by frontend' });
+      addTest('PATCH /behavior-plans/:id updates', r.json?.behaviorDescription?.includes('Updated') ? 'pass' : 'fail');
+    }
+  } else {
+    addTest('Behavior plans CRUD', 'skip', 'no child ID');
+  }
+
+  // ── 8. CRUD — Documents ──
+  addSection('8. CRUD — Documents');
+  if (childId) {
+    r = await api('POST', '/documents', {
+      child_id: childId, title: 'Test Doc', category: 'assessment', file_name: 'test.pdf'
+    });
+    docId = r.json?.id;
+    addTest('POST /documents creates document', docId ? 'pass' : 'fail');
+  } else {
+    addTest('Documents CRUD', 'skip', 'no child ID');
+  }
+
+  // ── 9. CRUD — Behavior Logs ──
+  addSection('9. CRUD — Behavior Logs & Win Logs');
+  if (childId) {
+    r = await api('POST', '/behavior-logs', {
+      child_id: childId, behavior_type: 'aggression', intensity: 'moderate', notes: 'Frontend test'
+    });
+    addTest('POST /behavior-logs creates log', r.json?.id ? 'pass' : 'fail');
+
+    r = await api('POST', '/win-logs', { child_id: childId, description: 'Frontend win' });
+    addTest('POST /win-logs creates win log', r.json?.id ? 'pass' : 'fail');
+  } else {
+    addTest('Logs CRUD', 'skip', 'no child ID');
+  }
+
+  // ── 10. Client Detail ──
+  addSection('10. Client & Family Detail');
+  if (childId) {
+    r = await api('GET', '/client-detail?child_id=' + childId);
+    addTest('GET /client-detail returns 200', r.status === 200 ? 'pass' : 'fail');
+    addTest('Client detail has plans', r.json?.plans !== undefined ? 'pass' : 'fail');
+    addTest('Client detail has documents', r.json?.documents !== undefined ? 'pass' : 'fail');
+  }
+  if (familyId) {
+    r = await api('GET', '/family-detail?family_id=' + familyId);
+    addTest('GET /family-detail returns 200', r.status === 200 ? 'pass' : 'fail');
+    addTest('Family detail has children', r.json?.children !== undefined ? 'pass' : 'fail');
+  }
+
+  // ── 11. Client Session Login ──
+  addSection('11. Client Session Login');
+  r = await api('POST', '/client-session/login', { username: 'nonexistent', access_code: 'WRONG' });
+  addTest('Rejects invalid creds', r.status === 401 ? 'pass' : 'fail', `got ${r.status}`);
+
+  r = await api('POST', '/client-session/login', { username: CLIENT_USER, access_code: CLIENT_CODE });
+  clientToken = r.json?.invite_token;
+  addTest('Client login succeeds', clientToken ? 'pass' : 'fail');
+
+  // ── 12. Client Portal Data ──
+  addSection('12. Client Portal Data');
+  if (clientToken && childId) {
+    r = await api('POST', '/client-portal-data', {
+      child_id: childId, invite_token: clientToken
+    });
+    addTest('Returns child info', r.json?.child ? 'pass' : 'fail');
+    addTest('Returns plans', r.json?.plans !== undefined ? 'pass' : 'fail');
+    addTest('Returns behavior logs', (r.json?.behaviorLogs || r.json?.behavior_logs) !== undefined ? 'pass' : 'fail');
+  } else {
+    addTest('Client portal data', 'skip', 'no client token');
+  }
+
+  // ── 13. Client Behavior Log via Token ──
+  addSection('13. Client Token — Entity Routes');
+  if (clientToken && childId) {
+    r = await api('POST', '/behavior-logs', {
+      child_id: childId, invite_token: clientToken, behavior_type: 'tantrum', intensity: 'low'
+    });
+    addTest('POST /behavior-logs with invite_token', r.json?.id ? 'pass' : 'fail');
+
+    r = await api('POST', '/win-logs', {
+      child_id: childId, invite_token: clientToken, description: 'Client frontend win'
+    });
+    addTest('POST /win-logs with invite_token', r.json?.id ? 'pass' : 'fail');
+  } else {
+    addTest('Client entity routes', 'skip', 'no client token');
+  }
+
+  // ── 14. Change Access Code ──
+  addSection('14. Change Access Code');
+  r = await api('POST', '/client-session/change-access-code', {
+    username: CLIENT_USER, current_access_code: 'WRONGCODE', new_access_code: 'NEWCODE1'
+  });
+  addTest('Rejects wrong current code', r.status === 401 ? 'pass' : 'fail', `got ${r.status}`);
+
+  r = await api('POST', '/client-session/change-access-code', {
+    username: CLIENT_USER, current_access_code: CLIENT_CODE, new_access_code: 'NEWFE99'
+  });
+  addTest('Change access code succeeds', r.json?.ok ? 'pass' : 'fail');
+
+  r = await api('POST', '/client-session/login', { username: CLIENT_USER, access_code: 'NEWFE99' });
+  addTest('Login works with new code', r.json?.invite_token ? 'pass' : 'fail');
+
+  r = await api('POST', '/client-session/login', { username: CLIENT_USER, access_code: CLIENT_CODE });
+  addTest('Old code no longer works', r.status === 401 ? 'pass' : 'fail', `got ${r.status}`);
+
+  // ── 15. Security — Legacy Token Rejection ──
+  addSection('15. Security Checks');
+  r = await api('POST', '/client-portal-data', {
+    child_id: childId || 'fake', invite_token: 'cs_legacy_fake_token_12345'
+  });
+  addTest('Rejects legacy cs_ token', (r.status === 401 || r.json?.error) ? 'pass' : 'fail');
+
+  r = await api('GET', '/children', null, {});
+  addTest('Authenticated route returns data', r.status === 200 ? 'pass' : 'fail');
+
+  // ── 16. Input Validation ──
+  addSection('16. Input Validation');
+  r = await api('GET', '/client-detail');
+  addTest('client-detail requires child_id', r.status === 400 ? 'pass' : 'fail', `got ${r.status}`);
+
+  r = await api('GET', '/family-detail');
+  addTest('family-detail requires family_id', r.status === 400 ? 'pass' : 'fail', `got ${r.status}`);
+
+  r = await api('POST', '/manage-client-record', { action: 'destroyEverything' });
+  addTest('Unknown action → 400', r.status === 400 ? 'pass' : 'fail', `got ${r.status}`);
+
+  // ── 17. API Response Format ──
+  addSection('17. API Response Format');
+  r = await api('GET', '/healthz');
+  addTest('Health returns valid JSON', r.json !== null ? 'pass' : 'fail');
+
+  r = await api('GET', '/children');
+  addTest('Children returns array', Array.isArray(r.json) ? 'pass' : 'fail');
+
+  // ── 18. Cleanup ──
+  addSection('18. Cleanup');
+  if (bpId) {
+    r = await api('DELETE', '/behavior-plans/' + bpId);
+    addTest('DELETE /behavior-plans/:id', r.status === 200 ? 'pass' : 'fail');
+  }
+  if (docId) {
+    r = await api('DELETE', '/documents/' + docId);
+    addTest('DELETE /documents/:id', r.status === 200 ? 'pass' : 'fail');
+  }
+  if (familyId) {
+    r = await api('POST', '/manage-client-record', { action: 'deleteFamily', entity_id: familyId });
+    addTest('Delete family + children', r.json?.ok ? 'pass' : 'fail');
+  }
+
+  log('\nTest run complete: ' + new Date().toISOString());
+  log(`Results: ${stats.pass} passed, ${stats.fail} failed, ${stats.skip} skipped out of ${stats.total}`);
+  document.getElementById('btn-run').disabled = false;
+}
+</script>
+</body>
+</html>
