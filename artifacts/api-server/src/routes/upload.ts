@@ -1,9 +1,21 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
 import path from "node:path";
 import fs from "node:fs";
 
 const router = Router();
+
+function requireAuth(req: any, res: any, next: any) {
+  if (!req.user) return res.status(401).json({ error: "Authentication required" });
+  next();
+}
+
+const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
 
 // Store uploads in a local folder — swap for object storage in production
 const uploadDir = path.resolve(process.cwd(), "uploads");
@@ -22,9 +34,12 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
 });
 
-router.post("/upload", upload.single("file"), (req, res) => {
+router.post("/upload", requireAuth, upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file provided" });
-  // Return a URL that can be stored and served back
+  if (!ALLOWED_MIME_TYPES.has(req.file.mimetype)) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "File type not allowed. Accepted: PDF, PNG, JPG, DOCX" });
+  }
   const fileUrl = `/api/uploads/${req.file.filename}`;
   res.json({ file_url: fileUrl, file_name: req.file.originalname });
 });
