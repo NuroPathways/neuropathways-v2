@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
-import { Brain, Users, MessageSquare, LogOut, Menu, X, ChevronRight, FileText, Settings, Baby, AlertCircle, BarChart2, Upload, ShieldAlert, Home, Bot, Target } from "lucide-react";
+import { Brain, Users, MessageSquare, LogOut, Menu, X, ChevronRight, FileText, Settings, Baby, AlertCircle, BarChart2, Upload, ShieldAlert, Home, Bot, Target, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -11,9 +11,9 @@ const noLayoutPages = ["Splash", "Login", "RoleSelection", "ClinicianLogin", "Pa
 // Parent bottom tabs
 const PARENT_TABS = [
   { label: "Home", icon: Home, to: "/ParentDashboard", pages: ["ParentDashboard", "ClientDashboard", "ChildProfile"] },
+  { label: "Log", icon: ClipboardList, to: "/LogBehavior", pages: ["LogBehavior"] },
   { label: "AI Chat", icon: Bot, to: "/AIChat", pages: ["AIChat"] },
   { label: "Messages", icon: MessageSquare, to: "/Messages", pages: ["Messages"] },
-  { label: "Settings", icon: Settings, to: "/Settings", pages: ["Settings"] },
 ];
 
 // Clinician bottom tabs

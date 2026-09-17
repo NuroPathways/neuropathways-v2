@@ -34,11 +34,9 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
 
   const tools = [
     { label: "NeuroPath AI", sub: "Get support right now", icon: Brain, color: "bg-primary/10", iconColor: "text-primary", path: "/AIChat" },
-    { label: "My Documents", sub: "Treatment plans & materials", icon: FileText, color: "bg-blue-50", iconColor: "text-blue-600", path: "/DocumentCenter" },
-    { label: "My Progress", sub: "Trends & behavior history", icon: TrendingUp, color: "bg-purple-50", iconColor: "text-purple-600", path: "/ProgressReports" },
+    { label: "My Documents", sub: "Plans and materials", icon: FileText, color: "bg-blue-50", iconColor: "text-blue-600", path: "/DocumentCenter" },
     { label: "Messages", sub: "Chat with your clinician", icon: MessageSquare, color: "bg-green-50", iconColor: "text-green-600", path: "/Messages" },
-    { label: "Goals & Milestones", sub: "Track progress & milestones", icon: Target, color: "bg-yellow-50", iconColor: "text-yellow-600", path: "/GoalsMilestones" },
-    { label: "Settings", sub: "Your account preferences", icon: Shield, color: "bg-muted", iconColor: "text-muted-foreground", path: "/Settings" },
+    { label: "My Progress", sub: "Trends over time", icon: TrendingUp, color: "bg-purple-50", iconColor: "text-purple-600", path: "/ProgressReports" },
   ];
 
   return (
@@ -46,7 +44,7 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
       <WinTodayButton userId={user?.id} inviteToken={user?.invite_token} children={profile ? [profile] : []} />
 
       {/* Hero */}
-      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,42%) 0%, hsl(180,29%,50%) 100%)" }}>
+      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(248,32%,45%) 0%, hsl(280,28%,52%) 100%)" }}>
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-4 right-10 w-40 h-40 rounded-full bg-white" />
           <div className="absolute -bottom-8 left-20 w-56 h-56 rounded-full bg-white" />
@@ -63,9 +61,9 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
               </div>
               <p className="text-white/70 text-sm">{getGreeting()},</p>
               <h1 className="text-2xl md:text-3xl font-bold text-white mt-0.5 mb-1">
-                {firstName} 👋
+                {firstName}
               </h1>
-              <p className="text-white/60 text-sm">Your personal behavioral support hub</p>
+              <p className="text-white/60 text-sm">Your personal support hub</p>
             </div>
             {unreadMessages > 0 && (
               <button
@@ -100,24 +98,33 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
 
       <div className="px-5 md:px-10 py-7 max-w-5xl mx-auto space-y-7">
 
-        {/* I Need Help Now */}
-        <motion.button
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => navigate(profile ? `/HelpNow?child_id=${profile.id}` : "/HelpNow")}
-          className="w-full bg-red-600 hover:bg-red-700 rounded-2xl p-5 flex items-center justify-between text-left transition-colors shadow-lg shadow-red-200"
-        >
-          <div className="flex items-center gap-4">
+        {/* Quick actions — Log and Help are the two most frequent needs */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => navigate(profile ? `/LogBehavior?child_id=${profile.id}` : "/LogBehavior")}
+            className="bg-primary hover:bg-primary/90 rounded-2xl p-5 flex items-center gap-4 text-left transition-colors shadow-md"
+          >
+            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+              <ClipboardList className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-white font-bold text-base">Quick Log</p>
+              <p className="text-white/70 text-xs">Record a behavior</p>
+            </div>
+          </button>
+          <button
+            onClick={() => navigate(profile ? `/HelpNow?child_id=${profile.id}` : "/HelpNow")}
+            className="bg-red-600 hover:bg-red-700 rounded-2xl p-5 flex items-center gap-4 text-left transition-colors shadow-md"
+          >
             <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
               <AlertCircle className="w-6 h-6 text-white" />
             </div>
             <div>
-              <p className="text-white font-bold text-base">I Need Help Right Now</p>
-              <p className="text-white/70 text-xs">Get instant clinician-approved guidance for yourself</p>
+              <p className="text-white font-bold text-base">Help Now</p>
+              <p className="text-white/70 text-xs">Get instant guidance</p>
             </div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-white/70 flex-shrink-0" />
-        </motion.button>
+          </button>
+        </motion.div>
 
         {/* Goal Widget */}
         <GoalWidget childIds={childIds} />
@@ -248,18 +255,16 @@ function FamilyDashboard({ user, children, recentLogs, unreadMessages, loading, 
 
   const tools = [
     { label: "NeuroPath AI", sub: "Ask about your child's plan", icon: Brain, color: "bg-primary/10", iconColor: "text-primary", path: "/AIChat" },
-    { label: "Documents", sub: "View care plans & materials", icon: FileText, color: "bg-blue-50", iconColor: "text-blue-600", path: "/DocumentCenter" },
-    { label: "Goals & Milestones", sub: "Track progress & milestones", icon: Target, color: "bg-yellow-50", iconColor: "text-yellow-600", path: "/GoalsMilestones" },
+    { label: "Documents", sub: "Plans and materials", icon: FileText, color: "bg-blue-50", iconColor: "text-blue-600", path: "/DocumentCenter" },
     { label: "Messages", sub: "Chat with your clinician", icon: MessageSquare, color: "bg-green-50", iconColor: "text-green-600", path: "/Messages" },
-    { label: "Progress", sub: "Behavior trends over time", icon: TrendingUp, color: "bg-purple-50", iconColor: "text-purple-600", path: "/ProgressReports" },
-    { label: "Settings", sub: "Your account preferences", icon: Shield, color: "bg-muted", iconColor: "text-muted-foreground", path: "/Settings" },
+    { label: "Progress", sub: "Trends over time", icon: TrendingUp, color: "bg-purple-50", iconColor: "text-purple-600", path: "/ProgressReports" },
   ];
 
   return (
     <div className="min-h-screen bg-background font-inter">
       <WinTodayButton userId={user?.id} inviteToken={user?.invite_token} children={children} defaultChildId={isClientSession ? selectedChildId : undefined} />
 
-      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,42%) 0%, hsl(180,29%,50%) 100%)" }}>
+      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(248,32%,45%) 0%, hsl(280,28%,52%) 100%)" }}>
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-4 right-10 w-40 h-40 rounded-full bg-white" />
           <div className="absolute -bottom-8 left-20 w-56 h-56 rounded-full bg-white" />
@@ -276,9 +281,9 @@ function FamilyDashboard({ user, children, recentLogs, unreadMessages, loading, 
               </div>
               <p className="text-white/70 text-sm">{getGreeting()},</p>
               <h1 className="text-2xl md:text-3xl font-bold text-white mt-0.5 mb-1">
-                {loading ? "..." : firstName} 👋
+                {loading ? "..." : firstName}
               </h1>
-              <p className="text-white/60 text-sm">Your family's behavioral support hub</p>
+              <p className="text-white/60 text-sm">Your family's support hub</p>
             </div>
             {unreadMessages > 0 && (
               <button
@@ -335,23 +340,33 @@ function FamilyDashboard({ user, children, recentLogs, unreadMessages, loading, 
           </motion.div>
         )}
 
-        <motion.button
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => navigate("/HelpNow")}
-          className="w-full bg-red-600 hover:bg-red-700 rounded-2xl p-5 flex items-center justify-between text-left transition-colors shadow-lg shadow-red-200"
-        >
-          <div className="flex items-center gap-4">
+        {/* Quick actions — Log and Help are the two most frequent parent needs */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => navigate("/LogBehavior")}
+            className="bg-primary hover:bg-primary/90 rounded-2xl p-5 flex items-center gap-4 text-left transition-colors shadow-md"
+          >
+            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+              <ClipboardList className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-white font-bold text-base">Quick Log</p>
+              <p className="text-white/70 text-xs">Record a behavior</p>
+            </div>
+          </button>
+          <button
+            onClick={() => navigate("/HelpNow")}
+            className="bg-red-600 hover:bg-red-700 rounded-2xl p-5 flex items-center gap-4 text-left transition-colors shadow-md"
+          >
             <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
               <AlertCircle className="w-6 h-6 text-white" />
             </div>
             <div>
-              <p className="text-white font-bold text-base">I Need Help Right Now</p>
-              <p className="text-white/70 text-xs">Get instant clinician-approved guidance</p>
+              <p className="text-white font-bold text-base">Help Now</p>
+              <p className="text-white/70 text-xs">Get instant guidance</p>
             </div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-white/70 flex-shrink-0" />
-        </motion.button>
+          </button>
+        </motion.div>
 
         {/* Goal Widget */}
         <GoalWidget childIds={activeChildIds} prefetchedGoals={portalGoals} />
