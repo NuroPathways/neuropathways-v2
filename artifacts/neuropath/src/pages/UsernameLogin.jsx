@@ -141,6 +141,25 @@ export default function UsernameLogin() {
           </form>
         </div>
 
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-4">
+          <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider mb-2">Demo Accounts</p>
+          <div className="space-y-1.5 text-xs text-amber-900 font-mono">
+            {[
+              { u: "rivera.parent", c: "DEMO01", label: "Rivera (ADHD + Dyslexia)" },
+              { u: "nguyen.parent", c: "DEMO02", label: "Nguyen (Sensory)" },
+              { u: "jordan.e",     c: "DEMO03", label: "Jordan (Anxiety)" },
+              { u: "alex.m",       c: "DEMO04", label: "Alex (ADHD)" },
+            ].map(d => (
+              <button key={d.u} type="button" onClick={() => { setUsername(d.u); setAccessCode(d.c); }}
+                className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer">
+                <span className="font-semibold">{d.u}</span> / <span>{d.c}</span>
+                <span className="text-amber-700 font-sans text-[10px] ml-1.5">{d.label}</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-amber-600 mt-2">Tap an account to auto-fill, then press Sign In.</p>
+        </div>
+
         <div className="mt-6 text-center space-y-3">
           <p className="text-xs text-muted-foreground">
             Are you a clinician?{" "}

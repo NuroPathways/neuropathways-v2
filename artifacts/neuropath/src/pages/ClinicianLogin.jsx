@@ -209,6 +209,16 @@ export default function ClinicianLogin() {
           </AnimatePresence>
         </div>
 
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-4">
+          <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider mb-2">Demo Account</p>
+          <button type="button" onClick={() => { setMode("email-login"); setForm(f => ({ ...f, email: "demo@neuropathways.app", password: "Demo2026!np" })); }}
+            className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer text-xs font-mono text-amber-900">
+            <span className="font-semibold">demo@neuropathways.app</span> / <span>Demo2026!np</span>
+            <span className="text-amber-700 font-sans text-[10px] ml-1.5">Dr. Sarah Chen — 4 families, 5 clients</span>
+          </button>
+          <p className="text-[10px] text-amber-600 mt-2">Tap to auto-fill, then press Sign In.</p>
+        </div>
+
         <button onClick={() => navigate("/")} className="mt-6 text-sm text-muted-foreground hover:text-foreground block mx-auto">
           ← Back to welcome page
         </button>
