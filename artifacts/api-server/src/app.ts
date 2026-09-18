@@ -52,14 +52,19 @@ app.use(
 );
 
 const allowedOrigins = (process.env.CORS_ORIGIN || "https://nuropath-ai.replit.app").split(",");
+const REPLIT_SLUG = process.env.REPL_SLUG;
+const REPLIT_OWNER = process.env.REPL_OWNER;
 app.use(cors({
   credentials: true,
   origin(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(null, false);
+      return callback(null, true);
     }
+    if (origin && (origin.endsWith(".replit.dev") || origin.endsWith(".replit.app"))
+        && REPLIT_SLUG && origin.includes(REPLIT_SLUG)) {
+      return callback(null, true);
+    }
+    callback(null, false);
   },
 }));
 app.use(cookieParser());
