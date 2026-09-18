@@ -49,11 +49,10 @@ async function apiFetch(path, options = {}) {
     ...options,
   });
   if (res.status === 401) {
-    // Only redirect clinicians to OIDC login — client sessions (username+code) should not be
-    // bounced to the clinician login page; they handle their own session expiry.
+    // Client sessions (username+code) handle their own session expiry.
     const isClientSession = !!localStorage.getItem("np_client_session");
     if (!isClientSession) {
-      window.location.href = `/api/login?returnTo=${encodeURIComponent(window.location.pathname)}`;
+      window.location.href = `/ClinicianLogin?returnTo=${encodeURIComponent(window.location.pathname)}`;
       return new Promise(() => {});
     }
     throw new Error("API error 401: session expired");

@@ -32,8 +32,8 @@ function SmartSelect({ label, options, value, onValueChange, placeholder, textPl
   if (!options || options.length === 0) {
     return (
       <Textarea
-        value={isOther ? customText : value}
-        onChange={e => onValueChange("__other__", e.target.value)}
+        value={customText}
+        onChange={e => handleCustom(e.target.value)}
         placeholder={textPlaceholder || placeholder}
         className="rounded-xl"
         rows={2}

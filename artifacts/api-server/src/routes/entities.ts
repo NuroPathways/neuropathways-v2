@@ -218,8 +218,11 @@ const SENSITIVE_FIELDS = ["access_code", "password_hash"];
 function stripSensitive(row: any): any {
   if (Array.isArray(row)) return row.map(stripSensitive);
   if (row && typeof row === "object") {
-    const out = { ...row };
-    for (const f of SENSITIVE_FIELDS) delete out[f];
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (SENSITIVE_FIELDS.includes(k)) continue;
+      out[k] = (v && typeof v === "object") ? stripSensitive(v) : v;
+    }
     return out;
   }
   return row;
