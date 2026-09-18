@@ -228,9 +228,10 @@ async function runTests() {
     clientAccount: { username: CLIENT_USER, access_code: CLIENT_CODE }
   });
   if (r.json) {
-    familyId = r.json.id;
-    if (r.json.children?.length >= 1) childId = r.json.children[0].id;
-    if (r.json.children?.length >= 2) childId2 = r.json.children[1].id;
+    familyId = r.json.family?.id ?? r.json.id;
+    const kids = r.json.children ?? [];
+    if (kids.length >= 1) childId = kids[0].id;
+    if (kids.length >= 2) childId2 = kids[1].id;
   }
   addTest('Returns family ID', familyId ? 'pass' : 'fail');
   addTest('Returns child IDs', childId ? 'pass' : 'fail');
@@ -250,7 +251,8 @@ async function runTests() {
       addTest('GET /behavior-plans/:id returns 200', r.status === 200 ? 'pass' : 'fail');
 
       r = await api('PATCH', '/behavior-plans/' + bpId, { behavior_description: 'Updated by frontend' });
-      addTest('PATCH /behavior-plans/:id updates', r.json?.behaviorDescription?.includes('Updated') ? 'pass' : 'fail');
+      addTest('PATCH /behavior-plans/:id updates',
+        (r.json?.behavior_description ?? r.json?.behaviorDescription ?? '').includes('Updated') ? 'pass' : 'fail');
     }
   } else {
     addTest('Behavior plans CRUD', 'skip', 'no child ID');

@@ -214,6 +214,17 @@ async function auditLog(opts: {
 // Automatically scopes list queries by clinicianId for clinician users
 // ──────────────────────────────────────────────
 
+const SENSITIVE_FIELDS = ["access_code", "password_hash"];
+function stripSensitive(row: any): any {
+  if (Array.isArray(row)) return row.map(stripSensitive);
+  if (row && typeof row === "object") {
+    const out = { ...row };
+    for (const f of SENSITIVE_FIELDS) delete out[f];
+    return out;
+  }
+  return row;
+}
+
 function makeCrud(path: string, table: any) {
   router.get(path, requireAuth, async (req: any, res) => {
     try {
@@ -233,7 +244,7 @@ function makeCrud(path: string, table: any) {
       const rows = clauses.length > 0
         ? await db.select().from(table).where(and(...clauses))
         : await db.select().from(table);
-      res.json(serialize(rows));
+      res.json(stripSensitive(serialize(rows)));
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -247,7 +258,7 @@ function makeCrud(path: string, table: any) {
       if (table.tenantId) data.tenantId = req.user.id; // tenantId = clinicianId until multi-clinic
       if (table.createdBy) data.createdBy = req.user.id;
       const [row] = await db.insert(table).values(data).returning();
-      res.status(201).json(serialize(row));
+      res.status(201).json(stripSensitive(serialize(row)));
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -266,7 +277,7 @@ function makeCrud(path: string, table: any) {
         await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "tenantId mismatch" });
         return res.status(403).json({ error: "Access denied" });
       }
-      res.json(serialize(row));
+      res.json(stripSensitive(serialize(row)));
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -286,7 +297,7 @@ function makeCrud(path: string, table: any) {
         .set(bodyToCamel(req.body))
         .where(eq(table.id, req.params.id))
         .returning();
-      res.json(serialize(row));
+      res.json(stripSensitive(serialize(row)));
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -697,7 +708,8 @@ router.post("/create-client-account", requireAuth, async (req: any, res) => {
 
     console.info(`[NeuroPath] Account created: ${accountType} family=${family.id} children=${createdChildren.length} username=${clientAccount?.username ?? "none"}`);
 
-    res.status(201).json(serialize({ family: serializeFamily(family), children: createdChildren }));
+    const safeChildren = createdChildren.map(({ accessCode, ...rest }) => rest);
+    res.status(201).json(serialize({ family: serializeFamily(family), children: safeChildren }));
   } catch (e: any) {
     console.error("[NeuroPath] createClientAccount error:", e.message);
     res.status(500).json({ error: e.message });
@@ -1377,7 +1389,8 @@ router.post("/add-child-to-family", requireAuth, async (req: any, res) => {
     await auditLog({ userId: req.user.id, userRole: "clinician", action: "child_added_to_family", targetType: "child", targetId: child.id, tenantId: req.user.id });
     console.info(`[NeuroPath] Child added to family: child=${child.id} family=${family_id}`);
 
-    res.status(201).json(serialize({ child }));
+    const { accessCode: _ac, ...safeChild } = child;
+    res.status(201).json(serialize({ child: safeChild }));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
