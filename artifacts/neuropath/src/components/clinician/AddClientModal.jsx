@@ -224,7 +224,7 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
         <div className="flex items-center justify-between p-6 border-b border-border flex-shrink-0">
           <div>
             <h2 className="font-semibold text-foreground text-base">Add New Client</h2>
-            {step < doneStep && <p className="text-xs text-muted-foreground mt-0.5">Step {step + 1} of {totalSteps}</p>}
+            {step > 0 && step < doneStep && <p className="text-xs text-muted-foreground mt-0.5">Step {step} of {totalSteps - 1}</p>}
           </div>
           <button onClick={handleClose} className="text-muted-foreground hover:text-foreground min-w-[44px] min-h-[44px] flex items-center justify-center">
             <X className="w-5 h-5" />

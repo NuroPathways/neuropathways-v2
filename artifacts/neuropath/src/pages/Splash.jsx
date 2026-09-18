@@ -28,7 +28,7 @@ export default function Splash() {
     <div className="min-h-screen font-inter overflow-x-hidden" style={{ background: "linear-gradient(135deg, #f3f0ff 0%, #ede8f5 50%, #f0f4ff 100%)" }}>
 
       {/* Navbar */}
-      <nav className="flex items-center justify-between px-6 py-5 max-w-6xl mx-auto">
+      <nav className="flex items-center justify-between flex-wrap gap-3 px-4 sm:px-6 py-4 sm:py-5 max-w-6xl mx-auto">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
             <Brain className="w-5 h-5 text-white" />
@@ -38,13 +38,13 @@ export default function Splash() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate("/ClinicianLogin")}
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-4 py-2 rounded-xl hover:bg-white/60"
+            className="text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 sm:px-4 py-2 rounded-xl hover:bg-white/60"
           >
-            Clinician Portal
+            Clinician
           </button>
           <button
             onClick={() => navigate("/ClientLogin")}
-            className="text-sm font-medium bg-primary text-white px-5 py-2.5 rounded-xl hover:bg-primary/90 transition-colors shadow-sm"
+            className="text-xs sm:text-sm font-medium bg-primary text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl hover:bg-primary/90 transition-colors shadow-sm"
           >
             Family Login
           </button>

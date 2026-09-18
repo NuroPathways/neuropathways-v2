@@ -30,7 +30,9 @@ export default function FamilyAccordionItem({ family, children, parentUsers, cli
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground">
-            {family.account_type === "individual" ? family.family_name : `${family.family_name} Family`}
+            {family.account_type === "individual"
+              ? family.family_name
+              : (family.family_name?.toLowerCase().endsWith("family") ? family.family_name : `${family.family_name} Family`)}
           </p>
           <p className="text-xs text-muted-foreground">
             {family.account_type === "individual"

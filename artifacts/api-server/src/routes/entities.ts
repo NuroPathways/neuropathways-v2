@@ -470,7 +470,7 @@ router.get("/clinician-data", requireAuth, async (req: any, res) => {
     ]);
 
     res.json({
-      children: serialize(children),
+      children: stripSensitive(serialize(children)),
       families: families.map(serializeFamily),
       clientAccounts: [],
       logs: serialize(logs),
@@ -540,7 +540,7 @@ router.post("/client-portal-data", async (req, res) => {
         )
       : (child ? [child] : []);
 
-    res.json(serialize({ child: child ?? null, siblings, plans, documents, interventionPlans, profile, goals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs }));
+    res.json(stripSensitive(serialize({ child: child ?? null, siblings, plans, documents, interventionPlans, profile, goals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs })));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -554,11 +554,12 @@ router.get("/client-detail", requireAuth, async (req: any, res) => {
   const { child_id } = req.query as Record<string, string>;
   if (!child_id) return res.status(400).json({ error: "child_id required" });
   try {
-    const [[child], plans, documents, interventionPlans] = await Promise.all([
+    const [[child], plans, documents, interventionPlans, behaviorLogs] = await Promise.all([
       db.select().from(childrenTable).where(eq(childrenTable.id, child_id)),
       db.select().from(behaviorPlansTable).where(eq(behaviorPlansTable.childId, child_id)),
       db.select().from(documentsTable).where(eq(documentsTable.childId, child_id)),
       db.select().from(interventionPlansTable).where(eq(interventionPlansTable.childId, child_id)),
+      db.select().from(behaviorLogsTable).where(eq(behaviorLogsTable.childId, child_id)),
     ]);
     if (!child) return res.status(404).json({ error: "Child not found" });
 
@@ -574,7 +575,7 @@ router.get("/client-detail", requireAuth, async (req: any, res) => {
 
     await auditLog({ userId: req.user.id, userRole: "clinician", action: "client_viewed", targetType: "child", targetId: child_id, tenantId: child.clinicianId ?? undefined });
 
-    res.json(serialize({ child, plans, documents, interventionPlans, clientAccount }));
+    res.json(stripSensitive(serialize({ child, plans, documents, interventionPlans, behaviorLogs, clientAccount })));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -628,7 +629,7 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
 
     res.json({
       family: serializeFamily(family),
-      children: serialize(children),
+      children: stripSensitive(serialize(children)),
       documents: serialize(allDocuments),
       clientAccount: serialize(clientAccount),
       stats: { logs: logsCount, messages: messagesCount, documents: allDocuments.length, plans: plansCount },

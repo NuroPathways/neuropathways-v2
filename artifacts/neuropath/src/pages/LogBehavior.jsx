@@ -115,7 +115,10 @@ export default function LogBehavior() {
       const me = authUser;
       if (!me) return;
       let kids = [];
-      if (me.children && me.children.length > 0) {
+      const isClinician = me.app_role === "clinician" || me.role === "clinician";
+      if (isClinician) {
+        kids = await base44.entities.Child.filter({ clinician_id: me.id }).catch(() => []);
+      } else if (me.children && me.children.length > 0) {
         kids = me.children;
       } else {
         const byId = await base44.entities.Child.filter({ parent_id: me.id }).catch(() => []);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
-import { ArrowLeft, User, FileText, Trash2, Edit2, Save, X, Upload, Download, Plus, Key, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, User, FileText, Trash2, Edit2, Save, X, Upload, Download, Plus, Key, Eye, EyeOff, ClipboardList } from "lucide-react";
 import ClientGoalsSection from "@/components/clinician/ClientGoalsSection";
 import DocScanButton from "@/components/clinician/DocScanButton";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ export default function ClientDetail() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [documents, setDocuments] = useState([]);
+  const [behaviorLogs, setBehaviorLogs] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [clinicianId, setClinicianId] = useState("");
   const [clientAccount, setClientAccount] = useState(null);
@@ -38,6 +39,7 @@ export default function ClientDetail() {
       setEditForm(d.child || {});
       setPlans(d.plans || []);
       setDocuments(d.documents || []);
+      setBehaviorLogs(d.behavior_logs || d.behaviorLogs || []);
       setClientAccount(d.clientAccount || null);
       setLoading(false);
     };
@@ -66,21 +68,25 @@ export default function ClientDetail() {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     setUploading(true);
-    const records = await Promise.all(files.map(async (file) => {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      const res = await base44.functions.invoke('manageClientRecord', {
-        action: 'createDocument',
-        data: {
-          child_id: childId,
-          title: file.name.replace(/\.[^/.]+$/, ""),
-          file_url,
-          file_name: file.name,
-          category: "other",
-        },
-      });
-      return res.data.record;
-    }));
-    setDocuments(prev => [...prev, ...records]);
+    try {
+      const records = await Promise.all(files.map(async (file) => {
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        const res = await base44.functions.invoke('manageClientRecord', {
+          action: 'createDocument',
+          data: {
+            child_id: childId,
+            title: file.name.replace(/\.[^/.]+$/, ""),
+            file_url,
+            file_name: file.name,
+            category: "other",
+          },
+        });
+        return res.data.record;
+      }));
+      setDocuments(prev => [...prev, ...records]);
+    } catch (err) {
+      alert(err?.message || "Upload failed. Only PDF, Word, and image files are allowed.");
+    }
     setUploading(false);
     e.target.value = "";
   };
@@ -228,6 +234,38 @@ export default function ClientDetail() {
 
         {/* Goals & Milestones */}
         <ClientGoalsSection childId={childId} clinicianId={clinicianId} />
+
+        {/* Behavior Logs */}
+        <div>
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h2 className="font-semibold text-foreground text-sm">Behavior Logs ({behaviorLogs.length})</h2>
+            <Button size="sm" variant="outline" className="rounded-xl gap-1.5 text-xs h-8" onClick={() => navigate(`/LogBehavior?child_id=${childId}`)}>
+              <ClipboardList className="w-3.5 h-3.5" /> Log Behavior
+            </Button>
+          </div>
+          {behaviorLogs.length === 0 ? (
+            <div className="text-center py-6 border-2 border-dashed border-border rounded-2xl">
+              <ClipboardList className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No behavior logs yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {behaviorLogs.slice(0, 10).map((log, i) => (
+                <motion.div key={log.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }} className="bg-card border border-border rounded-xl p-3 flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-foreground text-sm">{log.behavior_type || "Behavior"}</p>
+                      {log.intensity && <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${log.intensity === "high" || log.intensity === "severe" ? "bg-red-100 text-red-700" : log.intensity === "moderate" ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>{log.intensity}</span>}
+                    </div>
+                    {log.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{log.notes}</p>}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground flex-shrink-0">{log.created_at ? new Date(log.created_at).toLocaleDateString() : ""}</span>
+                </motion.div>
+              ))}
+              {behaviorLogs.length > 10 && <p className="text-xs text-muted-foreground text-center py-1">+ {behaviorLogs.length - 10} more</p>}
+            </div>
+          )}
+        </div>
 
         <div>
           <h2 className="font-semibold text-foreground text-sm mb-3 px-1">Behavior Plans ({plans.length})</h2>
