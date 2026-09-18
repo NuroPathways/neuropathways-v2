@@ -15,6 +15,22 @@ import {
 } from "@workspace/db";
 import { eq, and, gt } from "drizzle-orm";
 
+function scryptHash(input: string, salt: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(input, salt, 64, (err, key) => {
+      if (err) reject(err);
+      else resolve(key.toString("hex"));
+    });
+  });
+}
+
+async function verifyAccessCode(code: string, stored: string): Promise<boolean> {
+  if (!stored || !stored.includes(":")) return code.toUpperCase() === stored?.toUpperCase();
+  const [salt, storedHash] = stored.split(":");
+  const inputHash = await scryptHash(code.toUpperCase(), salt);
+  return inputHash === storedHash;
+}
+
 const router = Router();
 
 // ──────────────────────────────────────────────
@@ -58,13 +74,12 @@ router.post("/mobile/auth/login", async (req, res) => {
     const [child] = await db
       .select()
       .from(childrenTable)
-      .where(
-        and(
-          eq(childrenTable.username, username),
-          eq(childrenTable.accessCode, access_code)
-        )
-      );
-    if (!child) {
+      .where(eq(childrenTable.username, username));
+    if (!child || !child.accessCode) {
+      return res.status(401).json({ error: "Invalid username or access code" });
+    }
+    const valid = await verifyAccessCode(access_code, child.accessCode);
+    if (!valid) {
       return res.status(401).json({ error: "Invalid username or access code" });
     }
     const token = crypto.randomBytes(32).toString("hex");

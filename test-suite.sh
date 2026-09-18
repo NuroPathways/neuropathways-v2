@@ -228,10 +228,10 @@ assert_status "POST /manage-client-record requires auth" "$CODE" "401"
 CODE=$(http_post_noauth "/add-child-to-family" '{}'); throttle
 assert_status "POST /add-child-to-family requires auth" "$CODE" "401"
 
-# Upload requires auth
-CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/api/upload" \
-  -F "file=@/dev/null;filename=test.pdf;type=application/pdf" 2>/dev/null || echo "000"); throttle
-assert_status "POST /upload requires auth" "$CODE" "401"
+# Upload requires auth (Replit proxy rewrites 401→200 after 100 Continue on multipart, so check body)
+UPLOAD_BODY=$(curl -s -X POST "$API/api/upload" \
+  -F "file=@/dev/null;filename=test.pdf;type=application/pdf" 2>/dev/null || echo "{}"); throttle
+assert "POST /upload requires auth" 'echo "$UPLOAD_BODY" | grep -q "Authentication required"'
 
 
 # ═══════════════════════════════════════════════
