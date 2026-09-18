@@ -788,9 +788,11 @@ assert "Mobile login rejects bad creds" '[ "$CODE" = "401" ]'
 if [ -n "$CLIENT_USERNAME" ]; then
   BODY=$(http_post_noauth_body "/mobile/auth/login" \
     "{\"username\":\"$CLIENT_USERNAME\",\"access_code\":\"$CLIENT_ACCESS_CODE\"}")
-  MOBILE_TOKEN=$(echo "$BODY" | grep -o '"token":"[^"]*"' | head -1 | cut -d'"' -f4)
+  MOBILE_TOKEN=$(echo "$BODY" | grep -o '"token":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
   assert "Mobile login succeeds" '[ -n "$MOBILE_TOKEN" ]'
-  echo "    [Got mobile token: ${MOBILE_TOKEN:0:16}...]"
+  if [ -n "$MOBILE_TOKEN" ]; then
+    echo "    [Got mobile token: ${MOBILE_TOKEN:0:16}...]"
+  fi
 fi
 
 
