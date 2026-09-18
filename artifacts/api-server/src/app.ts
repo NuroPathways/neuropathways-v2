@@ -12,12 +12,15 @@ const app: Express = express();
 
 app.use(helmet());
 
+const RATE_LIMIT_DISABLED = process.env.DISABLE_RATE_LIMIT === "true";
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 100,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later" },
+  skip: () => RATE_LIMIT_DISABLED,
 });
 app.use(globalLimiter);
 
@@ -27,6 +30,7 @@ const authLimiter = rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "Too many login attempts, please try again later" },
+  skip: () => RATE_LIMIT_DISABLED,
 });
 app.use("/api/client-session/login", authLimiter);
 app.use("/api/auth", authLimiter);
