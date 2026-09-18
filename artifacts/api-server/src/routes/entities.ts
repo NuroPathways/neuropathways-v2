@@ -219,10 +219,14 @@ function makeCrud(path: string, table: any) {
     try {
       const query = { ...(req.query as Record<string, string>) };
 
-      // Security: clinician role users can only see their own records
-      // unless they explicitly pass a different clinicianId (which we override)
+      // Security: scope list queries to the authenticated user's records.
+      // Tables with clinicianId are scoped by clinicianId; tables with only
+      // tenantId (daily_check_ins, win_logs, messages, ai_conversations) are
+      // scoped by tenantId. Without this, unscoped tables leak all rows.
       if (req.user && table.clinicianId) {
         query.clinicianId = req.user.id;
+      } else if (req.user && table.tenantId) {
+        query.tenantId = req.user.id;
       }
 
       const clauses = filterClauses(table, query);
@@ -253,9 +257,13 @@ function makeCrud(path: string, table: any) {
     try {
       const [row] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!row) return res.status(404).json({ error: "Not found" });
-      // Security: enforce ownership for clinician-owned records
+      // Security: enforce ownership for clinician-owned or tenant-owned records
       if (table.clinicianId && row.clinicianId && row.clinicianId !== req.user.id) {
         await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "clinicianId mismatch" });
+        return res.status(403).json({ error: "Access denied" });
+      }
+      if (!table.clinicianId && table.tenantId && row.tenantId && row.tenantId !== req.user.id) {
+        await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "tenantId mismatch" });
         return res.status(403).json({ error: "Access denied" });
       }
       res.json(serialize(row));
@@ -266,10 +274,12 @@ function makeCrud(path: string, table: any) {
 
   router.patch(`${path}/:id`, requireAuth, async (req: any, res) => {
     try {
-      // Verify ownership before update
       const [existing] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!existing) return res.status(404).json({ error: "Not found" });
       if (table.clinicianId && existing.clinicianId && existing.clinicianId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      if (!table.clinicianId && table.tenantId && existing.tenantId && existing.tenantId !== req.user.id) {
         return res.status(403).json({ error: "Access denied" });
       }
       const [row] = await db.update(table)
@@ -287,6 +297,9 @@ function makeCrud(path: string, table: any) {
       const [existing] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!existing) return res.status(404).json({ error: "Not found" });
       if (table.clinicianId && existing.clinicianId && existing.clinicianId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      if (!table.clinicianId && table.tenantId && existing.tenantId && existing.tenantId !== req.user.id) {
         return res.status(403).json({ error: "Access denied" });
       }
       await db.delete(table).where(eq(table.id, req.params.id));
@@ -405,7 +418,7 @@ router.get("/users/me", requireAuth, async (req: any, res) => {
   try {
     const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
     const [authUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
-    res.json({ ...authUser, ...profile });
+    res.json(serialize({ ...authUser, ...profile }));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -423,7 +436,7 @@ router.patch("/users/me", requireAuth, async (req: any, res) => {
 
     const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
     const [authUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
-    res.json({ ...authUser, ...profile });
+    res.json(serialize({ ...authUser, ...profile }));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
