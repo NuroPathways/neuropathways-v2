@@ -955,6 +955,36 @@ fi
 BODY=$(curl -s "$API/api/children" -b "$COOKIE_JAR2" 2>/dev/null)
 assert "Clinician 2 sees empty children list" 'echo "$BODY" | grep -q "\[\]"'
 
+# Regression: null-tenant rows must NOT be readable by other clinicians.
+# Create a behavior log via mobile API (which previously wrote tenant_id: null),
+# then verify clinician 2 cannot read it by ID.
+MOBILE_LOG_ID=""
+if [ -n "$MOBILE_TOKEN" ] && [ -n "$CHILD_ID" ]; then
+  BODY=$(curl -s -X POST "$API/api/mobile/behavior-logs" \
+    -H 'Content-Type: application/json' \
+    -H "X-Mobile-Token: $MOBILE_TOKEN" \
+    -d "{\"behavior_type\":\"tenant_test\",\"intensity\":\"low\",\"notes\":\"regression test\"}" 2>/dev/null || echo "{}")
+  MOBILE_LOG_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+  if [ -n "$MOBILE_LOG_ID" ]; then
+    # Verify mobile-created log has tenant_id set (fix for the root cause)
+    BODY=$(curl -s "$API/api/behavior-logs/$MOBILE_LOG_ID" \
+      -b "$COOKIE_JAR" 2>/dev/null || echo "{}")
+    assert "Mobile-created log has tenant_id set" 'echo "$BODY" | grep -q "tenant_id\|tenantId" && ! echo "$BODY" | grep -q "\"tenant_id\":null\|\"tenantId\":null"'
+
+    # Verify mobile-created log visible in clinician 1's list
+    BODY=$(curl -s "$API/api/behavior-logs" -b "$COOKIE_JAR" 2>/dev/null || echo "[]")
+    assert "Mobile-created log visible to own clinician" 'echo "$BODY" | grep -q "tenant_test"'
+
+    # Clinician 2 must NOT be able to read it by ID
+    CODE=$(curl -s -o /dev/null -w '%{http_code}' "$API/api/behavior-logs/$MOBILE_LOG_ID" \
+      -b "$COOKIE_JAR2" 2>/dev/null || echo "000")
+    assert "Clinician 2 cannot read mobile-created log by ID (got $CODE)" '[ "$CODE" = "403" ]'
+  fi
+else
+  skip "Null-tenant regression test" "no mobile token"
+fi
+
 
 # ═══════════════════════════════════════════════
 # 34. CLINICIAN PASSWORD CHANGE
@@ -1048,10 +1078,115 @@ fi
 
 
 # ═══════════════════════════════════════════════
-# 37. CLEANUP — Delete Test Data
+# 37. PARENT DOCUMENT UPLOAD (client-upload + client-upload-document)
 # ═══════════════════════════════════════════════
 
-log_section "37. Cleanup — Delete Test Data"
+log_section "37. Parent Document Upload"
+
+CLIENT_UPLOAD_DOC_ID=""
+
+# Re-login to get a fresh client token (access code was changed in section 28)
+if [ -n "$CLIENT_USERNAME" ] && [ -n "$CLIENT_ACCESS_CODE" ]; then
+  BODY=$(http_post_noauth_body "/client-session/login" \
+    "{\"username\":\"$CLIENT_USERNAME\",\"access_code\":\"$CLIENT_ACCESS_CODE\"}")
+  CLIENT_TOKEN=$(echo "$BODY" | grep -o '"invite_token":"[^"]*"' | head -1 | cut -d'"' -f4)
+fi
+
+# Auth guard — no invite_token → 401
+CODE=$(http_post_noauth "/client-upload-document" '{"child_id":"fake","title":"test"}')
+assert "client-upload-document rejects without token" '[ "$CODE" = "401" ]'
+
+# Auth guard — client-upload multipart without invite_token → 401
+TMPIMG=$(mktemp --suffix=.png)
+printf '\x89PNG\r\n\x1a\n' > "$TMPIMG"
+CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/api/client-upload" \
+  -F "file=@$TMPIMG;type=image/png" 2>/dev/null || echo "000")
+assert "client-upload rejects without token" '[ "$CODE" = "401" ]'
+
+# Auth guard — invalid token → 401
+CODE=$(http_post_noauth "/client-upload-document" \
+  '{"invite_token":"bogus_token_value","child_id":"fake","title":"test"}')
+assert "client-upload-document rejects invalid token" '[ "$CODE" = "401" ]'
+
+# Validation — missing child_id → 400
+if [ -n "$CLIENT_TOKEN" ]; then
+  CODE=$(http_post_noauth "/client-upload-document" \
+    "{\"invite_token\":\"$CLIENT_TOKEN\",\"title\":\"test\"}")
+  assert "client-upload-document requires child_id" '[ "$CODE" = "400" ]'
+fi
+
+# Access control — wrong child_id → 403
+if [ -n "$CLIENT_TOKEN" ]; then
+  CODE=$(http_post_noauth "/client-upload-document" \
+    "{\"invite_token\":\"$CLIENT_TOKEN\",\"child_id\":\"00000000-0000-0000-0000-000000000000\",\"title\":\"test\"}")
+  assert "client-upload-document rejects wrong child_id (got $CODE)" '[ "$CODE" = "403" -o "$CODE" = "404" ]'
+fi
+
+# Happy path — file upload via client-upload
+CLIENT_FILE_URL=""
+if [ -n "$CLIENT_TOKEN" ] && [ -n "$CHILD_ID" ]; then
+  BODY=$(curl -s -X POST "$API/api/client-upload" \
+    -F "file=@$TMPIMG;type=image/png" \
+    -F "invite_token=$CLIENT_TOKEN" \
+    -F "child_id=$CHILD_ID" 2>/dev/null || echo "{}")
+  CLIENT_FILE_URL=$(echo "$BODY" | grep -o '"file_url":"[^"]*"' | head -1 | cut -d'"' -f4)
+  assert "client-upload accepts PNG with valid token" '[ -n "$CLIENT_FILE_URL" ]'
+  echo "    [Got file_url: $CLIENT_FILE_URL]"
+else
+  skip "client-upload happy path" "no client token or child ID"
+fi
+
+# Happy path — document record creation
+if [ -n "$CLIENT_TOKEN" ] && [ -n "$CHILD_ID" ]; then
+  BODY=$(http_post_noauth_body "/client-upload-document" \
+    "{\"invite_token\":\"$CLIENT_TOKEN\",\"child_id\":\"$CHILD_ID\",\"title\":\"Test Upload from Parent\",\"category\":\"other\",\"file_url\":\"$CLIENT_FILE_URL\",\"file_name\":\"test.png\"}")
+  CLIENT_UPLOAD_DOC_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  assert "client-upload-document creates record" '[ -n "$CLIENT_UPLOAD_DOC_ID" ]'
+  assert "Document has uploaded_by field" 'echo "$BODY" | grep -q "uploaded_by\|uploadedBy"'
+  assert "Document has scan_status pending" 'echo "$BODY" | grep -q "pending"'
+  assert "Document has correct category" 'echo "$BODY" | grep -q "other"'
+  echo "    [Created doc ID: ${CLIENT_UPLOAD_DOC_ID:0:16}...]"
+else
+  skip "client-upload-document happy path" "no client token or child ID"
+fi
+
+# Verify document appears in client portal data
+if [ -n "$CLIENT_TOKEN" ] && [ -n "$CHILD_ID" ] && [ -n "$CLIENT_UPLOAD_DOC_ID" ]; then
+  BODY=$(http_post_noauth_body "/client-portal-data" \
+    "{\"child_id\":\"$CHILD_ID\",\"invite_token\":\"$CLIENT_TOKEN\"}")
+  assert "Uploaded document visible in portal data" 'echo "$BODY" | grep -q "Test Upload from Parent"'
+fi
+
+# MIME type filtering on client-upload — reject JS
+TMPJS2=$(mktemp --suffix=.js)
+echo 'alert(1)' > "$TMPJS2"
+if [ -n "$CLIENT_TOKEN" ] && [ -n "$CHILD_ID" ]; then
+  CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/api/client-upload" \
+    -F "file=@$TMPJS2;type=application/javascript" \
+    -F "invite_token=$CLIENT_TOKEN" \
+    -F "child_id=$CHILD_ID" 2>/dev/null || echo "000")
+  assert "client-upload rejects JS files (got $CODE)" '[ "$CODE" = "400" ]'
+fi
+
+# JPEG should be accepted (most common iPhone photo format)
+TMPJPG=$(mktemp --suffix=.jpg)
+printf '\xff\xd8\xff\xe0' > "$TMPJPG"
+if [ -n "$CLIENT_TOKEN" ] && [ -n "$CHILD_ID" ]; then
+  BODY=$(curl -s -X POST "$API/api/client-upload" \
+    -F "file=@$TMPJPG;type=image/jpeg" \
+    -F "invite_token=$CLIENT_TOKEN" \
+    -F "child_id=$CHILD_ID" 2>/dev/null || echo "{}")
+  assert "client-upload accepts JPEG" 'echo "$BODY" | grep -q "file_url"'
+fi
+
+rm -f "$TMPIMG" "$TMPJS2" "$TMPJPG"
+
+
+# ═══════════════════════════════════════════════
+# 38. CLEANUP — Delete Test Data
+# ═══════════════════════════════════════════════
+
+log_section "38. Cleanup — Delete Test Data"
 
 # Re-login as primary clinician to clean up
 curl -s -X POST "$API/api/clinician/login" \
@@ -1067,6 +1202,16 @@ fi
 if [ -n "$DOCUMENT_ID" ]; then
   CODE=$(http_delete "/documents/$DOCUMENT_ID")
   assert "DELETE /documents/:id" '[ "$CODE" = "200" ]'
+fi
+
+if [ -n "$CLIENT_UPLOAD_DOC_ID" ]; then
+  CODE=$(http_delete "/documents/$CLIENT_UPLOAD_DOC_ID")
+  assert "DELETE parent-uploaded doc" '[ "$CODE" = "200" ]'
+fi
+
+if [ -n "$MOBILE_LOG_ID" ]; then
+  CODE=$(http_delete "/behavior-logs/$MOBILE_LOG_ID")
+  assert "DELETE mobile regression log" '[ "$CODE" = "200" ]'
 fi
 
 # Delete family (cascades children)

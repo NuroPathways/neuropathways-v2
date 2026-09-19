@@ -10,7 +10,7 @@ Two test suites exist: a bash API test suite and a browser-based frontend test r
 API_BASE_URL="https://7417e69e-621a-4884-b51c-d5188c57d8b5-00-1ns004w857dl6.riker.replit.dev" ./test-suite.sh
 ```
 
-120+ assertions covering health, security headers, CORS, auth guards, CRUD on all 14 entity types, client sessions, mobile auth, access code changes, and tenant isolation. Rate limiter is 100 req/15 min — wait 15 minutes between runs.
+150+ assertions covering health, security headers, CORS, auth guards, CRUD on all 14 entity types, client sessions, mobile auth, access code changes, tenant isolation, and parent document upload (client-upload + client-upload-document). Rate limiter is 100 req/15 min — wait 15 minutes between runs.
 
 ### 2. Browser-Based Frontend Test Runner
 
@@ -20,7 +20,7 @@ Open this URL in a browser:
 https://7417e69e-621a-4884-b51c-d5188c57d8b5-00-1ns004w857dl6.riker.replit.dev/test-runner.html
 ```
 
-This is a self-contained HTML page served by the Vite dev server. It runs 50+ tests directly in the browser using `fetch()` against the same API origin — no CORS issues, no setup needed.
+This is a self-contained HTML page served by the Vite dev server. It runs 70 tests directly in the browser using `fetch()` against the same API origin — no CORS issues, no setup needed.
 
 #### What the frontend test runner covers
 
@@ -39,6 +39,7 @@ This is a self-contained HTML page served by the Vite dev server. It runs 50+ te
 | Win logs | 1 test | Create win log |
 | Client sessions | 3 tests | Login with access code, get portal data, verify credentials |
 | Client portal | 3 tests | Portal data includes child info, plans, behavior logs |
+| Parent upload | 12 tests | Auth guards, validation, file upload, document record, portal visibility, MIME filtering |
 | Security | 3 tests | Helmet headers present, CORS rejects bad origins, X-Powered-By absent |
 
 #### How to read the results

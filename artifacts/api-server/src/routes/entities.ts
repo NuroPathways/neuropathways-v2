@@ -271,12 +271,12 @@ function makeCrud(path: string, table: any) {
     try {
       const [row] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!row) return res.status(404).json({ error: "Not found" });
-      // Security: enforce ownership for clinician-owned or tenant-owned records
-      if (table.clinicianId && row.clinicianId && row.clinicianId !== req.user.id) {
+      // Security: enforce ownership — fail closed when tenant/clinician is null
+      if (table.clinicianId && row.clinicianId !== req.user.id) {
         await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "clinicianId mismatch" });
         return res.status(403).json({ error: "Access denied" });
       }
-      if (!table.clinicianId && table.tenantId && row.tenantId && row.tenantId !== req.user.id) {
+      if (!table.clinicianId && table.tenantId && row.tenantId !== req.user.id) {
         await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "tenantId mismatch" });
         return res.status(403).json({ error: "Access denied" });
       }
@@ -290,10 +290,10 @@ function makeCrud(path: string, table: any) {
     try {
       const [existing] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!existing) return res.status(404).json({ error: "Not found" });
-      if (table.clinicianId && existing.clinicianId && existing.clinicianId !== req.user.id) {
+      if (table.clinicianId && existing.clinicianId !== req.user.id) {
         return res.status(403).json({ error: "Access denied" });
       }
-      if (!table.clinicianId && table.tenantId && existing.tenantId && existing.tenantId !== req.user.id) {
+      if (!table.clinicianId && table.tenantId && existing.tenantId !== req.user.id) {
         return res.status(403).json({ error: "Access denied" });
       }
       const [row] = await db.update(table)
@@ -310,10 +310,10 @@ function makeCrud(path: string, table: any) {
     try {
       const [existing] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!existing) return res.status(404).json({ error: "Not found" });
-      if (table.clinicianId && existing.clinicianId && existing.clinicianId !== req.user.id) {
+      if (table.clinicianId && existing.clinicianId !== req.user.id) {
         return res.status(403).json({ error: "Access denied" });
       }
-      if (!table.clinicianId && table.tenantId && existing.tenantId && existing.tenantId !== req.user.id) {
+      if (!table.clinicianId && table.tenantId && existing.tenantId !== req.user.id) {
         return res.status(403).json({ error: "Access denied" });
       }
       await db.delete(table).where(eq(table.id, req.params.id));
@@ -567,7 +567,7 @@ router.get("/client-detail", requireAuth, async (req: any, res) => {
     if (!child) return res.status(404).json({ error: "Child not found" });
 
     // Security: ensure this child belongs to the requesting clinician
-    if (child.clinicianId && child.clinicianId !== req.user.id) {
+    if (child.clinicianId !== req.user.id) {
       await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: "child", targetId: child_id, success: false });
       return res.status(403).json({ error: "Access denied" });
     }
@@ -599,7 +599,7 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
     if (!family) return res.status(404).json({ error: "Family not found" });
 
     // Security: ensure this family belongs to the requesting clinician
-    if (family.clinicianId && family.clinicianId !== req.user.id) {
+    if (family.clinicianId !== req.user.id) {
       await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: "family", targetId: family_id, success: false });
       return res.status(403).json({ error: "Access denied" });
     }
@@ -738,7 +738,7 @@ router.post("/build-client-profile", requireAuth, async (req: any, res) => {
     // Ownership: the child must exist and belong to this clinician.
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
     if (!child) return fail(404, "child_not_found", "This client no longer exists.");
-    if (child.clinicianId && child.clinicianId !== clinicianId) {
+    if (child.clinicianId !== clinicianId) {
       return fail(403, "forbidden", "You don't have permission to scan this client's documents.");
     }
 
@@ -1038,10 +1038,9 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
     switch (action) {
       case "updateChild": {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
-        // Verify ownership
         const [existing] = await db.select().from(childrenTable).where(eq(childrenTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
-        if (existing.clinicianId && existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
         const [child] = await db.update(childrenTable)
           .set(bodyToCamel(data || {}))
           .where(eq(childrenTable.id, entity_id))
@@ -1052,7 +1051,7 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [existing] = await db.select().from(childrenTable).where(eq(childrenTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
-        if (existing.clinicianId && existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
         await db.delete(childrenTable).where(eq(childrenTable.id, entity_id));
         await auditLog({ userId: req.user.id, userRole: "clinician", action: "child_deleted", targetType: "child", targetId: entity_id });
         return res.json({ ok: true });
@@ -1061,7 +1060,7 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [existing] = await db.select().from(familiesTable).where(eq(familiesTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
-        if (existing.clinicianId && existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
         const [family] = await db.update(familiesTable)
           .set(bodyToCamel(data || {}))
           .where(eq(familiesTable.id, entity_id))
@@ -1072,7 +1071,7 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [existing] = await db.select().from(familiesTable).where(eq(familiesTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
-        if (existing.clinicianId && existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
         const kids = await db.select().from(childrenTable).where(eq(childrenTable.familyId, entity_id));
         for (const k of kids) {
           await db.delete(documentsTable).where(eq(documentsTable.childId, k.id));
@@ -1100,7 +1099,7 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [existing] = await db.select().from(documentsTable).where(eq(documentsTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
-        if (existing.clinicianId && existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
         await db.delete(documentsTable).where(eq(documentsTable.id, entity_id));
         await auditLog({ userId: req.user.id, userRole: "clinician", action: "document_deleted", targetType: "document", targetId: entity_id });
         return res.json({ ok: true });
@@ -1356,6 +1355,59 @@ router.post("/client-session/login", async (req, res) => {
 });
 
 // ──────────────────────────────────────────────
+// client-upload-document — parents create a document record after uploading a file
+// ──────────────────────────────────────────────
+
+router.post("/client-upload-document", async (req: any, res) => {
+  const invite_token = req.body?.invite_token ?? req.body?.inviteToken;
+  if (!invite_token) return res.status(401).json({ error: "invite_token required" });
+  try {
+    const csession = await validateClientSession(invite_token);
+    if (!csession) return res.status(401).json({ error: "Invalid or expired session" });
+
+    const child_id = req.body.child_id || req.body.childId;
+    if (!child_id) return res.status(400).json({ error: "child_id required" });
+
+    if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
+    if (!child) return res.status(404).json({ error: "Child not found" });
+
+    const title = req.body.title || "Uploaded document";
+    const category = req.body.category || "other";
+
+    const [doc] = await db.insert(documentsTable).values({
+      childId: child_id,
+      clinicianId: child.clinicianId,
+      tenantId: child.clinicianId,
+      title,
+      category,
+      fileName: req.body.file_name || req.body.fileName || title,
+      fileUrl: req.body.file_url || req.body.fileUrl || null,
+      notes: req.body.notes || null,
+      scanStatus: "pending",
+      uploadedBy: `client:${csession.childId}`,
+    }).returning();
+
+    await auditLog({
+      userId: csession.childId,
+      userRole: "client",
+      action: "client_document_upload",
+      targetType: "document",
+      targetId: doc.id,
+      success: true,
+      tenantId: child.clinicianId ?? undefined,
+    });
+
+    res.status(201).json(serialize(doc));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ──────────────────────────────────────────────
 // addChildToFamily — add a new child to an existing family
 // ──────────────────────────────────────────────
 
@@ -1365,7 +1417,7 @@ router.post("/add-child-to-family", requireAuth, async (req: any, res) => {
   try {
     const [family] = await db.select().from(familiesTable).where(eq(familiesTable.id, family_id));
     if (!family) return res.status(404).json({ error: "Family not found" });
-    if (family.clinicianId && family.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+    if (family.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
 
     // Get existing children to share credentials
     const existingChildren = await db.select().from(childrenTable).where(eq(childrenTable.familyId, family_id));

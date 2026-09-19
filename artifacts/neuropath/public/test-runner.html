@@ -383,8 +383,111 @@ async function runTests() {
   r = await api('GET', '/children');
   addTest('Children returns array', Array.isArray(r.json) ? 'pass' : 'fail');
 
-  // ── 18. Cleanup ──
-  addSection('18. Cleanup');
+  // ── 18. Parent Document Upload ──
+  addSection('18. Parent Document Upload');
+  let clientUploadDocId = null;
+
+  // Auth guard — no token
+  r = await api('POST', '/client-upload-document', { child_id: 'fake', title: 'test' });
+  addTest('client-upload-document rejects without token', r.status === 401 ? 'pass' : 'fail', `got ${r.status}`);
+
+  // Auth guard — invalid token
+  r = await api('POST', '/client-upload-document', { invite_token: 'bogus', child_id: 'fake', title: 'test' });
+  addTest('client-upload-document rejects invalid token', r.status === 401 ? 'pass' : 'fail', `got ${r.status}`);
+
+  // Auth guard — client-upload multipart without token
+  {
+    const fd = new FormData();
+    fd.append('file', new Blob([new Uint8Array([0x89, 0x50, 0x4E, 0x47])], { type: 'image/png' }), 'test.png');
+    r = await api('POST', '/client-upload', fd);
+    addTest('client-upload rejects without token', r.status === 401 ? 'pass' : 'fail', `got ${r.status}`);
+  }
+
+  // Re-login client (access code was changed to NEWFE99 in section 14)
+  r = await api('POST', '/client-session/login', { username: CLIENT_USER, access_code: 'NEWFE99' });
+  const uploadToken = r.json?.invite_token;
+
+  // Validation — missing child_id
+  if (uploadToken) {
+    r = await api('POST', '/client-upload-document', { invite_token: uploadToken, title: 'test' });
+    addTest('client-upload-document requires child_id', r.status === 400 ? 'pass' : 'fail', `got ${r.status}`);
+  }
+
+  // Access control — wrong child_id
+  if (uploadToken) {
+    r = await api('POST', '/client-upload-document', {
+      invite_token: uploadToken, child_id: '00000000-0000-0000-0000-000000000000', title: 'test'
+    });
+    addTest('client-upload-document rejects wrong child_id',
+      (r.status === 403 || r.status === 404) ? 'pass' : 'fail', `got ${r.status}`);
+  }
+
+  // Happy path — file upload via client-upload
+  let clientFileUrl = null;
+  if (uploadToken && childId) {
+    const fd = new FormData();
+    fd.append('file', new Blob([new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])], { type: 'image/png' }), 'upload-test.png');
+    fd.append('invite_token', uploadToken);
+    fd.append('child_id', childId);
+    r = await api('POST', '/client-upload', fd);
+    clientFileUrl = r.json?.file_url;
+    addTest('client-upload accepts PNG with token', clientFileUrl ? 'pass' : 'fail');
+    log('  file_url: ' + clientFileUrl);
+  } else {
+    addTest('client-upload happy path', 'skip', 'no token or child');
+  }
+
+  // Happy path — create document record
+  if (uploadToken && childId) {
+    r = await api('POST', '/client-upload-document', {
+      invite_token: uploadToken, child_id: childId, title: 'FE Test Upload',
+      category: 'other', file_url: clientFileUrl || '/test', file_name: 'upload-test.png'
+    });
+    clientUploadDocId = r.json?.id;
+    addTest('client-upload-document creates record', clientUploadDocId ? 'pass' : 'fail');
+    const body = r.json || {};
+    addTest('Document has uploaded_by', (body.uploaded_by || body.uploadedBy) ? 'pass' : 'fail');
+    addTest('Document has pending scan_status',
+      (body.scan_status || body.scanStatus) === 'pending' ? 'pass' : 'fail');
+    log('  doc_id: ' + clientUploadDocId);
+  } else {
+    addTest('client-upload-document happy path', 'skip', 'no token or child');
+  }
+
+  // Verify document visible in portal data
+  if (uploadToken && childId && clientUploadDocId) {
+    r = await api('POST', '/client-portal-data', { child_id: childId, invite_token: uploadToken });
+    const docs = r.json?.documents || [];
+    addTest('Uploaded doc visible in portal data',
+      docs.some(d => (d.title === 'FE Test Upload' || d.id === clientUploadDocId)) ? 'pass' : 'fail');
+  }
+
+  // MIME filtering — reject JS
+  if (uploadToken && childId) {
+    const fd = new FormData();
+    fd.append('file', new Blob(['alert(1)'], { type: 'application/javascript' }), 'evil.js');
+    fd.append('invite_token', uploadToken);
+    fd.append('child_id', childId);
+    r = await api('POST', '/client-upload', fd);
+    addTest('client-upload rejects JS files', r.status === 400 ? 'pass' : 'fail', `got ${r.status}`);
+  }
+
+  // JPEG (most common iPhone photo format)
+  if (uploadToken && childId) {
+    const fd = new FormData();
+    fd.append('file', new Blob([new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0])], { type: 'image/jpeg' }), 'photo.jpg');
+    fd.append('invite_token', uploadToken);
+    fd.append('child_id', childId);
+    r = await api('POST', '/client-upload', fd);
+    addTest('client-upload accepts JPEG', r.json?.file_url ? 'pass' : 'fail');
+  }
+
+  // ── 19. Cleanup ──
+  addSection('19. Cleanup');
+  if (clientUploadDocId) {
+    r = await api('DELETE', '/documents/' + clientUploadDocId);
+    addTest('DELETE parent-uploaded doc', r.status === 200 ? 'pass' : 'fail');
+  }
   if (bpId) {
     r = await api('DELETE', '/behavior-plans/' + bpId);
     addTest('DELETE /behavior-plans/:id', r.status === 200 ? 'pass' : 'fail');

@@ -174,9 +174,11 @@ router.get("/mobile/behavior-logs", requireMobileAuth, async (req: any, res) => 
 router.post("/mobile/behavior-logs", requireMobileAuth, async (req: any, res) => {
   try {
     const data = bodyToCamel(req.body);
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
+    const clinicianId = child?.clinicianId ?? null;
     const [row] = await db
       .insert(behaviorLogsTable)
-      .values({ ...data, childId: req.mobileUser.childId })
+      .values({ ...data, childId: req.mobileUser.childId, clinicianId, tenantId: clinicianId })
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
@@ -203,9 +205,11 @@ router.get("/mobile/messages", requireMobileAuth, async (req: any, res) => {
 router.post("/mobile/messages", requireMobileAuth, async (req: any, res) => {
   try {
     const data = bodyToCamel(req.body);
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
+    const clinicianId = child?.clinicianId ?? null;
     const [row] = await db
       .insert(messagesTable)
-      .values({ ...data, childId: req.mobileUser.childId, senderRole: "client" })
+      .values({ ...data, childId: req.mobileUser.childId, tenantId: clinicianId, senderRole: "client" })
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
@@ -264,9 +268,11 @@ router.get("/mobile/win-logs", requireMobileAuth, async (req: any, res) => {
 router.post("/mobile/win-logs", requireMobileAuth, async (req: any, res) => {
   try {
     const data = bodyToCamel(req.body);
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
+    const clinicianId = child?.clinicianId ?? null;
     const [row] = await db
       .insert(winLogsTable)
-      .values({ ...data, childId: req.mobileUser.childId })
+      .values({ ...data, childId: req.mobileUser.childId, tenantId: clinicianId })
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
@@ -293,9 +299,11 @@ router.get("/mobile/daily-check-ins", requireMobileAuth, async (req: any, res) =
 router.post("/mobile/daily-check-ins", requireMobileAuth, async (req: any, res) => {
   try {
     const data = bodyToCamel(req.body);
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
+    const clinicianId = child?.clinicianId ?? null;
     const [row] = await db
       .insert(dailyCheckInsTable)
-      .values({ ...data, childId: req.mobileUser.childId })
+      .values({ ...data, childId: req.mobileUser.childId, tenantId: clinicianId })
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
