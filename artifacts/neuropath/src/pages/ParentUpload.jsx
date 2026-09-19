@@ -35,6 +35,7 @@ export default function ParentUpload() {
   const { user } = useAuth();
   const cameraRef = useRef(null);
   const galleryRef = useRef(null);
+  const fileRef = useRef(null);
 
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -202,7 +203,7 @@ export default function ParentUpload() {
               </button>
 
               <button
-                onClick={() => galleryRef.current?.click()}
+                onClick={() => fileRef.current?.click()}
                 className="w-full flex items-center gap-4 p-5 bg-card border border-border rounded-2xl hover:border-primary/40 hover:shadow-sm transition-all active:scale-[0.98]"
               >
                 <div className="w-14 h-14 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
@@ -216,7 +217,8 @@ export default function ParentUpload() {
 
               {/* Hidden file inputs */}
               <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
-              <input ref={galleryRef} type="file" accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={handleFile} />
+              <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+              <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" onChange={handleFile} />
             </motion.div>
           ) : (
             <motion.div key="review" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
