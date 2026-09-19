@@ -3,6 +3,7 @@ import multer from "multer";
 import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
+import { validateClientSession, sessionMayAccessChild, getChildWithClinician } from "./entities-helpers";
 
 const router = Router();
 
@@ -88,6 +89,57 @@ router.post("/upload", requireAuth, upload.single("file"), (req, res) => {
       const plain = fs.readFileSync(req.file.path);
       fs.writeFileSync(req.file.path, encryptBuffer(plain));
     } catch (e: any) {
+      fs.unlinkSync(req.file.path);
+      return res.status(500).json({ error: "Encryption failed" });
+    }
+  }
+
+  const fileUrl = `/api/uploads/${req.file.filename}`;
+  res.json({ file_url: fileUrl, file_name: req.file.originalname });
+});
+
+// ──────────────────────────────────────────────
+// Client-session upload — parents can upload photos/docs with an invite_token
+// ──────────────────────────────────────────────
+
+const CLIENT_ALLOWED_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/heic",
+  "image/heif",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+router.post("/client-upload", upload.single("file"), async (req: any, res) => {
+  const invite_token = req.body?.invite_token;
+  if (!invite_token) return res.status(401).json({ error: "invite_token required" });
+
+  const csession = await validateClientSession(invite_token);
+  if (!csession) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(401).json({ error: "Invalid or expired session" });
+  }
+
+  if (!req.file) return res.status(400).json({ error: "No file provided" });
+  if (!CLIENT_ALLOWED_TYPES.has(req.file.mimetype)) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "File type not allowed. Accepted: PDF, PNG, JPG, HEIC, DOCX" });
+  }
+
+  // Verify child access
+  const child_id = req.body?.child_id;
+  if (child_id && !(await sessionMayAccessChild(csession.childId, child_id))) {
+    fs.unlinkSync(req.file.path);
+    return res.status(403).json({ error: "Access denied" });
+  }
+
+  // Encrypt at rest
+  if (ENCRYPTION_KEY) {
+    try {
+      const plain = fs.readFileSync(req.file.path);
+      fs.writeFileSync(req.file.path, encryptBuffer(plain));
+    } catch {
       fs.unlinkSync(req.file.path);
       return res.status(500).json({ error: "Encryption failed" });
     }

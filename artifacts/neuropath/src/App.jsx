@@ -30,6 +30,7 @@ import FamilyDetail from './pages/FamilyDetail';
 import AIChat from './pages/AIChat';
 import UsernameLogin from './pages/UsernameLogin';
 import GoalsMilestones from './pages/GoalsMilestones';
+import ParentUpload from './pages/ParentUpload';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -94,6 +95,7 @@ const AuthenticatedApp = () => {
       <Route path="/FamilyDetail" element={<LayoutWrapper currentPageName="FamilyDetail"><FamilyDetail /></LayoutWrapper>} />
       <Route path="/AIChat" element={<LayoutWrapper currentPageName="AIChat"><AIChat /></LayoutWrapper>} />
       <Route path="/UsernameLogin" element={<UsernameLogin />} />
+      <Route path="/ParentUpload" element={<ParentUpload />} />
       <Route path="/GoalsMilestones" element={<LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>} />
       <Route path="/DataImport" element={<DataImport />} />
       <Route path="*" element={<PageNotFound />} />
