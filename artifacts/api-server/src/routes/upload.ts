@@ -176,4 +176,11 @@ router.use("/uploads", (req, res, next) => {
   }
 });
 
+router.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+    return res.status(413).json({ error: "File too large. Maximum size is 20 MB." });
+  }
+  next(err);
+});
+
 export default router;

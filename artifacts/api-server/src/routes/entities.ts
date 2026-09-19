@@ -519,7 +519,7 @@ router.post("/client-portal-data", async (req, res) => {
   }
 
   try {
-    const [[child], plans, documents, interventionPlans, profiles, goals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs] = await Promise.all([
+    const [[child], plans, documents, interventionPlans, profiles, goals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs, messages] = await Promise.all([
       db.select().from(childrenTable).where(eq(childrenTable.id, child_id)),
       db.select().from(behaviorPlansTable).where(eq(behaviorPlansTable.childId, child_id)),
       db.select().from(documentsTable).where(eq(documentsTable.childId, child_id)),
@@ -530,6 +530,7 @@ router.post("/client-portal-data", async (req, res) => {
       db.select().from(dailyCheckInsTable).where(eq(dailyCheckInsTable.childId, child_id)),
       db.select().from(engagementEventsTable).where(eq(engagementEventsTable.childId, child_id)),
       db.select().from(behaviorLogsTable).where(eq(behaviorLogsTable.childId, child_id)),
+      db.select().from(messagesTable).where(eq(messagesTable.childId, child_id)),
     ]);
     const profile = profiles[0] ?? null;
 
@@ -543,7 +544,7 @@ router.post("/client-portal-data", async (req, res) => {
         )
       : (child ? [child] : []);
 
-    res.json(stripSensitive(serialize({ child: child ?? null, siblings, plans, documents, interventionPlans, profile, goals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs })));
+    res.json(stripSensitive(serialize({ child: child ?? null, siblings, plans, documents, interventionPlans, profile, goals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs, messages })));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -1402,6 +1403,41 @@ router.post("/client-upload-document", async (req: any, res) => {
     });
 
     res.status(201).json(serialize(doc));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ──────────────────────────────────────────────
+// client-send-message — parents send a message via invite_token
+// ──────────────────────────────────────────────
+
+router.post("/client-send-message", async (req, res) => {
+  const { invite_token, child_id, content } = req.body;
+  if (!content) return res.status(400).json({ error: "content required" });
+  if (!child_id) return res.status(400).json({ error: "child_id required" });
+
+  const csession = await validateClientSession(invite_token);
+  if (!csession) return res.status(401).json({ error: "Authentication required" });
+
+  if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+    return res.status(403).json({ error: "Access denied" });
+  }
+
+  try {
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
+    if (!child) return res.status(404).json({ error: "Child not found" });
+
+    const [msg] = await db.insert(messagesTable).values({
+      childId: child_id,
+      fromUserId: csession.childId,
+      toUserId: child.clinicianId ?? null,
+      content: sanitizeStr(content),
+      senderRole: "client",
+      tenantId: child.clinicianId ?? null,
+    }).returning();
+
+    res.status(201).json(serialize(msg));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

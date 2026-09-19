@@ -129,8 +129,9 @@ export const auth = {
   },
   isAuthenticated: async () => {
     try {
-      const data = await apiFetch("/auth/user");
-      // The /auth/user endpoint returns {user: null} when not authenticated — treat that as false
+      const res = await fetch("/api/auth/user", { credentials: "include" });
+      if (!res.ok) return false;
+      const data = await res.json();
       return data?.user != null;
     } catch {
       return false;

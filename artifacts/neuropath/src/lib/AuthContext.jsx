@@ -49,26 +49,11 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(true);
       setAuthError(null);
 
-      // A real cookie-based server session (Replit Auth or email/password
-      // clinician, or a Replit-Auth parent) always takes precedence over a
-      // localStorage client session. Otherwise a leftover client session from
-      // an earlier username/access-code login would mask a freshly signed-in
-      // clinician and route them into the client portal.
-      let currentUser = null;
-      try {
-        currentUser = await fetchCurrentUser();
-      } catch {
-        currentUser = null;
-      }
-      if (currentUser) {
-        clearClientSession();
-        setUser(currentUser);
-        setIsAuthenticated(true);
-        setIsLoadingAuth(false);
-        setAuthChecked(true);
-        return;
-      }
-
+      // Check client session (username/access-code login) first.  A parent who
+      // logged in via the client flow always did so AFTER any prior clinician
+      // login, so their localStorage session is the newer, intended identity.
+      // Explicit clinician login calls checkUserAuth() which clears the client
+      // session, so by the next load the clinician cookie wins naturally.
       let clientSession = getClientSession();
       if (clientSession && !clientSession.invite_token) {
         clearClientSession();
@@ -76,6 +61,21 @@ export const AuthProvider = ({ children }) => {
       }
       if (clientSession) {
         setUser(clientSession);
+        setIsAuthenticated(true);
+        setIsLoadingAuth(false);
+        setAuthChecked(true);
+        return;
+      }
+
+      // No active client session — check for a cookie-based clinician session.
+      let currentUser = null;
+      try {
+        currentUser = await fetchCurrentUser();
+      } catch {
+        currentUser = null;
+      }
+      if (currentUser) {
+        setUser(currentUser);
         setIsAuthenticated(true);
         setIsLoadingAuth(false);
         setAuthChecked(true);

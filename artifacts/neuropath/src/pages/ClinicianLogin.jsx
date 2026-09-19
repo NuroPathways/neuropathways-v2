@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from '@/lib/AuthContext';
+import { clearClientSession } from '@/lib/clientSession';
 import { Brain, Mail, Lock, Eye, EyeOff, User, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ export default function ClinicianLogin() {
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const handleReplitLogin = () => {
+    clearClientSession();
     base44.auth.redirectToLogin("/RoleSetup?role=clinician");
   };
 

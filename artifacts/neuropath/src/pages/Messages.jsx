@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
+import { useAuth } from "@/lib/AuthContext";
+import { getClientSession } from "@/lib/clientSession";
 import { ArrowLeft, Send, MessageCircle, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +11,7 @@ import { format } from "date-fns";
 
 export default function Messages() {
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
   const [user, setUser] = useState(null);
   const [children, setChildren] = useState([]);
   const [selectedChild, setSelectedChild] = useState(null);
@@ -18,11 +21,47 @@ export default function Messages() {
   const [recipientId, setRecipientId] = useState("");
   const [lastMessages, setLastMessages] = useState({});
   const [isIndividual, setIsIndividual] = useState(false);
+  const [portalMessages, setPortalMessages] = useState({});
   const bottomRef = useRef(null);
   const unsubscribeRef = useRef(null);
 
   useEffect(() => {
+    if (!authUser) return;
     const load = async () => {
+      const cs = getClientSession();
+
+      if (cs?.invite_token) {
+        // Parent via client session — use portal data which accepts invite_token
+        setUser({ id: cs.id, app_role: "parent", account_type: cs.account_type || "parent_family", ...cs });
+        const kids = cs.children || [];
+        setChildren(kids);
+
+        const individual = cs.account_type === "individual";
+        setIsIndividual(individual);
+        if (individual && kids.length > 0) setSelectedChild(kids[0]);
+
+        // Load messages per child from portal data
+        const previews = {};
+        const allPortalMsgs = {};
+        await Promise.all(kids.map(async (kid) => {
+          try {
+            const result = await base44.functions.invoke("getClientPortalData", {
+              child_id: kid.id,
+              invite_token: cs.invite_token,
+            });
+            const msgs = result.data?.messages || [];
+            allPortalMsgs[kid.id] = msgs;
+            if (msgs.length > 0) {
+              previews[kid.id] = msgs.sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0];
+            }
+          } catch { /* ignore */ }
+        }));
+        setPortalMessages(allPortalMsgs);
+        setLastMessages(previews);
+        return;
+      }
+
+      // Clinician or OIDC parent — original flow
       const me = await base44.auth.me().catch(() => null);
       if (!me) return;
       setUser(me);
@@ -41,14 +80,12 @@ export default function Messages() {
       }
       setChildren(kids);
 
-      // Individual clients go straight into their conversation
       const individual = me.account_type === "individual";
       setIsIndividual(individual);
       if (individual && kids.length > 0) {
         setSelectedChild(kids[0]);
       }
 
-      // Load last message per child for preview
       const previews = {};
       await Promise.all(kids.map(async (kid) => {
         const msgs = await base44.entities.Message.filter({ child_id: kid.id }).catch(() => []);
@@ -60,7 +97,7 @@ export default function Messages() {
     };
     load();
     return () => { if (unsubscribeRef.current) unsubscribeRef.current(); };
-  }, []);
+  }, [authUser]);
 
   useEffect(() => {
     if (!user || !selectedChild) return;
@@ -71,9 +108,15 @@ export default function Messages() {
       setRecipientId(selectedChild.clinician_id || "");
     }
 
-    base44.entities.Message.filter({ child_id: selectedChild.id }).then(msgs => {
+    const cs = getClientSession();
+    if (cs?.invite_token && portalMessages[selectedChild.id]) {
+      const msgs = portalMessages[selectedChild.id];
       setMessages(msgs.sort((a, b) => new Date(a.created_date) - new Date(b.created_date)));
-    }).catch(() => {});
+    } else {
+      base44.entities.Message.filter({ child_id: selectedChild.id }).then(msgs => {
+        setMessages(msgs.sort((a, b) => new Date(a.created_date) - new Date(b.created_date)));
+      }).catch(() => {});
+    }
 
     if (unsubscribeRef.current) unsubscribeRef.current();
     unsubscribeRef.current = base44.entities.Message.subscribe((event) => {
@@ -88,7 +131,7 @@ export default function Messages() {
     });
 
     return () => { if (unsubscribeRef.current) unsubscribeRef.current(); };
-  }, [selectedChild, user]);
+  }, [selectedChild, user, portalMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -97,18 +140,32 @@ export default function Messages() {
   const handleSend = async () => {
     if (!newMsg.trim() || sending) return;
     setSending(true);
-    const body = newMsg.trim();
+    const text = newMsg.trim();
     setNewMsg("");
-    const msg = await base44.entities.Message.create({
-      from_user_id: user.id,
-      to_user_id: recipientId || null,
-      child_id: selectedChild.id,
-      body,
-      sender_role: user.app_role === "clinician" ? "clinician" : "parent",
-      is_read: false,
-    });
-    // Update last message preview; subscription handles adding to thread
-    setLastMessages(prev => ({ ...prev, [selectedChild.id]: msg }));
+    try {
+      const cs = getClientSession();
+      let msg;
+      if (cs?.invite_token) {
+        const res = await fetch("/api/client-send-message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invite_token: cs.invite_token, child_id: selectedChild.id, content: text }),
+        });
+        if (!res.ok) throw new Error("Send failed");
+        msg = await res.json();
+      } else {
+        msg = await base44.entities.Message.create({
+          from_user_id: user.id,
+          to_user_id: recipientId || null,
+          child_id: selectedChild.id,
+          content: text,
+          sender_role: user.app_role === "clinician" ? "clinician" : "parent",
+          is_read: false,
+        });
+      }
+      setMessages(prev => [...prev, msg]);
+      setLastMessages(prev => ({ ...prev, [selectedChild.id]: msg }));
+    } catch { /* ignore */ }
     setSending(false);
   };
 
@@ -154,7 +211,7 @@ export default function Messages() {
                 return (
                   <motion.div key={msg.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[78%] px-4 py-2.5 rounded-2xl text-sm ${isMe ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-card border border-border text-foreground rounded-bl-sm"}`}>
-                      <p>{msg.body}</p>
+                      <p>{msg.content || msg.body}</p>
                       <p className={`text-xs mt-1 ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                         {msg.created_date ? format(new Date(msg.created_date), "MMM d, h:mm a") : ""}
                       </p>
@@ -200,7 +257,7 @@ export default function Messages() {
         {children.length === 0 ? (
           <div className="text-center py-20">
             <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">No clients linked yet.</p>
+            <p className="text-sm text-muted-foreground">No conversations yet.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -224,7 +281,7 @@ export default function Messages() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-foreground text-sm">{child.child_name}</p>
                     {last ? (
-                      <p className="text-xs text-muted-foreground truncate">{last.body}</p>
+                      <p className="text-xs text-muted-foreground truncate">{last.content || last.body}</p>
                     ) : (
                       <p className="text-xs text-muted-foreground italic">No messages yet</p>
                     )}
