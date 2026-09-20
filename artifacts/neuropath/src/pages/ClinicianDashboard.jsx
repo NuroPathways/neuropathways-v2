@@ -87,11 +87,16 @@ export default function ClinicianDashboard() {
               </div>
               <p className="text-white/70 text-sm mb-1">{getGreeting()},</p>
               <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">
-                {((user?.display_name || user?.full_name)?.trim()
-                  ? (user.display_name || user.full_name).trim().split(" ")[0]
-                  : user?.email
-                    ? user.email.split("@")[0].split(/[._-]/)[0].replace(/^(.)/, c => c.toUpperCase())
-                    : "there")} 👋
+                {(() => {
+                  const name = (user?.display_name || user?.full_name)?.trim();
+                  if (name) {
+                    const parts = name.split(" ");
+                    const first = parts[0];
+                    return /^(Dr|Mr|Ms|Mrs|Prof)\.?$/i.test(first) && parts.length > 1 ? `${first} ${parts[1]}` : first;
+                  }
+                  if (user?.email) return user.email.split("@")[0].split(/[._-]/)[0].replace(/^(.)/, c => c.toUpperCase());
+                  return "there";
+                })()} 👋
               </h1>
               <p className="text-white/60 text-sm">Here's your clinical overview for today</p>
             </div>

@@ -552,6 +552,11 @@ export default function ParentDashboard() {
             goals: d?.goals || [],
             behaviorLogs: d?.behaviorLogs || [],
           });
+          const sorted = (d?.behaviorLogs || [])
+            .filter(l => l.created_date)
+            .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
+            .slice(0, 5);
+          setRecentLogs(sorted);
         } catch {
           allKids = user.children;
         }

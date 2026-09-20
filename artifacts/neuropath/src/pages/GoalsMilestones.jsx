@@ -64,26 +64,27 @@ export default function GoalsMilestones() {
   const handleAdd = async () => {
     if (!selectedChildId) return;
     setSaving(true);
-    const goalData = {
-      ...form,
-      progress: Number(form.progress),
-      target: Number(form.target),
-      source: "manual",
-    };
-    // Direct create works for logged-in users; client sessions fall back to backend.
-    await base44.entities.RewardToken.create({ ...goalData, child_id: selectedChildId, parent_id: user?.id })
-      .catch(() => base44.functions.invoke("manageClientGoal", {
-        action: "create",
-        child_id: selectedChildId,
-        data: goalData,
-        account_id: user?.id,
-        invite_token: user?.invite_token,
-      }));
-    const updated = await loadGoals(selectedChildId);
-    setGoals(updated);
-    setShowForm(false);
+    try {
+      const goalData = {
+        ...form,
+        progress: Number(form.progress),
+        target: Number(form.target),
+        source: "manual",
+      };
+      await base44.entities.RewardToken.create({ ...goalData, child_id: selectedChildId, parent_id: user?.id })
+        .catch(() => base44.functions.invoke("manageClientGoal", {
+          action: "create",
+          child_id: selectedChildId,
+          data: goalData,
+          account_id: user?.id,
+          invite_token: user?.invite_token,
+        }));
+      const updated = await loadGoals(selectedChildId);
+      setGoals(updated);
+      setShowForm(false);
+      setForm({ goal_title: "", goal_description: "", progress: 0, target: 10, milestone_notes: "" });
+    } catch { /* goal may have saved — reload on next visit */ }
     setSaving(false);
-    setForm({ goal_title: "", goal_description: "", progress: 0, target: 10, milestone_notes: "" });
   };
 
   const incrementProgress = async (goal) => {
@@ -201,7 +202,7 @@ export default function GoalsMilestones() {
           <div className="text-center py-14 border-2 border-dashed border-border rounded-2xl">
             <Target className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
             <p className="font-medium text-foreground mb-1">No goals yet</p>
-            <p className="text-sm text-muted-foreground mb-4">Goals are set by your clinician and will appear here.</p>
+            <p className="text-sm text-muted-foreground mb-4">No goals yet. Create one below or ask your clinician to set one up.</p>
             <Button className="rounded-xl gap-2" onClick={() => setShowForm(true)}><Plus className="w-4 h-4" /> Add a Goal</Button>
           </div>
         ) : (
