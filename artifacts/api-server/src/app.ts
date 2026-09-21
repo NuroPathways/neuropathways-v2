@@ -10,13 +10,20 @@ import { authMiddleware } from "./middlewares/authMiddleware";
 
 const app: Express = express();
 
+// Replit terminates TLS and forwards requests through one trusted proxy.
+// This must be configured before express-rate-limit reads req.ip.
+app.set("trust proxy", 1);
+
 app.use(helmet());
 
 const RATE_LIMIT_DISABLED = process.env.DISABLE_RATE_LIMIT === "true";
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 100,
+  // The dashboard loads several independent clinical data resources in
+  // parallel. Keep a generous abuse ceiling so normal navigation and reloads
+  // do not lock out a clinician or client.
+  limit: 1000,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later" },
@@ -32,8 +39,13 @@ const authLimiter = rateLimit({
   message: { error: "Too many login attempts, please try again later" },
   skip: () => RATE_LIMIT_DISABLED,
 });
-app.use("/api/client-session/login", authLimiter);
-app.use("/api/auth", authLimiter);
+app.use([
+  "/api/client-session/login",
+  "/api/verify-client-credentials",
+  "/api/clinician/login",
+  "/api/mobile/auth/login",
+  "/api/login",
+], authLimiter);
 
 app.use(
   pinoHttp({
