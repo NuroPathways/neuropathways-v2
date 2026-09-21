@@ -1,0 +1,1 @@
+- [Expo dependency override boundaries](expo-dependency-overrides.md) — cap workspace overrides at Expo-compatible major versions so clean publishes cannot resolve breaking majors.
