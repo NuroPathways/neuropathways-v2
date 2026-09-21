@@ -12,12 +12,76 @@ function requireAuth(req: any, res: any, next: any) {
   next();
 }
 
-const ALLOWED_MIME_TYPES = new Set([
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-]);
+type SupportedUpload = { extension: string; mimeType: string };
+
+const TEXT_EXTENSIONS = new Set([".txt", ".md", ".csv", ".json", ".rtf"]);
+
+function detectSupportedUpload(file: Express.Multer.File, contents: Buffer): SupportedUpload | null {
+  const originalExtension = path.extname(file.originalname).toLowerCase();
+
+  if (contents.length >= 4 && contents[0] === 0xff && contents[1] === 0xd8 && contents[2] === 0xff) {
+    return { extension: ".jpg", mimeType: "image/jpeg" };
+  }
+  if (contents.length >= 8 && contents.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return { extension: ".png", mimeType: "image/png" };
+  }
+  if (contents.length >= 6 && ["GIF87a", "GIF89a"].includes(contents.subarray(0, 6).toString("ascii"))) {
+    return { extension: ".gif", mimeType: "image/gif" };
+  }
+  if (
+    contents.length >= 12 &&
+    contents.subarray(0, 4).toString("ascii") === "RIFF" &&
+    contents.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return { extension: ".webp", mimeType: "image/webp" };
+  }
+  if (contents.length >= 5 && contents.subarray(0, 5).toString("ascii") === "%PDF-") {
+    return { extension: ".pdf", mimeType: "application/pdf" };
+  }
+  if (
+    originalExtension === ".docx" &&
+    contents.length >= 4 &&
+    contents[0] === 0x50 &&
+    contents[1] === 0x4b &&
+    [0x03, 0x05, 0x07].includes(contents[2]) &&
+    [0x04, 0x06, 0x08].includes(contents[3])
+  ) {
+    return {
+      extension: ".docx",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    };
+  }
+  if (TEXT_EXTENSIONS.has(originalExtension) && !contents.subarray(0, 8192).includes(0)) {
+    const mimeType = originalExtension === ".json"
+      ? "application/json"
+      : originalExtension === ".csv"
+        ? "text/csv"
+        : "text/plain";
+    return { extension: originalExtension, mimeType };
+  }
+
+  return null;
+}
+
+function validateAndNormalizeUpload(file: Express.Multer.File): SupportedUpload | null {
+  const contents = fs.readFileSync(file.path);
+  const detected = detectSupportedUpload(file, contents);
+  if (!detected) return null;
+
+  const currentExtension = path.extname(file.filename).toLowerCase();
+  if (currentExtension !== detected.extension) {
+    const currentBase = currentExtension
+      ? file.filename.slice(0, -currentExtension.length)
+      : file.filename;
+    const normalizedFilename = `${currentBase}${detected.extension}`;
+    const normalizedPath = path.join(uploadDir, normalizedFilename);
+    fs.renameSync(file.path, normalizedPath);
+    file.filename = normalizedFilename;
+    file.path = normalizedPath;
+  }
+  file.mimetype = detected.mimeType;
+  return detected;
+}
 
 const uploadDir = path.resolve(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -67,7 +131,8 @@ const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    cb(null, `${unique}-${file.originalname}`);
+    const safeOriginalName = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, "_");
+    cb(null, `${unique}-${safeOriginalName || "upload"}`);
   },
 });
 
@@ -78,9 +143,11 @@ const upload = multer({
 
 router.post("/upload", requireAuth, upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file provided" });
-  if (!ALLOWED_MIME_TYPES.has(req.file.mimetype)) {
+  if (!validateAndNormalizeUpload(req.file)) {
     fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: "File type not allowed. Accepted: PDF, PNG, JPG, DOCX" });
+    return res.status(400).json({
+      error: "This file could not be read. Upload a PDF, DOCX, JPG, PNG, GIF, WebP, or text file.",
+    });
   }
 
   // Encrypt the file at rest
@@ -102,15 +169,6 @@ router.post("/upload", requireAuth, upload.single("file"), (req, res) => {
 // Client-session upload — parents can upload photos/docs with an invite_token
 // ──────────────────────────────────────────────
 
-const CLIENT_ALLOWED_TYPES = new Set([
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/heic",
-  "image/heif",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-]);
-
 router.post("/client-upload", upload.single("file"), async (req: any, res) => {
   const invite_token = req.body?.invite_token;
   if (!invite_token) return res.status(401).json({ error: "invite_token required" });
@@ -122,9 +180,11 @@ router.post("/client-upload", upload.single("file"), async (req: any, res) => {
   }
 
   if (!req.file) return res.status(400).json({ error: "No file provided" });
-  if (!CLIENT_ALLOWED_TYPES.has(req.file.mimetype)) {
+  if (!validateAndNormalizeUpload(req.file)) {
     fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: "File type not allowed. Accepted: PDF, PNG, JPG, HEIC, DOCX" });
+    return res.status(400).json({
+      error: "This file could not be read. Upload a PDF, DOCX, JPG, PNG, GIF, WebP, or text file. Convert HEIC photos to JPG first.",
+    });
   }
 
   // Verify child access
@@ -165,7 +225,14 @@ router.use("/uploads", (req, res, next) => {
       ".png": "image/png",
       ".jpg": "image/jpeg",
       ".jpeg": "image/jpeg",
+      ".gif": "image/gif",
+      ".webp": "image/webp",
       ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ".txt": "text/plain; charset=utf-8",
+      ".md": "text/markdown; charset=utf-8",
+      ".csv": "text/csv; charset=utf-8",
+      ".json": "application/json; charset=utf-8",
+      ".rtf": "application/rtf",
     };
     const contentType = mimeMap[ext] || "application/octet-stream";
     res.setHeader("Content-Type", contentType);

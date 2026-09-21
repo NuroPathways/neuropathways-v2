@@ -211,14 +211,14 @@ export default function ParentUpload() {
                 </div>
                 <div className="text-left">
                   <p className="font-semibold text-foreground">Choose a File</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">PDF, Word document, or image</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">PDF, DOCX, JPG, PNG, GIF, WebP, or text</p>
                 </div>
               </button>
 
               {/* Hidden file inputs */}
-              <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
-              <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-              <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" onChange={handleFile} />
+              <input ref={cameraRef} type="file" accept="image/jpeg,image/png" capture="environment" className="hidden" onChange={handleFile} />
+              <input ref={galleryRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleFile} />
+              <input ref={fileRef} type="file" accept=".pdf,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt,.md,.csv,.json,.rtf" className="hidden" onChange={handleFile} />
             </motion.div>
           ) : (
             <motion.div key="review" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">

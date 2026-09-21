@@ -21,6 +21,9 @@ export default function RoleSetup() {
   const finishParent = async (me, family) => {
     const updates = { app_role: "parent" };
     if (family) {
+      // Only an invite can establish care-team relationships. Never accept
+      // family/clinician identifiers from the URL or invent them for a
+      // standalone parent account.
       updates.linked_family_id = family.id;
       updates.linked_clinician_id = family.clinician_id;
       updates.account_type = family.account_type || "parent_family";
@@ -29,6 +32,10 @@ export default function RoleSetup() {
         await base44.entities.Child.update(kid.id, { parent_id: me.id, parent_email: me.email }).catch(() => {});
       }
       await base44.entities.Family.update(family.id, { invite_status: "accepted" }).catch(() => {});
+    } else {
+      // OIDC parents can onboard independently; they do not need a clinic
+      // invite and must start without fabricated relationship identifiers.
+      updates.account_type = "parent_family";
     }
     await base44.auth.updateMe(updates);
     await refreshUser();

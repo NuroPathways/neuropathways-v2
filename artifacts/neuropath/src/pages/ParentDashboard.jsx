@@ -184,7 +184,9 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
             <div className="bg-card rounded-2xl border-2 border-dashed border-border p-10 text-center">
               <User className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm font-medium text-foreground mb-1">No profile linked yet</p>
-              <p className="text-xs text-muted-foreground">Ask your clinician to connect your account.</p>
+              <p className="text-xs text-muted-foreground">
+                You can use the support tools now. A clinic invite can link a child profile whenever you are ready.
+              </p>
             </div>
           </motion.div>
         )}
@@ -390,7 +392,9 @@ function FamilyDashboard({ user, children, recentLogs, unreadMessages, loading, 
             <div className="bg-card rounded-2xl border-2 border-dashed border-border p-10 text-center">
               <Baby className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm font-medium text-foreground mb-1">No children linked yet</p>
-              <p className="text-xs text-muted-foreground">Ask your clinician to connect your account.</p>
+              <p className="text-xs text-muted-foreground">
+                You can use the support tools now. A clinic invite can link your children whenever you are ready.
+              </p>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-3">

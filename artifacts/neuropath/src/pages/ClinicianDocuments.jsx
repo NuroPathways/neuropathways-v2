@@ -211,12 +211,12 @@ export default function ClinicianDocuments() {
               >
                 <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm font-medium text-foreground">Drop files here or click to browse</p>
-                <p className="text-xs text-muted-foreground mt-1">PDF, DOC, DOCX, PNG, JPG — select multiple</p>
+                <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, JPG, PNG, GIF, WebP, or text — select multiple</p>
                 <input
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                  accept=".pdf,.docx,.png,.jpg,.jpeg,.gif,.webp,.txt,.md,.csv,.json,.rtf"
                   className="hidden"
                   onChange={e => { addFiles(e.target.files); e.target.value = ""; }}
                 />

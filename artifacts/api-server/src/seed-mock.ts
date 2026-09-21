@@ -19,10 +19,11 @@
  * Run: pnpm --filter @workspace/api-server run seed:mock
  */
 
-import { db, usersTable, familiesTable, childrenTable, clientSessionsTable, documentsTable, behaviorLogsTable, dailyCheckInsTable, winLogsTable } from "@workspace/db";
-import { eq, and, like } from "drizzle-orm";
+import { db, usersTable, familiesTable, childrenTable, clientSessionsTable, documentsTable, behaviorPlansTable, behaviorLogsTable, dailyCheckInsTable, winLogsTable } from "@workspace/db";
+import { eq, and, like, inArray } from "drizzle-orm";
 
 const CLINICIAN_EMAIL = "neuropathways@gmail.com";
+const DEMO_CLINICIAN_EMAILS = [CLINICIAN_EMAIL, "demo@neuropathways.app"];
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,126 @@ async function insertDocuments(childId: string, clinicianId: string, docs: DocRo
       scanStatus: "pending",
       uploadedBy: clinicianId,
     });
+  }
+}
+
+interface BehaviorPlanSpec {
+  behaviorName: string;
+  behaviorDescription: string;
+  behaviorFunction: string;
+  commonTriggers: string;
+  strategyTitle: string;
+  strategySteps: string;
+  reinforcementMethod: string;
+  deescalationSteps: string;
+  avoidActions: string;
+}
+
+const behaviorPlanSpecs: Record<string, BehaviorPlanSpec> = {
+  "Sofia Rivera": {
+    behaviorName: "Task avoidance and impulsive interruptions",
+    behaviorDescription: "Sofia has difficulty sustaining attention during academic tasks and may leave her seat or interrupt when work feels lengthy or difficult.",
+    behaviorFunction: "Escape from sustained or frustrating work and access to adult attention or movement.",
+    commonTriggers: "Long written assignments, difficult math problems, classroom noise, transitions from preferred activities",
+    strategyTitle: "Chunk tasks and reinforce focused participation",
+    strategySteps: "1. Preview the task and show the first two steps.\n2. Use a visual timer for 15–20 minute work blocks.\n3. Offer a brief movement break between blocks.\n4. Prompt Sofia to use her break card instead of leaving her seat.\n5. Return to the task with a first-then statement.",
+    reinforcementMethod: "Give specific praise and one token for each completed work block; five tokens earn ten minutes of free drawing time.",
+    deescalationSteps: "Use a calm, brief voice; reduce verbal demands; offer two choices; allow the planned break; reconnect and review the next small step.",
+    avoidActions: "Do not lecture during escalation.\nDo not remove all movement breaks as a consequence.\nDo not require public correction or prolonged eye contact.",
+  },
+  "Marco Rivera": {
+    behaviorName: "Reading frustration and task refusal",
+    behaviorDescription: "Marco may shut down, avoid reading aloud, or use negative self-talk when decoding is difficult or when he feels rushed.",
+    behaviorFunction: "Escape from difficult literacy demands and protection from embarrassment.",
+    commonTriggers: "Timed reading, being called on unexpectedly, unfamiliar text, decoding errors",
+    strategyTitle: "Build fluency with supported reading choices",
+    strategySteps: "1. Preview unfamiliar words privately.\n2. Offer paired reading, audio support, or an oral response.\n3. Use multisensory decoding practice for target patterns.\n4. Provide extended time and praise effort after each attempt.\n5. End with a successful, manageable item.",
+    reinforcementMethod: "Immediate labeled praise and a point for trying a challenging word; four points earn a preferred audiobook or game.",
+    deescalationSteps: "Pause the demand; validate that the text is hard; offer two supported response options; practice one easy word; resume only when regulated.",
+    avoidActions: "Do not time independent reading.\nDo not ask Marco to repeat an error in front of peers.\nDo not equate reading speed with effort.",
+  },
+  "Lily Nguyen": {
+    behaviorName: "Sensory overload and transition distress",
+    behaviorDescription: "Lily can become overwhelmed by loud sounds, clothing textures, touch, and unexpected changes, sometimes leading to a meltdown or withdrawal.",
+    behaviorFunction: "Escape from overwhelming sensory input and obtain predictable regulation support.",
+    commonTriggers: "Fire alarms, crowded spaces, scratchy clothing, unexpected touch, activity changes",
+    strategyTitle: "Provide a predictable sensory regulation routine",
+    strategySteps: "1. Preview transitions with a visual countdown.\n2. Offer headphones and access to the calm corner before overload.\n3. Schedule heavy-work activities before high-demand settings.\n4. Use a visual stop card to support communication.\n5. Re-enter the activity gradually with a clear finish point.",
+    reinforcementMethod: "Praise proactive use of headphones, stop card, or calm corner; offer a preferred sensory activity after successful transition.",
+    deescalationSteps: "Reduce noise and audience; give physical space; use few words; offer the calm kit; wait for regulation before discussing what happened.",
+    avoidActions: "Do not force eye contact or touch.\nDo not insist on immediate verbal answers.\nDo not remove sensory tools for refusing an activity.",
+  },
+  "Jordan Ellison": {
+    behaviorName: "Panic symptoms and avoidance",
+    behaviorDescription: "Jordan experiences physical panic symptoms and may avoid presentations, crowded settings, or participation when anxiety rises.",
+    behaviorFunction: "Escape from perceived threat and obtain reassurance or immediate safety.",
+    commonTriggers: "Presentations, unexpected questions, crowded cafeteria, exams, poor sleep",
+    strategyTitle: "Use gradual exposure with grounding and choice",
+    strategySteps: "1. Rate anxiety from 0–10 and identify the next hierarchy step.\n2. Practice slow breathing and 5-4-3-2-1 grounding.\n3. Stay in the situation for the agreed interval.\n4. Record what happened and what Jordan learned.\n5. Reinforce returning to the activity rather than escaping.",
+    reinforcementMethod: "Celebrate each completed exposure step with specific praise and a preferred relaxing activity; track progress rather than symptom absence.",
+    deescalationSteps: "Move to a quiet but supervised space; coach exhale-focused breathing; validate the sensation without confirming danger; review the safety plan.",
+    avoidActions: "Do not promise that panic can never happen.\nDo not provide repeated reassurance that reinforces avoidance.\nDo not force a hierarchy step beyond the agreed plan.",
+  },
+  "Alex Mercer": {
+    behaviorName: "Task initiation and impulsive behavior",
+    behaviorDescription: "Alex has difficulty starting large assignments, tracking time, and pausing before acting or speaking.",
+    behaviorFunction: "Reduce executive-function demands and access stimulation or a preferred activity.",
+    commonTriggers: "Large or unclear assignments, unstructured study time, corrections, competing distractions",
+    strategyTitle: "Make the first step visible and reinforce follow-through",
+    strategySteps: "1. Convert assignments into 15-minute chunks.\n2. Start a two-minute initiation timer immediately.\n3. Use a planner and Pomodoro work/break cycle.\n4. Prompt the pause-and-plan card before responding.\n5. Review the completed checklist at the end of the day.",
+    reinforcementMethod: "Provide immediate labeled praise and points for starting on time, using the planner, and pausing; points earn preferred screen or social time.",
+    deescalationSteps: "Lower the number of instructions; offer one concrete first step; allow a brief reset; return to the checklist without debating intent.",
+    avoidActions: "Do not give multi-step verbal lectures.\nDo not remove all downtime.\nDo not interpret forgetfulness as deliberate defiance.",
+  },
+  "Eleanor Thornton": {
+    behaviorName: "Sundowning agitation and wandering",
+    behaviorDescription: "Eleanor becomes more confused and restless in late afternoon and has occasionally attempted to leave or search for familiar places.",
+    behaviorFunction: "Respond to fatigue, unmet needs, disorientation, or a search for familiarity and safety.",
+    commonTriggers: "Late-day fatigue, hunger, low light, unfamiliar caregivers, changes to routine",
+    strategyTitle: "Maintain routine and redirect with familiar activities",
+    strategySteps: "1. Offer hydration and a snack before the late-afternoon window.\n2. Keep rooms bright and reduce confusing background noise.\n3. Use familiar music or folding laundry as a purposeful activity.\n4. Approach from the front and state the caregiver's name.\n5. Secure exits and calmly redirect toward a familiar room.",
+    reinforcementMethod: "Warm praise, reassurance, and a preferred reminiscence activity after completing routine steps or accepting redirection.",
+    deescalationSteps: "Stay calm and at eye level; validate the feeling; avoid arguing about time or place; offer a simple choice; redirect with a familiar object.",
+    avoidActions: "Do not confront or correct the delusion.\nDo not rush bathing or dressing.\nDo not use restraint or block her path in a threatening manner.",
+  },
+  "James Osei": {
+    behaviorName: "Mood instability and disrupted sleep",
+    behaviorDescription: "James is at risk for early manic or depressive symptoms when sleep, medication adherence, and daily routines change.",
+    behaviorFunction: "Behavior reflects emerging mood symptoms and attempts to manage distress or low energy.",
+    commonTriggers: "Sleeping fewer than six hours, missed medication, financial stress, alcohol, social-rhythm changes",
+    strategyTitle: "Monitor early warning signs and protect social rhythm",
+    strategySteps: "1. Record sleep, mood, energy, and medication daily.\n2. Contact the treatment team after two nights below six hours.\n3. Keep anchor times for waking, meals, work, and bedtime.\n4. Use a caregiver check-in for spending and racing thoughts.\n5. Follow the crisis plan if safety concerns emerge.",
+    reinforcementMethod: "Acknowledge consistent tracking and routine adherence; schedule a preferred low-stimulation activity each week goals are met.",
+    deescalationSteps: "Reduce stimulation; speak slowly and offer one decision at a time; involve the agreed caregiver; contact the clinician for significant changes.",
+    avoidActions: "Do not debate grandiose beliefs during escalation.\nDo not encourage major purchases or late-night activity.\nDo not change medication without the prescriber.",
+  },
+};
+
+async function backfillBehaviorPlans(clinicianId: string, children: Array<{ id: string; childName: string | null }> = []) {
+  const seededChildren = children.length > 0
+    ? children
+    : await db.select({ id: childrenTable.id, childName: childrenTable.childName }).from(childrenTable).where(eq(childrenTable.clinicianId, clinicianId));
+
+  for (const child of seededChildren) {
+    const spec = child.childName ? behaviorPlanSpecs[child.childName] : undefined;
+    if (!spec) continue;
+    const [existingPlan] = await db.select({ id: behaviorPlansTable.id }).from(behaviorPlansTable).where(eq(behaviorPlansTable.childId, child.id)).limit(1);
+    if (existingPlan) continue;
+    await db.insert(behaviorPlansTable).values({
+      tenantId: clinicianId,
+      childId: child.id,
+      clinicianId,
+      behaviorName: spec.behaviorName,
+      behaviorDescription: spec.behaviorDescription,
+      behaviorFunction: spec.behaviorFunction,
+      commonTriggers: spec.commonTriggers,
+      strategyTitle: spec.strategyTitle,
+      strategySteps: spec.strategySteps,
+      reinforcementMethod: spec.reinforcementMethod,
+      deescalationSteps: spec.deescalationSteps,
+      avoidActions: spec.avoidActions,
+    });
+    console.log(`   ✓ Behavior plan added for ${child.childName}`);
   }
 }
 
@@ -418,28 +539,48 @@ async function main() {
   console.log("🌱 NeuroPath mock seed starting…\n");
 
   // 1. Look up the clinician — abort if not found
-  const [clinician] = await db
+  const clinicians = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.email, CLINICIAN_EMAIL));
+    .where(inArray(usersTable.email, DEMO_CLINICIAN_EMAILS));
+  const clinician = DEMO_CLINICIAN_EMAILS
+    .map(email => clinicians.find(candidate => candidate.email === email))
+    .find(Boolean);
 
   if (!clinician) {
-    console.error(`❌  No user found with email ${CLINICIAN_EMAIL}.`);
-    console.error("    Create that clinician account first, then re-run this script.");
-    process.exit(1);
+    // Existing demo records may outlive the original demo login. Resolve their
+    // owner so idempotent data repairs can still run without creating accounts.
+    const [existingDemoChild] = await db
+      .select({ clinicianId: childrenTable.clinicianId })
+      .from(childrenTable)
+      .where(inArray(childrenTable.childName, Object.keys(behaviorPlanSpecs)))
+      .limit(1);
+    if (!existingDemoChild?.clinicianId) {
+      console.error(`❌  No demo clinician or existing demo children were found.`);
+      console.error(`    Create ${CLINICIAN_EMAIL} first, then re-run this script.`);
+      process.exit(1);
+    }
+    console.log(`✅  Existing demo owner found (id: ${existingDemoChild.clinicianId})`);
+    await backfillBehaviorPlans(existingDemoChild.clinicianId);
+    printCredentials();
+    process.exit(0);
   }
 
   const clinicianId = clinician.id;
   console.log(`✅  Clinician: ${clinician.email} (id: ${clinicianId})`);
 
   // 2. Idempotency check
-  const [existing] = await db
-    .select()
-    .from(familiesTable)
-    .where(and(eq(familiesTable.clinicianId, clinicianId), like(familiesTable.familyName, "[SEED]%")));
+  const existingDemoChildren = await db
+    .select({ id: childrenTable.id, childName: childrenTable.childName })
+    .from(childrenTable)
+    .where(and(
+      eq(childrenTable.clinicianId, clinicianId),
+      inArray(childrenTable.childName, Object.keys(behaviorPlanSpecs)),
+    ));
 
-  if (existing) {
-    console.log("\n⚠️  Seed data already exists for this clinician. Skipping insert.");
+  if (existingDemoChildren.length > 0) {
+    console.log("\n⚠️  Demo children already exist for this clinician. Checking structured behavior plans…");
+    await backfillBehaviorPlans(clinicianId, existingDemoChildren);
     printCredentials();
     process.exit(0);
   }
@@ -691,6 +832,10 @@ async function main() {
   await insertClientSession(james.id, "osei.care", "OSE001");
   await insertDocuments(james.id, clinicianId, oseiJamesDocuments);
   console.log("   ✓ Osei Family inserted (James, 7 documents)");
+
+  // Structured behavior plans power the Behavior Plans block in client profiles.
+  // This also remains safe if a partially completed seed is repaired later.
+  await backfillBehaviorPlans(clinicianId, [sofia, marco, lily, jordan, alex, eleanor, james]);
 
   // ── 30 days of randomised progress data for every client ─────────────────
   console.log("\n📊  Generating 30-day progress data for all clients…");
