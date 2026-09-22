@@ -725,21 +725,38 @@ router.post("/create-client-account", requireAuth, async (req: any, res) => {
 // buildClientProfile — AI generates a client profile stub
 // ──────────────────────────────────────────────
 
-router.post("/build-client-profile", requireAuth, async (req: any, res) => {
-  const { child_id, force_rebuild } = req.body;
-  const clinicianId: string = req.user.id;
+router.post("/build-client-profile", async (req: any, res) => {
+  const { child_id, force_rebuild, invite_token } = req.body;
+  let clinicianId: string | null = null;
+
+  // Dual auth: accept either clinician cookie OR parent invite_token
+  if (req.isAuthenticated?.()) {
+    clinicianId = req.user.id;
+  } else {
+    const csession = await validateClientSession(invite_token);
+    if (!csession) return res.status(401).json({ error: "Authentication required" });
+    if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+  }
+
   const fail = (status: number, code: string, message: string) => {
     console.error(`[NeuroPath] buildClientProfile ${code}: child=${child_id} clinician=${clinicianId} — ${message}`);
     return res.status(status).json({ error: { code, message } });
   };
   if (!child_id) return fail(400, "child_id_required", "No client was specified for the scan.");
 
+  // Look up child — derive clinicianId from the record when caller is a parent
+  const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
+  if (!child) return fail(404, "child_not_found", "This client no longer exists.");
+  if (!clinicianId) {
+    clinicianId = child.clinicianId ?? null;
+  }
+
   console.info(`[NeuroPath] buildClientProfile: start child=${child_id} clinician=${clinicianId} force_rebuild=${!!force_rebuild}`);
   try {
-    // Ownership: the child must exist and belong to this clinician.
-    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
-    if (!child) return fail(404, "child_not_found", "This client no longer exists.");
-    if (child.clinicianId !== clinicianId) {
+    // Ownership: when called by a clinician, verify they own the child.
+    if (req.isAuthenticated?.() && child.clinicianId !== clinicianId) {
       return fail(403, "forbidden", "You don't have permission to scan this client's documents.");
     }
 

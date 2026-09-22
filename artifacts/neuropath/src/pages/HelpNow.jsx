@@ -47,6 +47,7 @@ export default function HelpNow() {
   const [step, setStep] = useState("select_behavior");
   const [isIndividualClient, setIsIndividualClient] = useState(false);
   const [portalFailed, setPortalFailed] = useState(false);
+  const [buildFailed, setBuildFailed] = useState(false);
   const [docsCount, setDocsCount] = useState(0);
   const [childrenForPicker, setChildrenForPicker] = useState([]);
 
@@ -154,7 +155,9 @@ export default function HelpNow() {
         invite_token: user?.invite_token,
       }).then(r => r?.data?.profile).catch(() => null);
       if (refreshed) setProfile(refreshed);
-    } catch (e) { /* keep whatever profile we already have */ }
+    } catch (e) {
+      setBuildFailed(true);
+    }
     setScanning(false);
   };
 
@@ -310,6 +313,12 @@ export default function HelpNow() {
                     <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-left">
                       <p className="text-sm font-semibold text-yellow-800 mb-1">No documents uploaded yet.</p>
                       <p className="text-sm text-yellow-700">Once your clinician uploads treatment plans or behavior protocols for {child.child_name}, personalized help cards will appear here automatically.</p>
+                    </div>
+                  ) : buildFailed ? (
+                    <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-left">
+                      <p className="text-sm font-semibold text-red-800 mb-1">We couldn't build your help cards.</p>
+                      <p className="text-sm text-red-700 mb-3">The document scan didn't complete. This can happen if documents are still processing. Try again or message your clinician.</p>
+                      <Button variant="outline" className="w-full rounded-xl" onClick={() => { setBuildFailed(false); runBuild(child); }}>Try Again</Button>
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">Loading your help cards... please wait a moment.</p>
