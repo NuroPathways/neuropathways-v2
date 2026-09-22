@@ -162,6 +162,12 @@ export default function UsernameLogin() {
 
         <div className="mt-6 text-center space-y-3">
           <p className="text-xs text-muted-foreground">
+            No account yet?{" "}
+            <a href="/ParentSignup" className="text-primary hover:underline font-medium">
+              Create one here
+            </a>
+          </p>
+          <p className="text-xs text-muted-foreground">
             Are you a clinician?{" "}
             <button
               onClick={() => base44.auth.redirectToLogin("/RoleSetup")}

@@ -765,6 +765,7 @@ router.post("/build-client-profile", async (req: any, res) => {
 
     const docs = await db.select().from(documentsTable).where(eq(documentsTable.childId, child_id));
     const docsWithFiles = docs.filter(d => d.fileUrl);
+    const docsWithNotes = docs.filter(d => !d.fileUrl && d.notes?.trim());
     const childName = child.childName ?? "the client";
     const diagnosis = child.diagnosis ?? "";
 
@@ -772,8 +773,9 @@ router.post("/build-client-profile", async (req: any, res) => {
     // forced, AND every current document is already reflected in it. A newly
     // uploaded document (id not yet in sourceDocIds) always forces a fresh scan so
     // the file is actually read — otherwise Scan would silently no-op on new docs.
+    const allScannableDocs = [...docsWithFiles, ...docsWithNotes];
     const existingSourceIds: string[] = Array.isArray((existingProfile as any)?.sourceDocIds) ? (existingProfile as any).sourceDocIds : [];
-    const hasUnscannedDoc = docsWithFiles.some(d => !existingSourceIds.includes(d.id));
+    const hasUnscannedDoc = allScannableDocs.some(d => !existingSourceIds.includes(d.id));
     if (
       existingProfile &&
       Array.isArray((existingProfile as any).behaviors) &&
@@ -786,7 +788,7 @@ router.post("/build-client-profile", async (req: any, res) => {
     }
 
     // If no documents, save a placeholder profile so the UI can show a clear message
-    if (docsWithFiles.length === 0) {
+    if (allScannableDocs.length === 0) {
       const stub = { childId: child_id, clinicianId, tenantId: clinicianId ?? existingProfile?.tenantId ?? null, behaviors: [], goals: [], diagnoses: diagnosis ? [diagnosis] : [], objectives: [], safetyProcedures: [], sourceDocIds: [] };
       let profile;
       if (existingProfile) {
@@ -855,7 +857,14 @@ router.post("/build-client-profile", async (req: any, res) => {
       }
     }
 
-    console.info(`[NeuroPath] buildClientProfile: child=${child_id} included=${includedDocIds.length} failed=${failedDocs.length} of ${docsWithFiles.length}`);
+    for (const doc of docsWithNotes) {
+      const label = doc.title || doc.category || "Clinical Notes";
+      const text = String(doc.notes).trim().substring(0, 20000);
+      contentParts.push({ type: "text", text: `[Document: ${label}]\n${text}` });
+      includedDocIds.push(doc.id);
+    }
+
+    console.info(`[NeuroPath] buildClientProfile: child=${child_id} included=${includedDocIds.length} failed=${failedDocs.length} of ${allScannableDocs.length}`);
 
     // Persist per-document failures so the UI can show a specific reason.
     const now = new Date();
@@ -1502,6 +1511,92 @@ router.post("/add-child-to-family", requireAuth, async (req: any, res) => {
     res.status(201).json(serialize({ child: safeChild }));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ──────────────────────────────────────────────
+// Independent parent signup — no clinician required
+// ──────────────────────────────────────────────
+
+const signupAttempts = new Map<string, number[]>();
+function checkSignupRate(ip: string): boolean {
+  const now = Date.now();
+  const window = 15 * 60 * 1000;
+  const max = 5;
+  const attempts = (signupAttempts.get(ip) || []).filter(t => now - t < window);
+  if (attempts.length >= max) return false;
+  attempts.push(now);
+  signupAttempts.set(ip, attempts);
+  return true;
+}
+
+router.post("/parent-signup", async (req, res) => {
+  const ip = req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.ip || "unknown";
+  if (!checkSignupRate(ip)) {
+    return res.status(429).json({ error: "Too many signup attempts. Please try again later." });
+  }
+
+  const { parent_name, child_name, child_age, diagnosis, username, access_code } = req.body;
+  if (!parent_name?.trim() || !child_name?.trim() || !username?.trim() || !access_code?.trim()) {
+    return res.status(400).json({ error: "Parent name, child name, username, and access code are required." });
+  }
+  if (access_code.trim().length < 4) {
+    return res.status(400).json({ error: "Access code must be at least 4 characters." });
+  }
+  if (username.trim().length < 3) {
+    return res.status(400).json({ error: "Username must be at least 3 characters." });
+  }
+
+  const cleanUsername = username.trim().toLowerCase();
+  const cleanAccessCode = access_code.trim();
+
+  try {
+    const existing = await db.select({ id: childrenTable.id })
+      .from(childrenTable)
+      .where(eq(childrenTable.username, cleanUsername));
+    if (existing.length > 0) {
+      return res.status(409).json({ error: "That username is already taken. Please choose a different one." });
+    }
+
+    const hashedCode = await hashAccessCode(cleanAccessCode);
+
+    const [family] = await db.insert(familiesTable).values({
+      familyName: parent_name.trim(),
+      primaryContact: parent_name.trim(),
+      accountType: "independent",
+    }).returning();
+
+    const [child] = await db.insert(childrenTable).values({
+      familyId: family.id,
+      childName: child_name.trim(),
+      age: child_age ? parseInt(child_age, 10) || null : null,
+      diagnosis: diagnosis?.trim() || null,
+      username: cleanUsername,
+      accessCode: hashedCode,
+      accountType: "independent",
+      status: "active",
+    }).returning();
+
+    await auditLog({
+      action: "parent_signup",
+      targetType: "child",
+      targetId: child.id,
+      success: true,
+      metadata: { username: cleanUsername, familyId: family.id, ip },
+    });
+
+    const token = await generateClientToken(child.id, cleanUsername);
+    res.status(201).json({
+      id: child.id,
+      invite_token: token,
+      child_name: child.childName,
+      family_name: family.familyName,
+      primary_contact: family.primaryContact,
+      children: serialize([child]),
+    });
+  } catch (e: any) {
+    console.error("[NeuroPath] parent-signup error:", e);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 

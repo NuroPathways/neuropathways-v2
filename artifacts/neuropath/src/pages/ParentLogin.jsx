@@ -43,6 +43,12 @@ export default function ParentLogin() {
             Sign in here
           </button>
         </p>
+        <p className="mt-5 text-sm text-muted-foreground">
+          No clinician yet?{" "}
+          <button onClick={() => navigate("/ParentSignup")} className="text-primary hover:underline font-medium">
+            Sign up independently
+          </button>
+        </p>
         <button onClick={() => navigate("/")} className="mt-3 text-sm text-muted-foreground hover:text-foreground">
           ← Back to welcome page
         </button>
