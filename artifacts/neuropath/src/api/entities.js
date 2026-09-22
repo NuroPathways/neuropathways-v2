@@ -201,6 +201,20 @@ export const functions = {
         const data = await apiFetch("/verify-client-credentials", { method: "POST", body: JSON.stringify(args) });
         return { data };
       }
+      case "requestClientAccessCodeReset": {
+        const data = await apiFetch("/client-access-code-reset/request", {
+          method: "POST",
+          body: JSON.stringify({ child_id: args.child_id }),
+        });
+        return { data };
+      }
+      case "completeClientAccessCodeReset": {
+        const data = await apiFetch("/client-access-code-reset/complete", {
+          method: "POST",
+          body: JSON.stringify({ token: args.token, new_access_code: args.new_access_code }),
+        });
+        return { data };
+      }
       case "addChildToFamily": {
         const data = await apiFetch("/add-child-to-family", { method: "POST", body: JSON.stringify(args) });
         return { data };

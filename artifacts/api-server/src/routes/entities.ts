@@ -8,9 +8,9 @@ import {
   interventionPlansTable, behaviorLogsTable, rewardTokensTable, messagesTable,
   aiConversationsTable, dailyCheckInsTable, winLogsTable, engagementEventsTable,
   clientProfilesTable, userProfilesTable, usersTable, auditLogsTable, invitationsTable,
-  clientSessionsTable,
+  clientSessionsTable, mobileTokensTable, clientAccessCodeResetsTable,
 } from "@workspace/db";
-import { eq, and, inArray, or } from "drizzle-orm";
+import { eq, and, inArray, or, isNull, gt, ne, sql } from "drizzle-orm";
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
 import { decryptBuffer } from "./upload";
 
@@ -548,6 +548,181 @@ router.post("/client-portal-data", async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ──────────────────────────────────────────────
+// Clinician-generated client access-code reset links
+// ──────────────────────────────────────────────
+
+router.post("/client-access-code-reset/request", requireAuth, async (req: any, res) => {
+  const childId = req.body?.child_id ?? req.body?.childId;
+  if (typeof childId !== "string" || !childId.trim()) {
+    res.status(400).json({ error: "child_id required" });
+    return;
+  }
+
+  try {
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, childId));
+    if (!child) {
+      res.status(404).json({ error: "Child not found" });
+      return;
+    }
+    if (child.clinicianId !== req.user.id) {
+      await auditLog({ userId: req.user.id, userRole: "clinician", action: "access_code_reset_requested", targetType: "child", targetId: childId, success: false, reason: "clinicianId mismatch" });
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
+    if (!child.username || !child.accessCode) {
+      await auditLog({ userId: req.user.id, userRole: "clinician", action: "access_code_reset_requested", targetType: "child", targetId: childId, success: false, reason: "client access-code account not configured", tenantId: child.tenantId ?? undefined });
+      res.status(409).json({ error: "Client access-code account is not configured" });
+      return;
+    }
+
+    const now = new Date();
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const expiresAt = new Date(now.getTime() + 30 * 60 * 1000);
+    await db.transaction(async tx => {
+      const resetScopeKey = `${req.user.id}:${child.familyId ? `family:${child.familyId}` : `child:${child.id}`}`;
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${resetScopeKey}))`);
+      await tx.update(clientAccessCodeResetsTable)
+        .set({ usedAt: now })
+        .where(and(
+          eq(clientAccessCodeResetsTable.clinicianId, req.user.id),
+          child.familyId
+            ? eq(clientAccessCodeResetsTable.familyId, child.familyId)
+            : eq(clientAccessCodeResetsTable.childId, child.id),
+          isNull(clientAccessCodeResetsTable.usedAt),
+        ));
+      await tx.insert(clientAccessCodeResetsTable).values({
+        tenantId: child.tenantId ?? child.clinicianId!,
+        clinicianId: child.clinicianId!,
+        childId: child.id,
+        familyId: child.familyId ?? null,
+        tokenHash,
+        expiresAt,
+        createdBy: req.user.id,
+      });
+    });
+
+    let email = child.parentEmail ?? null;
+    if (!email && child.familyId) {
+      const [family] = await db.select().from(familiesTable).where(and(
+        eq(familiesTable.id, child.familyId),
+        eq(familiesTable.clinicianId, child.clinicianId!),
+      ));
+      email = family?.email ?? null;
+    }
+    await auditLog({ userId: req.user.id, userRole: "clinician", action: "access_code_reset_requested", targetType: "child", targetId: child.id, tenantId: child.tenantId ?? child.clinicianId!, metadata: { username: child.username } });
+    res.json({
+      reset_path: `/ResetAccessCode?token=${encodeURIComponent(rawToken)}`,
+      expires_at: expiresAt.toISOString(),
+      email,
+      username: child.username,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post("/client-access-code-reset/complete", async (req: any, res) => {
+  const token = req.body?.token;
+  const newAccessCode = req.body?.new_access_code ?? req.body?.newAccessCode;
+  if (typeof token !== "string" || !token) {
+    res.status(400).json({ error: "token required" });
+    return;
+  }
+  if (typeof newAccessCode !== "string" || newAccessCode.length < 6 || newAccessCode.length > 64) {
+    res.status(400).json({ error: "new_access_code must be 6-64 characters" });
+    return;
+  }
+
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  let result: { username: string; childIds: string[]; clinicianId: string; tenantId: string } | null = null;
+  try {
+    result = await db.transaction(async tx => {
+      const now = new Date();
+      const [candidate] = await tx.select().from(clientAccessCodeResetsTable).where(and(
+        eq(clientAccessCodeResetsTable.tokenHash, tokenHash),
+        isNull(clientAccessCodeResetsTable.usedAt),
+        gt(clientAccessCodeResetsTable.expiresAt, now),
+      ));
+      if (!candidate) return null;
+
+      const resetScopeKey = `${candidate.clinicianId}:${candidate.familyId ? `family:${candidate.familyId}` : `child:${candidate.childId}`}`;
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${resetScopeKey}))`);
+
+      // Re-read after taking the account-scoped lock. Another request may have
+      // consumed or invalidated this token while this transaction was waiting.
+      const [reset] = await tx.select().from(clientAccessCodeResetsTable).where(and(
+        eq(clientAccessCodeResetsTable.id, candidate.id),
+        isNull(clientAccessCodeResetsTable.usedAt),
+        gt(clientAccessCodeResetsTable.expiresAt, now),
+      ));
+      if (!reset) return null;
+
+      const [child] = await tx.select().from(childrenTable).where(and(
+        eq(childrenTable.id, reset.childId),
+        eq(childrenTable.clinicianId, reset.clinicianId),
+      ));
+      if (!child?.username) return null;
+      if ((child.familyId ?? null) !== (reset.familyId ?? null)) {
+        await tx.update(clientAccessCodeResetsTable)
+          .set({ usedAt: now })
+          .where(eq(clientAccessCodeResetsTable.id, reset.id));
+        return null;
+      }
+
+      // Consume the token conditionally so concurrent completion requests cannot
+      // both change the account.
+      const [consumed] = await tx.update(clientAccessCodeResetsTable)
+        .set({ usedAt: now })
+        .where(and(
+          eq(clientAccessCodeResetsTable.id, reset.id),
+          isNull(clientAccessCodeResetsTable.usedAt),
+          gt(clientAccessCodeResetsTable.expiresAt, now),
+        ))
+        .returning();
+      if (!consumed) return null;
+      await tx.update(clientAccessCodeResetsTable)
+        .set({ usedAt: now })
+        .where(and(
+          ne(clientAccessCodeResetsTable.id, reset.id),
+          eq(clientAccessCodeResetsTable.clinicianId, reset.clinicianId),
+          reset.familyId
+            ? eq(clientAccessCodeResetsTable.familyId, reset.familyId)
+            : eq(clientAccessCodeResetsTable.childId, reset.childId),
+          isNull(clientAccessCodeResetsTable.usedAt),
+        ));
+
+      const siblings = reset.familyId
+        ? await tx.select({ id: childrenTable.id }).from(childrenTable).where(and(
+            eq(childrenTable.familyId, reset.familyId),
+            eq(childrenTable.clinicianId, reset.clinicianId),
+          ))
+        : [{ id: child.id }];
+      const childIds = siblings.map(sibling => sibling.id);
+      const hashedCode = await hashAccessCode(newAccessCode);
+      await tx.update(childrenTable).set({ accessCode: hashedCode }).where(inArray(childrenTable.id, childIds));
+      if (childIds.length > 0) {
+        await tx.delete(clientSessionsTable).where(inArray(clientSessionsTable.childId, childIds));
+        await tx.delete(mobileTokensTable).where(inArray(mobileTokensTable.childId, childIds));
+      }
+      return { username: child.username, childIds, clinicianId: reset.clinicianId, tenantId: reset.tenantId };
+    });
+  } catch (e: any) {
+    await auditLog({ action: "access_code_reset_failed", success: false, reason: "database error", ip: req.ip });
+    res.status(500).json({ error: e.message });
+    return;
+  }
+
+  if (!result) {
+    await auditLog({ action: "access_code_reset_failed", success: false, reason: "invalid, expired, or already used token", ip: req.ip });
+    res.status(400).json({ error: "Invalid or expired reset link" });
+    return;
+  }
+  await auditLog({ userRole: "client", action: "access_code_reset_completed", targetType: "child", targetId: result.childIds[0], success: true, tenantId: result.tenantId, metadata: { username: result.username, affectedChildCount: result.childIds.length }, ip: req.ip });
+  res.json({ ok: true, username: result.username });
 });
 
 // ──────────────────────────────────────────────

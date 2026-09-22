@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
-import { ArrowLeft, User, FileText, Trash2, Edit2, Save, X, Upload, Download, Plus, Key, Eye, EyeOff, ClipboardList } from "lucide-react";
+import { ArrowLeft, User, FileText, Trash2, Edit2, Save, X, Upload, Download, Plus, Key, Eye, EyeOff, ClipboardList, Mail, Copy, ExternalLink, Loader2 } from "lucide-react";
 import ClientGoalsSection from "@/components/clinician/ClientGoalsSection";
 import DocScanButton from "@/components/clinician/DocScanButton";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,10 @@ export default function ClientDetail() {
   const [clinicianId, setClinicianId] = useState("");
   const [clientAccount, setClientAccount] = useState(null);
   const [showCode, setShowCode] = useState(false);
+  const [resetLink, setResetLink] = useState(null);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!childId) { navigate("/ClinicianDashboard"); return; }
@@ -101,6 +105,37 @@ export default function ClientDetail() {
     setDeleting(true);
     await base44.functions.invoke('manageClientRecord', { action: 'deleteChild', entity_id: childId });
     navigate("/ClinicianDashboard");
+  };
+
+  const handleRequestReset = async () => {
+    setResetLoading(true);
+    setResetError("");
+    setCopied(false);
+    try {
+      const res = await base44.functions.invoke("requestClientAccessCodeReset", { child_id: childId });
+      const data = res?.data;
+      if (!data?.reset_path || !data?.expires_at) throw new Error("The reset link could not be created.");
+      setResetLink({ ...data, url: `${window.location.origin}${data.reset_path}` });
+    } catch (err) {
+      setResetError(err?.message || "Could not create a reset link. Please try again.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const copyResetLink = async () => {
+    if (!resetLink?.url) return;
+    try {
+      await navigator.clipboard.writeText(resetLink.url);
+    } catch {
+      const input = document.createElement("textarea");
+      input.value = resetLink.url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      input.remove();
+    }
+    setCopied(true);
   };
 
   if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
@@ -226,6 +261,38 @@ export default function ClientDetail() {
                 <div className="flex items-center justify-between bg-muted/50 rounded-xl px-3 py-2">
                   <span className="text-xs text-muted-foreground">Email</span>
                   <span className="text-sm text-foreground">{clientAccount.email}</span>
+                </div>
+              )}
+              <Button data-testid="button-send-reset-link" type="button" variant="outline" className="w-full rounded-xl text-xs gap-2" onClick={handleRequestReset} disabled={resetLoading}>
+                {resetLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                {resetLoading ? "Creating reset link..." : "Create reset link"}
+              </Button>
+              {resetError && <p role="alert" className="text-xs text-destructive">{resetError}</p>}
+              {resetLink && (
+                <div role="dialog" aria-label="Client access code reset link" className="border border-primary/20 bg-primary/5 rounded-xl p-3 space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Reset link ready</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Expires {new Date(resetLink.expires_at).toLocaleString()}.
+                    </p>
+                    {resetLink.email && !resetLink.email.includes("@noemail.") ? (
+                      <p className="text-xs text-muted-foreground mt-1">Recorded email: {resetLink.email}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">No email is recorded. Copy this link and send it securely to the client.</p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button data-testid="button-copy-reset-link" type="button" size="sm" variant="outline" className="rounded-lg text-xs" onClick={copyResetLink}>
+                      <Copy className="w-3.5 h-3.5" /> {copied ? "Copied" : "Copy link"}
+                    </Button>
+                    {resetLink.email && !resetLink.email.includes("@noemail.") && (
+                      <Button data-testid="button-open-reset-email" type="button" size="sm" className="rounded-lg text-xs" asChild>
+                        <a href={`mailto:${encodeURIComponent(resetLink.email)}?subject=${encodeURIComponent("Reset your NeuroPathways access code")}&body=${encodeURIComponent(`Hello,\n\nYour clinician provided this secure link to create a new NeuroPathways access code:\n\n${resetLink.url}\n\nThis link expires ${new Date(resetLink.expires_at).toLocaleString()}. Please do not forward it. If you have questions, contact your clinician.`)}`}>
+                          <ExternalLink className="w-3.5 h-3.5" /> Open email app
+                        </a>
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

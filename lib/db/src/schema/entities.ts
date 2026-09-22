@@ -246,6 +246,19 @@ export const clientSessionsTable = pgTable("client_sessions", {
   createdDate: createdAt(),
 });
 
+export const clientAccessCodeResetsTable = pgTable("client_access_code_resets", {
+  id: id(),
+  tenantId: varchar("tenant_id").notNull(),
+  clinicianId: varchar("clinician_id").notNull(),
+  childId: varchar("child_id").notNull(),
+  familyId: varchar("family_id"),
+  tokenHash: varchar("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const mobileTokensTable = pgTable("mobile_tokens", {
   token: varchar("token").primaryKey(),
   childId: varchar("child_id").notNull(),

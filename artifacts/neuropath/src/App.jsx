@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -31,6 +31,7 @@ import AIChat from './pages/AIChat';
 import UsernameLogin from './pages/UsernameLogin';
 import GoalsMilestones from './pages/GoalsMilestones';
 import ParentUpload from './pages/ParentUpload';
+import ResetAccessCode from './pages/ResetAccessCode';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -42,6 +43,12 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const location = useLocation();
+
+  // Reset links are intentionally usable without an existing clinician or client session.
+  if (location.pathname === "/ResetAccessCode") {
+    return <Routes><Route path="/ResetAccessCode" element={<ResetAccessCode />} /></Routes>;
+  }
 
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
@@ -95,6 +102,7 @@ const AuthenticatedApp = () => {
       <Route path="/FamilyDetail" element={<LayoutWrapper currentPageName="FamilyDetail"><FamilyDetail /></LayoutWrapper>} />
       <Route path="/AIChat" element={<LayoutWrapper currentPageName="AIChat"><AIChat /></LayoutWrapper>} />
       <Route path="/UsernameLogin" element={<UsernameLogin />} />
+      <Route path="/ResetAccessCode" element={<ResetAccessCode />} />
       <Route path="/ParentUpload" element={<ParentUpload />} />
       <Route path="/GoalsMilestones" element={<LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>} />
       <Route path="/DataImport" element={<DataImport />} />
