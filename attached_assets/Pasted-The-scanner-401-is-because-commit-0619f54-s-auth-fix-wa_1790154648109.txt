@@ -1,0 +1,42 @@
+The scanner 401 is because commit 0619f54's auth fix wasn't included in the patch. Apply this change to /home/runner/workspace/artifacts/api-server/src/routes/entities.ts:
+
+Find the build-client-profile route. It currently starts like:
+router.post("/build-client-profile", requireAuth, async (req: any, res) => {
+  const { child_id, force_rebuild } = req.body;
+  const clinicianId: string = req.user.id;
+
+Replace that with (remove requireAuth, add dual auth):
+router.post("/build-client-profile", async (req: any, res) => {
+  const { child_id, force_rebuild, invite_token } = req.body;
+  let clinicianId: string | null = null;
+
+  // Dual auth: accept either clinician cookie OR parent invite_token
+  if (req.isAuthenticated?.()) {
+    clinicianId = req.user.id;
+  } else {
+    const csession = await validateClientSession(invite_token);
+    if (!csession) return res.status(401).json({ error: "Authentication required" });
+    if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+  }
+
+Then find these lines (the child lookup and ownership check):
+    // Ownership: the child must exist and belong to this clinician.
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
+    if (!child) return fail(404, "child_not_found", "This client no longer exists.");
+    if (child.clinicianId !== clinicianId) {
+
+Replace with (move child lookup before the try block, change ownership check):
+  // Look up child — derive clinicianId from the record when caller is a parent
+  const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
+  if (!child) return fail(404, "child_not_found", "This client no longer exists.");
+  if (!clinicianId) {
+    clinicianId = child.clinicianId ?? null;
+  }
+
+And inside the try block, change the ownership check to:
+    // Ownership: when called by a clinician, verify they own the child.
+    if (req.isAuthenticated?.() && child.clinicianId !== clinicianId) {
+
+After editing, restart the API server (no frontend rebuild needed) and retest the scanner with rivera.parent / DEMO01 on Sofia.
