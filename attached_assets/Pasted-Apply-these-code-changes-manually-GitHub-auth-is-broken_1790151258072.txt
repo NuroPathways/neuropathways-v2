@@ -1,0 +1,300 @@
+Apply these code changes manually — GitHub auth is broken so we can't git pull. There are 5 files to update.
+
+FILE 1 — EDIT /home/runner/workspace/artifacts/neuropath/src/App.jsx
+
+Add this import after line 33 (after the ParentUpload import):
+import ParentSignup from './pages/ParentSignup';
+
+Add this route after the ParentUpload route (after the line with path="/ParentUpload"):
+      <Route path="/ParentSignup" element={<ParentSignup />} />
+
+FILE 2 — EDIT /home/runner/workspace/artifacts/neuropath/src/pages/ParentLogin.jsx
+
+Add these lines right before the "← Back to welcome page" button:
+        <p className="mt-5 text-sm text-muted-foreground">
+          No clinician yet?{" "}
+          <button onClick={() => navigate("/ParentSignup")} className="text-primary hover:underline font-medium">
+            Sign up independently
+          </button>
+        </p>
+
+FILE 3 — EDIT /home/runner/workspace/artifacts/neuropath/src/pages/UsernameLogin.jsx
+
+In the footer div (mt-6 text-center space-y-3), add this paragraph BEFORE the "Are you a clinician?" paragraph:
+          <p className="text-xs text-muted-foreground">
+            No account yet?{" "}
+            <a href="/ParentSignup" className="text-primary hover:underline font-medium">
+              Create one here
+            </a>
+          </p>
+
+FILE 4 — CREATE NEW FILE /home/runner/workspace/artifacts/neuropath/src/pages/ParentSignup.jsx
+
+Full contents:
+
+import { useState } from "react";
+import { Brain, ArrowLeft, Loader2, Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { motion } from "framer-motion";
+import { saveClientSession } from "@/lib/clientSession";
+
+export default function ParentSignup() {
+  const [form, setForm] = useState({ parent_name: "", child_name: "", child_age: "", diagnosis: "", username: "", access_code: "" });
+  const [showCode, setShowCode] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+
+  const valid = form.parent_name.trim() && form.child_name.trim() && form.username.trim().length >= 3 && form.access_code.trim().length >= 4;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!valid) return;
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/parent-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Something went wrong.");
+        setLoading(false);
+        return;
+      }
+
+      saveClientSession(data);
+      window.location.href = "/ParentDashboard";
+    } catch {
+      setError("Could not connect. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 font-inter">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+            <Brain className="w-5 h-5 text-primary-foreground" />
+          </div>
+          <span className="font-semibold text-foreground">NeuroPathways</span>
+        </div>
+
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+          <h1 className="text-xl font-semibold text-foreground mb-1">Create Your Account</h1>
+          <p className="text-sm text-muted-foreground mb-6">
+            Get started with NeuroPathways to track your child's behavioral goals, upload documents, and access personalized guidance.
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                Your Name
+              </label>
+              <Input value={form.parent_name} onChange={set("parent_name")} placeholder="e.g. Maria Rivera" className="rounded-xl min-h-[44px]" />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                Child's Name
+              </label>
+              <Input value={form.child_name} onChange={set("child_name")} placeholder="e.g. Sofia Rivera" className="rounded-xl min-h-[44px]" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                  Child's Age
+                </label>
+                <Input type="number" min="1" max="25" value={form.child_age} onChange={set("child_age")} placeholder="e.g. 7" className="rounded-xl min-h-[44px]" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                  Diagnosis (optional)
+                </label>
+                <Input value={form.diagnosis} onChange={set("diagnosis")} placeholder="e.g. ADHD" className="rounded-xl min-h-[44px]" />
+              </div>
+            </div>
+
+            <hr className="border-border" />
+
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                Choose a Username
+              </label>
+              <Input value={form.username} onChange={set("username")} placeholder="e.g. maria.rivera" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="rounded-xl min-h-[44px]" />
+              <p className="text-xs text-muted-foreground mt-1">At least 3 characters. You'll use this to sign in.</p>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                Create an Access Code
+              </label>
+              <div className="relative">
+                <input
+                  type={showCode ? "text" : "password"}
+                  value={form.access_code}
+                  onChange={set("access_code")}
+                  placeholder="e.g. MyCode123"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="w-full min-h-[44px] border border-border rounded-xl px-4 py-2.5 pr-12 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 font-mono tracking-widest"
+                />
+                <button type="button" onClick={() => setShowCode(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1">
+                  {showCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">At least 4 characters. This is your password.</p>
+            </div>
+
+            {error && (
+              <div className="bg-destructive/10 text-destructive text-sm rounded-xl px-4 py-3">
+                {error}
+              </div>
+            )}
+
+            <Button type="submit" className="w-full min-h-[44px] rounded-xl" disabled={loading || !valid}>
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creating account...
+                </span>
+              ) : "Create Account"}
+            </Button>
+          </form>
+        </div>
+
+        <div className="mt-6 text-center space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Already have an account?{" "}
+            <a href="/UsernameLogin" className="text-primary hover:underline font-medium">Sign in</a>
+          </p>
+          <button onClick={() => window.history.back()} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mx-auto">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+FILE 5 — EDIT /home/runner/workspace/artifacts/api-server/src/routes/entities.ts
+
+Change A (scanner fix) — In the build-client-profile handler, after the line "const docsWithFiles = docs.filter(d => d.fileUrl);", add:
+    const docsWithNotes = docs.filter(d => !d.fileUrl && d.notes?.trim());
+
+Change B — After the comment about "uploaded document (id not yet in sourceDocIds)", BEFORE the line starting with "const existingSourceIds", add:
+    const allScannableDocs = [...docsWithFiles, ...docsWithNotes];
+
+Change C — Change "docsWithFiles.some(d => !existingSourceIds.includes(d.id))" to "allScannableDocs.some(d => !existingSourceIds.includes(d.id))"
+
+Change D — Change "if (docsWithFiles.length === 0)" to "if (allScannableDocs.length === 0)"
+
+Change E — After the closing brace of the "for (const doc of docsWithFiles)" loop (after the file processing loop ends), add this new loop:
+    for (const doc of docsWithNotes) {
+      const label = doc.title || doc.category || "Clinical Notes";
+      const text = String(doc.notes).trim().substring(0, 20000);
+      contentParts.push({ type: "text", text: `[Document: ${label}]\n${text}` });
+      includedDocIds.push(doc.id);
+    }
+
+Change F — Change the console.info line from "of ${docsWithFiles.length}" to "of ${allScannableDocs.length}"
+
+Change G (parent signup endpoint) — Before the "// One-time migration: hash existing plaintext access codes" section, add this entire block:
+
+// ──────────────────────────────────────────────
+// Independent parent signup — no clinician required
+// ──────────────────────────────────────────────
+
+const signupAttempts = new Map<string, number[]>();
+function checkSignupRate(ip: string): boolean {
+  const now = Date.now();
+  const window = 15 * 60 * 1000;
+  const max = 5;
+  const attempts = (signupAttempts.get(ip) || []).filter(t => now - t < window);
+  if (attempts.length >= max) return false;
+  attempts.push(now);
+  signupAttempts.set(ip, attempts);
+  return true;
+}
+
+router.post("/parent-signup", async (req, res) => {
+  const ip = req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.ip || "unknown";
+  if (!checkSignupRate(ip)) {
+    return res.status(429).json({ error: "Too many signup attempts. Please try again later." });
+  }
+
+  const { parent_name, child_name, child_age, diagnosis, username, access_code } = req.body;
+  if (!parent_name?.trim() || !child_name?.trim() || !username?.trim() || !access_code?.trim()) {
+    return res.status(400).json({ error: "Parent name, child name, username, and access code are required." });
+  }
+  if (access_code.trim().length < 4) {
+    return res.status(400).json({ error: "Access code must be at least 4 characters." });
+  }
+  if (username.trim().length < 3) {
+    return res.status(400).json({ error: "Username must be at least 3 characters." });
+  }
+
+  const cleanUsername = username.trim().toLowerCase();
+  const cleanAccessCode = access_code.trim();
+
+  try {
+    const existing = await db.select({ id: childrenTable.id })
+      .from(childrenTable)
+      .where(eq(childrenTable.username, cleanUsername));
+    if (existing.length > 0) {
+      return res.status(409).json({ error: "That username is already taken. Please choose a different one." });
+    }
+
+    const hashedCode = await hashAccessCode(cleanAccessCode);
+
+    const [family] = await db.insert(familiesTable).values({
+      familyName: parent_name.trim(),
+      primaryContact: parent_name.trim(),
+      accountType: "independent",
+    }).returning();
+
+    const [child] = await db.insert(childrenTable).values({
+      familyId: family.id,
+      childName: child_name.trim(),
+      age: child_age ? parseInt(child_age, 10) || null : null,
+      diagnosis: diagnosis?.trim() || null,
+      username: cleanUsername,
+      accessCode: hashedCode,
+      accountType: "independent",
+      status: "active",
+    }).returning();
+
+    await auditLog({
+      action: "parent_signup",
+      targetType: "child",
+      targetId: child.id,
+      success: true,
+      metadata: { username: cleanUsername, familyId: family.id, ip },
+    });
+
+    const token = await generateClientToken(child.id, cleanUsername);
+    res.status(201).json({
+      id: child.id,
+      invite_token: token,
+      child_name: child.childName,
+      family_name: family.familyName,
+      primary_contact: family.primaryContact,
+      children: serialize([child]),
+    });
+  } catch (e: any) {
+    console.error("[NeuroPath] parent-signup error:", e);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
+AFTER ALL EDITS — rebuild and restart:
+cd /home/runner/workspace/artifacts/neuropath && PORT=5173 BASE_PATH=/ npx vite build
+Then restart the API server.
