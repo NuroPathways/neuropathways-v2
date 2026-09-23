@@ -33,25 +33,27 @@ export default function ParentLogin() {
         <p className="text-sm text-muted-foreground mb-8">
           Access your family dashboard and behavioral guidance. Parents can create an account without a clinic invite.
         </p>
-        <button
-          onClick={handleLogin}
-          className="w-full bg-primary text-primary-foreground rounded-2xl py-4 font-semibold text-base hover:bg-primary/90 transition-all"
-        >
-          Sign In / Create Account
-        </button>
-        <p className="mt-5 text-sm text-muted-foreground">
-          Have a username & access code?{" "}
-          <button onClick={() => navigate("/UsernameLogin")} className="text-primary hover:underline font-medium">
-            Sign in here
+        <div className="space-y-3">
+          <button
+            onClick={() => navigate("/UsernameLogin")}
+            className="w-full bg-primary text-primary-foreground rounded-2xl py-4 font-semibold text-base hover:bg-primary/90 transition-all"
+          >
+            Sign In with Username
           </button>
-        </p>
-        <p className="mt-5 text-sm text-muted-foreground">
-          No clinician yet?{" "}
-          <button onClick={() => navigate("/ParentSignup")} className="text-primary hover:underline font-medium">
-            Sign up independently
+          <button
+            onClick={handleLogin}
+            className="w-full bg-card text-foreground border border-border rounded-2xl py-4 font-semibold text-base hover:bg-muted transition-all"
+          >
+            Sign In with Email
           </button>
-        </p>
-        <button onClick={() => navigate("/")} className="mt-3 text-sm text-muted-foreground hover:text-foreground">
+          <button
+            onClick={() => navigate("/ParentSignup")}
+            className="w-full bg-primary/10 text-primary border border-primary/20 rounded-2xl py-4 font-semibold text-base hover:bg-primary/15 transition-all"
+          >
+            Sign Up
+          </button>
+        </div>
+        <button onClick={() => navigate("/")} className="mt-5 text-sm text-muted-foreground hover:text-foreground">
           ← Back to welcome page
         </button>
       </motion.div>

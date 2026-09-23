@@ -10,6 +10,22 @@ import CalmDownTool from "./CalmDownTool";
 // A module-level Set resets on every refresh, so the popup reappears after reload.
 const shownThisLoad = new Set();
 
+const splitGuidance = (value) => String(value || "")
+  .split(/\n+|(?=\d+\.\s)/)
+  .map((item) => item.replace(/^\d+\.\s*/, "").trim())
+  .filter(Boolean);
+
+const behaviorFromPlan = (plan) => ({
+  name: plan.behavior_name || plan.behaviorName || "Behavior support",
+  emoji: "📋",
+  what_may_be_happening: plan.behavior_description || plan.behaviorDescription || plan.behavior_function || plan.behaviorFunction,
+  interventions: splitGuidance(plan.strategy_steps || plan.strategySteps),
+  if_it_escalates: splitGuidance(plan.deescalation_steps || plan.deescalationSteps),
+  avoid: splitGuidance(plan.avoid_actions || plan.avoidActions),
+  prevention_tips: splitGuidance(plan.common_triggers || plan.commonTriggers),
+  reinforcement_rewards: splitGuidance(plan.reinforcement_method || plan.reinforcementMethod),
+});
+
 function ChildSelector({ children, onSelect }) {
   return (
     <div className="p-6">
@@ -144,7 +160,7 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
     if (children.length === 0) return;
     if (children.length === 1) {
       setSelectedChild(children[0]);
-      setStep("menu");
+      setStep("behavior");
     } else {
       setStep("child_select");
     }
@@ -172,7 +188,16 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
           account_id: user.id,
           invite_token: user.invite_token,
         }).catch(() => null);
-        if (res?.data?.profile) { setProfile(res.data.profile); setLoadingProfile(false); return; }
+        if (res?.data) {
+          const generatedBehaviors = res.data.profile?.behaviors || [];
+          const approvedPlanBehaviors = (res.data.plans || []).map(behaviorFromPlan);
+          setProfile({
+            ...(res.data.profile || {}),
+            behaviors: generatedBehaviors.length > 0 ? generatedBehaviors : approvedPlanBehaviors,
+          });
+          setLoadingProfile(false);
+          return;
+        }
       }
       const profiles = await base44.entities.ClientProfile.filter({ child_id: childId }).catch(() => []);
       setProfile(profiles[0] || null);
@@ -188,8 +213,9 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
   };
 
   const handleSelectChild = (child) => {
+    setProfile(null);
     setSelectedChild(child);
-    setStep("menu");
+    setStep("behavior");
   };
 
   const handleSelectSection = (section) => {
