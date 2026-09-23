@@ -1,0 +1,456 @@
+Implement a production-quality **Privacy & Health Information Consent step in the NeuroPathways signup flow**.
+
+Do not redesign or break the existing signup/authentication system. Audit the existing code first, identify the current signup flow, authentication provider, database structure, user roles, and existing Terms/Privacy components, and integrate this feature into the current architecture.
+
+# OBJECTIVE
+
+Before a parent, caregiver, client, or other consumer user can finish creating a NeuroPathways account, they must review and affirmatively accept:
+
+1. NeuroPathways Consumer Health Privacy Policy
+2. NeuroPathways Terms of Use, if one currently exists
+3. Health Information Upload & Processing Acknowledgment
+
+A user must NOT be able to complete registration, access the dashboard, or upload documents until the required consent has been recorded successfully on the server.
+
+Do not use a pre-checked checkbox.
+
+---
+
+# SIGNUP FLOW
+
+The signup process should be:
+
+Create Account
+
+→ Enter account information
+
+→ Select appropriate user role
+
+→ **Privacy & Health Information Consent**
+
+→ Create Account
+
+→ Dashboard
+
+For applicable parent/caregiver/consumer accounts, display a clearly visible consent card before the final Create Account button.
+
+Title:
+
+**Your Privacy Matters**
+
+Supporting text:
+
+“NeuroPathways may process private and sensitive health information that you choose to provide. Please review how your information will be handled before creating your account.”
+
+Include links/buttons:
+
+**Read Privacy Policy**
+
+**Read Terms of Use**
+
+These should open the current policy without destroying the user's signup progress.
+
+---
+
+# REQUIRED CONSENT
+
+Display the following required checkbox:
+
+☐ **I have read and agree to the NeuroPathways Privacy Policy and Terms of Use. I understand that I may voluntarily provide private and sensitive health information to NeuroPathways and authorize NeuroPathways to receive, store, and process information I provide for the services I request.**
+
+Below it, display a second required checkbox:
+
+☐ **I understand that electronic transmission and storage of information involves security risks and that no electronic system can guarantee absolute security.**
+
+For users who indicate that they will upload information concerning a child or another person, require:
+
+☐ **I confirm that I am authorized to possess and provide the health information and documents I upload concerning another person.**
+
+Do NOT state that the user assumes all liability for a security breach.
+
+Do NOT state that accepting the policy releases NeuroPathways from its privacy, security, breach-notification, or other legal responsibilities.
+
+Do NOT use wording suggesting users waive rights that cannot legally be waived.
+
+---
+
+# ACCOUNT CREATION REQUIREMENT
+
+The final **Create Account** button must remain disabled until every consent applicable to that account has been affirmatively selected.
+
+This must not only be enforced by the frontend.
+
+The backend must reject account activation or protected application access when required consent records are missing.
+
+A user must not be able to bypass consent by:
+
+- manipulating the frontend;
+- directly calling an API endpoint;
+- refreshing the page;
+- navigating directly to the dashboard;
+- modifying local storage;
+- using an old signup URL.
+
+Implement server-side authorization checks.
+
+---
+
+# CONSENT RECORD
+
+Create a persistent consent record associated with the user.
+
+Do NOT simply store:
+
+privacyAccepted = true
+
+Instead record enough information to establish what the user actually agreed to.
+
+Use a structure similar to:
+
+privacyConsent: {
+    accepted: true,
+    policyType: "consumer_health_privacy",
+    policyVersion: "1.0",
+    acceptedAt: SERVER_TIMESTAMP,
+    acceptanceMethod: "signup_checkbox"
+}
+
+healthInformationConsent: {
+    accepted: true,
+    consentVersion: "1.0",
+    acceptedAt: SERVER_TIMESTAMP
+}
+
+authorizedUploaderAttestation: {
+    required: true/false,
+    accepted: true/false,
+    acceptedAt: SERVER_TIMESTAMP
+}
+
+termsConsent: {
+    accepted: true,
+    termsVersion: "1.0",
+    acceptedAt: SERVER_TIMESTAMP
+}
+
+Use server-generated timestamps rather than trusting a timestamp supplied by the browser.
+
+If the existing database architecture uses a separate audit/event collection, create immutable consent events there instead of relying exclusively on mutable user-profile fields.
+
+Example event:
+
+eventType: "PRIVACY_POLICY_ACCEPTED"
+userId: [USER_ID]
+policy: "consumer_health_privacy"
+version: "1.0"
+timestamp: SERVER_TIMESTAMP
+source: "signup"
+actorType: "user"
+
+Never store sensitive medical information inside the consent audit event.
+
+---
+
+# POLICY VERSIONING
+
+Build policy versioning into the system now.
+
+Create a centralized configuration for:
+
+CURRENT_PRIVACY_POLICY_VERSION
+CURRENT_TERMS_VERSION
+CURRENT_HEALTH_CONSENT_VERSION
+
+Example:
+
+CURRENT_PRIVACY_POLICY_VERSION = "1.0"
+
+The signup page must record the version presented to the user.
+
+Do not hard-code policy versions independently across multiple components.
+
+---
+
+# POLICY CONTENT
+
+Add a dedicated route:
+
+/privacy
+
+Page title:
+
+**NeuroPathways Consumer Health Privacy Policy**
+
+Display the complete current NeuroPathways Consumer Health Privacy Policy.
+
+The policy must explain, among other things:
+
+- what information NeuroPathways collects;
+- voluntary health-document uploads;
+- sensitive behavioral/mental-health information;
+- parent/guardian authorization;
+- how uploaded documents are processed;
+- AI/automated document processing;
+- clinician sharing;
+- security;
+- security incidents/breach response;
+- retention and deletion;
+- minors/personal representatives;
+- third-party documents;
+- user privacy requests;
+- contact information.
+
+Also provide the Privacy Policy from appropriate locations in the application settings/footer after signup.
+
+---
+
+# FIRST DOCUMENT UPLOAD — SECOND CONFIRMATION
+
+Because document upload is a particularly sensitive action, implement an additional confirmation the FIRST time a user attempts to upload a health document.
+
+Display:
+
+**Before You Upload**
+
+“Documents uploaded to NeuroPathways may contain private medical, behavioral-health, mental-health, developmental, or other sensitive information.”
+
+Require:
+
+☐ **I understand that I am choosing to provide this information to NeuroPathways for processing as described in the Privacy Policy.**
+
+If the document concerns another person:
+
+☐ **I confirm that I am authorized to possess and provide this information.**
+
+Button:
+
+**Agree & Continue to Upload**
+
+Cancel button:
+
+**Cancel**
+
+Record this acknowledgment separately:
+
+firstHealthDocumentConsent: {
+    accepted: true,
+    consentVersion: "1.0",
+    acceptedAt: SERVER_TIMESTAMP
+}
+
+Only require this special confirmation once per applicable consent version.
+
+If the consent language materially changes and the version is updated, require acknowledgment again.
+
+---
+
+# EXISTING USERS
+
+Do not accidentally lock existing users out without a migration strategy.
+
+For existing accounts without a privacy consent record:
+
+After login, redirect them to:
+
+/privacy-review
+
+Display:
+
+**We've Updated Our Privacy Information**
+
+Require them to review and accept the current applicable policies before accessing document-upload functionality or other functionality that requires the consent.
+
+Record acceptance exactly as it is recorded for new users.
+
+---
+
+# PARENT/CHILD ACCOUNTS
+
+NeuroPathways allows parents/caregivers to manage information concerning another person.
+
+When a parent creates or links a child/client profile, show:
+
+**Relationship to this person**
+
+Options should align with the existing role model, such as:
+
+Parent  
+Legal Guardian  
+Authorized Caregiver  
+Other Authorized Representative
+
+Do not automatically treat selecting “Parent” as legal verification of access to every health record.
+
+Before allowing document upload, require the authorization attestation described above.
+
+Store the relationship separately from the user's attestation.
+
+---
+
+# CLINIC ACCOUNTS
+
+Do not assume this consumer consent replaces HIPAA requirements for clinic-connected accounts.
+
+Maintain architectural separation between:
+
+CONSUMER/PARENT-CONTROLLED ACCOUNT
+
+and
+
+CLINIC-CONNECTED ACCOUNT
+
+A consumer accepting the Privacy Policy does NOT constitute a Business Associate Agreement.
+
+Do not label an account, database, application, or workflow “HIPAA compliant” merely because a user accepted this policy.
+
+The system should be capable of supporting different privacy/consent requirements for clinic-managed accounts later.
+
+---
+
+# SECURITY REQUIREMENTS
+
+Never store consent only in:
+
+localStorage
+sessionStorage
+cookies
+frontend state
+
+Consent must be persisted server-side.
+
+Do not expose sensitive medical information in:
+
+application logs;
+analytics events;
+error-monitoring messages;
+URLs;
+query strings;
+browser console logs;
+consent audit records.
+
+Do not send uploaded health information to advertising or behavioral-tracking services.
+
+Review the signup and upload pages for analytics/tracking scripts that could inadvertently receive sensitive information.
+
+Flag anything questionable before changing it.
+
+---
+
+# AUDITABILITY
+
+Create an administrative/audit mechanism that allows an authorized administrator to determine:
+
+- which policy the user accepted;
+- policy version;
+- date/time accepted;
+- which consent was provided;
+- whether upload authorization was acknowledged;
+- whether re-consent is required.
+
+Do NOT allow ordinary administrators to alter historical consent events.
+
+Historical acceptance records should remain available even when a newer policy version is introduced.
+
+---
+
+# WITHDRAWAL / ACCOUNT SETTINGS
+
+Under:
+
+Settings → Privacy
+
+create:
+
+**Privacy & Data**
+
+Allow the user to:
+
+- view the current Privacy Policy;
+- view the Terms of Use;
+- see the date/version they accepted;
+- find instructions for privacy requests;
+- request account/data deletion where applicable;
+- see how to contact NeuroPathways regarding privacy.
+
+Do not implement “withdraw consent” as simply deleting the historical acceptance record.
+
+Historical records should remain intact where retention is legally or operationally appropriate.
+
+---
+
+# UX REQUIREMENTS
+
+The experience should feel trustworthy rather than frightening.
+
+Use the existing NeuroPathways visual system.
+
+Keep the interface:
+
+calm  
+professional  
+healthcare-oriented  
+mobile responsive  
+accessible  
+easy to understand
+
+Do not place the complete Privacy Policy inside a tiny scrolling checkbox window.
+
+Give users a clear way to read the entire policy.
+
+The signup page should summarize the important points and link to the full document.
+
+---
+
+# IMPORTANT IMPLEMENTATION RULE
+
+Before modifying anything:
+
+1. Inspect the existing authentication flow.
+2. Inspect the database/user schema.
+3. Inspect current user roles.
+4. Inspect document-upload permissions.
+5. Inspect existing Privacy Policy/Terms pages.
+6. Inspect route guards.
+7. Inspect existing audit/logging infrastructure.
+8. Identify all places where a new account could bypass this flow.
+
+Then implement the feature using the existing architecture rather than creating duplicate authentication or user systems.
+
+Do not delete or rewrite working features unnecessarily.
+
+---
+
+# TESTING
+
+Create automated tests for at least these cases:
+
+1. User cannot register without privacy consent.
+2. User cannot register if required authorization attestation is missing.
+3. Checked consent successfully creates a server-side record.
+4. Correct policy version is recorded.
+5. Timestamp comes from the server.
+6. User cannot bypass consent through direct API requests.
+7. User cannot access protected functionality without required consent.
+8. First document upload triggers the health-information confirmation.
+9. Subsequent uploads do not repeatedly trigger it for the same version.
+10. Updating the consent version triggers re-consent.
+11. Existing users without consent are routed through the review flow.
+12. Historical consent events cannot be modified by ordinary users.
+13. Parent relationship and document authorization are stored separately.
+14. Canceling the upload consent does not upload or process the document.
+15. Sensitive document contents never appear in consent/audit logs.
+
+After implementation, run the full test suite and fix regressions.
+
+Finally provide me with:
+
+1. files changed;
+2. database/schema changes;
+3. routes added;
+4. consent records created;
+5. security controls added;
+6. tests created and their results;
+7. any remaining privacy/security concerns you found;
+8. screenshots or a description of the completed signup and first-upload flows.
+
+Do not claim that these software changes alone make NeuroPathways HIPAA compliant. They are privacy/consent controls within a broader compliance program.

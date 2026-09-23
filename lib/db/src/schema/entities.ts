@@ -306,3 +306,17 @@ export const auditLogsTable = pgTable("audit_logs", {
   ipAddress: varchar("ip_address"),
   createdDate: createdAt(),
 });
+
+export const consentEventsTable = pgTable("consent_events", {
+  id: id(),
+  subjectId: varchar("subject_id").notNull(),
+  familyId: varchar("family_id"),
+  eventType: varchar("event_type").notNull(),
+  policyType: varchar("policy_type").notNull(),
+  version: varchar("version").notNull(),
+  acceptanceMethod: varchar("acceptance_method").notNull(),
+  source: varchar("source").notNull(),
+  actorType: varchar("actor_type").notNull(),
+  metadata: jsonb("metadata"),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -8,7 +8,7 @@ import {
   interventionPlansTable, behaviorLogsTable, rewardTokensTable, messagesTable,
   aiConversationsTable, dailyCheckInsTable, winLogsTable, engagementEventsTable,
   clientProfilesTable, userProfilesTable, usersTable, auditLogsTable, invitationsTable,
-  clientSessionsTable, mobileTokensTable, clientAccessCodeResetsTable,
+  clientSessionsTable, mobileTokensTable, clientAccessCodeResetsTable, consentEventsTable,
 } from "@workspace/db";
 import { eq, and, inArray, or, isNull, gt, ne, sql } from "drizzle-orm";
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
@@ -17,6 +17,10 @@ import { decryptBuffer } from "./upload";
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
 const router = Router();
+
+const CURRENT_PRIVACY_POLICY_VERSION = "1.0";
+const CURRENT_HEALTH_CONSENT_VERSION = "1.0";
+const CURRENT_AUTHORIZED_UPLOADER_ATTESTATION_VERSION = "1.0";
 
 // ──────────────────────────────────────────────
 // Serialization helpers
@@ -1711,6 +1715,14 @@ router.post("/add-child-to-family", requireAuth, async (req: any, res) => {
 // Independent parent signup — no clinician required
 // ──────────────────────────────────────────────
 
+router.get("/privacy-config", (_req, res) => {
+  res.json({
+    privacy_policy_version: CURRENT_PRIVACY_POLICY_VERSION,
+    health_consent_version: CURRENT_HEALTH_CONSENT_VERSION,
+    authorized_uploader_attestation_version: CURRENT_AUTHORIZED_UPLOADER_ATTESTATION_VERSION,
+  });
+});
+
 const signupAttempts = new Map<string, number[]>();
 function checkSignupRate(ip: string): boolean {
   const now = Date.now();
@@ -1729,7 +1741,7 @@ router.post("/parent-signup", async (req, res) => {
     return res.status(429).json({ error: "Too many signup attempts. Please try again later." });
   }
 
-  const { parent_name, child_name, child_age, diagnosis, username, access_code } = req.body;
+  const { parent_name, child_name, child_age, diagnosis, username, access_code, consent } = req.body;
   if (!parent_name?.trim() || !child_name?.trim() || !username?.trim() || !access_code?.trim()) {
     return res.status(400).json({ error: "Parent name, child name, username, and access code are required." });
   }
@@ -1738,6 +1750,20 @@ router.post("/parent-signup", async (req, res) => {
   }
   if (username.trim().length < 3) {
     return res.status(400).json({ error: "Username must be at least 3 characters." });
+  }
+  if (
+    consent?.privacy_policy_accepted !== true ||
+    consent?.health_information_accepted !== true ||
+    consent?.authorized_uploader_accepted !== true
+  ) {
+    return res.status(400).json({ error: "You must accept all required privacy and health information acknowledgments before creating an account." });
+  }
+  if (
+    consent?.privacy_policy_version !== CURRENT_PRIVACY_POLICY_VERSION ||
+    consent?.health_consent_version !== CURRENT_HEALTH_CONSENT_VERSION ||
+    consent?.authorized_uploader_attestation_version !== CURRENT_AUTHORIZED_UPLOADER_ATTESTATION_VERSION
+  ) {
+    return res.status(409).json({ error: "The privacy information has changed. Please review and accept the current version." });
   }
 
   const cleanUsername = username.trim().toLowerCase();
@@ -1753,22 +1779,60 @@ router.post("/parent-signup", async (req, res) => {
 
     const hashedCode = await hashAccessCode(cleanAccessCode);
 
-    const [family] = await db.insert(familiesTable).values({
-      familyName: parent_name.trim(),
-      primaryContact: parent_name.trim(),
-      accountType: "independent",
-    }).returning();
+    const { family, child } = await db.transaction(async tx => {
+      const [createdFamily] = await tx.insert(familiesTable).values({
+        familyName: parent_name.trim(),
+        primaryContact: parent_name.trim(),
+        accountType: "independent",
+      }).returning();
 
-    const [child] = await db.insert(childrenTable).values({
-      familyId: family.id,
-      childName: child_name.trim(),
-      age: child_age ? parseInt(child_age, 10) || null : null,
-      diagnosis: diagnosis?.trim() || null,
-      username: cleanUsername,
-      accessCode: hashedCode,
-      accountType: "independent",
-      status: "active",
-    }).returning();
+      const [createdChild] = await tx.insert(childrenTable).values({
+        familyId: createdFamily.id,
+        childName: child_name.trim(),
+        age: child_age ? parseInt(child_age, 10) || null : null,
+        diagnosis: diagnosis?.trim() || null,
+        username: cleanUsername,
+        accessCode: hashedCode,
+        accountType: "independent",
+        status: "active",
+      }).returning();
+
+      await tx.insert(consentEventsTable).values([
+        {
+          subjectId: createdChild.id,
+          familyId: createdFamily.id,
+          eventType: "PRIVACY_POLICY_ACCEPTED",
+          policyType: "consumer_health_privacy",
+          version: CURRENT_PRIVACY_POLICY_VERSION,
+          acceptanceMethod: "signup_checkbox",
+          source: "signup",
+          actorType: "user",
+        },
+        {
+          subjectId: createdChild.id,
+          familyId: createdFamily.id,
+          eventType: "HEALTH_INFORMATION_PROCESSING_ACCEPTED",
+          policyType: "health_information_processing",
+          version: CURRENT_HEALTH_CONSENT_VERSION,
+          acceptanceMethod: "signup_checkbox",
+          source: "signup",
+          actorType: "user",
+        },
+        {
+          subjectId: createdChild.id,
+          familyId: createdFamily.id,
+          eventType: "AUTHORIZED_UPLOADER_ATTESTED",
+          policyType: "authorized_uploader_attestation",
+          version: CURRENT_AUTHORIZED_UPLOADER_ATTESTATION_VERSION,
+          acceptanceMethod: "signup_checkbox",
+          source: "signup",
+          actorType: "user",
+          metadata: { concernsAnotherPerson: true },
+        },
+      ]);
+
+      return { family: createdFamily, child: createdChild };
+    });
 
     await auditLog({
       action: "parent_signup",

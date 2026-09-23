@@ -33,6 +33,7 @@ import GoalsMilestones from './pages/GoalsMilestones';
 import ParentUpload from './pages/ParentUpload';
 import ParentSignup from './pages/ParentSignup';
 import ResetAccessCode from './pages/ResetAccessCode';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -106,6 +107,7 @@ const AuthenticatedApp = () => {
       <Route path="/ResetAccessCode" element={<ResetAccessCode />} />
       <Route path="/ParentUpload" element={<ParentUpload />} />
       <Route path="/ParentSignup" element={<ParentSignup />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/GoalsMilestones" element={<LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>} />
       <Route path="/DataImport" element={<DataImport />} />
       <Route path="*" element={<PageNotFound />} />

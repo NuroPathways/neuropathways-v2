@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Brain, ArrowLeft, Loader2, Eye, EyeOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Brain, ArrowLeft, Loader2, Eye, EyeOff, ShieldCheck, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
@@ -10,10 +10,27 @@ export default function ParentSignup() {
   const [showCode, setShowCode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [privacyConfig, setPrivacyConfig] = useState(null);
+  const [consent, setConsent] = useState({
+    privacy: false,
+    security: false,
+    authorizedUploader: false,
+  });
+
+  useEffect(() => {
+    fetch("/api/privacy-config")
+      .then(res => {
+        if (!res.ok) throw new Error("Could not load privacy information.");
+        return res.json();
+      })
+      .then(setPrivacyConfig)
+      .catch(() => setError("Could not load the current privacy information. Please refresh and try again."));
+  }, []);
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
 
-  const valid = form.parent_name.trim() && form.child_name.trim() && form.username.trim().length >= 3 && form.access_code.trim().length >= 4;
+  const allConsentAccepted = consent.privacy && consent.security && consent.authorizedUploader;
+  const valid = form.parent_name.trim() && form.child_name.trim() && form.username.trim().length >= 3 && form.access_code.trim().length >= 4 && privacyConfig && allConsentAccepted;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,7 +42,17 @@ export default function ParentSignup() {
       const res = await fetch("/api/parent-signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          consent: {
+            privacy_policy_accepted: consent.privacy,
+            privacy_policy_version: privacyConfig.privacy_policy_version,
+            health_information_accepted: consent.security,
+            health_consent_version: privacyConfig.health_consent_version,
+            authorized_uploader_accepted: consent.authorizedUploader,
+            authorized_uploader_attestation_version: privacyConfig.authorized_uploader_attestation_version,
+          },
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -120,6 +147,44 @@ export default function ParentSignup() {
               <p className="text-xs text-muted-foreground mt-1">At least 4 characters. This is your password.</p>
             </div>
 
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-foreground">Your Privacy Matters</h2>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    NeuroPathways may process private and sensitive health information that you choose to provide. Please review how your information will be handled before creating your account.
+                  </p>
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary font-semibold hover:underline mt-2"
+                  >
+                    Read Privacy Policy <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+
+              <ConsentCheckbox
+                checked={consent.privacy}
+                onChange={checked => setConsent(current => ({ ...current, privacy: checked }))}
+                label="I have read and agree to the NeuroPathways Consumer Health Privacy Policy. I understand that I may voluntarily provide private and sensitive health information and authorize NeuroPathways to receive, store, and process it for the services I request."
+              />
+              <ConsentCheckbox
+                checked={consent.security}
+                onChange={checked => setConsent(current => ({ ...current, security: checked }))}
+                label="I understand that electronic transmission and storage of information involves security risks and that no electronic system can guarantee absolute security."
+              />
+              <ConsentCheckbox
+                checked={consent.authorizedUploader}
+                onChange={checked => setConsent(current => ({ ...current, authorizedUploader: checked }))}
+                label="I confirm that I am authorized to possess and provide the health information and documents I upload concerning my child or another person."
+              />
+            </div>
+
             {error && (
               <div className="bg-destructive/10 text-destructive text-sm rounded-xl px-4 py-3">
                 {error}
@@ -148,5 +213,19 @@ export default function ParentSignup() {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+function ConsentCheckbox({ checked, onChange, label }) {
+  return (
+    <label className="flex items-start gap-3 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={event => onChange(event.target.checked)}
+        className="mt-0.5 w-4 h-4 rounded border-border accent-primary flex-shrink-0"
+      />
+      <span className="text-xs text-foreground leading-relaxed">{label}</span>
+    </label>
   );
 }
