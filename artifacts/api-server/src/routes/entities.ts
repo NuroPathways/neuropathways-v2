@@ -832,7 +832,8 @@ router.post("/build-client-profile", async (req: any, res) => {
           contentParts.push({ type: "image", source: { type: "base64", media_type: IMAGE_MIME[ext], data: fileContent.toString("base64") } });
           includedDocIds.push(doc.id);
         } else if (ext === ".pdf") {
-          // Native PDF document block: Claude reads both text and image-based (scanned) PDFs.
+          const header = fileContent.subarray(0, 5).toString("ascii");
+          if (header !== "%PDF-") { failedDocs.push({ id: doc.id, reason: "The PDF file appears to be corrupt or invalid." }); continue; }
           contentParts.push({ type: "text", text: `[Document: ${label}]` });
           contentParts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: fileContent.toString("base64") } });
           includedDocIds.push(doc.id);
