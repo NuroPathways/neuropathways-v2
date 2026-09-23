@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { ArrowLeft, Search, FileText, Download, FolderOpen, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
+import DocScanButton from "@/components/clinician/DocScanButton";
 
 const CATEGORY_LABELS = {
   treatment_plan: "Treatment Plan",
@@ -172,34 +173,44 @@ export default function DocumentCenter() {
         ) : (
           <div className="space-y-2">
             {filtered.map((doc, i) => (
-              <motion.a
+              <motion.div
                 key={doc.id}
-                href={doc.file_url}
-                target="_blank"
-                rel="noreferrer"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className="flex items-center gap-4 p-4 bg-card border border-border rounded-2xl hover:border-primary/40 hover:shadow-sm transition-all group"
+                className="flex items-center gap-3 p-4 bg-card border border-border rounded-2xl hover:border-primary/40 hover:shadow-sm transition-all"
               >
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${CATEGORY_ICON_COLORS[doc.category] || "bg-muted text-muted-foreground"}`}>
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{doc.title}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    {doc.category && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[doc.category] || "bg-muted text-muted-foreground"}`}>
-                        {CATEGORY_LABELS[doc.category] || doc.category}
-                      </span>
-                    )}
-                    {!isIndividual && doc.child_id && childMap[doc.child_id] && (
-                      <span className="text-xs text-muted-foreground">{childMap[doc.child_id]}</span>
-                    )}
+                <a
+                  href={doc.file_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-3 flex-1 min-w-0 group"
+                >
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${CATEGORY_ICON_COLORS[doc.category] || "bg-muted text-muted-foreground"}`}>
+                    <FileText className="w-5 h-5" />
                   </div>
-                </div>
-                <Download className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
-              </motion.a>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{doc.title}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {doc.category && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[doc.category] || "bg-muted text-muted-foreground"}`}>
+                          {CATEGORY_LABELS[doc.category] || doc.category}
+                        </span>
+                      )}
+                      {!isIndividual && doc.child_id && childMap[doc.child_id] && (
+                        <span className="text-xs text-muted-foreground">{childMap[doc.child_id]}</span>
+                      )}
+                    </div>
+                  </div>
+                  <Download className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+                </a>
+                {isIndividual && (
+                  <DocScanButton
+                    doc={doc}
+                    inviteToken={user?.invite_token}
+                  />
+                )}
+              </motion.div>
             ))}
           </div>
         )}

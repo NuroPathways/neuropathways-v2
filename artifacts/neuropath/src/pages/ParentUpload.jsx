@@ -37,11 +37,12 @@ export default function ParentUpload() {
   const galleryRef = useRef(null);
   const fileRef = useRef(null);
 
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const [files, setFiles] = useState([]);
   const [category, setCategory] = useState("other");
   const [childId, setChildId] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ complete: 0, total: 0 });
+  const [uploadedCount, setUploadedCount] = useState(0);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
 
@@ -49,17 +50,10 @@ export default function ParentUpload() {
   const inviteToken = user?.invite_token || getInviteToken();
 
   const handleFile = (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length === 0) return;
+    setFiles(selectedFiles);
     setError("");
-    if (f.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setPreview(ev.target.result);
-      reader.readAsDataURL(f);
-    } else {
-      setPreview(null);
-    }
     // Auto-select child if only one
     if (children.length === 1 && !childId) {
       setChildId(children[0].id);
@@ -67,24 +61,34 @@ export default function ParentUpload() {
   };
 
   const clearFile = () => {
-    setFile(null);
-    setPreview(null);
+    setFiles([]);
+    setError("");
+    setUploadProgress({ complete: 0, total: 0 });
+  };
+
+  const removeFile = (index) => {
+    setFiles(current => current.filter((_, fileIndex) => fileIndex !== index));
     setError("");
   };
 
   const handleUpload = async () => {
-    if (!file || !inviteToken) return;
+    if (files.length === 0 || !inviteToken) return;
     const targetChildId = childId || (children.length === 1 ? children[0].id : null);
     if (!targetChildId) {
-      setError("Please select which child this document is for.");
+      setError("Please select which child these documents are for.");
       return;
     }
 
     setUploading(true);
     setError("");
+    setUploadProgress({ complete: 0, total: files.length });
 
-    try {
-      // Step 1: Upload the file
+    const failed = [];
+    let successful = 0;
+
+    for (const file of files) {
+      try {
+        // Step 1: Upload the file
       const formData = new FormData();
       formData.append("file", file);
       formData.append("invite_token", inviteToken);
@@ -123,13 +127,29 @@ export default function ParentUpload() {
         const err = await docRes.json().catch(() => ({}));
         throw new Error(err.error || "Could not save document record");
       }
-
-      setDone(true);
-    } catch (e) {
-      setError(e.message || "Something went wrong. Please try again.");
-    } finally {
-      setUploading(false);
+        successful += 1;
+      } catch (e) {
+        failed.push({
+          file,
+          message: e.message || "Upload failed",
+        });
+      }
+      setUploadProgress(current => ({ ...current, complete: current.complete + 1 }));
     }
+
+    setUploading(false);
+
+    if (failed.length === 0) {
+      setUploadedCount(successful);
+      setDone(true);
+      return;
+    }
+
+    setFiles(failed.map(item => item.file));
+    const failedNames = failed.map(item => item.file.name).join(", ");
+    setError(
+      `${successful} of ${files.length} uploaded. ${failed.length} failed: ${failedNames}. Please try the remaining files again.`
+    );
   };
 
   if (done) {
@@ -139,8 +159,10 @@ export default function ParentUpload() {
           <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-10 h-10 text-green-500" />
           </div>
-          <h2 className="text-xl font-bold text-foreground mb-1">Uploaded!</h2>
-          <p className="text-sm text-muted-foreground mb-6">Your clinician can now see this document.</p>
+          <h2 className="text-xl font-bold text-foreground mb-1">Documents Uploaded!</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Your clinician can now see {uploadedCount} {uploadedCount === 1 ? "document" : "documents"}.
+          </p>
           <div className="flex gap-3 justify-center">
             <Button variant="outline" className="rounded-xl" onClick={() => { setDone(false); clearFile(); }}>
               Upload Another
@@ -174,7 +196,7 @@ export default function ParentUpload() {
       <div className="p-5 max-w-xl mx-auto space-y-4 -mt-1">
         {/* Capture buttons — big, thumb-friendly */}
         <AnimatePresence mode="wait">
-          {!file ? (
+          {files.length === 0 ? (
             <motion.div key="pick" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3">
               <button
                 onClick={() => cameraRef.current?.click()}
@@ -198,7 +220,7 @@ export default function ParentUpload() {
                 </div>
                 <div className="text-left">
                   <p className="font-semibold text-foreground">Choose from Photos</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Pick an image from your library</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Pick one or several images from your library</p>
                 </div>
               </button>
 
@@ -210,36 +232,57 @@ export default function ParentUpload() {
                   <FileText className="w-7 h-7 text-green-600" />
                 </div>
                 <div className="text-left">
-                  <p className="font-semibold text-foreground">Choose a File</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">PDF, DOCX, JPG, PNG, GIF, WebP, or text</p>
+                  <p className="font-semibold text-foreground">Choose Files</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Select multiple PDF, DOCX, image, or text files at once</p>
                 </div>
               </button>
 
               {/* Hidden file inputs */}
               <input ref={cameraRef} type="file" accept="image/jpeg,image/png" capture="environment" className="hidden" onChange={handleFile} />
-              <input ref={galleryRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleFile} />
-              <input ref={fileRef} type="file" accept=".pdf,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt,.md,.csv,.json,.rtf" className="hidden" onChange={handleFile} />
+              <input ref={galleryRef} type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleFile} />
+              <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt,.md,.csv,.json,.rtf" className="hidden" onChange={handleFile} />
             </motion.div>
           ) : (
             <motion.div key="review" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              {/* Preview */}
+              {/* Selected files */}
               <div className="bg-card border border-border rounded-2xl p-4">
-                <div className="flex items-start gap-3">
-                  {preview ? (
-                    <img src={preview} alt="Preview" className="w-20 h-20 object-cover rounded-xl flex-shrink-0" />
-                  ) : (
-                    <div className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-8 h-8 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{file.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
-                    <button onClick={clearFile} className="flex items-center gap-1 text-xs text-destructive mt-2 font-medium">
-                      <X className="w-3 h-3" /> Remove
-                    </button>
-                  </div>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <p className="text-sm font-semibold text-foreground">
+                    {files.length} {files.length === 1 ? "document" : "documents"} selected
+                  </p>
+                  <button onClick={clearFile} disabled={uploading} className="text-xs text-destructive font-medium disabled:opacity-50">
+                    Remove all
+                  </button>
                 </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {files.map((file, index) => (
+                    <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
+                      <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
+                        <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
+                      </div>
+                      <button
+                        onClick={() => removeFile(index)}
+                        disabled={uploading}
+                        aria-label={`Remove ${file.name}`}
+                        className="w-8 h-8 flex items-center justify-center text-destructive rounded-lg hover:bg-red-50 disabled:opacity-50"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {!uploading && (
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="mt-3 text-xs text-primary font-medium hover:underline"
+                  >
+                    Choose a different batch
+                  </button>
+                )}
               </div>
 
               {/* Child selector — only if multiple children */}
@@ -297,9 +340,10 @@ export default function ParentUpload() {
               >
                 {uploading ? (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin" /> Uploading...
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Uploading {uploadProgress.complete + 1} of {uploadProgress.total}...
                   </span>
-                ) : "Upload to Clinician"}
+                ) : `Upload ${files.length} ${files.length === 1 ? "Document" : "Documents"} to Clinician`}
               </Button>
             </motion.div>
           )}

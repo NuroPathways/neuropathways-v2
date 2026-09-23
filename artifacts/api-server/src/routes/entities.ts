@@ -1056,7 +1056,19 @@ router.post("/build-client-profile", async (req: any, res) => {
     // Instruct Claude to record the profile via the structured tool below.
     contentParts.push({
       type: "text",
-      text: `You are a clinical assistant. Analyze the clinical documents above for ${childName}${diagnosis ? ` (diagnosis: ${diagnosis})` : ""} and record a structured behavioral profile by calling the save_behavioral_profile tool. Base every field only on the documents. Use an empty array for any list not supported by the documents, and keep list items concise.`,
+      text: `You are a clinical assistant. Analyze the clinical documents above for ${childName}${diagnosis ? ` (diagnosis: ${diagnosis})` : ""} and record a structured behavioral profile by calling the save_behavioral_profile tool.
+
+Base every field only on the documents. Use an empty array for any list not supported by the documents.
+
+Write all parent- and client-facing guidance in plain language that a sixth-grade reader can understand:
+- Turn clinical terms into short, concrete actions that someone can see and do.
+- Give specific examples instead of repeating an abstract treatment phrase.
+- Break a multi-stage skill into ordered steps when the document supports that approach.
+- Preserve the document's frequency, duration, percentage, and completion criteria.
+- Do not invent a new treatment or requirement. You may provide ordinary examples that clarify a treatment already prescribed.
+- Keep formal clinical labels only in diagnoses and clinical_interventions; explain their practical meaning in the other fields.
+
+Example: do not write only "${childName} will complete a graduated exposure hierarchy to address avoidance of public speaking and presentations." Write practical steps such as "${childName} will first practice a one-minute talk alone, then give it to one trusted person, then to a small group, and finally present to the class," when that progression is supported by the document.`,
     });
 
     // Force structured output via tool use. This is far more reliable than asking
@@ -1077,14 +1089,14 @@ router.post("/build-client-profile", async (req: any, res) => {
               properties: {
                 name: { type: "string", description: "Short behavior name, e.g. 'Aggressive Outbursts'." },
                 emoji: { type: "string", description: "A single relevant emoji." },
-                description: { type: "string", description: "1-2 sentence description." },
-                what_may_be_happening: { type: "string", description: "Clinical explanation for parents." },
-                do_this_right_now: { type: "array", items: { type: "string" }, description: "Immediate action steps." },
-                interventions: { type: "array", items: { type: "string" }, description: "Clinician-approved strategies." },
-                if_it_escalates: { type: "array", items: { type: "string" }, description: "Escalation steps." },
-                avoid: { type: "array", items: { type: "string" }, description: "Things not to do." },
-                prevention_tips: { type: "array", items: { type: "string" } },
-                reinforcement_rewards: { type: "array", items: { type: "string" } },
+                description: { type: "string", description: "A plain-language, 1-2 sentence description of what a parent may observe." },
+                what_may_be_happening: { type: "string", description: "A plain-language explanation for parents. Explain any necessary clinical term." },
+                do_this_right_now: { type: "array", items: { type: "string" }, description: "Short, specific actions a parent or client can do immediately." },
+                interventions: { type: "array", items: { type: "string" }, description: "Clinician-approved strategies rewritten as concrete actions with examples, not unexplained treatment jargon." },
+                if_it_escalates: { type: "array", items: { type: "string" }, description: "Specific, observable escalation steps in the order they should be followed." },
+                avoid: { type: "array", items: { type: "string" }, description: "Specific actions not to take." },
+                prevention_tips: { type: "array", items: { type: "string" }, description: "Concrete steps that can be completed before a difficult situation." },
+                reinforcement_rewards: { type: "array", items: { type: "string" }, description: "Specific ways to recognize or reward the desired action." },
                 clinical_interventions: { type: "array", items: { type: "string" }, description: "Therapy techniques, e.g. ABA, CBT." },
                 when_to_contact_clinician: { type: "string" },
                 linked_goals: { type: "array", items: { type: "string" }, description: "Treatment goal titles this behavior maps to." },
@@ -1095,9 +1107,13 @@ router.post("/build-client-profile", async (req: any, res) => {
           },
           goals: {
             type: "array",
+            description: "Treatment goals rewritten in plain language with practical examples while preserving measurable requirements.",
             items: {
               type: "object",
-              properties: { title: { type: "string" }, description: { type: "string" } },
+              properties: {
+                title: { type: "string", description: "A short, action-focused title without unexplained clinical jargon." },
+                description: { type: "string", description: "Specific actions the client will practice, including an ordered example when the source describes a gradual or multi-stage skill." },
+              },
               required: ["title"],
             },
           },
@@ -1107,9 +1123,9 @@ router.post("/build-client-profile", async (req: any, res) => {
             items: {
               type: "object",
               properties: {
-                target_behavior: { type: "string" },
-                measurable_outcome: { type: "string" },
-                completion_criteria: { type: "string" },
+                target_behavior: { type: "string", description: "The specific action to practice or change, in plain language." },
+                measurable_outcome: { type: "string", description: "What someone will see the client do and how it will be measured." },
+                completion_criteria: { type: "string", description: "The document's concrete frequency, duration, percentage, or step needed to complete the objective." },
               },
             },
           },
@@ -1453,6 +1469,7 @@ router.post("/verify-client-credentials", async (req, res) => {
       child_name: child.childName,
       family_name: family?.familyName ?? null,
       primary_contact: family?.primaryContact ?? null,
+      account_type: family?.accountType ?? null,
       children: serialize(siblings),
     };
     res.json({ session });

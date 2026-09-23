@@ -24,13 +24,13 @@ function parseErrorMessage(err) {
   return raw.replace(/^API error \d+:\s*/, "").trim() || "Scan failed";
 }
 
-export default function DocScanButton({ doc, clinicianId, onScanned }) {
+export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned }) {
   const initial = doc.scan_status === "done" ? "done" : doc.scan_status === "scanning" ? "scanning" : "pending";
   const [status, setStatus] = useState(initial);
   const [errorMsg, setErrorMsg] = useState(doc.scan_status === "error" ? (doc.scan_error || "Failed") : "");
 
   const runScan = async () => {
-    if (!clinicianId || status === "scanning") return;
+    if ((!clinicianId && !inviteToken) || status === "scanning") return;
     const isReScan = status === "done";
     setStatus("scanning");
     setErrorMsg("");
@@ -41,6 +41,7 @@ export default function DocScanButton({ doc, clinicianId, onScanned }) {
       const res = await base44.functions.invoke('buildClientProfile', {
         child_id: doc.child_id,
         force_rebuild: isReScan,
+        invite_token: inviteToken,
       });
       const data = res?.data || {};
       // The endpoint scans all of the child's docs together — reflect this
