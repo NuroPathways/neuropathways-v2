@@ -48,9 +48,10 @@ export default function ParentLogin() {
           </button>
           <button
             onClick={() => navigate("/ParentSignup")}
-            className="w-full bg-primary/10 text-primary border border-primary/20 rounded-2xl py-4 font-semibold text-base hover:bg-primary/15 transition-all"
+            className="w-full bg-primary/10 text-primary border border-primary/20 rounded-2xl px-4 py-4 hover:bg-primary/15 transition-all"
           >
-            Sign Up
+            <span className="block text-sm text-muted-foreground">Don&apos;t have an account?</span>
+            <span className="block text-base font-semibold mt-0.5">Sign up now</span>
           </button>
         </div>
         <button onClick={() => navigate("/")} className="mt-5 text-sm text-muted-foreground hover:text-foreground">
