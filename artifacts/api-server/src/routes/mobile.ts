@@ -70,11 +70,12 @@ router.post("/mobile/auth/login", async (req, res) => {
   if (!username || !access_code) {
     return res.status(400).json({ error: "username and access_code required" });
   }
+  const cleanUsername = username.trim().toLowerCase();
   try {
     const [child] = await db
       .select()
       .from(childrenTable)
-      .where(eq(childrenTable.username, username));
+      .where(eq(childrenTable.username, cleanUsername));
     if (!child || !child.accessCode) {
       return res.status(401).json({ error: "Invalid username or access code" });
     }

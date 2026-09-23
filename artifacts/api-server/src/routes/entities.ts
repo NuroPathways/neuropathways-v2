@@ -1440,9 +1440,10 @@ router.post("/manage-client-goal", async (req: any, res) => {
 router.post("/verify-client-credentials", async (req, res) => {
   const { username, access_code } = req.body;
   if (!username || !access_code) return res.status(400).json({ error: "username and access_code required" });
+  const cleanUsername = username.trim().toLowerCase();
   try {
     const candidates = await db.select().from(childrenTable)
-      .where(eq(childrenTable.username, username));
+      .where(eq(childrenTable.username, cleanUsername));
 
     let child = null;
     for (const c of candidates) {
@@ -1452,7 +1453,7 @@ router.post("/verify-client-credentials", async (req, res) => {
       }
     }
     if (!child) {
-      await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username } });
+      await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username: cleanUsername } });
       return res.json({ error: "Invalid username or access code" });
     }
 
@@ -1466,7 +1467,7 @@ router.post("/verify-client-credentials", async (req, res) => {
 
     await auditLog({ action: "login", targetType: "child", targetId: child.id, success: true, tenantId: child.clinicianId ?? undefined });
 
-    const token = await generateClientToken(child.id, username);
+    const token = await generateClientToken(child.id, cleanUsername);
     const session = {
       id: child.id,
       invite_token: token,
@@ -1489,9 +1490,10 @@ router.post("/client-session/change-access-code", async (req, res) => {
     return res.status(400).json({ error: "username, current_access_code, and new_access_code required" });
   if (new_access_code.length < 4)
     return res.status(400).json({ error: "New access code must be at least 4 characters" });
+  const cleanUsername = username.trim().toLowerCase();
   try {
     const candidates = await db.select().from(childrenTable)
-      .where(eq(childrenTable.username, username));
+      .where(eq(childrenTable.username, cleanUsername));
 
     let child = null;
     for (const c of candidates) {
@@ -1517,7 +1519,7 @@ router.post("/client-session/change-access-code", async (req, res) => {
     const [family] = child.familyId
       ? await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId))
       : [undefined];
-    const newToken = await generateClientToken(child.id, username);
+    const newToken = await generateClientToken(child.id, cleanUsername);
     const session = {
       id: child.id,
       invite_token: newToken,
@@ -1537,9 +1539,10 @@ router.post("/client-session/change-access-code", async (req, res) => {
 router.post("/client-session/login", async (req, res) => {
   const { username, access_code } = req.body;
   if (!username || !access_code) return res.status(400).json({ error: "username and access_code required" });
+  const cleanUsername = username.trim().toLowerCase();
   try {
     const candidates = await db.select().from(childrenTable)
-      .where(eq(childrenTable.username, username));
+      .where(eq(childrenTable.username, cleanUsername));
 
     let child = null;
     for (const c of candidates) {
@@ -1549,7 +1552,7 @@ router.post("/client-session/login", async (req, res) => {
       }
     }
     if (!child) {
-      await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username } });
+      await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username: cleanUsername } });
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
@@ -1563,7 +1566,7 @@ router.post("/client-session/login", async (req, res) => {
 
     await auditLog({ action: "login", targetType: "child", targetId: child.id, success: true, tenantId: child.clinicianId ?? undefined });
 
-    const token = await generateClientToken(child.id, username);
+    const token = await generateClientToken(child.id, cleanUsername);
     res.json({
       id: child.id,
       invite_token: token,
