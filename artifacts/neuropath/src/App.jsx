@@ -31,6 +31,7 @@ import AIChat from './pages/AIChat';
 import UsernameLogin from './pages/UsernameLogin';
 import GoalsMilestones from './pages/GoalsMilestones';
 import ParentUpload from './pages/ParentUpload';
+import ParentSignup from './pages/ParentSignup';
 import ResetAccessCode from './pages/ResetAccessCode';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -104,6 +105,7 @@ const AuthenticatedApp = () => {
       <Route path="/UsernameLogin" element={<UsernameLogin />} />
       <Route path="/ResetAccessCode" element={<ResetAccessCode />} />
       <Route path="/ParentUpload" element={<ParentUpload />} />
+      <Route path="/ParentSignup" element={<ParentSignup />} />
       <Route path="/GoalsMilestones" element={<LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>} />
       <Route path="/DataImport" element={<DataImport />} />
       <Route path="*" element={<PageNotFound />} />
