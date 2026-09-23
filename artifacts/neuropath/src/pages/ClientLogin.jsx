@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
-import { Brain, Mail, User } from "lucide-react";
+import { Brain, Mail, User, UserPlus } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function ClientLogin() {
@@ -56,6 +56,20 @@ export default function ClientLogin() {
             <div className="text-left">
               <p className="font-semibold text-foreground">Sign in with Email</p>
               <p className="text-xs font-normal text-muted-foreground">Use your email address</p>
+            </div>
+          </button>
+
+          {/* New family account */}
+          <button
+            onClick={() => navigate("/ParentSignup")}
+            className="w-full bg-primary/10 border-2 border-primary/20 text-primary rounded-2xl py-4 px-5 hover:bg-primary/15 hover:border-primary/40 transition-all flex items-center gap-3"
+          >
+            <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+              <UserPlus className="w-5 h-5" />
+            </div>
+            <div className="text-left">
+              <p className="text-xs font-normal text-muted-foreground">Don&apos;t have an account?</p>
+              <p className="font-semibold">Sign up now</p>
             </div>
           </button>
         </div>
