@@ -21,24 +21,34 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (isLoading) return;
-    const inTabsGroup = segments[0] === "(tabs)";
-    if (!isAuthenticated && inTabsGroup) {
+    const publicScreen = ["login", "signup", "privacy", "clinician-login", "+not-found"].includes(segments[0] as string);
+    if (!isAuthenticated && !publicScreen) {
       router.replace("/login");
-    } else if (isAuthenticated && segments[0] === "login") {
-      router.replace("/(tabs)");
+    } else if (isAuthenticated && (["login", "signup", "clinician-login"].includes(segments[0] as string) || (user?.role === "clinician" && segments[0] === "(tabs)") || (user?.role !== "clinician" && ["clinician", "clinician-client", "clinician-create-client"].includes(segments[0] as string)))) {
+      router.replace(user?.role === "clinician" ? "/clinician" : "/(tabs)");
     }
-  }, [isAuthenticated, isLoading, segments]);
+  }, [isAuthenticated, isLoading, segments, user?.role]);
 
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="signup" options={{ title: "Create account" }} />
+      <Stack.Screen name="privacy" options={{ title: "Privacy policy" }} />
+      <Stack.Screen name="clinician-login" options={{ title: "Clinician sign in" }} />
+      <Stack.Screen name="clinician" options={{ title: "Clinician workspace" }} />
+      <Stack.Screen name="clinician-client" options={{ title: "Client details" }} />
+      <Stack.Screen name="clinician-create-client" options={{ title: "Add a client" }} />
+      <Stack.Screen name="check-in" options={{ title: "Daily check-in" }} />
+      <Stack.Screen name="wins" options={{ title: "Wins" }} />
+      <Stack.Screen name="profile" options={{ title: "Profile" }} />
+      <Stack.Screen name="change-code" options={{ title: "Change access code" }} />
       <Stack.Screen
         name="help"
         options={{ title: "Help Right Now", presentation: "card" }}

@@ -13,7 +13,7 @@ import {
   aiConversationsTable,
   mobileTokensTable,
 } from "@workspace/db";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, isNull } from "drizzle-orm";
 
 function scryptHash(input: string, salt: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -109,6 +109,34 @@ router.delete("/mobile/auth/logout", requireMobileAuth, async (req: any, res) =>
   }
 });
 
+router.post("/mobile/auth/change-access-code", requireMobileAuth, async (req: any, res) => {
+  const { current_access_code, new_access_code } = req.body ?? {};
+  if (typeof current_access_code !== "string" || typeof new_access_code !== "string" ||
+      new_access_code.trim().length < 4 || new_access_code.length > 128) {
+    return res.status(400).json({ error: "Enter the current code and a new code of 4–128 characters." });
+  }
+  try {
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
+    if (!child?.accessCode || !(await verifyAccessCode(current_access_code.trim(), child.accessCode))) {
+      return res.status(401).json({ error: "Current access code is incorrect." });
+    }
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = await scryptHash(new_access_code.trim().toUpperCase(), salt);
+    const accessCode = `${salt}:${hash}`;
+    if (child.familyId) {
+      await db.update(childrenTable).set({ accessCode }).where(and(
+        eq(childrenTable.familyId, child.familyId),
+        child.clinicianId ? eq(childrenTable.clinicianId, child.clinicianId) : isNull(childrenTable.clinicianId),
+      ));
+    } else {
+      await db.update(childrenTable).set({ accessCode }).where(eq(childrenTable.id, child.id));
+    }
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ──────────────────────────────────────────────
 // Helper
 // ──────────────────────────────────────────────
@@ -134,7 +162,9 @@ router.get("/mobile/children", requireMobileAuth, async (req: any, res) => {
       .select()
       .from(childrenTable)
       .where(eq(childrenTable.id, req.mobileUser.childId));
-    res.json(child ? [child] : []);
+    if (!child) return res.json([]);
+    const { accessCode: _accessCode, ...publicChild } = child;
+    res.json([publicChild]);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

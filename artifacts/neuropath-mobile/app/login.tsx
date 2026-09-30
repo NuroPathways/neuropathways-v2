@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Linking,
 } from "react-native";
 import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -204,8 +203,6 @@ export default function LoginScreen() {
   const [userFocused, setUserFocused] = useState(false);
   const [codeFocused, setCodeFocused] = useState(false);
 
-  const webDomain = process.env.EXPO_PUBLIC_DOMAIN;
-
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -219,7 +216,7 @@ export default function LoginScreen() {
           <View style={styles.logoCircle}>
             <Feather name="activity" size={34} color="#FFFFFF" />
           </View>
-          <Text style={styles.appName}>NeuroPath</Text>
+          <Text style={styles.appName}>NeuroPathways</Text>
           <Text style={styles.tagline}>
             Your behavioral health companion
           </Text>
@@ -275,6 +272,9 @@ export default function LoginScreen() {
               </>
             )}
           </Pressable>
+          <Pressable onPress={() => router.push("/signup")} testID="open-signup">
+            <Text style={[styles.clinicianTitle, { color: colors.primary, textAlign: "center", marginTop: 18 }]}>Create a parent account</Text>
+          </Pressable>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
@@ -284,12 +284,7 @@ export default function LoginScreen() {
 
           <Pressable
             style={styles.clinicianCard}
-            onPress={() => {
-              const url = webDomain
-                ? `https://${webDomain}/api/login`
-                : "https://replit.com";
-              Linking.openURL(url);
-            }}
+            onPress={() => router.push("/clinician-login")}
           >
             <View style={styles.clinicianIcon}>
               <Feather name="monitor" size={22} color={colors.primary} />
@@ -297,10 +292,10 @@ export default function LoginScreen() {
             <View style={styles.clinicianTextBlock}>
               <Text style={styles.clinicianTitle}>Clinician Login</Text>
               <Text style={styles.clinicianSub}>
-                Opens your browser for secure sign-in
+                  Sign in or create a clinician account
               </Text>
             </View>
-            <Feather name="external-link" size={16} color={colors.mutedForeground} />
+            <Feather name="arrow-right" size={16} color={colors.mutedForeground} />
           </Pressable>
         </View>
 

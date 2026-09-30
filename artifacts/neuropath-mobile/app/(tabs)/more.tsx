@@ -83,6 +83,46 @@ export default function MoreScreen() {
       iconBg: "#EDE9FE",
       onPress: () => router.push("/progress" as any),
     },
+    {
+      icon: "heart",
+      label: "Daily Check-in",
+      sub: "Record how today is going",
+      iconColor: colors.primary,
+      iconBg: colors.muted,
+      onPress: () => router.push("/check-in"),
+    },
+    {
+      icon: "award",
+      label: "Wins",
+      sub: "Celebrate progress",
+      iconColor: colors.primary,
+      iconBg: colors.muted,
+      onPress: () => router.push("/wins"),
+    },
+    {
+      icon: "user",
+      label: "Child Profile",
+      sub: "View account details",
+      iconColor: colors.primary,
+      iconBg: colors.muted,
+      onPress: () => router.push("/profile"),
+    },
+    {
+      icon: "lock",
+      label: "Change Access Code",
+      sub: "Update your sign-in code",
+      iconColor: colors.primary,
+      iconBg: colors.muted,
+      onPress: () => router.push("/change-code"),
+    },
+    {
+      icon: "shield",
+      label: "Privacy Policy",
+      sub: "Review how information is handled",
+      iconColor: colors.primary,
+      iconBg: colors.muted,
+      onPress: () => router.push("/privacy"),
+    },
   ];
 
   const s = StyleSheet.create({

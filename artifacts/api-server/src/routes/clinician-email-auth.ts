@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { db, usersTable } from "@workspace/db";
 import { userProfilesTable, clinicianCredentialsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { createSession, SESSION_COOKIE, SESSION_TTL } from "../lib/auth";
+import { createSession, deleteSession, getSessionId, SESSION_COOKIE, SESSION_TTL } from "../lib/auth";
 
 const router = Router();
 
@@ -26,7 +26,7 @@ function setSessionCookie(res: any, sid: string) {
   });
 }
 
-router.post("/clinician/register", async (req, res) => {
+async function registerClinician(req: any, res: any) {
   const { email, password, firstName, lastName } = req.body;
   if (!email || !password)
     return res.status(400).json({ error: "Email and password are required" });
@@ -97,9 +97,12 @@ router.post("/clinician/register", async (req, res) => {
       },
       access_token: "email_auth",
     });
-    setSessionCookie(res, sid);
-
-    res.status(201).json({ ok: true, redirect: "/ClinicianDashboard" });
+    if (req.path.startsWith("/mobile/")) {
+      res.status(201).json({ token: sid, clinician: { id: userId, email: normEmail, first_name: firstName?.trim() || null, last_name: lastName?.trim() || null, role: "clinician" } });
+    } else {
+      setSessionCookie(res, sid);
+      res.status(201).json({ ok: true, redirect: "/ClinicianDashboard" });
+    }
   } catch (e: any) {
     // Postgres unique_violation — e.g. a concurrent registration for the same
     // email slipped past the pre-checks. Return a clean 409 instead of a 500.
@@ -107,9 +110,12 @@ router.post("/clinician/register", async (req, res) => {
       return res.status(409).json({ error: "An account with this email already exists. Please sign in." });
     res.status(500).json({ error: e.message });
   }
-});
+}
 
-router.post("/clinician/login", async (req, res) => {
+router.post("/clinician/register", registerClinician);
+router.post("/mobile/clinician/register", registerClinician);
+
+async function loginClinician(req: any, res: any) {
   const { email, password } = req.body;
   if (!email || !password)
     return res.status(400).json({ error: "Email and password are required" });
@@ -126,7 +132,7 @@ router.post("/clinician/login", async (req, res) => {
     const [salt, storedHash] = creds.passwordHash.split(":");
     const inputHash = await hashPassword(password, salt);
 
-    if (inputHash !== storedHash)
+    if (inputHash.length !== storedHash.length || !crypto.timingSafeEqual(Buffer.from(inputHash), Buffer.from(storedHash)))
       return res.status(401).json({ error: "Invalid email or password" });
 
     const [user] = await db
@@ -135,6 +141,9 @@ router.post("/clinician/login", async (req, res) => {
       .where(eq(usersTable.id, creds.userId));
     if (!user)
       return res.status(401).json({ error: "Account not found" });
+    const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, user.id));
+    if (profile?.appRole !== "clinician")
+      return res.status(403).json({ error: "This account is not a clinician account" });
 
     const sid = await createSession({
       user: {
@@ -146,12 +155,25 @@ router.post("/clinician/login", async (req, res) => {
       },
       access_token: "email_auth",
     });
-    setSessionCookie(res, sid);
-
-    res.json({ ok: true, redirect: "/ClinicianDashboard" });
+    if (req.path.startsWith("/mobile/")) {
+      res.json({ token: sid, clinician: { id: user.id, email: user.email, first_name: user.firstName, last_name: user.lastName, role: "clinician" } });
+    } else {
+      setSessionCookie(res, sid);
+      res.json({ ok: true, redirect: "/ClinicianDashboard" });
+    }
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
+}
+
+router.post("/clinician/login", loginClinician);
+router.post("/mobile/clinician/login", loginClinician);
+
+router.delete("/mobile/clinician/logout", async (req: any, res) => {
+  if (!req.user?.id) return res.status(401).json({ error: "Not authenticated" });
+  const sid = getSessionId(req);
+  if (sid) await deleteSession(sid);
+  res.json({ ok: true });
 });
 
 router.post("/clinician/change-password", async (req: any, res) => {
