@@ -40,7 +40,7 @@ export default function DocsPanel({ child, documents }) {
   const view = async (d) => {
     setError("");
     try {
-      const blob = await getParentDocumentContent(d.id, parentRequest());
+      const blob = await getParentDocumentContent(d.id, { ...parentRequest(), responseType: "blob" });
       const url = URL.createObjectURL(blob);
       window.open(url, "_blank", "noopener");
       setTimeout(() => URL.revokeObjectURL(url), 60000);

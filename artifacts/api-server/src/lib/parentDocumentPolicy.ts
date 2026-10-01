@@ -90,6 +90,32 @@ export function deriveSupportProvenance(
   return { sourceDocumentIds, source };
 }
 
+export type ParentDocumentGenerationPart =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png"; data: string } }
+  | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } };
+
+export function buildParentDocumentGenerationContent(
+  documents: Array<{ id: string; title: string; content: ParentDocumentGenerationPart }>,
+  behaviorName: string,
+  goal: string | null,
+  allowedSourceIds: string[],
+): ParentDocumentGenerationPart[] {
+  const content: ParentDocumentGenerationPart[] = [];
+  for (const document of documents) {
+    content.push({ type: "text", text: `[Document: ${document.title}; id=${document.id}]` }, document.content);
+  }
+  content.push({
+    type: "text",
+    text: `Create safe, plain-language support for the selected behavior "${behaviorName}"${goal ? ` with goal "${goal}"` : ""}.
+
+Allowed source document IDs: ${JSON.stringify(allowedSourceIds)}
+
+Use only source document IDs provided above. Choose IDs that directly support the guidance. If the documents explicitly state a goal for this selected behavior, return its exact wording in selected_goal; otherwise return an empty string. Never invent a goal. For safety or medical uncertainty, say to follow an existing individualized plan and contact the child’s clinician. If immediate danger is described, recommend emergency services. Do not invent that a clinician reviewed or approved anything.`,
+  });
+  return content;
+}
+
 export function guidanceFingerprint(card: SupportCard): string {
   return [
     card.whatMayBeHappening,

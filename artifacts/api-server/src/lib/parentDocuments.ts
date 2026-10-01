@@ -25,6 +25,7 @@ import {
 } from "./parentStarterLibrary";
 import {
   canAccessParentDocument,
+  buildParentDocumentGenerationContent,
   deriveSupportProvenance,
   detectParentDocumentType,
   guidanceFingerprint,
@@ -419,7 +420,11 @@ async function extractDocumentContent(
   document: typeof documentsTable.$inferSelect,
   bytes: Buffer,
   mimeType: string,
-): Promise<{ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } } | { type: "document"; source: { type: "base64"; media_type: string; data: string } }> {
+): Promise<
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png"; data: string } }
+  | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } }
+> {
   const name = document.fileName || "document";
   const extension = path.extname(name).toLowerCase();
   if (!detectParentDocumentType(name, mimeType, bytes)) {
@@ -500,7 +505,11 @@ export async function scanParentDocument(
       }
     }
 
-    const content: any[] = [];
+    const generationDocuments: Array<{
+      id: string;
+      title: string;
+      content: Awaited<ReturnType<typeof extractDocumentContent>>;
+    }> = [];
     for (const source of sources) {
       const part = await extractDocumentContent(
         source.metadata,
@@ -508,7 +517,11 @@ export async function scanParentDocument(
         source.bytes,
         source.metadata?.mimeType || PARENT_DOCUMENT_MIME_BY_EXTENSION[path.extname(source.document.fileName || "").toLowerCase()] || "application/octet-stream",
       );
-      content.push({ type: "text", text: `[Document: ${source.document.title || source.document.fileName || "Support plan"}]` }, part);
+      generationDocuments.push({
+        id: source.document.id,
+        title: source.document.title || source.document.fileName || "Support plan",
+        content: part,
+      });
     }
     const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
     const currentCards = Array.isArray(settings?.supportCards)
@@ -518,16 +531,12 @@ export async function scanParentDocument(
     const eligibleTemplate = getStarterTemplate(settings?.behaviorKey || null);
     const behaviorName = eligibleTemplate?.name || settings?.customBehavior?.trim() || starter.behaviorName;
     const allowedIds = sources.map((source) => source.document.id);
-    content.push({
-      type: "text",
-      text: `Create safe, plain-language support for the selected behavior "${behaviorName}"${settings?.goal ? ` with goal "${settings.goal}"` : ""}.
-
-Current support cards (server-selected): ${JSON.stringify(currentCards)}
-Starter guidance for context only: ${JSON.stringify(starter)}
-Allowed source document IDs: ${JSON.stringify(allowedIds)}
-
-Use only source document IDs provided above. Choose IDs that directly support the guidance. If the documents explicitly state a goal for this selected behavior, return its exact wording in selected_goal; otherwise return an empty string. Never invent a goal. For safety or medical uncertainty, say to follow an existing individualized plan and contact the child’s clinician. If immediate danger is described, recommend emergency services. Do not invent that a clinician reviewed or approved anything.`,
-    });
+    const content = buildParentDocumentGenerationContent(
+      generationDocuments,
+      behaviorName,
+      settings?.goal || null,
+      allowedIds,
+    );
 
     const anthropic = await getAnthropicClient();
     const response = await anthropic.messages.create({

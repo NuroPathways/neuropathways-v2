@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { makeStarterCard, starterLibrary, type SupportCard } from "./parentStarterLibrary";
 import {
+  buildParentDocumentGenerationContent,
   canAccessParentDocument,
   deriveSupportProvenance,
   detectParentDocumentType,
@@ -67,6 +68,30 @@ test("derived provenance keeps every generation input despite incomplete model c
   ], []);
   assert.deepEqual(omittedClinicalCitation.sourceDocumentIds, ["private-parent-source", "clinician-source"]);
   assert.equal(omittedClinicalCitation.source, "parent_document");
+});
+
+test("document B generation prompt excludes existing private card A content", () => {
+  const existingPrivateCardA = {
+    ...guidance("parent_document", "private-document-a", "Private support from document A."),
+    whatMayBeHappening: "PRIVATE_CARD_A_PROMPT_SENTINEL",
+  };
+  const prompt = buildParentDocumentGenerationContent(
+    [{
+      id: "document-b",
+      title: "Current document B",
+      content: { type: "text", text: "Current document B support plan text." },
+    }],
+    "Task Refusal",
+    "Complete one small step",
+    ["document-b"],
+  );
+  const serializedPrompt = JSON.stringify(prompt);
+
+  assert.ok(existingPrivateCardA.sourceDocumentIds.includes("private-document-a"));
+  assert.match(serializedPrompt, /Current document B support plan text/);
+  assert.match(serializedPrompt, /document-b/);
+  assert.doesNotMatch(serializedPrompt, /PRIVATE_CARD_A_PROMPT_SENTINEL|private-document-a|Private support from document A/);
+  assert.doesNotMatch(serializedPrompt, /Current support cards|Starter guidance for context/);
 });
 
 test("explicitly avoiding physical restraint is safe while teaching a restraint technique is rejected", () => {
