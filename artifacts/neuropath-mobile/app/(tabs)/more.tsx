@@ -52,6 +52,14 @@ export default function MoreScreen() {
 
   const menuItems: MenuRow[] = [
     {
+      icon: "users",
+      label: "Switch Child",
+      sub: "Choose whose care you are viewing",
+      iconColor: colors.primary,
+      iconBg: colors.muted,
+      onPress: () => router.push("/family" as any),
+    },
+    {
       icon: "alert-circle",
       label: "Help Right Now",
       sub: "Get instant support",

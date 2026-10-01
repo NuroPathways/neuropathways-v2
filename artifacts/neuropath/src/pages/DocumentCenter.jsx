@@ -6,6 +6,7 @@ import { ArrowLeft, Search, FileText, Download, FolderOpen, Upload } from "lucid
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import DocScanButton from "@/components/clinician/DocScanButton";
+import { openAuthenticatedFile } from "@/lib/authenticatedFile";
 
 const CATEGORY_LABELS = {
   treatment_plan: "Treatment Plan",
@@ -49,6 +50,7 @@ export default function DocumentCenter() {
   const [filterCat, setFilterCat] = useState("all");
   const [children, setChildren] = useState([]);
   const [isIndividual, setIsIndividual] = useState(false);
+  const [fileError, setFileError] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -138,6 +140,11 @@ export default function DocumentCenter() {
       </div>
 
       <div className="px-5 py-5 max-w-2xl mx-auto -mt-2">
+        {fileError && (
+          <p role="alert" className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {fileError}
+          </p>
+        )}
         {/* Search */}
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -184,6 +191,7 @@ export default function DocumentCenter() {
                   href={doc.file_url}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={event => openAuthenticatedFile(event, doc.file_url, setFileError)}
                   className="flex items-center gap-3 flex-1 min-w-0 group"
                 >
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${CATEGORY_ICON_COLORS[doc.category] || "bg-muted text-muted-foreground"}`}>

@@ -48,6 +48,7 @@ function RootLayoutNav() {
       <Stack.Screen name="check-in" options={{ title: "Daily check-in" }} />
       <Stack.Screen name="wins" options={{ title: "Wins" }} />
       <Stack.Screen name="profile" options={{ title: "Profile" }} />
+      <Stack.Screen name="family" options={{ title: "Choose a child" }} />
       <Stack.Screen name="change-code" options={{ title: "Change access code" }} />
       <Stack.Screen
         name="help"

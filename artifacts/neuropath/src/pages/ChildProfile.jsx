@@ -4,6 +4,7 @@ import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
 import { ArrowLeft, AlertCircle, FileText, Target, ClipboardList, MessageCircle, AlertTriangle, Stethoscope, Calendar, ChevronRight, ShieldAlert, Brain, Download, ChevronDown, ChevronUp, Zap, XCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import { openAuthenticatedFile } from "@/lib/authenticatedFile";
 
 const SEVERITY_STYLES = {
   low: "bg-green-100 text-green-700",
@@ -27,6 +28,7 @@ export default function ChildProfile() {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedPlan, setExpandedPlan] = useState(null);
+  const [fileError, setFileError] = useState("");
 
   const childId = new URLSearchParams(window.location.search).get("child_id");
 
@@ -90,6 +92,11 @@ export default function ChildProfile() {
       </div>
 
       <div className="px-5 max-w-2xl mx-auto -mt-4 space-y-4 pb-8">
+        {fileError && (
+          <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {fileError}
+          </p>
+        )}
 
         {/* Help Now */}
         <motion.button
@@ -220,7 +227,7 @@ export default function ChildProfile() {
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                         {plan.file_url && (
-                          <a href={plan.file_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                          <a href={plan.file_url} target="_blank" rel="noreferrer" onClick={e => { e.stopPropagation(); openAuthenticatedFile(e, plan.file_url, setFileError); }}
                             className="text-xs text-primary hover:underline">View PDF</a>
                         )}
                         {hasDetail && (
@@ -300,6 +307,7 @@ export default function ChildProfile() {
             <div className="space-y-2">
               {documents.map(doc => (
                 <a key={doc.id} href={doc.file_url} target="_blank" rel="noreferrer"
+                  onClick={event => openAuthenticatedFile(event, doc.file_url, setFileError)}
                   className="flex items-center gap-3 p-3 bg-background border border-border rounded-xl hover:border-primary/40 transition-all group">
                   <FileText className="w-4 h-4 text-primary flex-shrink-0" />
                   <div className="flex-1 min-w-0">

@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQueryClient } from "@tanstack/react-query";
-import { getApiBase, storeToken, storeClinicianToken, clearToken, apiFetch } from "@/lib/api";
+import { getApiBase, storeToken, storeClinicianToken, storeSelectedChild, clearToken, apiFetch } from "@/lib/api";
 
 const SESSION_KEY = "np_mobile_session";
 
@@ -23,6 +23,7 @@ interface AuthContextType {
   loginClinician: (email: string, password: string) => Promise<void>;
   registerClinician: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
   logout: () => Promise<void>;
+  switchChild: (childId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -49,8 +50,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           else await clearToken();
         } else if (session?.id) {
           const children = await apiFetch("/mobile/children");
-          if (children.some((child: { id: string }) => child.id === session.id)) setUser({ ...session, role: "client" });
-          else await clearToken();
+          const selected = children.find((child: { id: string }) => child.id === session.id) ?? children[0];
+          if (selected) {
+            const restored: MobileUser = { ...session, id: selected.id, child_name: selected.childName, role: "client" };
+            await storeSelectedChild(selected.id);
+            await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(restored));
+            setUser(restored);
+          } else await clearToken();
         }
       }
     } catch (error) {
@@ -83,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       role: "client",
     };
     await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    await storeSelectedChild(session.id);
     setUser(session);
   };
 
@@ -109,6 +116,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const registerClinician = (email: string, password: string, firstName: string, lastName: string) =>
     clinicianAuth("register", { email: email.trim(), password, firstName: firstName.trim(), lastName: lastName.trim() });
 
+  const switchChild = async (childId: string) => {
+    if (user?.role !== "client") throw new Error("Family access required");
+    const children = await apiFetch("/mobile/children");
+    const child = children.find((item: { id: string }) => item.id === childId);
+    if (!child) throw new Error("This child is not available to your account");
+    const session: MobileUser = { ...user, id: child.id, child_name: child.childName };
+    await queryClient.cancelQueries();
+    await storeSelectedChild(child.id);
+    await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    queryClient.clear();
+    setUser(session);
+  };
+
   const logout = async () => {
     try {
       if (user?.role === "clinician") await apiFetch("/mobile/clinician/logout", { method: "DELETE" });
@@ -123,7 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, isAuthenticated: !!user, login, loginClinician, registerClinician, logout }}
+      value={{ user, isLoading, isAuthenticated: !!user, login, loginClinician, registerClinician, logout, switchChild }}
     >
       {children}
     </AuthContext.Provider>

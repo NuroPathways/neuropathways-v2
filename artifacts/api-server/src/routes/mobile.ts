@@ -37,7 +37,7 @@ const router = Router();
 // Mobile token auth middleware
 // ──────────────────────────────────────────────
 
-async function requireMobileAuth(req: any, res: any, next: any) {
+export async function requireMobileAuth(req: any, res: any, next: any) {
   const token = req.headers["x-mobile-token"];
   if (!token || typeof token !== "string") {
     return res.status(401).json({ error: "Mobile token required" });
@@ -54,7 +54,24 @@ async function requireMobileAuth(req: any, res: any, next: any) {
         )
       );
     if (!row) return res.status(401).json({ error: "Invalid or expired token" });
-    req.mobileUser = { childId: row.childId };
+    const [anchor] = await db.select().from(childrenTable).where(eq(childrenTable.id, row.childId));
+    if (!anchor) return res.status(401).json({ error: "Account no longer available" });
+    // Selection changes the record being used, never the token's authenticated identity.
+    // Lists and logout must remain accessible if a previously selected sibling was reassigned.
+    const requested = req.path === "/mobile/children" || req.path === "/mobile/auth/logout"
+      ? undefined : req.headers["x-mobile-child-id"];
+    let selected = anchor;
+    if (requested !== undefined) {
+      if (typeof requested !== "string" || !requested) return res.status(400).json({ error: "Invalid child selection" });
+      if (requested !== anchor.id) {
+        const [target] = await db.select().from(childrenTable).where(eq(childrenTable.id, requested));
+        if (!target || !anchor.familyId || target.familyId !== anchor.familyId || target.clinicianId !== anchor.clinicianId) {
+          return res.status(403).json({ error: "This child is not available to your account" });
+        }
+        selected = target;
+      }
+    }
+    req.mobileUser = { childId: selected.id, authenticatedChildId: anchor.id };
     next();
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -116,7 +133,7 @@ router.post("/mobile/auth/change-access-code", requireMobileAuth, async (req: an
     return res.status(400).json({ error: "Enter the current code and a new code of 4–128 characters." });
   }
   try {
-    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.authenticatedChildId));
     if (!child?.accessCode || !(await verifyAccessCode(current_access_code.trim(), child.accessCode))) {
       return res.status(401).json({ error: "Current access code is incorrect." });
     }
@@ -161,10 +178,16 @@ router.get("/mobile/children", requireMobileAuth, async (req: any, res) => {
     const [child] = await db
       .select()
       .from(childrenTable)
-      .where(eq(childrenTable.id, req.mobileUser.childId));
+      .where(eq(childrenTable.id, req.mobileUser.authenticatedChildId));
     if (!child) return res.json([]);
-    const { accessCode: _accessCode, ...publicChild } = child;
-    res.json([publicChild]);
+    const siblings = child.familyId
+      ? await db.select().from(childrenTable).where(and(
+          eq(childrenTable.familyId, child.familyId),
+          child.clinicianId ? eq(childrenTable.clinicianId, child.clinicianId) : isNull(childrenTable.clinicianId),
+        ))
+      : [child];
+    siblings.sort((a, b) => a.id === child.id ? -1 : b.id === child.id ? 1 : (a.childName ?? "").localeCompare(b.childName ?? ""));
+    res.json(siblings.map(({ accessCode: _accessCode, ...publicChild }) => publicChild));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

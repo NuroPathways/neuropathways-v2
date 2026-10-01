@@ -353,6 +353,10 @@ export default function HomeScreen() {
 
         <Text style={s.greetText}>{greeting()},</Text>
         <Text style={s.nameText}>{name}</Text>
+        <Pressable testID="switch-child" accessibilityRole="button" onPress={() => router.push("/family" as any)} style={{ alignSelf: "flex-start", paddingVertical: 10, flexDirection: "row", gap: 8, alignItems: "center" }}>
+          <Feather name="users" size={16} color={colors.primaryForeground} />
+          <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }}>Switch child</Text>
+        </Pressable>
 
         <View style={s.statsRow}>
           {[

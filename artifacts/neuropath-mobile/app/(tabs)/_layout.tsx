@@ -8,6 +8,7 @@ import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { useAuth } from "@/context/AuthContext";
 
 function NativeTabLayout() {
   return (
@@ -139,8 +140,9 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
+  const { user } = useAuth();
   if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
+    return <NativeTabLayout key={user?.id} />;
   }
-  return <ClassicTabLayout />;
+  return <ClassicTabLayout key={user?.id} />;
 }

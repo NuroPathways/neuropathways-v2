@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { apiFetch } from "@/lib/api";
+import DocumentLibrary from "@/components/DocumentLibrary";
 
 type Child = { id: string; child_name?: string; age?: number | null; diagnosis?: string | null; triggers?: string | null; notes?: string | null; parent_id?: string | null; family_id?: string | null };
 type Family = { id: string; family_name?: string; parent_name?: string };
@@ -177,8 +178,7 @@ export default function ClinicianClient() {
             {data.logs.length ? [...data.logs].sort((a, b) => (Date.parse(b.created_date ?? "") || 0) - (Date.parse(a.created_date ?? "") || 0)).map(log => <View key={log.id}>{card(<><View style={styles.row}><Text style={[styles.itemTitle, { color: colors.text, flex: 1 }]}>{log.behavior_type || "Behavior recorded"}</Text><Text style={[styles.date, { color: colors.mutedForeground }]}>{formattedDate(log.created_date)}</Text></View>{log.intensity && <Text style={[styles.label, { color: colors.primary, marginTop: 9 }]}>INTENSITY  ·  {log.intensity.toUpperCase()}</Text>}{log.notes && <Text style={[styles.body, { color: colors.mutedForeground, marginTop: 9 }]}>{log.notes}</Text>}</>)}</View>) : empty("activity", "No behavior logs yet", "Entries recorded for this client will appear here.")}
           </>}
           {tab === "Documents" && <>
-            <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 13 }]}>Clinical documents</Text>
-            {data.documents.length ? data.documents.map(doc => <View key={doc.id}>{card(<View style={styles.row}><Feather name="file-text" size={21} color={colors.primary} /><View style={{ flex: 1, marginLeft: 13 }}><Text style={[styles.itemTitle, { color: colors.text }]}>{doc.title || doc.file_name || "Untitled document"}</Text><Text style={[styles.date, { color: colors.mutedForeground, marginTop: 4 }]}>{doc.category || "Document"}  ·  {formattedDate(doc.created_date)}</Text></View></View>)}</View>) : empty("file-text", "No documents yet", "Documents connected to this client will appear here.")}
+            <DocumentLibrary key={childId} childId={childId} clinician />
           </>}
           {tab === "Messages" && <>
             <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 13 }]}>Conversation</Text>

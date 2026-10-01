@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const TOKEN_KEY = "np_mobile_token";
 const CLINICIAN_TOKEN_KEY = "np_clinician_token";
 const SESSION_KEY = "np_mobile_session";
+const SELECTED_CHILD_KEY = "np_mobile_child_id";
 
 async function getMobileToken(): Promise<string | null> {
   try {
@@ -17,23 +18,38 @@ export function getApiBase(): string {
   return domain ? `https://${domain}` : "";
 }
 
-export async function apiFetch(path: string, options: RequestInit = {}) {
-  const base = getApiBase();
+export async function getAuthHeaders(): Promise<Record<string, string>> {
   const token = await getMobileToken();
   const clinicianToken = await AsyncStorage.getItem(CLINICIAN_TOKEN_KEY);
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
-  };
+  const selectedChild = await AsyncStorage.getItem(SELECTED_CHILD_KEY);
+  const headers: Record<string, string> = {};
   if (clinicianToken) headers.Authorization = `Bearer ${clinicianToken}`;
-  else if (token) headers["X-Mobile-Token"] = token;
+  else if (token) {
+    headers["X-Mobile-Token"] = token;
+    if (selectedChild) headers["X-Mobile-Child-Id"] = selectedChild;
+  }
+  return headers;
+}
 
-  const res = await fetch(`${base}/api${path}`, { ...options, headers });
+export async function apiRequest(path: string, options: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(options.headers);
+  if (!(options.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  for (const [name, value] of Object.entries(await getAuthHeaders())) headers.set(name, value);
+  const res = await fetch(`${getApiBase()}/api${path}`, { ...options, headers });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || `API ${res.status}`);
   }
-  return res.json();
+  return res;
+}
+
+export async function apiFetch(path: string, options: RequestInit = {}) {
+  const res = await apiRequest(path, options);
+  return res.status === 204 ? null : res.json();
+}
+
+export async function storeSelectedChild(id: string) {
+  await AsyncStorage.setItem(SELECTED_CHILD_KEY, id);
 }
 
 function toQS(filters?: Record<string, any>): string {
@@ -89,11 +105,13 @@ export async function invokeAI(prompt: string): Promise<string> {
 
 export async function storeToken(token: string) {
   await AsyncStorage.removeItem(CLINICIAN_TOKEN_KEY);
+  await AsyncStorage.removeItem(SELECTED_CHILD_KEY);
   await AsyncStorage.setItem(TOKEN_KEY, token);
 }
 
 export async function storeClinicianToken(token: string) {
   await AsyncStorage.removeItem(TOKEN_KEY);
+  await AsyncStorage.removeItem(SELECTED_CHILD_KEY);
   await AsyncStorage.setItem(CLINICIAN_TOKEN_KEY, token);
 }
 
@@ -101,4 +119,5 @@ export async function clearToken() {
   await AsyncStorage.removeItem(TOKEN_KEY);
   await AsyncStorage.removeItem(CLINICIAN_TOKEN_KEY);
   await AsyncStorage.removeItem(SESSION_KEY);
+  await AsyncStorage.removeItem(SELECTED_CHILD_KEY);
 }
