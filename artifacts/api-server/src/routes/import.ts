@@ -237,9 +237,9 @@ router.post("/import/:entity", requireAuth, async (req: any, res) => {
         return res.status(400).json({ error: `Unknown entity type: ${entity}` });
     }
 
-    res.json(result!);
+    return res.json(result!);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 

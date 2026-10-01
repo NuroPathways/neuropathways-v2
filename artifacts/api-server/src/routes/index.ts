@@ -7,12 +7,18 @@ import uploadRouter from "./upload";
 import importRouter from "./import";
 import mobileRouter from "./mobile";
 import clinicianEmailAuthRouter from "./clinician-email-auth";
+import parentRouter from "./parent";
+import parentDocumentsRouter from "./parent-documents";
+import parentLinkRouter from "./parent-link";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(clinicianEmailAuthRouter);
+router.use(parentRouter);
+router.use(parentDocumentsRouter);
+router.use(parentLinkRouter);
 router.use(entitiesRouter);
 router.use(aiRouter);
 router.use(uploadRouter);

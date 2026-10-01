@@ -8,3 +8,9 @@ Workspace-wide dependency overrides used as security floors must include an uppe
 **Why:** A lower-bound-only override can silently begin resolving a newly released incompatible major during a clean publishing install, even while development still works from an older local installation.
 
 **How to apply:** When changing an override for Babel or other Expo build tooling, preserve Expo's supported major range and verify with a frozen-lockfile install plus the mobile production build.
+
+Apply the same upper-major-bound rule to workspace-wide code-generation dependencies.
+
+**Why:** An unbounded js-yaml security floor resolved a new major whose exports were incompatible with Orval, preventing client generation even though the prior lockfile worked.
+
+**How to apply:** Check the generator's supported dependency major before raising a security floor, and verify generation from the updated lockfile. Do not repair generated output by hand.

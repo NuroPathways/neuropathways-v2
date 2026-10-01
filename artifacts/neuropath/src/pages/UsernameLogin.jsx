@@ -163,7 +163,7 @@ export default function UsernameLogin() {
         <div className="mt-6 text-center space-y-3">
           <p className="text-xs text-muted-foreground">
             No account yet?{" "}
-            <a href="/ParentSignup" className="text-primary hover:underline font-medium">
+            <a href="/ParentSignupUsername" className="text-primary hover:underline font-medium">
               Create one here
             </a>
           </p>

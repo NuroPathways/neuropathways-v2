@@ -272,8 +272,19 @@ export default function LoginScreen() {
               </>
             )}
           </Pressable>
-          <Pressable onPress={() => router.push("/signup")} testID="open-signup">
-            <Text style={[styles.clinicianTitle, { color: colors.primary, textAlign: "center", marginTop: 18 }]}>Create a parent account</Text>
+          <Pressable onPress={() => router.push("/parent-welcome" as never)} testID="open-signup">
+            <Text style={[styles.clinicianTitle, { color: colors.primary, textAlign: "center", marginTop: 18 }]}>Create your free account</Text>
+          </Pressable>
+
+          <Pressable testID="parent-free-entry" style={styles.clinicianCard} onPress={() => router.push("/parent-welcome" as never)}>
+            <View style={styles.clinicianIcon}>
+              <Feather name="life-buoy" size={22} color={colors.primary} />
+            </View>
+            <View style={styles.clinicianTextBlock}>
+              <Text style={styles.clinicianTitle}>Parent, free</Text>
+              <Text style={styles.clinicianSub}>Sign up or sign in with email for help right now</Text>
+            </View>
+            <Feather name="arrow-right" size={16} color={colors.mutedForeground} />
           </Pressable>
 
           <View style={styles.divider}>

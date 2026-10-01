@@ -173,7 +173,7 @@ router.delete("/mobile/clinician/logout", async (req: any, res) => {
   if (!req.user?.id) return res.status(401).json({ error: "Not authenticated" });
   const sid = getSessionId(req);
   if (sid) await deleteSession(sid);
-  res.json({ ok: true });
+  return res.json({ ok: true });
 });
 
 router.post("/clinician/change-password", async (req: any, res) => {
@@ -194,9 +194,9 @@ router.post("/clinician/change-password", async (req: any, res) => {
     const newHash = await hashPassword(new_password, newSalt);
     await db.update(clinicianCredentialsTable).set({ passwordHash: `${newSalt}:${newHash}` }).where(eq(clinicianCredentialsTable.userId, req.user.id));
 
-    res.json({ ok: true });
+    return res.json({ ok: true });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 

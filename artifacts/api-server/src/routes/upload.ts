@@ -7,6 +7,7 @@ import { db, childrenTable, documentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireMobileAuth } from "./mobile";
 import { validateClientSession, sessionMayAccessChild } from "./entities-helpers";
+import { isParentDocument, canReadParentDocument, readParentDocumentBytes } from "../lib/parentDocuments";
 
 const router = Router();
 
@@ -294,6 +295,8 @@ async function canReadDocument(
   req: any,
   allowLegacyInviteToken = false,
 ): Promise<boolean> {
+  const parentMetadata = await isParentDocument(document.id);
+  if (parentMetadata) return canReadParentDocument(req, parentMetadata);
   if (req.user?.id) {
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, document.childId ?? ""));
     return Boolean(child && child.clinicianId === req.user.id);
@@ -408,6 +411,17 @@ router.get("/mobile/documents/:id/content", requireDocumentAuth, async (req: any
     if (!document) return res.status(404).json({ error: "Document not found" });
     if (!(await canReadDocument(document, req))) return res.status(403).json({ error: "Access denied" });
 
+    const parentMetadata = await isParentDocument(document.id);
+    if (parentMetadata) {
+      const content = await readParentDocumentBytes(document.id);
+      res.setHeader("Content-Type", parentMetadata.mimeType);
+      res.setHeader("Content-Disposition", contentDispositionFilename(safeDisplayFilename(document.fileName || "document")));
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Length", content.length);
+      return res.send(content);
+    }
+
     const filePath = resolveDocumentFilePath(document);
     if (!filePath || !filePath.startsWith(`${uploadDir}${path.sep}`)) {
       return res.status(404).json({ error: "Document content not found" });
@@ -463,7 +477,7 @@ router.post("/upload", requireAuth, upload.single("file"), (req, res) => {
   }
 
   const fileUrl = `/api/uploads/${req.file.filename}`;
-  res.json({ file_url: fileUrl, file_name: req.file.originalname });
+  return res.json({ file_url: fileUrl, file_name: req.file.originalname });
 });
 
 // ──────────────────────────────────────────────
@@ -507,7 +521,7 @@ router.post("/client-upload", upload.single("file"), async (req: any, res) => {
   }
 
   const fileUrl = `/api/uploads/${req.file.filename}`;
-  res.json({ file_url: fileUrl, file_name: req.file.originalname });
+  return res.json({ file_url: fileUrl, file_name: req.file.originalname });
 });
 
 // Serve uploaded files (decrypts on the fly)
@@ -623,7 +637,7 @@ router.use((err: any, _req: Request, res: Response, next: NextFunction) => {
   if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
     return res.status(413).json({ error: "File too large. Maximum size is 20 MB." });
   }
-  next(err);
+  return next(err);
 });
 
 export default router;

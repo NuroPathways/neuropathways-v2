@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -34,6 +34,12 @@ import ParentUpload from './pages/ParentUpload';
 import ParentSignup from './pages/ParentSignup';
 import ResetAccessCode from './pages/ResetAccessCode';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import ParentQuickStart from './pages/ParentQuickStart';
+import ParentHome from './pages/ParentHome';
+import ParentSignupUsername from './pages/ParentSignupUsername';
+
+// Free email parents only ever use the parent-owned screens, never legacy CRUD pages.
+const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/privacy'];
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -44,7 +50,7 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   : <>{children}</>;
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, user } = useAuth();
   const location = useLocation();
 
   // Reset links are intentionally usable without an existing clinician or client session.
@@ -62,6 +68,10 @@ const AuthenticatedApp = () => {
 
   if (authError?.type === 'user_not_registered') {
     return <UserNotRegisteredError />;
+  }
+
+  if (user?.account_type === 'parent_free' && !PARENT_FREE_PATHS.includes(location.pathname.replace(/\/+$/, ''))) {
+    return <Navigate to="/ParentHome" replace />;
   }
 
   return (
@@ -107,6 +117,9 @@ const AuthenticatedApp = () => {
       <Route path="/ResetAccessCode" element={<ResetAccessCode />} />
       <Route path="/ParentUpload" element={<ParentUpload />} />
       <Route path="/ParentSignup" element={<ParentSignup />} />
+      <Route path="/ParentSignupUsername" element={<ParentSignupUsername />} />
+      <Route path="/ParentQuickStart" element={<ParentQuickStart />} />
+      <Route path="/ParentHome" element={<ParentHome />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/GoalsMilestones" element={<LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>} />
       <Route path="/DataImport" element={<DataImport />} />

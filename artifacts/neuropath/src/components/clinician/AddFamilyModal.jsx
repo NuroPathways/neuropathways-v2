@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createParentClinicInvite } from "@workspace/api-client-react";
 import { base44 } from '@/api/entities';
 import { X, Plus, Trash2, ChevronRight, ChevronLeft, Users, User, Baby, Mail, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,8 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
   const [step, setStep] = useState(0); // 0=Family+Guardian, 1=Children, 2=Done
   const [saving, setSaving] = useState(false);
   const [inviteLink, setInviteLink] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  const [inviteExpires, setInviteExpires] = useState("");
   const [family, setFamily] = useState({ family_name: "", notes: "" });
   const [guardian, setGuardian] = useState({ name: "", email: "" });
   const [children, setChildren] = useState([emptyChild()]);
@@ -29,16 +32,13 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
 
   const handleSave = async () => {
     setSaving(true);
-    const token = generateToken();
 
     // Create family with invite token
     const fam = await base44.entities.Family.create({
       family_name: family.family_name.trim(),
       notes: family.notes || undefined,
       clinician_id: clinicianId,
-      invite_token: token,
       invite_email: guardian.email || undefined,
-      invite_status: "pending",
       parent_name: guardian.name || undefined,
     });
 
@@ -58,19 +58,23 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
       });
     }
 
-    // Build invite link
-    const baseUrl = window.location.origin;
-    const link = `${baseUrl}/RoleSetup?invite=${token}`;
-    setInviteLink(link);
-
-    // Send invite email if we have an address
+    // Real, single-use, email-bound parent invite
+    setInviteError("");
     if (guardian.email) {
-      await base44.functions.invoke('sendInviteEmail', {
-        to: guardian.email,
-        name: guardian.name,
-        link,
-        type: 'family',
-      }).catch(() => {});
+      try {
+        const inv = await createParentClinicInvite(
+          { familyId: String(fam.id), email: guardian.email.trim() },
+          { credentials: "include" }
+        );
+        const link = /^https?:/i.test(inv.inviteUrl) ? inv.inviteUrl : `${window.location.origin}${inv.inviteUrl}`;
+        setInviteLink(link);
+        setInviteExpires(inv.expiresAt);
+        base44.functions.invoke('sendInviteEmail', { to: guardian.email, name: guardian.name, link, type: 'family' }).catch(() => {});
+      } catch (err) {
+        setInviteError(err?.message || "The family was saved, but the parent invite could not be created.");
+      }
+    } else {
+      setInviteError("Add a guardian email to create a parent invite link.");
     }
 
     setSaving(false);
@@ -84,6 +88,8 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
     setGuardian({ name: "", email: "" });
     setChildren([emptyChild()]);
     setInviteLink("");
+    setInviteError("");
+    setInviteExpires("");
     onClose();
   };
 
@@ -230,7 +236,7 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
               <div>
                 <h3 className="font-bold text-foreground text-lg">Family Added!</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {guardian.email ? `An invite email was sent to ${guardian.email}.` : "Share the invite link below with the family."}
+                  {inviteLink ? `Invite created for ${guardian.email}. Send them this link; it works once and expires ${inviteExpires ? new Date(inviteExpires).toLocaleDateString() : "in 7 days"}.` : (inviteError || "No invite was created.")}
                 </p>
               </div>
               {inviteLink && (

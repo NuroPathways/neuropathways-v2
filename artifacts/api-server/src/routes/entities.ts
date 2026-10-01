@@ -13,6 +13,8 @@ import {
 import { eq, and, inArray, or, isNull, gt, ne, sql } from "drizzle-orm";
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
 import { decryptBuffer } from "./upload";
+import { legacyVisibleDocuments, isParentOwnedChild, isParentOwnedDocument, familyHasParentOwnedChildren } from "../lib/documentVisibility";
+import { isParentDocument, readParentDocumentBytes, extractParentDocumentText } from "../lib/parentDocuments";
 
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
@@ -264,7 +266,8 @@ function makeCrud(path: string, table: any) {
       if (table.clinicianId) data.clinicianId = req.user.id;
       if (table.tenantId) data.tenantId = req.user.id; // tenantId = clinicianId until multi-clinic
       if (table.createdBy) data.createdBy = req.user.id;
-      const [row] = await db.insert(table).values(data).returning();
+      const rows = await db.insert(table).values(data).returning() as any[];
+      const row = rows[0];
       res.status(201).json(stripSensitive(serialize(row)));
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -284,9 +287,9 @@ function makeCrud(path: string, table: any) {
         await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "tenantId mismatch" });
         return res.status(403).json({ error: "Access denied" });
       }
-      res.json(stripSensitive(serialize(row)));
+      return res.json(stripSensitive(serialize(row)));
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      return res.status(500).json({ error: e.message });
     }
   });
 
@@ -300,13 +303,23 @@ function makeCrud(path: string, table: any) {
       if (!table.clinicianId && table.tenantId && existing.tenantId !== req.user.id) {
         return res.status(403).json({ error: "Access denied" });
       }
+      if (table === documentsTable && await isParentOwnedDocument(req.params.id)) {
+        return res.status(403).json({ error: "Only the parent can edit a parent-owned document." });
+      }
+      const update = bodyToCamel(req.body);
+      if (table === childrenTable && await isParentOwnedChild(req.params.id)) {
+        const ownershipFields = ["parentId", "tenantId", "clinicianId", "familyId", "createdBy"];
+        if (ownershipFields.some(key => key in update && update[key] !== existing[key])) {
+          return res.status(403).json({ error: "Parent account ownership cannot be changed by the clinic." });
+        }
+      }
       const [row] = await db.update(table)
-        .set(bodyToCamel(req.body))
+        .set(update)
         .where(eq(table.id, req.params.id))
         .returning();
-      res.json(stripSensitive(serialize(row)));
+      return res.json(stripSensitive(serialize(row)));
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      return res.status(500).json({ error: e.message });
     }
   });
 
@@ -320,10 +333,17 @@ function makeCrud(path: string, table: any) {
       if (!table.clinicianId && table.tenantId && existing.tenantId !== req.user.id) {
         return res.status(403).json({ error: "Access denied" });
       }
+      if (
+        (table === documentsTable && await isParentOwnedDocument(req.params.id)) ||
+        (table === childrenTable && await isParentOwnedChild(req.params.id)) ||
+        (table === familiesTable && await familyHasParentOwnedChildren(req.params.id))
+      ) {
+        return res.status(409).json({ error: "This record contains parent-owned data and cannot be deleted by the clinic." });
+      }
       await db.delete(table).where(eq(table.id, req.params.id));
-      res.json({ ok: true });
+      return res.json({ ok: true });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      return res.status(500).json({ error: e.message });
     }
   });
 }
@@ -476,7 +496,7 @@ router.get("/clinician-data", requireAuth, async (req: any, res) => {
       db.select().from(messagesTable).where(eq(messagesTable.toUserId, req.user.id)),
     ]);
 
-    res.json({
+    return res.json({
       children: stripSensitive(serialize(children)),
       families: families.map(serializeFamily),
       clientAccounts: [],
@@ -484,7 +504,7 @@ router.get("/clinician-data", requireAuth, async (req: any, res) => {
       messages: serialize(messages),
     });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -548,9 +568,10 @@ router.post("/client-portal-data", async (req, res) => {
         )
       : (child ? [child] : []);
 
-    res.json(stripSensitive(serialize({ child: child ?? null, siblings, plans, documents, interventionPlans, profile, goals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs, messages })));
+    const visibleDocuments = await legacyVisibleDocuments(documents, clinicianId);
+    return res.json(stripSensitive(serialize({ child: child ?? null, siblings, plans, documents: visibleDocuments, interventionPlans, profile, goals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs, messages })));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -758,9 +779,10 @@ router.get("/client-detail", requireAuth, async (req: any, res) => {
 
     await auditLog({ userId: req.user.id, userRole: "clinician", action: "client_viewed", targetType: "child", targetId: child_id, tenantId: child.clinicianId ?? undefined });
 
-    res.json(stripSensitive(serialize({ child, plans, documents, interventionPlans, behaviorLogs, clientAccount })));
+    const visibleDocuments = await legacyVisibleDocuments(documents, req.user.id);
+    return res.json(stripSensitive(serialize({ child, plans, documents: visibleDocuments, interventionPlans, behaviorLogs, clientAccount })));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -797,7 +819,7 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
         db.select().from(messagesTable).where(inArray(messagesTable.childId, childIds)),
         db.select().from(behaviorPlansTable).where(inArray(behaviorPlansTable.childId, childIds)),
       ]);
-      allDocuments = docs;
+      allDocuments = await legacyVisibleDocuments(docs, req.user.id);
       logsCount = logs.length;
       messagesCount = msgs.length;
       plansCount = plans.length;
@@ -810,7 +832,7 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
 
     await auditLog({ userId: req.user.id, userRole: "clinician", action: "client_viewed", targetType: "family", targetId: family_id, tenantId: family.clinicianId ?? undefined });
 
-    res.json({
+    return res.json({
       family: serializeFamily(family),
       children: stripSensitive(serialize(children)),
       documents: serialize(allDocuments),
@@ -818,7 +840,7 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
       stats: { logs: logsCount, messages: messagesCount, documents: allDocuments.length, plans: plansCount },
     });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -941,7 +963,8 @@ router.post("/build-client-profile", async (req: any, res) => {
     const [existingProfile] = await db.select().from(clientProfilesTable)
       .where(eq(clientProfilesTable.childId, child_id));
 
-    const docs = await db.select().from(documentsTable).where(eq(documentsTable.childId, child_id));
+    const allDocuments = await db.select().from(documentsTable).where(eq(documentsTable.childId, child_id));
+    const docs = await legacyVisibleDocuments(allDocuments, clinicianId);
     const docsWithFiles = docs.filter(d => d.fileUrl);
     const docsWithNotes = docs.filter(d => !d.fileUrl && d.notes?.trim());
     const childName = child.childName ?? "the client";
@@ -959,6 +982,7 @@ router.post("/build-client-profile", async (req: any, res) => {
       Array.isArray((existingProfile as any).behaviors) &&
       (existingProfile as any).behaviors.length > 0 &&
       !force_rebuild &&
+      existingSourceIds.every(id => docs.some(doc => doc.id === id)) &&
       !hasUnscannedDoc
     ) {
       console.info(`[NeuroPath] buildClientProfile: returning cached profile child=${child_id} (all ${docsWithFiles.length} docs already scanned)`);
@@ -989,15 +1013,20 @@ router.post("/build-client-profile", async (req: any, res) => {
 
     for (const doc of docsWithFiles) {
       const label = doc.title || doc.category || doc.fileName || "Clinical Document";
+      const parentMetadata = await isParentDocument(doc.id);
       const urlMatch = String(doc.fileUrl).match(/\/api\/uploads\/(.+)$/);
-      if (!urlMatch) { failedDocs.push({ id: doc.id, reason: "The file link is invalid." }); continue; }
-      const filename = path.basename(urlMatch[1]);
+      if (!parentMetadata && !urlMatch) { failedDocs.push({ id: doc.id, reason: "The file link is invalid." }); continue; }
+      const filename = parentMetadata ? (doc.fileName || "") : path.basename(urlMatch![1]);
       const safePath = path.normalize(path.join(UPLOAD_DIR, filename));
-      if (!safePath.startsWith(UPLOAD_DIR)) { failedDocs.push({ id: doc.id, reason: "The file path is not allowed." }); continue; }
+      if (!parentMetadata && !safePath.startsWith(`${UPLOAD_DIR}${path.sep}`)) { failedDocs.push({ id: doc.id, reason: "The file path is not allowed." }); continue; }
       let fileContent: Buffer;
       try {
-        const raw = await fs.readFile(safePath);
-        fileContent = decryptBuffer(raw);
+        if (parentMetadata) {
+          fileContent = await readParentDocumentBytes(doc.id);
+        } else {
+          const raw = await fs.readFile(safePath);
+          fileContent = decryptBuffer(raw);
+        }
       } catch {
         failedDocs.push({ id: doc.id, reason: "The file could not be found on the server." });
         continue;
@@ -1021,6 +1050,11 @@ router.post("/build-client-profile", async (req: any, res) => {
           const result = await extractRawText({ buffer: fileContent });
           const text = String(result?.value || "").trim();
           if (!text) { failedDocs.push({ id: doc.id, reason: "No readable text was found in this Word document." }); continue; }
+          contentParts.push({ type: "text", text: `[Document: ${label}]\n${text.substring(0, 20000)}` });
+          includedDocIds.push(doc.id);
+        } else if (ext === ".doc" && parentMetadata) {
+           const text = await extractParentDocumentText(filename, fileContent);
+          if (!text.trim()) { failedDocs.push({ id: doc.id, reason: "No readable text was found in this Word document." }); continue; }
           contentParts.push({ type: "text", text: `[Document: ${label}]\n${text.substring(0, 20000)}` });
           includedDocIds.push(doc.id);
         } else if (TEXT_EXT.includes(ext)) {
@@ -1243,10 +1277,10 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     }
 
     console.info(`[NeuroPath] buildClientProfile: done child=${child_id} behaviors=${(extracted.behaviors || []).length} docs=${includedDocIds.length}`);
-    res.json(serialize({ profile, warnings, scanned: includedDocIds, failed: failedDocs }));
+    return res.json(serialize({ profile, warnings, scanned: includedDocIds, failed: failedDocs }));
   } catch (e: any) {
     console.error("[NeuroPath] buildClientProfile error:", e?.message);
-    res.status(500).json({ error: { code: "scan_failed", message: "Something went wrong while scanning. Please try again." } });
+    return res.status(500).json({ error: { code: "scan_failed", message: "Something went wrong while scanning. Please try again." } });
   }
 });
 
@@ -1263,8 +1297,15 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         const [existing] = await db.select().from(childrenTable).where(eq(childrenTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
         if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        const update = bodyToCamel(data || {});
+        if (await isParentOwnedChild(entity_id)) {
+          const fields = ["parentId", "tenantId", "clinicianId", "familyId", "createdBy"] as const;
+          if (fields.some(key => key in update && update[key] !== existing[key])) {
+            return res.status(403).json({ error: "Parent account ownership cannot be changed by the clinic." });
+          }
+        }
         const [child] = await db.update(childrenTable)
-          .set(bodyToCamel(data || {}))
+          .set(update)
           .where(eq(childrenTable.id, entity_id))
           .returning();
         return res.json(serialize({ record: child }));
@@ -1274,6 +1315,7 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         const [existing] = await db.select().from(childrenTable).where(eq(childrenTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
         if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        if (await isParentOwnedChild(entity_id)) return res.status(409).json({ error: "The clinic cannot delete a parent-owned child profile." });
         await db.delete(childrenTable).where(eq(childrenTable.id, entity_id));
         await auditLog({ userId: req.user.id, userRole: "clinician", action: "child_deleted", targetType: "child", targetId: entity_id });
         return res.json({ ok: true });
@@ -1294,6 +1336,7 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         const [existing] = await db.select().from(familiesTable).where(eq(familiesTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
         if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        if (await familyHasParentOwnedChildren(entity_id)) return res.status(409).json({ error: "This family contains parent-owned data and cannot be deleted by the clinic." });
         const kids = await db.select().from(childrenTable).where(eq(childrenTable.familyId, entity_id));
         for (const k of kids) {
           await db.delete(documentsTable).where(eq(documentsTable.childId, k.id));
@@ -1322,6 +1365,7 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         const [existing] = await db.select().from(documentsTable).where(eq(documentsTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
         if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        if (await isParentOwnedDocument(entity_id)) return res.status(403).json({ error: "Only the parent can delete a parent-owned document." });
         await db.delete(documentsTable).where(eq(documentsTable.id, entity_id));
         await auditLog({ userId: req.user.id, userRole: "clinician", action: "document_deleted", targetType: "document", targetId: entity_id });
         return res.json({ ok: true });
@@ -1330,7 +1374,7 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         return res.status(400).json({ error: `Unknown action: ${action}` });
     }
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -1429,7 +1473,7 @@ router.post("/manage-client-goal", async (req: any, res) => {
         return res.status(400).json({ error: `Unknown goal action: ${action}` });
     }
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -1477,9 +1521,9 @@ router.post("/verify-client-credentials", async (req, res) => {
       account_type: family?.accountType ?? null,
       children: serialize(siblings),
     };
-    res.json({ session });
+    return res.json({ session });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -1529,9 +1573,9 @@ router.post("/client-session/change-access-code", async (req, res) => {
       children: serialize(freshSiblings.length > 0 ? freshSiblings : siblings),
     };
     await auditLog({ action: "access_code_changed", targetType: "child", targetId: child.id, success: true });
-    res.json({ ok: true, session });
+    return res.json({ ok: true, session });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -1567,7 +1611,7 @@ router.post("/client-session/login", async (req, res) => {
     await auditLog({ action: "login", targetType: "child", targetId: child.id, success: true, tenantId: child.clinicianId ?? undefined });
 
     const token = await generateClientToken(child.id, cleanUsername);
-    res.json({
+    return res.json({
       id: child.id,
       invite_token: token,
       child_name: child.childName,
@@ -1576,7 +1620,7 @@ router.post("/client-session/login", async (req, res) => {
       children: serialize(siblings),
     });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -1627,9 +1671,9 @@ router.post("/client-upload-document", async (req: any, res) => {
       tenantId: child.clinicianId ?? undefined,
     });
 
-    res.status(201).json(serialize(doc));
+    return res.status(201).json(serialize(doc));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -1662,9 +1706,9 @@ router.post("/client-send-message", async (req, res) => {
       tenantId: child.clinicianId ?? null,
     }).returning();
 
-    res.status(201).json(serialize(msg));
+    return res.status(201).json(serialize(msg));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -1707,9 +1751,9 @@ router.post("/add-child-to-family", requireAuth, async (req: any, res) => {
     console.info(`[NeuroPath] Child added to family: child=${child.id} family=${family_id}`);
 
     const { accessCode: _ac, ...safeChild } = child;
-    res.status(201).json(serialize({ child: safeChild }));
+    return res.status(201).json(serialize({ child: safeChild }));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -1846,7 +1890,7 @@ router.post("/parent-signup", async (req, res) => {
     });
 
     const token = await generateClientToken(child.id, cleanUsername);
-    res.status(201).json({
+    return res.status(201).json({
       id: child.id,
       invite_token: token,
       child_name: child.childName,
@@ -1856,7 +1900,7 @@ router.post("/parent-signup", async (req, res) => {
     });
   } catch (e: any) {
     console.error("[NeuroPath] parent-signup error:", e);
-    res.status(500).json({ error: "Something went wrong. Please try again." });
+    return res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
@@ -1882,9 +1926,9 @@ router.post("/admin/migrate-access-codes", requireAuth, async (req: any, res) =>
     }
 
     await auditLog({ userId: req.user.id, userRole: "clinician", action: "access_codes_migrated", success: true, metadata: { migrated, skipped } });
-    res.json({ ok: true, migrated, skipped });
+    return res.json({ ok: true, migrated, skipped });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 

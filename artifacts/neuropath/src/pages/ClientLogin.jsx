@@ -61,7 +61,7 @@ export default function ClientLogin() {
 
           {/* New family account */}
           <button
-            onClick={() => navigate("/ParentSignup")}
+            onClick={() => navigate("/ParentSignupUsername")}
             className="w-full bg-primary/10 border-2 border-primary/20 text-primary rounded-2xl py-4 px-5 hover:bg-primary/15 hover:border-primary/40 transition-all flex items-center gap-3"
           >
             <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">

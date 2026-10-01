@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { legacyVisibleDocuments } from "../lib/documentVisibility";
 import crypto from "node:crypto";
 import { db } from "@workspace/db";
 import {
@@ -74,7 +75,7 @@ export async function requireMobileAuth(req: any, res: any, next: any) {
     req.mobileUser = { childId: selected.id, authenticatedChildId: anchor.id };
     next();
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 }
 
@@ -103,7 +104,7 @@ router.post("/mobile/auth/login", async (req, res) => {
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
     await db.insert(mobileTokensTable).values({ token, childId: child.id, expiresAt });
-    res.json({
+    return res.json({
       token,
       child: {
         id: child.id,
@@ -112,7 +113,7 @@ router.post("/mobile/auth/login", async (req, res) => {
       },
     });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -120,9 +121,9 @@ router.delete("/mobile/auth/logout", requireMobileAuth, async (req: any, res) =>
   const token = req.headers["x-mobile-token"] as string;
   try {
     await db.delete(mobileTokensTable).where(eq(mobileTokensTable.token, token));
-    res.json({ ok: true });
+    return res.json({ ok: true });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -148,9 +149,9 @@ router.post("/mobile/auth/change-access-code", requireMobileAuth, async (req: an
     } else {
       await db.update(childrenTable).set({ accessCode }).where(eq(childrenTable.id, child.id));
     }
-    res.json({ ok: true });
+    return res.json({ ok: true });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -187,9 +188,9 @@ router.get("/mobile/children", requireMobileAuth, async (req: any, res) => {
         ))
       : [child];
     siblings.sort((a, b) => a.id === child.id ? -1 : b.id === child.id ? 1 : (a.childName ?? "").localeCompare(b.childName ?? ""));
-    res.json(siblings.map(({ accessCode: _accessCode, ...publicChild }) => publicChild));
+    return res.json(siblings.map(({ accessCode: _accessCode, ...publicChild }) => publicChild));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -281,7 +282,8 @@ router.get("/mobile/documents", requireMobileAuth, async (req: any, res) => {
       .select()
       .from(documentsTable)
       .where(eq(documentsTable.childId, req.mobileUser.childId));
-    res.json(rows);
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
+    res.json(await legacyVisibleDocuments(rows, child?.clinicianId ?? null));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

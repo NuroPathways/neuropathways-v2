@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
+import SupportReview from "@/components/parentfree/SupportReview";
 
 export default function ClientDetail() {
   const navigate = useNavigate();
@@ -191,6 +192,8 @@ export default function ClientDetail() {
             </div>
           )}
         </motion.div>
+
+        <SupportReview childId={childId} />
 
         {/* Documents */}
         <div>

@@ -1,3 +1,4 @@
 - [Expo dependency override boundaries](expo-dependency-overrides.md) — cap workspace overrides at Expo-compatible major versions so clean publishes cannot resolve breaking majors.
 - [Expo preview readiness](expo-preview-readiness.md) — short browser timeouts can show a blank preview before hydration; check visible DOM before changing layout.
 - [Shared document compatibility](shared-document-compatibility.md) — document references are shared contracts; new native access must preserve web viewing and scanning.
+- [Guidance consent provenance](guidance-consent-provenance.md) — clinical priority never removes private contributing sources; clinician previews and action responses need consent-filtered projections.

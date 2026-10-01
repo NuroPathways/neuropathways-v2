@@ -10,6 +10,12 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Legacy authentication operations
+  - name: parent
+    description: Parent account, child, and support operations
+  - name: clinic-link
+    description: Parent and clinician linking operations
 paths:
   /healthz:
     get:
@@ -24,7 +30,511 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/user:
+    get:
+      operationId: getAuthUser
+      tags: [auth]
+      summary: Get the current authenticated user
+      responses:
+        "200":
+          description: Current user, or null when no user session is active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentAuthUser"
+  /parent/auth/register:
+    post:
+      operationId: registerParent
+      tags: [parent]
+      summary: Register a parent account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentRegistrationInput"
+      responses:
+        "201":
+          description: Parent account registered and signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentAuthResult"
+  /parent/auth/login:
+    post:
+      operationId: loginParent
+      tags: [parent]
+      summary: Sign in to a parent account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentLoginInput"
+      responses:
+        "200":
+          description: Parent signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentAuthResult"
+  /parent/auth/logout:
+    post:
+      operationId: logoutParent
+      tags: [parent]
+      summary: Sign out and revoke the parent session
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      responses:
+        "200":
+          description: Parent session revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResult"
+  /parent/session:
+    get:
+      operationId: getParentSession
+      tags: [parent]
+      summary: Get the signed-in parent and children
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      responses:
+        "200":
+          description: Current parent session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentSession"
+  /parent/starter-library:
+    get:
+      operationId: getStarterLibrary
+      tags: [parent]
+      summary: List starter support templates
+      responses:
+        "200":
+          description: Available starter templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StarterTemplate"
+  /parent/children:
+    post:
+      operationId: createParentChild
+      tags: [parent]
+      summary: Create a child in the parent workspace
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentChildInput"
+      responses:
+        "201":
+          description: Child created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentChild"
+  /parent/children/{childId}:
+    patch:
+      operationId: updateParentChild
+      tags: [parent]
+      summary: Update a parent-owned child
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentChildUpdate"
+      responses:
+        "200":
+          description: Child updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentChild"
+  /parent/children/{childId}/dashboard:
+    get:
+      operationId: getParentDashboard
+      tags: [parent]
+      summary: Get a child's parent dashboard
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Child dashboard, including complete setup and support data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentDashboard"
+  /parent/children/{childId}/logs:
+    post:
+      operationId: addParentLog
+      tags: [parent]
+      summary: Add a parent behavior log
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentLogInput"
+      responses:
+        "201":
+          description: Parent log created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentLog"
+  /parent/children/{childId}/documents:
+    get:
+      operationId: listParentDocuments
+      tags: [parent]
+      summary: List a child's parent documents
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Parent documents for the child
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParentDocument"
+    post:
+      operationId: uploadParentDocument
+      tags: [parent]
+      summary: Upload a private parent document for scanning
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/ParentDocumentUploadInput"
+      responses:
+        "201":
+          description: Parent document uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentDocument"
+  /parent/documents/{documentId}/content:
+    get:
+      operationId: getParentDocumentContent
+      tags: [parent]
+      summary: Retrieve authorized document bytes
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Authorized document bytes; response is not cacheable
+          headers:
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+  /parent/children/{childId}/documents/{documentId}/scan:
+    post:
+      operationId: scanParentDocument
+      tags: [parent]
+      summary: Scan or retry scanning a parent document
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Scan completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentDocumentScanResult"
+  /parent/children/{childId}/documents/{documentId}/sharing:
+    patch:
+      operationId: setParentDocumentSharing
+      tags: [parent]
+      summary: Set clinician sharing consent for a parent document
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentDocumentSharingInput"
+      responses:
+        "200":
+          description: Document sharing consent updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentDocument"
+  /parent/children/{childId}/chat:
+    post:
+      operationId: parentChat
+      tags: [parent]
+      summary: Ask a question using server-side parent support context
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentChatInput"
+      responses:
+        "200":
+          description: Parent chat response with source references and disclaimer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentChatResult"
+  /parent/clinic-invites:
+    post:
+      operationId: createParentClinicInvite
+      tags: [clinic-link]
+      summary: Create an email-bound parent clinic invitation
+      security:
+        - ClinicianSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentClinicInviteInput"
+      responses:
+        "201":
+          description: Parent clinic invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentClinicInvite"
+  /parent/children/{childId}/link-preview:
+    post:
+      operationId: previewParentClinicInvite
+      tags: [clinic-link]
+      summary: Preview a clinic invitation before connecting
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentClinicInviteTokenInput"
+      responses:
+        "200":
+          description: Clinic invitation preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentClinicInvitePreview"
+  /parent/children/{childId}/connect:
+    post:
+      operationId: connectParentClinic
+      tags: [clinic-link]
+      summary: Connect a parent child to a clinic
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentClinicConnectionInput"
+      responses:
+        "200":
+          description: Parent child connected to the clinic
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentClinicConnectionResult"
+  /parent/children/{childId}/support-review:
+    post:
+      operationId: reviewParentSupport
+      tags: [clinic-link]
+      summary: Review shared parent support as a clinician
+      security:
+        - ClinicianSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentSupportReviewInput"
+      responses:
+        "200":
+          description: Support review recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentSupportReviewResult"
+  /parent/children/{childId}/shared-support:
+    get:
+      operationId: getParentSharedSupport
+      tags: [clinic-link]
+      summary: Preview shared parent support as a clinician
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Shared support and documents available for clinician review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentSharedSupport"
 components:
+  securitySchemes:
+    ParentTokenHeader:
+      type: apiKey
+      in: header
+      name: X-Parent-Token
+    ParentBearer:
+      type: http
+      scheme: bearer
+    ParentSessionCookie:
+      type: apiKey
+      in: cookie
+      name: np_parent_sid
+    ClinicianBearer:
+      type: http
+      scheme: bearer
+    ClinicianSessionCookie:
+      type: apiKey
+      in: cookie
+      name: sid
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +543,593 @@ components:
           type: string
       required:
         - status
-
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, "null"]
+        firstName:
+          type: [string, "null"]
+        lastName:
+          type: [string, "null"]
+        profileImageUrl:
+          type: [string, "null"]
+      required: [id, email, firstName, lastName, profileImageUrl]
+    CurrentAuthUser:
+      type: object
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+      required: [user]
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    OkResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+      required: [ok]
+    Parent:
+      type: object
+      properties:
+        id:
+          type: string
+        firstName:
+          type: string
+        email:
+          type: string
+        workspaceId:
+          type: string
+        accountType:
+          type: string
+          const: parent_free
+      required: [id, firstName, email, workspaceId, accountType]
+    ParentChild:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        age:
+          type: [integer, "null"]
+        notes:
+          type: string
+        behaviorKey:
+          type: [string, "null"]
+        behaviorName:
+          type: [string, "null"]
+        goal:
+          type: [string, "null"]
+        workspaceId:
+          type: string
+        parentId:
+          type: string
+        familyId:
+          type: string
+        clinicianId:
+          type: [string, "null"]
+      required:
+        - id
+        - name
+        - age
+        - notes
+        - behaviorKey
+        - behaviorName
+        - goal
+        - workspaceId
+        - parentId
+        - familyId
+        - clinicianId
+    ParentAuthResult:
+      type: object
+      properties:
+        token:
+          type: string
+        parent:
+          $ref: "#/components/schemas/Parent"
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentChild"
+      required: [token, parent, children]
+    ParentSession:
+      type: object
+      properties:
+        parent:
+          $ref: "#/components/schemas/Parent"
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentChild"
+      required: [parent, children]
+    ParentRegistrationInput:
+      type: object
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+        confirmPassword:
+          type: string
+          minLength: 1
+        privacyConsent:
+          type: boolean
+          const: true
+        healthConsent:
+          type: boolean
+          const: true
+      required:
+        - firstName
+        - email
+        - password
+        - confirmPassword
+        - privacyConsent
+        - healthConsent
+    ParentLoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required: [email, password]
+    ParentChildInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        age:
+          type: integer
+        notes:
+          type: string
+        behaviorKey:
+          type: string
+        customBehavior:
+          type: string
+        goal:
+          type: string
+      required: [name]
+    ParentChildUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        age:
+          type: integer
+        notes:
+          type: string
+        behaviorKey:
+          type: string
+        customBehavior:
+          type: string
+        goal:
+          type: string
+    StarterTemplate:
+      type: object
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        whatMayBeHappening:
+          type: string
+        rightNow:
+          type: array
+          items:
+            type: string
+        avoid:
+          type: array
+          items:
+            type: string
+        prevention:
+          type: array
+          items:
+            type: string
+        replacementSkill:
+          type: string
+        reinforcementIdea:
+          type: string
+        seekHelp:
+          type: string
+        track:
+          type: array
+          items:
+            type: string
+        relatedGoals:
+          type: array
+          items:
+            type: string
+      required:
+        - key
+        - name
+        - description
+        - whatMayBeHappening
+        - rightNow
+        - avoid
+        - prevention
+        - replacementSkill
+        - reinforcementIdea
+        - seekHelp
+        - track
+        - relatedGoals
+    SourceReference:
+      type: object
+      properties:
+        documentId:
+          type: string
+        title:
+          type: string
+        excerpt:
+          type: [string, "null"]
+      required: [documentId, title, excerpt]
+    SupportCard:
+      type: object
+      properties:
+        id:
+          type: string
+        behaviorKey:
+          type: string
+        behaviorName:
+          type: string
+        goal:
+          type: [string, "null"]
+        source:
+          type: string
+          enum: [starter, parent_document, clinician_document, clinician_reviewed]
+        sourceDocumentIds:
+          type: array
+          items:
+            type: string
+        sourceReferences:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceReference"
+        conflict:
+          type: boolean
+        conflictMessage:
+          type: [string, "null"]
+        whatMayBeHappening:
+          type: string
+        rightNow:
+          type: array
+          items:
+            type: string
+        avoid:
+          type: array
+          items:
+            type: string
+        prevention:
+          type: array
+          items:
+            type: string
+        replacementSkill:
+          type: string
+        reinforcementIdea:
+          type: string
+        seekHelp:
+          type: string
+        track:
+          type: array
+          items:
+            type: string
+        relatedGoals:
+          type: array
+          items:
+            type: string
+        reviewedBy:
+          type: [string, "null"]
+        reviewedAt:
+          type: [string, "null"]
+      required:
+        - id
+        - behaviorKey
+        - behaviorName
+        - goal
+        - source
+        - sourceDocumentIds
+        - sourceReferences
+        - conflict
+        - conflictMessage
+        - whatMayBeHappening
+        - rightNow
+        - avoid
+        - prevention
+        - replacementSkill
+        - reinforcementIdea
+        - seekHelp
+        - track
+        - relatedGoals
+        - reviewedBy
+        - reviewedAt
+    ParentDocument:
+      type: object
+      properties:
+        id:
+          type: string
+        childId:
+          type: string
+        title:
+          type: string
+        fileName:
+          type: string
+        documentType:
+          type: string
+        scanStatus:
+          type: string
+        scanError:
+          type: [string, "null"]
+        uploadedBy:
+          type: string
+          enum: [parent, clinician]
+        shared:
+          type: boolean
+        reviewed:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - childId
+        - title
+        - fileName
+        - documentType
+        - scanStatus
+        - scanError
+        - uploadedBy
+        - shared
+        - reviewed
+        - createdAt
+    ParentLog:
+      type: object
+      properties:
+        id:
+          type: string
+        childId:
+          type: string
+        behaviorKey:
+          type: [string, "null"]
+        goal:
+          type: [string, "null"]
+        happened:
+          type: boolean
+        intensity:
+          type: string
+          enum: [low, medium, high]
+        duration:
+          type: number
+        trigger:
+          type: [string, "null"]
+        whatHelped:
+          type: [string, "null"]
+        notes:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - childId
+        - behaviorKey
+        - goal
+        - happened
+        - intensity
+        - duration
+        - trigger
+        - whatHelped
+        - notes
+        - createdAt
+    ParentDashboard:
+      type: object
+      properties:
+        child:
+          $ref: "#/components/schemas/ParentChild"
+        supportCards:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupportCard"
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDocument"
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentLog"
+      required: [child, supportCards, documents, logs]
+    ParentSharedSupport:
+      type: object
+      properties:
+        childName:
+          type: string
+        supportCards:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupportCard"
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDocument"
+      required: [childName, supportCards, documents]
+    ParentLogInput:
+      type: object
+      properties:
+        happened:
+          type: boolean
+        intensity:
+          type: string
+          enum: [low, medium, high]
+        duration:
+          type: number
+        trigger:
+          type: string
+        whatHelped:
+          type: string
+        notes:
+          type: string
+      required: [happened, intensity, duration]
+    ParentDocumentUploadInput:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+        title:
+          type: string
+        documentType:
+          type: string
+        authorizedUploader:
+          type: string
+          const: "true"
+      required: [file, authorizedUploader]
+    ParentDocumentScanResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+        supportCards:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupportCard"
+        message:
+          type: string
+      required: [ok, supportCards, message]
+    ParentDocumentSharingInput:
+      type: object
+      properties:
+        shared:
+          type: boolean
+      required: [shared]
+    ParentChatInput:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+      required: [message]
+    ParentChatResult:
+      type: object
+      properties:
+        answer:
+          type: string
+        sourceReferences:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceReference"
+        disclaimer:
+          type: string
+      required: [answer, sourceReferences, disclaimer]
+    ParentClinicInviteInput:
+      type: object
+      properties:
+        familyId:
+          type: string
+        email:
+          type: string
+          format: email
+      required: [familyId, email]
+    ParentClinicInvite:
+      type: object
+      properties:
+        inviteToken:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        inviteUrl:
+          type: string
+      required: [inviteToken, expiresAt, inviteUrl]
+    ParentClinicInviteTokenInput:
+      type: object
+      properties:
+        inviteToken:
+          type: string
+      required: [inviteToken]
+    ParentClinicInvitePreviewChild:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required: [id, name]
+    ParentClinicInvitePreview:
+      type: object
+      properties:
+        clinicianName:
+          type: string
+        familyName:
+          type: string
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentClinicInvitePreviewChild"
+        requiresMergeReview:
+          type: boolean
+      required: [clinicianName, familyName, children, requiresMergeReview]
+    ParentClinicConnectionInput:
+      type: object
+      properties:
+        inviteToken:
+          type: string
+        sharing:
+          type: string
+          enum: [all, selected, none]
+        documentIds:
+          type: array
+          items:
+            type: string
+        mergeChildId:
+          type: string
+        confirmMerge:
+          type: boolean
+      required: [inviteToken, sharing]
+    ParentClinicConnectionResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+        child:
+          $ref: "#/components/schemas/ParentChild"
+        message:
+          type: string
+      required: [ok, child, message]
+    ParentSupportReviewInput:
+      type: object
+      properties:
+        approved:
+          type: boolean
+      required: [approved]
+    ParentSupportReviewResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+        supportCards:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupportCard"
+      required: [ok, supportCards]

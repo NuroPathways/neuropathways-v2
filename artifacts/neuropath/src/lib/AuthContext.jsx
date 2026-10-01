@@ -1,5 +1,22 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { getClientSession, clearClientSession } from '@/lib/clientSession';
+import { getParentToken, saveParentToken, clearParentToken, parentRequest } from '@/lib/parentSession';
+import { getParentSession, logoutParent } from '@workspace/api-client-react';
+
+function toParentUser(session) {
+  const p = session.parent;
+  return {
+    id: p.id,
+    email: p.email,
+    first_name: p.firstName,
+    full_name: p.firstName,
+    display_name: p.firstName,
+    account_type: 'parent_free',
+    app_role: 'parent_free',
+    workspace_id: p.workspaceId,
+    parent_children: session.children || [],
+  };
+}
 
 const AuthContext = createContext();
 
@@ -67,6 +84,20 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
+      // Free parent session (email account) uses its own token/cookie.
+      try {
+        const ps = await getParentSession(parentRequest());
+        if (ps?.parent) {
+          setUser(toParentUser(ps));
+          setIsAuthenticated(true);
+          setIsLoadingAuth(false);
+          setAuthChecked(true);
+          return;
+        }
+      } catch {
+        if (getParentToken()) clearParentToken();
+      }
+
       // No active client session — check for a cookie-based clinician session.
       let currentUser = null;
       try {
@@ -118,7 +149,34 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const setParentAuth = (result) => {
+    if (result.token) saveParentToken(result.token);
+    clearClientSession();
+    setUser(toParentUser(result));
+    setIsAuthenticated(true);
+    setAuthChecked(true);
+  };
+
+  const refreshParent = async () => {
+    try {
+      const ps = await getParentSession(parentRequest());
+      setUser(toParentUser(ps));
+      return ps;
+    } catch {
+      return null;
+    }
+  };
+
+  const logoutParentAccount = async () => {
+    try { await logoutParent(parentRequest({ method: 'POST' })); } catch { /* token is cleared locally regardless */ }
+    clearParentToken();
+    setUser(null);
+    setIsAuthenticated(false);
+    window.location.href = "/";
+  };
+
   const logout = () => {
+    if (user?.account_type === 'parent_free') { logoutParentAccount(); return; }
     clearClientSession();
     setUser(null);
     setIsAuthenticated(false);
@@ -145,6 +203,8 @@ export const AuthProvider = ({ children }) => {
       checkAppState,
       checkUserAuth,
       refreshUser,
+      setParentAuth,
+      refreshParent,
     }}>
       {children}
     </AuthContext.Provider>
