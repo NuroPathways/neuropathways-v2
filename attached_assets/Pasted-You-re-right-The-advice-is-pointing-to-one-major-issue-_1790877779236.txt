@@ -1,0 +1,666 @@
+You’re right. The advice is pointing to one major issue: **the free parent version should not start by asking parents to upload a treatment plan.** It should let them feel value immediately.
+
+The better flow is:
+
+**Parent opens app → chooses one common behavior → chooses one goal → gets a simple starter support card → can upload clinician plan later.**
+
+The pre-programmed behaviors should be a **starter library**, not the final clinical plan. Once a clinician document is uploaded, the AI should replace or upgrade the starter plan with the child’s actual document-based plan.
+
+Here’s the prompt to plug into Replit:
+
+# Replit Prompt: Build Parent Quick Start + Starter Behavior Library
+
+I need to update the NeuroPathways app based on product feedback.
+
+The current parent experience asks users to upload a treatment plan too early. That is too much friction. Many parents will not have the plan file on their phone, and they may not trust the app enough yet to upload clinical documents.
+
+Fix the parent onboarding so parents can start without uploading a treatment plan.
+
+The new free parent version should let a parent start with:
+
+1. one child/profile
+2. one common behavior
+3. one goal
+4. one starter support card
+5. optional plan/document upload later
+
+This version should prove the parent-side value first.
+
+---
+
+## 1. Landing Page Hero Update
+
+Change the hero copy so it speaks directly to parents only.
+
+Do not say “clinicians, parents, and clients” in the same sentence on the parent-facing landing page.
+
+Use this hero line:
+
+**“What to do in the moment, based on your child’s plan.”**
+
+Subtext:
+
+**NeuroPathways helps parents turn behavior goals and support plans into simple steps they can use during stressful moments.**
+
+Primary button:
+
+**Start With One Behavior**
+
+Secondary button:
+
+**Upload a Plan Later**
+
+The page should make the parent feel:
+
+- this is for me
+- I can start quickly
+- I do not need to upload a document right now
+- I can get help with one common behavior first
+
+---
+
+## 2. Parent Quick Start Flow
+
+Create a new onboarding flow called:
+
+**Parent Quick Start**
+
+This should appear for parent/caregiver users who are using the free version or who do not have uploaded documents yet.
+
+Flow:
+
+### Step 1: Add Child/Profile
+
+Ask:
+
+**“Who are you creating support for?”**
+
+Fields:
+
+- child first name or nickname
+- age optional
+- diagnosis optional
+- notes optional
+
+Do not require diagnosis.
+
+Do not require a treatment plan upload.
+
+---
+
+### Step 2: Choose One Behavior
+
+Ask:
+
+**“What do you need help with most often?”**
+
+Show six pre-programmed behavior options:
+
+1. **Elopement / Running Away**
+2. **Self-Injury**
+3. **Aggression**
+4. **Meltdowns / Emotional Dysregulation**
+5. **Task Refusal**
+6. **Transition Difficulty**
+
+Also include:
+
+**“Other / I’ll type my own”**
+
+These should be starter templates only.
+
+Clearly label them:
+
+**Starter behavior support — not yet based on an uploaded clinician plan.**
+
+---
+
+### Step 3: Choose One Goal
+
+Ask:
+
+**“What is the main goal right now?”**
+
+Suggested goal options should change based on the selected behavior.
+
+Examples:
+
+For elopement:
+- Stay near caregiver
+- Stop before leaving area
+- Respond to name or safety cue
+- Use help signal before leaving
+
+For self-injury:
+- Use safe replacement behavior
+- Ask for help
+- Use calming strategy
+- Reduce unsafe actions
+
+For aggression:
+- Use words or gesture instead of hitting
+- Ask for space
+- Follow calm-down steps
+- Reduce unsafe contact
+
+For meltdowns:
+- Use calming strategy
+- Move to safe space
+- Identify feelings
+- Recover faster after escalation
+
+For task refusal:
+- Complete first small step
+- Ask for break appropriately
+- Use first-then routine
+- Return to task after support
+
+For transition difficulty:
+- Follow transition warning
+- Move to next activity
+- Use visual/timer support
+- Reduce transition escalation
+
+Allow custom goal entry.
+
+---
+
+## 3. Starter Behavior Library
+
+Create six starter behavior templates.
+
+These templates should be general parent-support templates. They are not clinician-approved treatment plans until documents are uploaded or clinician reviews them.
+
+Each template should include:
+
+- behavior name
+- parent-friendly description
+- what may be happening
+- what to do right now
+- what to avoid
+- prevention steps
+- replacement skill
+- reinforcement idea
+- when to seek help
+- what to track
+- related starter goals
+
+---
+
+# Template 1: Elopement / Running Away
+
+Behavior name:
+Elopement / Running Away
+
+Parent-friendly description:
+The child tries to leave the area, run away, bolt from an activity, or move toward an unsafe place.
+
+What may be happening:
+The child may be trying to escape a demand, reach something preferred, avoid overwhelm, or respond to sensory overload.
+
+What to do right now:
+1. Stay calm and move between the child and unsafe areas if possible.
+2. Reduce verbal demands.
+3. Use a short safety phrase such as “Stop” or “Come back.”
+4. Guide the child to a safer area.
+5. Once safe, offer a simple choice or calming option.
+
+What to avoid:
+- yelling from far away
+- chasing in a way that turns it into a game
+- giving long explanations during the moment
+- adding new demands while the child is still unsafe
+
+Prevention:
+- use transition warnings
+- use visual cues
+- identify high-risk locations
+- prepare before leaving the house
+- reinforce staying near caregiver
+
+Replacement skill:
+Teach the child to ask for a break, hold a safety item, stop at a boundary, or use a help signal.
+
+Reinforcement idea:
+Praise and reward staying close, stopping when called, or returning safely.
+
+When to seek help:
+If the child moves toward traffic, water, exits, parking lots, or other danger, seek immediate emergency support.
+
+What to track:
+- where it happened
+- what happened right before
+- where the child tried to go
+- what helped them return
+- safety risk level
+
+---
+
+# Template 2: Self-Injury
+
+Behavior name:
+Self-Injury
+
+Parent-friendly description:
+The child hurts themselves or attempts to hurt themselves, such as hitting their head, biting, scratching, or other unsafe actions.
+
+What may be happening:
+The child may be overwhelmed, frustrated, unable to communicate, in pain, seeking escape, or needing sensory input.
+
+What to do right now:
+1. Reduce demands immediately.
+2. Move dangerous objects away.
+3. Use a calm, low voice.
+4. Block only if needed for safety.
+5. Offer a safer replacement if one is known.
+6. Move toward a calm, low-stimulation space if possible.
+
+What to avoid:
+- yelling
+- punishment during escalation
+- physically restraining unless safety requires it
+- asking too many questions during the moment
+- ignoring serious injury risk
+
+Prevention:
+- watch for early warning signs
+- reduce known triggers
+- offer breaks before escalation
+- use communication supports
+- check for pain, hunger, tiredness, or sensory overload
+
+Replacement skill:
+Ask for break, use safe sensory item, squeeze pillow, use communication card, ask for help.
+
+Reinforcement idea:
+Reinforce safe communication, calm body, and using replacement skills.
+
+When to seek help:
+If injury is serious, repeated, escalating, or medically concerning, contact emergency services or the child’s clinician.
+
+What to track:
+- type of self-injury
+- intensity
+- duration
+- trigger
+- injury risk
+- what reduced the behavior
+
+---
+
+# Template 3: Aggression
+
+Behavior name:
+Aggression
+
+Parent-friendly description:
+The child hits, kicks, bites, pushes, throws items at people, or uses unsafe physical behavior toward others.
+
+What may be happening:
+The child may be overwhelmed, frustrated, trying to escape a demand, seeking attention, denied access to something, or unable to communicate needs.
+
+What to do right now:
+1. Create space and reduce demands.
+2. Move other people or unsafe objects away.
+3. Use a calm, brief instruction.
+4. Avoid arguing.
+5. Offer a safe alternative such as break, help, or space.
+6. Reinforce the first calm or safe action.
+
+What to avoid:
+- arguing
+- lecturing during escalation
+- crowding the child
+- sudden punishment
+- raising your voice
+- repeating the same demand rapidly
+
+Prevention:
+- identify common triggers
+- use choices
+- prepare for denied access
+- teach requesting help or break
+- reinforce calm communication early
+
+Replacement skill:
+Ask for help, ask for space, use words/gesture, request break, use calm-down tool.
+
+Reinforcement idea:
+Praise safe hands, calm body, asking for help, or moving away appropriately.
+
+When to seek help:
+If aggression causes injury, becomes severe, or cannot be safely managed, contact clinician or emergency support.
+
+What to track:
+- who was nearby
+- what happened right before
+- what the child wanted or avoided
+- how long it lasted
+- what helped
+
+---
+
+# Template 4: Meltdowns / Emotional Dysregulation
+
+Behavior name:
+Meltdowns / Emotional Dysregulation
+
+Parent-friendly description:
+The child becomes highly overwhelmed, cries, screams, shuts down, drops to the floor, or cannot respond normally.
+
+What may be happening:
+The child may be overloaded, anxious, tired, frustrated, overstimulated, or unable to process demands.
+
+What to do right now:
+1. Reduce talking.
+2. Lower lights/noise if possible.
+3. Give space while maintaining safety.
+4. Use calm body language.
+5. Offer one simple calming option.
+6. Wait until the child is calmer before problem solving.
+
+What to avoid:
+- asking many questions
+- demanding eye contact
+- forcing conversation
+- threatening consequences during escalation
+- trying to teach a lesson in the moment
+
+Prevention:
+- watch for early warning signs
+- use predictable routines
+- offer breaks
+- reduce sensory overload
+- prepare for difficult transitions
+
+Replacement skill:
+Use calm-down space, ask for break, use breathing/grounding tool, point to feelings chart, request help.
+
+Reinforcement idea:
+Reinforce using calming tools, recovering safely, or communicating needs.
+
+When to seek help:
+If the meltdown includes unsafe behavior, self-injury, aggression, or long duration beyond what is typical, contact clinician or emergency support if needed.
+
+What to track:
+- trigger
+- early warning signs
+- duration
+- calming tools used
+- recovery time
+- safety concerns
+
+---
+
+# Template 5: Task Refusal
+
+Behavior name:
+Task Refusal
+
+Parent-friendly description:
+The child refuses, avoids, ignores, or escalates when asked to complete homework, chores, hygiene, therapy practice, or another non-preferred task.
+
+What may be happening:
+The task may feel too hard, too long, boring, overwhelming, or frustrating. The child may be trying to escape the demand.
+
+What to do right now:
+1. Break the task into one small step.
+2. Use first-then language.
+3. Offer two acceptable choices.
+4. Reduce extra talking.
+5. Praise the first attempt.
+6. Give a short break if appropriate, then return to the task.
+
+What to avoid:
+- repeating the demand over and over
+- turning it into an argument
+- adding extra demands
+- removing all rewards immediately
+- starting with a large task
+
+Prevention:
+- make expectations clear
+- use timers
+- use visual checklist
+- start with easier steps
+- offer choices
+- reinforce effort early
+
+Replacement skill:
+Ask for help, ask for break, choose first step, use coping strategy, complete small part of task.
+
+Reinforcement idea:
+Praise effort and task start, not only full completion.
+
+When to seek help:
+If refusal becomes unsafe, intense, or consistently prevents daily functioning, bring it to the clinician.
+
+What to track:
+- task type
+- time of day
+- demand difficulty
+- refusal duration
+- strategy used
+- whether the child returned to task
+
+---
+
+# Template 6: Transition Difficulty
+
+Behavior name:
+Transition Difficulty
+
+Parent-friendly description:
+The child struggles when moving from one activity to another, especially from preferred to non-preferred activities.
+
+What may be happening:
+The child may need more predictability, more processing time, help ending a preferred activity, or support understanding what comes next.
+
+What to do right now:
+1. Give a calm transition warning.
+2. Use a timer or visual cue.
+3. Say what is ending and what is next.
+4. Offer a small choice.
+5. Use first-then language.
+6. Reinforce any movement toward the next activity.
+
+What to avoid:
+- sudden transitions without warning
+- grabbing items away without preparation
+- long explanations during escalation
+- arguing about the transition
+- changing instructions repeatedly
+
+Prevention:
+- use visual schedules
+- use countdowns
+- practice transitions when calm
+- create consistent routines
+- give transition object if helpful
+
+Replacement skill:
+Use transition card, ask for one more minute, choose next step, walk with caregiver, use calm body.
+
+Reinforcement idea:
+Praise moving to the next step, stopping preferred activity safely, or using transition tools.
+
+When to seek help:
+If transition difficulty regularly becomes unsafe or prevents routines, ask clinician to build a specific transition plan.
+
+What to track:
+- activity ending
+- next activity
+- warning used
+- reaction
+- how long transition took
+- what helped
+
+---
+
+## 4. Starter Plan vs Document-Based Plan
+
+Make a clear distinction between:
+
+### Starter Support
+Used before documents are uploaded.
+
+Label:
+
+**Starter support based on common behavior patterns. Upload your child’s plan later for more personalized guidance.**
+
+### Document-Based Support
+Used after treatment plans, BIPs, FBAs, session notes, or safety plans are uploaded.
+
+Label:
+
+**Based on your child’s uploaded plan.**
+
+Once documents are uploaded and scanned, AI should upgrade the starter plan by:
+
+- replacing generic strategies with document-based strategies
+- adding source references
+- merging duplicate behaviors
+- linking goals from the documents
+- creating Support Now cards based on the actual plan
+- preserving the original starter behavior if still useful
+- warning if document guidance conflicts with starter guidance
+
+Do not let starter support override a clinician-approved plan.
+
+---
+
+## 5. Upload Plan Later
+
+During onboarding, include an optional section:
+
+**Have a behavior plan, treatment plan, or school support plan?**
+
+Buttons:
+
+- Upload Now
+- Skip for Now
+
+If the parent skips, they can still use the starter behavior plan.
+
+On the dashboard, show a gentle card:
+
+**Make this more personalized**
+Upload your child’s plan when you’re ready so NeuroPathways can turn it into support steps.
+
+Button:
+
+**Upload a Plan**
+
+---
+
+## 6. Notes and Trust Line
+
+Replace vague trust language like “HIPAA conscious.”
+
+Add a short plain-language trust note:
+
+**Your notes stay inside your private account and are not shown publicly. Do not upload sensitive medical documents until your clinic has confirmed NeuroPathways is being used in a secure clinical workflow.**
+
+If the app is not fully HIPAA-compliant yet, do not claim full HIPAA compliance.
+
+Also remove Replit preview links from parent-facing pages if possible.
+
+Use a custom domain for testing and sharing.
+
+---
+
+## 7. Dashboard After Quick Start
+
+After parent completes Quick Start, show a simple dashboard:
+
+Header:
+
+**Today’s Support**
+
+Cards:
+
+1. **I Need Help Now**
+2. **Current Behavior**
+3. **Current Goal**
+4. **Log What Happened**
+5. **Upload Plan Later**
+
+Example:
+
+Current Behavior:
+Task Refusal
+
+Current Goal:
+Complete one small step before taking a break
+
+Button:
+Open Support Steps
+
+---
+
+## 8. I Need Help Now With Starter Behavior
+
+If no documents are uploaded yet, I Need Help Now should use the selected starter behavior.
+
+Example:
+
+Parent selected:
+Task Refusal
+
+I Need Help Now opens:
+Task Refusal Support Card
+
+Show:
+
+- what may be happening
+- what to do right now
+- what to avoid
+- replacement skill
+- goal
+- log button
+
+Also show:
+
+**This is starter support. Upload your child’s plan for personalized guidance.**
+
+---
+
+## 9. Logging
+
+For starter behavior support, allow parent to log:
+
+- behavior happened
+- intensity
+- duration
+- trigger
+- what helped
+- notes
+
+This should create a behavior log connected to:
+
+- child_id
+- selected starter behavior
+- selected starter goal
+- parent user_id
+- timestamp
+
+Later, if documents are uploaded, connect old logs to the matching document-based behavior if appropriate.
+
+---
+
+## 10. Final Goal
+
+The parent free version should feel useful within 60 seconds.
+
+The parent should not need to upload a document first.
+
+The app should let them:
+
+1. create a child profile
+2. choose a common behavior
+3. choose one goal
+4. get a simple support card
+5. log what happened
+6. upload a plan later
+
+This makes NeuroPathways easier to try, easier to trust, and more useful for parents before clinics are involved.
