@@ -52,7 +52,7 @@ export default function Documents() {
   return (
     <Screen>
       <H sub="Plans and reports you upload personalize your Support Now card.">Documents</H>
-      {child ? <UploadPanel childId={child.id} /> : null}
+      {child ? <UploadPanel key={child.id} childId={child.id} /> : null}
       {q.isLoading ? <Skeleton /> : q.isError ? <ErrorBox message={msg(q.error)} onRetry={() => q.refetch()} /> : q.data?.length ? q.data.map((d) => <DocRow key={d.id} doc={d} childId={child!.id} />) : <Card><T>Nothing uploaded yet.</T></Card>}
     </Screen>
   );

@@ -147,7 +147,7 @@ export default function ParentQuickStart() {
             <h1 style={{ fontSize: "clamp(1.9rem,6vw,2.6rem)" }}>Your first support card is ready.</h1>
             <p style={{ fontWeight: 600 }}>Have a behavior plan, school plan, or treatment plan?</p>
             {showUpload ? (
-              <div className="pf-card"><UploadBox childId={childId} /></div>
+              <div className="pf-card"><UploadBox key={childId} childId={childId} /></div>
             ) : (
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <button className="pf-btn primary" onClick={() => setShowUpload(true)} data-testid="button-upload-now">Upload Now</button>

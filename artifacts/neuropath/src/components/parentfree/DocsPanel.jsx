@@ -74,7 +74,7 @@ export default function DocsPanel({ child, documents }) {
         })}
         {!child.clinicianId && documents.length > 0 && <p className="pf-hint">Sharing opens once you connect a clinic.</p>}
       </div>
-      <div className="pf-card"><h3 style={{ marginBottom: 12 }}>Upload a plan</h3><UploadBox childId={childId} /></div>
+      <div className="pf-card"><h3 style={{ marginBottom: 12 }}>Upload plans</h3><UploadBox key={childId} childId={childId} /></div>
     </div>
   );
 }

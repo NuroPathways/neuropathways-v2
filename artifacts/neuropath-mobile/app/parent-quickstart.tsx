@@ -105,7 +105,7 @@ export default function QuickStart() {
             <Card><T weight="bold" size={17}>{card.behaviorName}</T><T size={14}>{card.rightNow[0]}</T></Card>
           ) : null}
           <T weight="bold" size={16}>Have a behavior plan, school plan, or treatment plan?</T>
-          {showUpload && child ? <UploadPanel childId={child.id} /> : <Btn testID="qs-upload-now" icon="upload" label="Upload Now" onPress={() => setShowUpload(true)} />}
+          {showUpload && child ? <UploadPanel key={child.id} childId={child.id} /> : <Btn testID="qs-upload-now" icon="upload" label="Upload Now" onPress={() => setShowUpload(true)} />}
         </>
       ) : null}
       {error ? <ErrorBox message={error} /> : null}
