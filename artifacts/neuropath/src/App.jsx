@@ -37,6 +37,8 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import ParentQuickStart from './pages/ParentQuickStart';
 import ParentHome from './pages/ParentHome';
 import ParentSignupUsername from './pages/ParentSignupUsername';
+import ClientHome from './pages/ClientHome';
+import SupportNowOverlay from '@/components/support/SupportNowOverlay';
 
 // Free email parents only ever use the parent-owned screens, never legacy CRUD pages.
 const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/privacy'];
@@ -48,6 +50,22 @@ const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
+
+const ClientHomeRoute = () => {
+  const { user } = useAuth();
+  const children = (Array.isArray(user?.children) && user.children.length
+    ? user.children
+    : user?.id
+      ? [{ id: user.id, child_name: user.child_name }]
+      : []);
+
+  return (
+    <>
+      {user?.invite_token && <SupportNowOverlay user={user} children={children} isIndividual={children.length === 1} />}
+      <ClientHome />
+    </>
+  );
+};
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, user } = useAuth();
@@ -72,6 +90,12 @@ const AuthenticatedApp = () => {
 
   if (user?.account_type === 'parent_free' && !PARENT_FREE_PATHS.includes(location.pathname.replace(/\/+$/, ''))) {
     return <Navigate to="/ParentHome" replace />;
+  }
+
+  // Existing username/access-code accounts keep their credentials and records,
+  // but legacy dashboard bookmarks now enter the current client interface.
+  if (user?.invite_token && ['/ParentDashboard', '/ClientDashboard'].includes(location.pathname.replace(/\/+$/, ''))) {
+    return <Navigate to="/ClientHome" replace />;
   }
 
   return (
@@ -120,6 +144,7 @@ const AuthenticatedApp = () => {
       <Route path="/ParentSignupUsername" element={<ParentSignupUsername />} />
       <Route path="/ParentQuickStart" element={<ParentQuickStart />} />
       <Route path="/ParentHome" element={<ParentHome />} />
+      <Route path="/ClientHome" element={<ClientHomeRoute />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/GoalsMilestones" element={<LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>} />
       <Route path="/DataImport" element={<DataImport />} />

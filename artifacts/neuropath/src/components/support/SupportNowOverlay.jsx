@@ -6,8 +6,8 @@ import BehaviorSelector from "./BehaviorSelector";
 import CrisisPlan from "./CrisisPlan";
 import CalmDownTool from "./CalmDownTool";
 
-// Tracks which tokens have already shown the popup in this page load.
-// A module-level Set resets on every refresh, so the popup reappears after reload.
+// Used as a fallback when sessionStorage is unavailable, and for legacy
+// authenticated users who do not have a client invite token.
 const shownThisLoad = new Set();
 
 const splitGuidance = (value) => String(value || "")
@@ -25,6 +25,8 @@ const behaviorFromPlan = (plan) => ({
   prevention_tips: splitGuidance(plan.common_triggers || plan.commonTriggers),
   reinforcement_rewards: splitGuidance(plan.reinforcement_method || plan.reinforcementMethod),
 });
+
+const SUPPORT_POPUP_DISMISSED_KEY = "np_support_popup_dismissed";
 
 function ChildSelector({ children, onSelect }) {
   return (
@@ -149,7 +151,13 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
   useEffect(() => {
     if (!user) return;
     const key = user.invite_token || user.id;
-    if (shownThisLoad.has(key)) return;
+    if (user.invite_token) {
+      try {
+        if (sessionStorage.getItem(SUPPORT_POPUP_DISMISSED_KEY) === "1") return;
+      } catch {
+        if (shownThisLoad.has(key)) return;
+      }
+    } else if (shownThisLoad.has(key)) return;
     // Short delay so the dashboard paints first
     const t = setTimeout(() => setVisible(true), 300);
     return () => clearTimeout(t);
@@ -160,7 +168,7 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
     if (children.length === 0) return;
     if (children.length === 1) {
       setSelectedChild(children[0]);
-      setStep("behavior");
+      setStep("menu");
     } else {
       setStep("child_select");
     }
@@ -208,14 +216,17 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
 
   const handleDismiss = () => {
     const key = user?.invite_token || user?.id;
-    if (key) shownThisLoad.add(key);
+    if (user?.invite_token) {
+      try { sessionStorage.setItem(SUPPORT_POPUP_DISMISSED_KEY, "1"); }
+      catch { if (key) shownThisLoad.add(key); }
+    } else if (key) shownThisLoad.add(key);
     setVisible(false);
   };
 
   const handleSelectChild = (child) => {
     setProfile(null);
     setSelectedChild(child);
-    setStep("behavior");
+    setStep("menu");
   };
 
   const handleSelectSection = (section) => {

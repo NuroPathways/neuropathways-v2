@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { base44 } from '@/api/entities';
-import { Brain, ArrowLeft, Loader2, Eye, EyeOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { saveClientSession } from "@/lib/clientSession";
 import { useAuth } from "@/lib/AuthContext";
+import { Shell, Field, ErrorBox } from "@/components/parentfree/common";
 
 export default function UsernameLogin() {
   const { user, isAuthenticated } = useAuth();
@@ -42,8 +43,9 @@ export default function UsernameLogin() {
       // Store client session in localStorage — bypasses Base44 auth
       saveClientSession(session);
 
-      // Redirect to parent dashboard
-      window.location.href = "/ParentDashboard";
+      // Existing accounts keep their client session and records, but use the
+      // current client home instead of the legacy parent dashboard.
+      window.location.href = "/ClientHome";
     } catch {
       setError("Could not connect. Please try again.");
       setLoading(false);
@@ -51,36 +53,27 @@ export default function UsernameLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 font-inter">
+    <Shell right={<Link to="/ClientLogin" className="pf-btn small ghost">Sign-in options</Link>}>
+    <main className="pf-narrow" style={{ paddingTop: 24, paddingBottom: 56 }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <Brain className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="font-semibold text-foreground">NeuroPathways</span>
-        </div>
-
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-          <h1 className="text-xl font-semibold text-foreground mb-1">Client Sign In</h1>
-          <p className="text-sm text-muted-foreground mb-6">
+        <div className="pf-eyebrow">Existing client account</div>
+        <h1 style={{ fontSize: "clamp(2rem,7vw,2.8rem)", margin: "8px 0" }}>Client sign in</h1>
+        <p className="pf-hint" style={{ marginBottom: 18 }}>
             Enter the username and access code provided by your clinician.
-          </p>
+        </p>
 
           {isClinician && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3 mb-4">
+            <div className="pf-error" style={{ marginBottom: 14 }}>
               You're currently signed in as a clinician. Client sign-in is disabled here so your clinician session isn't lost.
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
-                Username
-              </label>
+          <form onSubmit={handleSubmit} className="pf-card" style={{ display: "grid", gap: 14 }}>
+            <Field label="Username">
               <input
                 type="text"
                 value={username}
@@ -90,14 +83,13 @@ export default function UsernameLogin() {
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
-                className="w-full min-h-[44px] border border-border rounded-xl px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                autoComplete="username"
+                className="pf-input"
+                data-testid="input-client-username"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
-                Access Code
-              </label>
+            <Field label="Access code">
               <div className="relative">
                 <input
                   type={showCode ? "text" : "password"}
@@ -108,27 +100,27 @@ export default function UsernameLogin() {
                   autoCapitalize="characters"
                   autoCorrect="off"
                   spellCheck={false}
-                  className="w-full min-h-[44px] border border-border rounded-xl px-4 py-2.5 pr-12 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 font-mono tracking-widest"
+                  autoComplete="current-password"
+                  className="pf-input pr-12 font-mono tracking-widest"
+                  data-testid="input-client-access-code"
                 />
                 <button
                   type="button"
+                  aria-label={showCode ? "Hide access code" : "Show access code"}
                   onClick={() => setShowCode(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-2"
                 >
                   {showCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-            </div>
+            </Field>
 
-            {error && (
-              <div className="bg-destructive/10 text-destructive text-sm rounded-xl px-4 py-3">
-                {error}
-              </div>
-            )}
+            <ErrorBox error={error} />
 
-            <Button
+            <button
               type="submit"
-              className="w-full min-h-[44px] rounded-xl"
+              className="pf-btn primary"
+              style={{ width: "100%" }}
               disabled={isClinician || loading || !username.trim() || !accessCode.trim()}
             >
               {loading ? (
@@ -137,13 +129,12 @@ export default function UsernameLogin() {
                   Signing in...
                 </span>
               ) : "Sign In"}
-            </Button>
+            </button>
           </form>
-        </div>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-4">
-          <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider mb-2">Demo Accounts</p>
-          <div className="space-y-1.5 text-xs text-amber-900 font-mono">
+        <div className="pf-card sun" style={{ padding: 16, marginTop: 14 }}>
+          <p className="pf-eyebrow" style={{ marginBottom: 8 }}>Demo accounts</p>
+          <div style={{ display: "grid", gap: 4, fontSize: ".78rem" }}>
             {[
               { u: "rivera.parent", c: "DEMO01", label: "Rivera (ADHD + Dyslexia)" },
               { u: "nguyen.parent", c: "DEMO02", label: "Nguyen (Sensory)" },
@@ -151,39 +142,35 @@ export default function UsernameLogin() {
               { u: "alex.m",       c: "DEMO04", label: "Alex (ADHD)" },
             ].map(d => (
               <button key={d.u} type="button" onClick={() => { setUsername(d.u); setAccessCode(d.c); }}
-                className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer">
-                <span className="font-semibold">{d.u}</span> / <span>{d.c}</span>
-                <span className="text-amber-700 font-sans text-[10px] ml-1.5">{d.label}</span>
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/70 transition-colors cursor-pointer">
+                <span style={{ fontWeight: 700 }}>{d.u}</span> / <span>{d.c}</span>
+                <span style={{ color: "var(--pf-ink-soft)", fontSize: ".7rem", marginLeft: 6 }}>{d.label}</span>
               </button>
             ))}
           </div>
-          <p className="text-[10px] text-amber-600 mt-2">Tap an account to auto-fill, then press Sign In.</p>
+          <p className="pf-hint" style={{ fontSize: ".7rem", marginTop: 8 }}>Select an account to fill the form, then sign in.</p>
         </div>
 
-        <div className="mt-6 text-center space-y-3">
-          <p className="text-xs text-muted-foreground">
+        <div style={{ marginTop: 18, display: "grid", gap: 10, textAlign: "center" }}>
+          <p className="pf-hint">
             No account yet?{" "}
-            <a href="/ParentSignupUsername" className="text-primary hover:underline font-medium">
+            <Link to="/ParentSignupUsername" className="pf-link">
               Create one here
-            </a>
+            </Link>
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="pf-hint">
             Are you a clinician?{" "}
             <button
               onClick={() => base44.auth.redirectToLogin("/RoleSetup")}
-              className="text-primary hover:underline font-medium"
+              className="pf-link"
             >
               Sign in with email
             </button>
           </p>
-          <button
-            onClick={() => window.history.back()}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mx-auto"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Back
-          </button>
+          <Link to="/" className="pf-link">Back to NeuroPathways</Link>
         </div>
       </motion.div>
-    </div>
+    </main>
+    </Shell>
   );
 }

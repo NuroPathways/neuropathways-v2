@@ -1,13 +1,20 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
-import { Brain, Mail, User, UserPlus } from "lucide-react";
+import { Mail, User, UserPlus } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAuth } from "@/lib/AuthContext";
+import { Shell } from "@/components/parentfree/common";
 
 export default function ClientLogin() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
+    if (user?.invite_token) {
+      navigate("/ClientHome", { replace: true });
+      return;
+    }
     base44.auth.isAuthenticated().then(async (authed) => {
       if (authed) {
         const user = await base44.auth.me();
@@ -16,68 +23,66 @@ export default function ClientLogin() {
         else navigate("/RoleSetup?role=parent");
       }
     });
-  }, []);
+  }, [user?.invite_token, navigate]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 font-inter">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-4">
-            <Brain className="w-8 h-8 text-primary-foreground" />
-          </div>
-          <div className="inline-block px-3 py-1 rounded-full bg-accent/10 text-accent text-xs font-semibold uppercase tracking-wider mb-2">Client / Parent Login</div>
-          <h1 className="text-2xl font-semibold text-foreground mb-1">Welcome Back</h1>
-          <p className="text-sm text-muted-foreground">Choose how you'd like to sign in</p>
-        </div>
+    <Shell right={<Link to="/ClinicianLogin" className="pf-btn small ghost">Clinician sign in</Link>}>
+      <main className="pf-narrow" style={{ paddingTop: 24, paddingBottom: 56 }}>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <p className="pf-eyebrow" style={{ marginBottom: 8 }}>Family portal</p>
+        <h1 style={{ fontSize: "clamp(2rem,7vw,2.8rem)", margin: "8px 0" }}>Welcome back</h1>
+        <p className="pf-hint" style={{ marginBottom: 18 }}>Choose how you’d like to sign in.</p>
 
-        <div className="space-y-3">
+        <div style={{ display: "grid", gap: 12 }}>
           {/* Username login */}
           <button
             onClick={() => navigate("/UsernameLogin")}
-            className="w-full bg-primary text-primary-foreground rounded-2xl py-4 px-5 font-semibold text-base hover:bg-primary/90 transition-all flex items-center gap-3"
+            className="pf-btn primary"
+            style={{ width: "100%", justifyContent: "flex-start", minHeight: 76, borderRadius: 18, padding: "14px 18px", textAlign: "left" }}
           >
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
               <User className="w-5 h-5" />
             </div>
-            <div className="text-left">
-              <p className="font-semibold">Sign in with Username</p>
-              <p className="text-xs font-normal text-white/80">Use the username your clinician gave you</p>
+            <div>
+              <span style={{ display: "block", fontWeight: 700 }}>Sign in with username and access code</span>
+              <small style={{ display: "block", fontWeight: 400, opacity: .9, marginTop: 3 }}>Use the login your clinician gave you</small>
             </div>
           </button>
 
           {/* Email login */}
           <button
             onClick={() => base44.auth.redirectToLogin("/RoleSetup?role=parent")}
-            className="w-full bg-card border-2 border-border text-foreground rounded-2xl py-4 px-5 font-semibold text-base hover:border-primary/50 transition-all flex items-center gap-3"
+            className="pf-card"
+            style={{ width: "100%", minHeight: 76, display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", textAlign: "left", cursor: "pointer", font: "inherit", color: "inherit" }}
           >
-            <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-              <Mail className="w-5 h-5 text-muted-foreground" />
+            <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+              <Mail className="w-5 h-5 text-slate-600" />
             </div>
-            <div className="text-left">
-              <p className="font-semibold text-foreground">Sign in with Email</p>
-              <p className="text-xs font-normal text-muted-foreground">Use your email address</p>
+            <div>
+              <span style={{ display: "block", fontWeight: 700 }}>Sign in with email</span>
+              <small className="pf-hint" style={{ display: "block", marginTop: 3 }}>Use your existing email account</small>
             </div>
           </button>
 
           {/* New family account */}
           <button
             onClick={() => navigate("/ParentSignupUsername")}
-            className="w-full bg-primary/10 border-2 border-primary/20 text-primary rounded-2xl py-4 px-5 hover:bg-primary/15 hover:border-primary/40 transition-all flex items-center gap-3"
+            className="pf-card"
+            style={{ width: "100%", minHeight: 76, display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", textAlign: "left", cursor: "pointer", font: "inherit", color: "inherit" }}
           >
-            <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--pf-sage)", color: "var(--pf-sage-ink)" }}>
               <UserPlus className="w-5 h-5" />
             </div>
-            <div className="text-left">
-              <p className="text-xs font-normal text-muted-foreground">Don&apos;t have an account?</p>
-              <p className="font-semibold">Sign up now</p>
+            <div>
+              <small className="pf-hint" style={{ display: "block" }}>Don’t have an account?</small>
+              <span style={{ display: "block", fontWeight: 700 }}>Create a family account</span>
             </div>
           </button>
         </div>
 
-        <button onClick={() => navigate("/")} className="mt-6 text-sm text-muted-foreground hover:text-foreground w-full text-center">
-          ← Back to welcome page
-        </button>
+        <Link to="/" className="pf-link" style={{ display: "block", textAlign: "center", marginTop: 20 }}>Back to welcome page</Link>
       </motion.div>
-    </div>
+      </main>
+    </Shell>
   );
 }

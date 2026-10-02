@@ -38,3 +38,11 @@ Keep saved parent goals unchanged and show explicit plan goals alongside them, i
 **Why:** The user explicitly chose “Keep my saved goal and show the plan goal alongside it,” rather than replacing saved goals automatically.
 
 **How to apply:** Label the two goals distinctly. Do not fill an empty saved goal automatically or infer a plan goal from a legacy guidance goal or related-goal list.
+
+## Existing client account continuity
+
+Keep established username/access-code client accounts, credentials, and associated plans and records as the source of truth when updating the client experience. Do not create duplicate accounts or rewrite those records as part of a UI migration.
+
+**Why:** The user explicitly chose to keep current client logins and existing records rather than convert or duplicate accounts.
+
+**How to apply:** Reuse the existing client-session authentication and portal data endpoints; make new client screens read the existing records.

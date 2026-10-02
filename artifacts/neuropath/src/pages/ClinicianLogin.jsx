@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from '@/lib/AuthContext';
 import { clearClientSession } from '@/lib/clientSession';
@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Shell } from "@/components/parentfree/common";
 
 export default function ClinicianLogin() {
   const navigate = useNavigate();
@@ -79,19 +80,17 @@ export default function ClinicianLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 font-inter">
+    <Shell right={<Link to="/UsernameLogin" className="pf-btn small ghost">Client sign in</Link>}>
+    <main className="pf-narrow" style={{ paddingTop: 24, paddingBottom: 56 }}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
 
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
-            <Brain className="w-8 h-8 text-primary-foreground" />
-          </div>
-          <div className="inline-block px-3 py-1 rounded-full bg-secondary/10 text-secondary text-xs font-semibold uppercase tracking-wider mb-3">Clinician Portal</div>
-          <h1 className="text-2xl font-semibold text-foreground mb-1">Welcome back</h1>
-          <p className="text-sm text-muted-foreground">Sign in to access your clinical dashboard</p>
+          <p className="pf-eyebrow" style={{ marginBottom: 8 }}>Clinician portal</p>
+          <h1 style={{ fontSize: "clamp(2rem,7vw,2.8rem)", margin: "8px 0" }}>Welcome back</h1>
+          <p className="pf-hint">Sign in to access your clinical dashboard.</p>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
+        <div className="pf-card" style={{ display: "grid", gap: 14 }}>
 
           {/* Email / Password Login */}
           <AnimatePresence mode="wait">
@@ -221,10 +220,11 @@ export default function ClinicianLogin() {
           <p className="text-[10px] text-amber-600 mt-2">Tap to auto-fill, then press Sign In.</p>
         </div>
 
-        <button onClick={() => navigate("/")} className="mt-6 text-sm text-muted-foreground hover:text-foreground block mx-auto">
+        <button onClick={() => navigate("/")} className="pf-link" style={{ margin: "18px auto 0", display: "block" }}>
           ← Back to welcome page
         </button>
       </motion.div>
-    </div>
+    </main>
+    </Shell>
   );
 }

@@ -62,7 +62,7 @@ export default function ParentSignupUsername() {
       }
 
       saveClientSession(data);
-      window.location.href = "/ParentDashboard";
+      window.location.href = "/ClientHome";
     } catch {
       setError("Could not connect. Please try again.");
       setLoading(false);
