@@ -340,7 +340,7 @@ export default function HomeScreen() {
             <View style={s.brandDot}>
               <Feather name="activity" size={16} color="#fff" />
             </View>
-            <Text style={s.brandName}>NuroPathways</Text>
+            <Text style={s.brandName}>NeuroPathways</Text>
           </View>
           <Pressable
             style={s.notifBtn}

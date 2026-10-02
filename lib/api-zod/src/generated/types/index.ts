@@ -13,6 +13,8 @@ export * from './healthStatus';
 export * from './okResult';
 export * from './parent';
 export * from './parentAuthResult';
+export * from './parentBehavior';
+export * from './parentBehaviorInput';
 export * from './parentChatInput';
 export * from './parentChatResult';
 export * from './parentChild';

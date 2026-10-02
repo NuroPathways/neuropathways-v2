@@ -48,6 +48,10 @@ export const RegisterParentBody = zod.object({
   "healthConsent": zod.literal(true)
 })
 
+export const registerParentResponseChildrenItemBehaviorsItemBehaviorKeyMax = 100;
+
+
+
 export const RegisterParentResponse = zod.object({
   "token": zod.string(),
   "parent": zod.object({
@@ -65,6 +69,12 @@ export const RegisterParentResponse = zod.object({
   "behaviorKey": zod.string().nullable(),
   "behaviorName": zod.string().nullable(),
   "goal": zod.string().nullable(),
+  "behaviors": zod.array(zod.object({
+  "behaviorKey": zod.string().max(registerParentResponseChildrenItemBehaviorsItemBehaviorKeyMax),
+  "customBehavior": zod.string().nullable(),
+  "behaviorName": zod.string(),
+  "goal": zod.string().nullable()
+})),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
   "familyId": zod.string(),
@@ -80,6 +90,10 @@ export const LoginParentBody = zod.object({
   "email": zod.string().email(),
   "password": zod.string()
 })
+
+export const loginParentResponseChildrenItemBehaviorsItemBehaviorKeyMax = 100;
+
+
 
 export const LoginParentResponse = zod.object({
   "token": zod.string(),
@@ -98,6 +112,12 @@ export const LoginParentResponse = zod.object({
   "behaviorKey": zod.string().nullable(),
   "behaviorName": zod.string().nullable(),
   "goal": zod.string().nullable(),
+  "behaviors": zod.array(zod.object({
+  "behaviorKey": zod.string().max(loginParentResponseChildrenItemBehaviorsItemBehaviorKeyMax),
+  "customBehavior": zod.string().nullable(),
+  "behaviorName": zod.string(),
+  "goal": zod.string().nullable()
+})),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
   "familyId": zod.string(),
@@ -117,6 +137,10 @@ export const LogoutParentResponse = zod.object({
 /**
  * @summary Get the signed-in parent and children
  */
+export const getParentSessionResponseChildrenItemBehaviorsItemBehaviorKeyMax = 100;
+
+
+
 export const GetParentSessionResponse = zod.object({
   "parent": zod.object({
   "id": zod.string(),
@@ -133,6 +157,12 @@ export const GetParentSessionResponse = zod.object({
   "behaviorKey": zod.string().nullable(),
   "behaviorName": zod.string().nullable(),
   "goal": zod.string().nullable(),
+  "behaviors": zod.array(zod.object({
+  "behaviorKey": zod.string().max(getParentSessionResponseChildrenItemBehaviorsItemBehaviorKeyMax),
+  "customBehavior": zod.string().nullable(),
+  "behaviorName": zod.string(),
+  "goal": zod.string().nullable()
+})),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
   "familyId": zod.string(),
@@ -165,16 +195,33 @@ export const GetStarterLibraryResponse = zod.array(GetStarterLibraryResponseItem
  * @summary Create a child in the parent workspace
  */
 
+export const createParentChildBodyBehaviorsItemBehaviorKeyMax = 100;
+
+export const createParentChildBodyBehaviorsItemCustomBehaviorMax = 120;
+
+export const createParentChildBodyBehaviorsItemGoalMax = 500;
+
+export const createParentChildBodyBehaviorsMax = 20;
+
 
 
 export const CreateParentChildBody = zod.object({
   "name": zod.string().min(1),
   "age": zod.number().int().optional(),
   "notes": zod.string().optional(),
-  "behaviorKey": zod.string().optional(),
-  "customBehavior": zod.string().optional(),
-  "goal": zod.string().optional()
+  "behaviorKey": zod.string().nullish(),
+  "customBehavior": zod.string().nullish(),
+  "goal": zod.string().nullish(),
+  "behaviors": zod.array(zod.object({
+  "behaviorKey": zod.string().max(createParentChildBodyBehaviorsItemBehaviorKeyMax),
+  "customBehavior": zod.string().max(createParentChildBodyBehaviorsItemCustomBehaviorMax).nullish(),
+  "goal": zod.string().max(createParentChildBodyBehaviorsItemGoalMax).nullish()
+})).min(1).max(createParentChildBodyBehaviorsMax).optional()
 })
+
+export const createParentChildResponseBehaviorsItemBehaviorKeyMax = 100;
+
+
 
 export const CreateParentChildResponse = zod.object({
   "id": zod.string(),
@@ -184,6 +231,12 @@ export const CreateParentChildResponse = zod.object({
   "behaviorKey": zod.string().nullable(),
   "behaviorName": zod.string().nullable(),
   "goal": zod.string().nullable(),
+  "behaviors": zod.array(zod.object({
+  "behaviorKey": zod.string().max(createParentChildResponseBehaviorsItemBehaviorKeyMax),
+  "customBehavior": zod.string().nullable(),
+  "behaviorName": zod.string(),
+  "goal": zod.string().nullable()
+})),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
   "familyId": zod.string(),
@@ -199,16 +252,33 @@ export const UpdateParentChildParams = zod.object({
 })
 
 
+export const updateParentChildBodyBehaviorsItemBehaviorKeyMax = 100;
+
+export const updateParentChildBodyBehaviorsItemCustomBehaviorMax = 120;
+
+export const updateParentChildBodyBehaviorsItemGoalMax = 500;
+
+export const updateParentChildBodyBehaviorsMax = 20;
+
 
 
 export const UpdateParentChildBody = zod.object({
   "name": zod.string().min(1).optional(),
   "age": zod.number().int().optional(),
   "notes": zod.string().optional(),
-  "behaviorKey": zod.string().optional(),
-  "customBehavior": zod.string().optional(),
-  "goal": zod.string().optional()
+  "behaviorKey": zod.string().nullish(),
+  "customBehavior": zod.string().nullish(),
+  "goal": zod.string().nullish(),
+  "behaviors": zod.array(zod.object({
+  "behaviorKey": zod.string().max(updateParentChildBodyBehaviorsItemBehaviorKeyMax),
+  "customBehavior": zod.string().max(updateParentChildBodyBehaviorsItemCustomBehaviorMax).nullish(),
+  "goal": zod.string().max(updateParentChildBodyBehaviorsItemGoalMax).nullish()
+})).min(1).max(updateParentChildBodyBehaviorsMax).optional()
 })
+
+export const updateParentChildResponseBehaviorsItemBehaviorKeyMax = 100;
+
+
 
 export const UpdateParentChildResponse = zod.object({
   "id": zod.string(),
@@ -218,6 +288,12 @@ export const UpdateParentChildResponse = zod.object({
   "behaviorKey": zod.string().nullable(),
   "behaviorName": zod.string().nullable(),
   "goal": zod.string().nullable(),
+  "behaviors": zod.array(zod.object({
+  "behaviorKey": zod.string().max(updateParentChildResponseBehaviorsItemBehaviorKeyMax),
+  "customBehavior": zod.string().nullable(),
+  "behaviorName": zod.string(),
+  "goal": zod.string().nullable()
+})),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
   "familyId": zod.string(),
@@ -232,6 +308,10 @@ export const GetParentDashboardParams = zod.object({
   "childId": zod.coerce.string()
 })
 
+export const getParentDashboardResponseChildBehaviorsItemBehaviorKeyMax = 100;
+
+
+
 export const GetParentDashboardResponse = zod.object({
   "child": zod.object({
   "id": zod.string(),
@@ -241,6 +321,12 @@ export const GetParentDashboardResponse = zod.object({
   "behaviorKey": zod.string().nullable(),
   "behaviorName": zod.string().nullable(),
   "goal": zod.string().nullable(),
+  "behaviors": zod.array(zod.object({
+  "behaviorKey": zod.string().max(getParentDashboardResponseChildBehaviorsItemBehaviorKeyMax),
+  "customBehavior": zod.string().nullable(),
+  "behaviorName": zod.string(),
+  "goal": zod.string().nullable()
+})),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
   "familyId": zod.string(),
@@ -289,6 +375,7 @@ export const GetParentDashboardResponse = zod.object({
   "id": zod.string(),
   "childId": zod.string(),
   "behaviorKey": zod.string().nullable(),
+  "customBehavior": zod.string().nullable(),
   "goal": zod.string().nullable(),
   "happened": zod.boolean(),
   "intensity": zod.enum(['low', 'medium', 'high']),
@@ -309,6 +396,9 @@ export const AddParentLogParams = zod.object({
 })
 
 export const AddParentLogBody = zod.object({
+  "behaviorKey": zod.string().nullish(),
+  "customBehavior": zod.string().nullish(),
+  "goal": zod.string().nullish(),
   "happened": zod.boolean(),
   "intensity": zod.enum(['low', 'medium', 'high']),
   "duration": zod.number(),
@@ -321,6 +411,7 @@ export const AddParentLogResponse = zod.object({
   "id": zod.string(),
   "childId": zod.string(),
   "behaviorKey": zod.string().nullable(),
+  "customBehavior": zod.string().nullable(),
   "goal": zod.string().nullable(),
   "happened": zod.boolean(),
   "intensity": zod.enum(['low', 'medium', 'high']),
@@ -538,6 +629,10 @@ export const ConnectParentClinicBody = zod.object({
   "confirmMerge": zod.boolean().optional()
 })
 
+export const connectParentClinicResponseChildBehaviorsItemBehaviorKeyMax = 100;
+
+
+
 export const ConnectParentClinicResponse = zod.object({
   "ok": zod.literal(true),
   "child": zod.object({
@@ -548,6 +643,12 @@ export const ConnectParentClinicResponse = zod.object({
   "behaviorKey": zod.string().nullable(),
   "behaviorName": zod.string().nullable(),
   "goal": zod.string().nullable(),
+  "behaviors": zod.array(zod.object({
+  "behaviorKey": zod.string().max(connectParentClinicResponseChildBehaviorsItemBehaviorKeyMax),
+  "customBehavior": zod.string().nullable(),
+  "behaviorName": zod.string(),
+  "goal": zod.string().nullable()
+})),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
   "familyId": zod.string(),

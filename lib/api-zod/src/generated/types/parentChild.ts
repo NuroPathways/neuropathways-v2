@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ParentBehavior } from './parentBehavior';
 
 export interface ParentChild {
   id: string;
@@ -18,6 +19,7 @@ export interface ParentChild {
   behaviorName: string | null;
   /** @nullable */
   goal: string | null;
+  behaviors: ParentBehavior[];
   workspaceId: string;
   parentId: string;
   familyId: string;

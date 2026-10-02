@@ -725,6 +725,13 @@ async function run(): Promise<void> {
   });
 
   const mergeParentChild = await createParentChild(parentA.auth, mergeName);
+  const mergeSettings = await patch(`/parent/children/${mergeParentChild.id}`, parentA.auth, {
+    behaviors: [
+      { behaviorKey: "task_refusal", goal: "Start a small step" },
+      { behaviorKey: "custom", customBehavior: "Morning clothing discomfort", goal: "Choose comfortable clothing" },
+    ],
+  });
+  expectStatus(mergeSettings, 200, "Multi-behavior settings are saved before clinic merge");
   const mergeParentLogId = await addParentLog(parentA.auth, mergeParentChild.id);
   const inviteForMerge = await createInvite(clinicianA.auth, familyA, parentA.email);
   const mergePreview = await linkPreview(parentA.auth, mergeParentChild.id, inviteForMerge.inviteToken);
@@ -762,6 +769,17 @@ async function run(): Promise<void> {
   expectStatus(merged, 200, "Explicitly selected and confirmed clinic duplicate merges");
   check("Successful merge returns the original parent child ID", merged.body?.child?.id === mergeParentChild.id);
   check("Successful merge retains original parent workspace", merged.body?.child?.workspaceId === parentA.workspaceId);
+  check("Successful merge returns every selected behavior and its goal",
+    merged.body?.child?.behaviors?.length === 2 &&
+      merged.body.child.behaviors[0]?.goal === "Start a small step" &&
+      merged.body.child.behaviors[1]?.customBehavior === "Morning clothing discomfort",
+  );
+  const [retainedMergeSettings] = await db.select().from(parentChildSettingsTable)
+    .where(eq(parentChildSettingsTable.childId, mergeParentChild.id));
+  check("Clinic merge preserves stored parent behavior settings",
+    retainedMergeSettings?.behaviors?.length === 2 &&
+      retainedMergeSettings.behaviors[1]?.goal === "Choose comfortable clothing",
+  );
 
   const expiredStatusRows = await db.select().from(parentClinicInvitesTable).where(eq(parentClinicInvitesTable.tokenHash, expiredHash));
   check("Expired invite remains unused after rejected acceptance", expiredStatusRows[0]?.usedAt == null);

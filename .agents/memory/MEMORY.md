@@ -3,3 +3,6 @@
 - [Expo file-picker cancellation](expo-file-picker-cancellation.md) — web dismissal may leave selection pending; lock controls during uploads, not while picking files.
 - [Shared document compatibility](shared-document-compatibility.md) — document references are shared contracts; new native access must preserve web viewing and scanning.
 - [Guidance consent provenance](guidance-consent-provenance.md) — clinical priority never removes private contributing sources; clinician previews and action responses need consent-filtered projections.
+- [Parent UI and behavior scope](parent-multi-behavior-scope.md) — preserve multi-goal features with the older blue desktop UI; plan discoveries remain parent-controlled.
+- [Shared authentication test limits](shared-auth-test-limits.md) — API and browser checks can consume the same development IP quota despite using different accounts.
+- [Document discovery test semantics](document-discovery-test-semantics.md) — distinguish known-category matching from genuinely custom discoveries in live model tests.

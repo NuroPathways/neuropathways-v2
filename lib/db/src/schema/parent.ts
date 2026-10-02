@@ -46,6 +46,12 @@ export const parentChildSettingsTable = pgTable("parent_child_settings", {
   behaviorKey: varchar("behavior_key"),
   customBehavior: varchar("custom_behavior"),
   goal: text("goal"),
+  behaviors: jsonb("behaviors").$type<{
+    behaviorKey: string;
+    customBehavior: string | null;
+    behaviorName: string;
+    goal: string | null;
+  }[]>().notNull().default([]),
   supportCards: jsonb("support_cards").$type<Record<string, unknown>[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -58,6 +64,7 @@ export const parentLogsTable = pgTable(
     childId: varchar("child_id").notNull(),
     workspaceId: varchar("workspace_id").notNull(),
     behaviorKey: varchar("behavior_key"),
+    customBehavior: varchar("custom_behavior"),
     goal: text("goal"),
     happened: boolean("happened").notNull(),
     intensity: varchar("intensity").notNull(),

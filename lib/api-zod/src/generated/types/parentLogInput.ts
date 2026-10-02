@@ -8,6 +8,12 @@
 import type { ParentLogInputIntensity } from './parentLogInputIntensity';
 
 export interface ParentLogInput {
+  /** @nullable */
+  behaviorKey?: string | null;
+  /** @nullable */
+  customBehavior?: string | null;
+  /** @nullable */
+  goal?: string | null;
   happened: boolean;
   intensity: ParentLogInputIntensity;
   duration: number;

@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { SupportCard, SourceReference } from "./parentStarterLibrary";
+import { getStarterTemplate, starterLibrary, type SupportCard, type SourceReference } from "./parentStarterLibrary";
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 export const PARENT_DOCUMENT_MIME_BY_EXTENSION: Record<string, string> = {
@@ -116,6 +116,95 @@ Use only source document IDs provided above. Choose IDs that directly support th
   return content;
 }
 
+export type DiscoveredParentTarget = {
+  behaviorKey: string;
+  behaviorName: string;
+  goal: string | null;
+};
+
+/** Discovery is deliberately independent of saved/generated cards: its only evidence is fetched source text. */
+export function buildParentDocumentDiscoveryContent(
+  documents: Array<{ id: string; title: string; content: ParentDocumentGenerationPart }>,
+  allowedSourceIds: string[],
+): ParentDocumentGenerationPart[] {
+  const content: ParentDocumentGenerationPart[] = [];
+  for (const document of documents) {
+    content.push({ type: "text", text: `[Document: ${document.title}; id=${document.id}]` }, document.content);
+  }
+  content.push({
+    type: "text",
+    text: `Find target behaviors explicitly identified in the supplied source documents. For each target, return its canonical behavior_key only if it clearly matches one of these supported keys: ${starterLibrary.map((item) => item.key).join(", ")}. Otherwise use behavior_key "custom" and provide the exact, concise target label in behavior_name. Return only behaviors described as actual targets for support, not behaviors merely mentioned as examples, historical context, possible risks, negated targets, or items the plan says are not concerns. Do not infer a target from a strategy, diagnosis, or general discussion. Include a goal only when the source explicitly assigns a concrete goal to that same target; otherwise use an empty string. Preserve the exact source wording of an explicit goal; do not paraphrase it. Never invent a goal. Keep goals concise and within 500 characters. Return at most 20 targets and no source IDs that are not listed below.
+
+Allowed source document IDs: ${JSON.stringify(allowedSourceIds)}`,
+  });
+  return content;
+}
+
+/** Bounds and canonicalizes model output before it can become a support-card identity. */
+export function normalizeDiscoveredParentTargets(value: unknown, limit = 20): DiscoveredParentTarget[] {
+  if (!Array.isArray(value) || limit <= 0) return [];
+  const seen = new Set<string>();
+  const targets: DiscoveredParentTarget[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const candidate = item as Record<string, unknown>;
+    if (typeof candidate.behavior_key !== "string" || typeof candidate.behavior_name !== "string") continue;
+    const rawKey = candidate.behavior_key.trim().slice(0, 100);
+    const rawName = candidate.behavior_name.replace(/[\u0000-\u001f\u007f]/g, "").trim().replace(/\s+/g, " ").slice(0, 120);
+    const template = getStarterTemplate(rawKey);
+    let behaviorKey: string;
+    let behaviorName: string;
+    if (rawKey.toLowerCase() === "custom") {
+      if (!rawName) continue;
+      behaviorKey = "custom";
+      behaviorName = rawName;
+    } else {
+      // An unrecognized model-supplied key must not be silently promoted to a custom target.
+      if (!template) continue;
+      behaviorKey = template.key;
+      behaviorName = template.name;
+    }
+    const identity = supportBehaviorIdentity({ behaviorKey, behaviorName });
+    if (!identity || seen.has(identity)) continue;
+    seen.add(identity);
+    const goal = typeof candidate.goal === "string"
+      ? candidate.goal.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 500)
+      : "";
+    targets.push({ behaviorKey, behaviorName, goal: goal || null });
+    if (targets.length >= Math.max(0, Math.min(20, limit))) break;
+  }
+  return targets;
+}
+
+/** Use a lossless custom-name component for the card ID; slugging can collapse distinct labels. */
+export function documentSupportCardId(documentId: string, behaviorKey: string, behaviorName: string): string {
+  const identity = behaviorKey === "custom"
+    ? behaviorName.normalize("NFKC").toLowerCase().trim().replace(/\s+/g, " ")
+    : behaviorKey;
+  return `document:${documentId}:${Buffer.from(identity, "utf8").toString("base64url")}`;
+}
+
+export function discoveredTargetsForScan(
+  selected: Array<Pick<DiscoveredParentTarget, "behaviorKey" | "behaviorName">>,
+  discovered: DiscoveredParentTarget[],
+  totalLimit = 20,
+): DiscoveredParentTarget[] {
+  const limit = Math.max(0, Math.min(20, totalLimit));
+  const selectedIdentities = new Set(selected.map(supportBehaviorIdentity));
+  const seen = new Set(selectedIdentities);
+  const remaining = Math.max(0, limit - Math.min(limit, selected.length));
+  if (remaining === 0) return [];
+  const candidates: DiscoveredParentTarget[] = [];
+  for (const target of discovered) {
+    const identity = supportBehaviorIdentity(target);
+    if (!identity || seen.has(identity)) continue;
+    seen.add(identity);
+    candidates.push(target);
+    if (candidates.length >= remaining) break;
+  }
+  return candidates;
+}
+
 export function guidanceFingerprint(card: SupportCard): string {
   return [
     card.whatMayBeHappening,
@@ -157,19 +246,19 @@ export function isSafeParentGuidance(card: SupportCard): boolean {
   const text = [
     card.whatMayBeHappening,
     ...card.rightNow,
-    ...card.avoid,
+    ...card.avoid.map((item) => `Avoid ${item}`),
     ...card.prevention,
     card.replacementSkill,
     card.reinforcementIdea,
     card.seekHelp,
-  ].join(" ");
+  ].filter(Boolean).join("\n");
   const actionableText = text.replace(
-    /\b(?:do not|don't|never|avoid)\b.{0,50}\b(?:restraint|hold(?:ing)?|pin(?:ning)?|seclusion|physical block|wrap|immobiliz\w*)\b/gi,
+    /\b(?:do not|don't|never|avoid)\b[^.!?;\n]{0,50}?\b(?:restraint|restrain\w*|hold(?:ing)?|pin(?:ning)?|seclusion|seclude\w*|physical(?:ly)?[ \t]+block(?:ing)?|wrap|immobiliz\w*)\b(?:[ \t]+(?:and|or|nor)[ \t]+(?:restraint|restrain\w*|hold(?:ing)?|pin(?:ning)?|seclusion|seclude\w*|physical(?:ly)?[ \t]+block(?:ing)?|wrap|immobiliz\w*)\b)*/gi,
     "",
   );
-  return !/\b(?:how to|steps? to|instructions? for|apply|perform|use|do|try|wrap)\b.{0,50}\b(?:restraint|hold(?:ing)?|pin(?:ning)?|seclusion|physical block|wrap|immobiliz\w*)\b/i.test(actionableText) &&
-    !/\b(?:hold|pin|restrain|seclude|immobiliz\w*|physically block)\s+(?:a |the |your )?(?:child|person|them|him|her)\b/i.test(actionableText) &&
-    !/\b(?:restraint|hold|pin(?:ning)?|seclusion|physical block|wrap|immobiliz)\b.{0,40}\b(?:step|technique|method|position|grip|instruction)\b/i.test(actionableText);
+  return !/\b(?:how to|steps? to|instructions? for|apply|perform|use|do|try|wrap)\b[^.!?;\n]{0,50}\b(?:restraint|hold(?:ing)?|pin(?:ning)?|seclusion|physical block|wrap|immobiliz\w*)\b/i.test(actionableText) &&
+    !/\b(?:hold|pin|restrain|seclude|immobiliz\w*|physically[ \t]+block)[ \t]+(?:a |the |your )?(?:child|person|them|him|her)\b/i.test(actionableText) &&
+    !/\b(?:restraint|hold|pin(?:ning)?|seclusion|physical block|wrap|immobiliz)\b[^.!?;\n]{0,40}\b(?:step|technique|method|position|grip|instruction)\b/i.test(actionableText);
 }
 
 function mergeReferences(...groups: SourceReference[][]): SourceReference[] {

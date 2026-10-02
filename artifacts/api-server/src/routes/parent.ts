@@ -30,6 +30,8 @@ import {
   requireParent,
   revokeParentSession,
   serializeParentChild,
+  parentBehaviorIdentity,
+  parentBehaviorsFromSettings,
   validateParentPassword,
   verifyParentPassword,
   type ParentIdentity,
@@ -142,18 +144,19 @@ type ChildInput = {
   behaviorKey?: string | null;
   customBehavior?: string | null;
   goal?: string | null;
+  behaviors?: Array<{ behaviorKey: string; customBehavior?: string | null; goal?: string | null }>;
 };
 
 type ChildInputCheck =
   | { ok: true; input: ChildInput }
   | { ok: false; error: string };
 
-function validateChildInput(
+export function validateChildInput(
   value: unknown,
   mode: "create" | "patch",
 ): ChildInputCheck {
   if (!isRecord(value)) return { ok: false, error: "A JSON object is required" };
-  const keys = ["name", "age", "notes", "behaviorKey", "customBehavior", "goal"];
+  const keys = ["name", "age", "notes", "behaviorKey", "customBehavior", "goal", "behaviors"];
   if (!hasOnlyKeys(value, keys)) return { ok: false, error: "The request contains unsupported fields" };
   if (mode === "create" && !hasOwn(value, "name")) return { ok: false, error: "name is required" };
   if (mode === "patch" && Object.keys(value).length === 0) return { ok: false, error: "At least one field is required" };
@@ -183,7 +186,7 @@ function validateChildInput(
     if (value.behaviorKey === null) input.behaviorKey = null;
     else {
       const behaviorKey = cleanText(value.behaviorKey, 100);
-      if (!behaviorKey) return { ok: false, error: "behaviorKey must be a known behavior key or null" };
+      if (!behaviorKey || !validBehaviorKey(behaviorKey)) return { ok: false, error: "behaviorKey must be a known behavior key or null" };
       input.behaviorKey = behaviorKey;
     }
   }
@@ -203,22 +206,142 @@ function validateChildInput(
       input.goal = goal;
     }
   }
+  if (hasOwn(value, "behaviors")) {
+    if (!Array.isArray(value.behaviors) || value.behaviors.length < 1 || value.behaviors.length > 20) {
+      return { ok: false, error: "behaviors must contain between 1 and 20 selections" };
+    }
+    const selections: NonNullable<ChildInput["behaviors"]> = [];
+    const identities = new Set<string>();
+    for (const item of value.behaviors) {
+      if (!isRecord(item) || !hasOnlyKeys(item, ["behaviorKey", "customBehavior", "goal"]) ||
+        typeof item.behaviorKey !== "string") {
+        return { ok: false, error: "Each behavior must include a supported behaviorKey" };
+      }
+      const behaviorKey = cleanText(item.behaviorKey, 100);
+      if (!behaviorKey || !validBehaviorKey(behaviorKey)) {
+        return { ok: false, error: "Each behavior must use a known starter key or custom" };
+      }
+      let customBehavior: string | null = null;
+      if (hasOwn(item, "customBehavior")) {
+        if (item.customBehavior === null) customBehavior = null;
+        else {
+          const cleaned = cleanText(item.customBehavior, 120);
+          if (!cleaned) return { ok: false, error: "customBehavior must be a non-empty string of at most 120 characters or null" };
+          customBehavior = cleaned;
+        }
+      }
+      let goal: string | null = null;
+      if (hasOwn(item, "goal")) {
+        if (item.goal === null) goal = null;
+        else {
+          const cleaned = cleanText(item.goal, 500);
+          if (!cleaned) return { ok: false, error: "goal must be a non-empty string of at most 500 characters or null" };
+          goal = cleaned;
+        }
+      }
+      if (!validateBehaviorSelection(behaviorKey, customBehavior)) {
+        return { ok: false, error: "Choose a starter behavior or provide a custom behavior" };
+      }
+      const behaviorName = behaviorKey === "custom"
+        ? customBehavior!
+        : starterLibrary.find((template) => template.key === behaviorKey)!.name;
+      const identity = parentBehaviorIdentity({ behaviorKey, customBehavior, behaviorName });
+      if (identities.has(identity)) return { ok: false, error: "behaviors cannot contain duplicate selections" };
+      identities.add(identity);
+      selections.push({ behaviorKey, customBehavior, goal });
+    }
+    input.behaviors = selections;
+  }
   return { ok: true, input };
 }
 
-function starterCardsAfterEdit(
+export function starterCardsAfterEdit(
   current: unknown,
-  behaviorKey: string | null,
-  customBehavior: string | null,
-  goal: string | null,
+  behaviors: ReturnType<typeof parentBehaviorsFromSettings>,
 ): Record<string, unknown>[] {
   const existing = Array.isArray(current)
     ? current.filter((card): card is Record<string, unknown> =>
         isRecord(card) && card.source !== "starter")
     : [];
-  if (!behaviorKey && !customBehavior) return existing;
-  const starterCard = makeStarterCard(behaviorKey, customBehavior, goal);
-  return [...existing, starterCard as unknown as Record<string, unknown>];
+  return [
+    ...existing,
+    ...behaviors.map((behavior) => makeStarterCard(
+      behavior.behaviorKey,
+      behavior.customBehavior,
+      behavior.goal,
+    ) as unknown as Record<string, unknown>),
+  ];
+}
+
+export function completeBehaviorSelections(
+  selections: NonNullable<ChildInput["behaviors"]> | undefined,
+): ReturnType<typeof parentBehaviorsFromSettings> {
+  return (selections || []).map((selection) => {
+    const behaviorKey = selection.behaviorKey;
+    const customBehavior = selection.customBehavior ?? null;
+    return {
+      behaviorKey,
+      customBehavior,
+      behaviorName: behaviorKey === "custom"
+        ? customBehavior!
+        : starterLibrary.find((template) => template.key === behaviorKey)!.name,
+      goal: selection.goal ?? null,
+    };
+  });
+}
+
+export function applyLegacyBehaviorEdits(
+  current: ReturnType<typeof parentBehaviorsFromSettings>,
+  input: ChildInput,
+  body: Record<string, unknown>,
+): ReturnType<typeof parentBehaviorsFromSettings> {
+  const behaviors = hasOwn(body, "behaviors")
+    ? completeBehaviorSelections(input.behaviors)
+    : current.map((behavior) => ({ ...behavior }));
+  const hasLegacyBehaviorEdit = ["behaviorKey", "customBehavior", "goal"].some((key) => hasOwn(body, key));
+  if (!hasLegacyBehaviorEdit) return behaviors;
+
+  let primary = behaviors[0];
+  if (hasOwn(body, "behaviorKey") && input.behaviorKey === null) {
+    behaviors.shift();
+    primary = behaviors[0];
+  } else if (hasOwn(body, "behaviorKey")) {
+    const behaviorKey = input.behaviorKey!;
+    if (!primary) {
+      primary = {
+        behaviorKey,
+        customBehavior: null,
+        behaviorName: behaviorKey === "custom"
+          ? ""
+          : starterLibrary.find((template) => template.key === behaviorKey)?.name || behaviorKey,
+        goal: null,
+      };
+      behaviors.push(primary);
+    } else {
+      primary.behaviorKey = behaviorKey;
+      if (behaviorKey !== current[0]?.behaviorKey || behaviorKey !== "custom") primary.customBehavior = null;
+      primary.behaviorName = behaviorKey === "custom"
+        ? primary.customBehavior || ""
+        : starterLibrary.find((template) => template.key === behaviorKey)?.name || behaviorKey;
+    }
+  }
+  if (hasOwn(body, "customBehavior")) {
+    const customBehavior = input.customBehavior ?? null;
+    if (!primary && customBehavior) {
+      primary = { behaviorKey: "custom", customBehavior, behaviorName: customBehavior, goal: null };
+      behaviors.push(primary);
+    } else if (primary) {
+      if (customBehavior && primary.behaviorKey !== "custom") primary.behaviorKey = "custom";
+      primary.customBehavior = customBehavior;
+      primary.behaviorName = primary.behaviorKey === "custom"
+        ? customBehavior || ""
+        : starterLibrary.find((template) => template.key === primary.behaviorKey)?.name || primary.behaviorKey;
+    }
+  }
+  if (hasOwn(body, "goal")) {
+    if (primary) primary.goal = input.goal ?? null;
+  }
+  return behaviors;
 }
 
 function serializeParentLog(log: typeof parentLogsTable.$inferSelect) {
@@ -226,6 +349,7 @@ function serializeParentLog(log: typeof parentLogsTable.$inferSelect) {
     id: log.id,
     childId: log.childId,
     behaviorKey: log.behaviorKey ?? null,
+    customBehavior: log.customBehavior ?? null,
     goal: log.goal ?? null,
     happened: log.happened,
     intensity: log.intensity,
@@ -471,10 +595,30 @@ router.post("/parent/children", requireParent, async (req: Request, res: Respons
     return;
   }
   const input = checked.input;
-  const behaviorKey = input.behaviorKey ?? null;
-  const customBehavior = input.customBehavior ?? null;
-  const goal = input.goal ?? null;
-  if (!validateBehaviorSelection(behaviorKey, customBehavior)) {
+  let behaviors = input.behaviors
+    ? completeBehaviorSelections(input.behaviors)
+    : input.behaviorKey || input.customBehavior
+      ? completeBehaviorSelections([{
+          behaviorKey: input.behaviorKey || "custom",
+          customBehavior: input.customBehavior,
+          goal: input.goal,
+        }])
+      : [];
+  if (input.behaviors && ["behaviorKey", "customBehavior", "goal"].some((key) => hasOwn(req.body, key))) {
+    behaviors = applyLegacyBehaviorEdits(behaviors, input, req.body);
+  }
+  const identities = new Set<string>();
+  if (behaviors.some((behavior) => {
+    const identity = parentBehaviorIdentity(behavior);
+    if (identities.has(identity)) return true;
+    identities.add(identity);
+    return false;
+  })) {
+    res.status(400).json({ error: "behaviors cannot contain duplicate selections" });
+    return;
+  }
+  const primary = behaviors[0];
+  if (behaviors.some((behavior) => !validateBehaviorSelection(behavior.behaviorKey, behavior.customBehavior))) {
     res.status(400).json({ error: "Choose a starter behavior or provide a custom behavior" });
     return;
   }
@@ -496,14 +640,15 @@ router.post("/parent/children", requireParent, async (req: Request, res: Respons
         status: "active",
         createdBy: parent.id,
       }).returning();
-      const supportCards = starterCardsAfterEdit([], behaviorKey, customBehavior, goal);
+      const supportCards = starterCardsAfterEdit([], behaviors);
       const [settings] = await tx.insert(parentChildSettingsTable).values({
         childId,
         parentId: parent.id,
         workspaceId: parent.workspaceId,
-        behaviorKey,
-        customBehavior,
-        goal,
+        behaviorKey: primary?.behaviorKey ?? null,
+        customBehavior: primary?.customBehavior ?? null,
+        goal: primary?.goal ?? input.goal ?? null,
+        behaviors,
         supportCards,
       }).returning();
       return { child: createdChild, settings };
@@ -533,14 +678,22 @@ router.patch("/parent/children/:childId", requireParent, async (req: Request, re
       return;
     }
     const input = checked.input;
-    const behaviorKey = hasOwn(req.body, "behaviorKey") ? input.behaviorKey! : owned.settings.behaviorKey;
-    const customBehavior = hasOwn(req.body, "customBehavior")
-      ? input.customBehavior!
-      : hasOwn(req.body, "behaviorKey")
-        ? null
-        : owned.settings.customBehavior;
-    const goal = hasOwn(req.body, "goal") ? input.goal! : owned.settings.goal;
-    if (!validateBehaviorSelection(behaviorKey, customBehavior)) {
+    const nextBehaviors = applyLegacyBehaviorEdits(
+      parentBehaviorsFromSettings(owned.settings),
+      input,
+      req.body,
+    );
+    const identities = new Set<string>();
+    if (nextBehaviors.some((behavior) => {
+      const identity = parentBehaviorIdentity(behavior);
+      if (identities.has(identity)) return true;
+      identities.add(identity);
+      return false;
+    })) {
+      res.status(400).json({ error: "behaviors cannot contain duplicate selections" });
+      return;
+    }
+    if (nextBehaviors.some((behavior) => !validateBehaviorSelection(behavior.behaviorKey, behavior.customBehavior))) {
       res.status(400).json({ error: "Choose a starter behavior or provide a custom behavior" });
       return;
     }
@@ -564,6 +717,7 @@ router.patch("/parent/children/:childId", requireParent, async (req: Request, re
       }
 
       const settingsChanged =
+        hasOwn(req.body, "behaviors") ||
         hasOwn(req.body, "behaviorKey") ||
         hasOwn(req.body, "customBehavior") ||
         hasOwn(req.body, "goal");
@@ -578,18 +732,23 @@ router.patch("/parent/children/:childId", requireParent, async (req: Request, re
           ))
           .for("update");
         const sourceSettings = currentSettings ?? owned.settings;
+        const selections = applyLegacyBehaviorEdits(
+          parentBehaviorsFromSettings(sourceSettings),
+          input,
+          req.body,
+        );
+        const primary = selections[0];
         const supportCards = starterCardsAfterEdit(
           sourceSettings.supportCards,
-          behaviorKey,
-          customBehavior,
-          goal,
+          selections,
         );
         const [nextSettings] = await tx
           .update(parentChildSettingsTable)
           .set({
-            behaviorKey,
-            customBehavior,
-            goal,
+            behaviorKey: primary?.behaviorKey ?? null,
+            customBehavior: primary?.customBehavior ?? null,
+            goal: primary?.goal ?? (!selections.length && hasOwn(req.body, "goal") ? input.goal ?? null : null),
+            behaviors: selections,
             supportCards,
             updatedAt: new Date(),
           })
@@ -628,7 +787,7 @@ router.get("/parent/children/:childId/dashboard", requireParent, async (req: Req
 
 router.post("/parent/children/:childId/logs", requireParent, async (req: Request, res: Response) => {
   const body = req.body;
-  const allowed = ["happened", "intensity", "duration", "trigger", "whatHelped", "notes"];
+  const allowed = ["happened", "intensity", "duration", "trigger", "whatHelped", "notes", "behaviorKey", "customBehavior", "goal"];
   if (!isRecord(body) || !hasOnlyKeys(body, allowed)) {
     res.status(400).json({ error: "Invalid behavior log request" });
     return;
@@ -663,6 +822,39 @@ router.post("/parent/children/:childId/logs", requireParent, async (req: Request
       }
     } else optional[key] = null;
   }
+  let requestedBehaviorKey: string | null | undefined;
+  let requestedCustomBehavior: string | null | undefined;
+  let requestedGoal: string | null | undefined;
+  if (hasOwn(body, "behaviorKey")) {
+    if (body.behaviorKey === null) requestedBehaviorKey = null;
+    else {
+      requestedBehaviorKey = cleanText(body.behaviorKey, 100) || undefined;
+      if (!requestedBehaviorKey) {
+        res.status(400).json({ error: "behaviorKey must be a non-empty string of at most 100 characters or null" });
+        return;
+      }
+    }
+  }
+  if (hasOwn(body, "customBehavior")) {
+    if (body.customBehavior === null) requestedCustomBehavior = null;
+    else {
+      requestedCustomBehavior = cleanText(body.customBehavior, 120) || undefined;
+      if (!requestedCustomBehavior) {
+        res.status(400).json({ error: "customBehavior must be a non-empty string of at most 120 characters or null" });
+        return;
+      }
+    }
+  }
+  if (hasOwn(body, "goal")) {
+    if (body.goal === null) requestedGoal = null;
+    else {
+      requestedGoal = cleanText(body.goal, 500) || undefined;
+      if (!requestedGoal) {
+        res.status(400).json({ error: "goal must be a non-empty string of at most 500 characters or null" });
+        return;
+      }
+    }
+  }
 
   try {
     const parent = req.parentAccount!;
@@ -676,6 +868,41 @@ router.post("/parent/children/:childId/logs", requireParent, async (req: Request
       res.status(404).json({ error: "Child not found" });
       return;
     }
+    const selectedBehaviors = parentBehaviorsFromSettings(owned.settings);
+    if (requestedBehaviorKey === null && selectedBehaviors.length) {
+      res.status(400).json({ error: "Choose one of the selected behaviors for this log" });
+      return;
+    }
+    const candidateKey = requestedBehaviorKey === undefined
+      ? requestedCustomBehavior
+        ? "custom"
+        : selectedBehaviors[0]?.behaviorKey ?? null
+      : requestedBehaviorKey;
+    let selectedBehavior = candidateKey
+      ? selectedBehaviors.find((behavior) => behavior.behaviorKey === candidateKey &&
+          (!requestedCustomBehavior || parentBehaviorIdentity(behavior) === parentBehaviorIdentity({
+            behaviorKey: candidateKey,
+            customBehavior: requestedCustomBehavior,
+            behaviorName: requestedCustomBehavior,
+          })))
+      : undefined;
+    if (candidateKey === "custom" && !requestedCustomBehavior) {
+      const customSelections = selectedBehaviors.filter((behavior) => behavior.behaviorKey === "custom");
+      selectedBehavior = customSelections.length === 1 ? customSelections[0] : undefined;
+    }
+    if (candidateKey && !selectedBehavior) {
+      res.status(400).json({ error: "Choose a behavior currently selected for this child" });
+      return;
+    }
+    if (requestedCustomBehavior && selectedBehavior?.behaviorKey !== "custom") {
+      res.status(400).json({ error: "customBehavior must identify a selected custom behavior" });
+      return;
+    }
+    if (hasOwn(body, "goal") && selectedBehavior &&
+      (requestedGoal ?? null) !== (selectedBehavior.goal ?? null)) {
+      res.status(400).json({ error: "goal must match the selected behavior's current goal" });
+      return;
+    }
     const id = crypto.randomUUID();
     const createdAt = new Date();
     const [log] = await db.transaction(async (tx) => {
@@ -684,8 +911,9 @@ router.post("/parent/children/:childId/logs", requireParent, async (req: Request
         parentId: parent.id,
         childId: owned.id,
         workspaceId: owned.settings.workspaceId,
-        behaviorKey: owned.settings.behaviorKey,
-        goal: owned.settings.goal,
+        behaviorKey: selectedBehavior?.behaviorKey ?? null,
+        customBehavior: selectedBehavior?.customBehavior ?? null,
+        goal: hasOwn(body, "goal") ? requestedGoal ?? null : selectedBehavior?.goal ?? null,
         happened,
         intensity,
         duration,
@@ -701,7 +929,7 @@ router.post("/parent/children/:childId/logs", requireParent, async (req: Request
         parentId: parent.id,
         clinicianId: owned.clinicianId,
         eventCategory: "behavior",
-        behaviorType: owned.settings.behaviorKey ?? (owned.settings.customBehavior ? "custom" : "parent_check_in"),
+        behaviorType: selectedBehavior?.behaviorKey ?? "parent_check_in",
         intensity,
         context: optional.trigger,
         parentFeedback: happened ? "Behavior happened" : "Behavior did not happen",

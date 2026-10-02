@@ -3,11 +3,15 @@ import assert from "node:assert/strict";
 import { makeStarterCard, starterLibrary, type SupportCard } from "./parentStarterLibrary";
 import {
   buildParentDocumentGenerationContent,
+  buildParentDocumentDiscoveryContent,
   canAccessParentDocument,
   deriveSupportProvenance,
   detectParentDocumentType,
+  discoveredTargetsForScan,
+  documentSupportCardId,
   hasDuplicateParentDocumentHash,
   isSafeParentGuidance,
+  normalizeDiscoveredParentTargets,
   orderSupportCardsForSelectedFocus,
   reconcileSupportCards,
 } from "./parentDocumentPolicy";
@@ -94,15 +98,126 @@ test("document B generation prompt excludes existing private card A content", ()
   assert.doesNotMatch(serializedPrompt, /Current support cards|Starter guidance for context/);
 });
 
-test("explicitly avoiding physical restraint is safe while teaching a restraint technique is rejected", () => {
-  const avoidMention = guidance("parent_document", "plan", "Offer a calm choice.");
-  avoidMention.avoid = ["Avoid arguing or physical restraint."];
-  assert.equal(isSafeParentGuidance(avoidMention), true);
+test("discovery prompt uses only fetched documents and never receives prior document-derived cards", () => {
+  const priorCardSentinel = guidance("parent_document", "prior-private-plan", "PRIOR_CARD_PRIVATE_SENTINEL");
+  const prompt = buildParentDocumentDiscoveryContent(
+    [{
+      id: "current-plan",
+      title: "Current plan",
+      content: { type: "text", text: "Target behavior: bedtime routine stalling. Goal: Start after one reminder." },
+    }],
+    ["current-plan"],
+  );
+  const serialized = JSON.stringify(prompt);
+  assert.ok(priorCardSentinel.sourceDocumentIds.includes("prior-private-plan"));
+  assert.match(serialized, /bedtime routine stalling/);
+  assert.match(serialized, /current-plan/);
+  assert.doesNotMatch(serialized, /PRIOR_CARD_PRIVATE_SENTINEL|prior-private-plan/);
+  assert.match(serialized, /negated targets/);
+  assert.match(serialized, /explicitly assigns a concrete goal/);
+  assert.match(serialized, /Preserve the exact source wording.*do not paraphrase/i);
+  assert.doesNotMatch(serialized, /excluding behaviors already selected/);
+});
 
-  const technique = guidance("parent_document", "plan", "Use a physical restraint hold.");
-  assert.equal(isSafeParentGuidance(technique), false);
-  technique.rightNow = ["How to apply a restraint: hold the child in this position."];
-  assert.equal(isSafeParentGuidance(technique), false);
+test("discovery accepts only supported starter keys or named custom targets, canonicalizes, and deduplicates", () => {
+  const targets = normalizeDiscoveredParentTargets([
+    { behavior_key: "TASK REFUSAL", behavior_name: "ignored model label", goal: "Start one step" },
+    { behavior_key: "task_refusal", behavior_name: "Task refusal", goal: "Start one step" },
+    { behavior_key: "custom", behavior_name: "Morning clothing discomfort", goal: "Choose one item" },
+    { behavior_key: "custom", behavior_name: "MORNING_CLOTHING   DISCOMFORT", goal: "Different wording" },
+    { behavior_key: "unsupported_key", behavior_name: "Made up category", goal: "Invented" },
+    { behavior_key: "custom", behavior_name: "  ", goal: "Missing behavior" },
+    { behavior_key: "elopement", behavior_name: "Whatever", goal: "x".repeat(1200) },
+  ]);
+  assert.deepEqual(targets.map(({ behaviorKey, behaviorName }) => [behaviorKey, behaviorName]), [
+    ["task_refusal", "Task Refusal"],
+    ["custom", "Morning clothing discomfort"],
+    ["elopement", "Elopement / Running Away"],
+  ]);
+  assert.equal(targets[1].goal, "Choose one item");
+  assert.equal(targets[2].goal?.length, 500);
+  assert.equal(normalizeDiscoveredParentTargets(
+    Array.from({ length: 24 }, (_, i) => ({
+      behavior_key: "custom",
+      behavior_name: `New target ${i}`,
+      goal: "",
+    })),
+  ).length, 20);
+});
+
+test("document card IDs preserve distinct custom-name distinctions without collapsing identity", () => {
+  const bedtime = documentSupportCardId("doc", "custom", "Bed time");
+  const hyphenated = documentSupportCardId("doc", "custom", "Bed-time");
+  assert.notEqual(bedtime, hyphenated);
+  assert.equal(
+    documentSupportCardId("doc", "custom", " BED   TIME "),
+    bedtime,
+    "case and whitespace canonicalization remains stable",
+  );
+});
+
+test("discovery adds only new targets that fit the combined 20-behavior scan limit", () => {
+  const selected = Array.from({ length: 19 }, (_, index) => ({
+    behaviorKey: "custom",
+    behaviorName: `Selected ${index}`,
+  }));
+  const discovered = [
+    { behaviorKey: "custom", behaviorName: "Selected 0", goal: "duplicate" },
+    { behaviorKey: "custom", behaviorName: "New target", goal: "explicit goal" },
+    { behaviorKey: "elopement", behaviorName: "Elopement / Running Away", goal: "second new target" },
+  ];
+  assert.deepEqual(discoveredTargetsForScan(selected, discovered).map((target) => target.behaviorName), ["New target"]);
+  assert.deepEqual(discoveredTargetsForScan([...selected, { behaviorKey: "custom", behaviorName: "Selected 19" }], discovered), []);
+});
+
+test("explicitly avoiding physical restraint is safe while teaching a restraint technique is rejected", () => {
+  const fieldAwareAvoidance = guidance("parent_document", "field-aware-plan", "Use a calm voice.");
+  fieldAwareAvoidance.avoid = ["Physical restraint", "Holding the child"];
+  fieldAwareAvoidance.prevention = ["Show a checklist"];
+  assert.equal(isSafeParentGuidance(fieldAwareAvoidance), true);
+
+  const directAction = guidance("parent_document", "right-now-action", "Hold the child.");
+  assert.equal(isSafeParentGuidance(directAction), false);
+
+  const harmlessProhibitions = [
+    "Avoid arguing or physical restraint.",
+    "Never restrain your child.",
+    "Do not physically block the child.",
+    "Never seclude them.",
+    "Do not use restraint.",
+    "Avoid holding the child.",
+    "Don't pin the child.",
+    "Do not wrap or immobilize the child.",
+  ];
+  for (const instruction of harmlessProhibitions) {
+    const card = guidance("parent_document", "plan", "Offer a calm choice.");
+    card.avoid = [instruction];
+    assert.equal(isSafeParentGuidance(card), true, `direct prohibition should be safe: ${instruction}`);
+  }
+
+  const unsafeInstructions = [
+    "Use a physical restraint hold.",
+    "Restrain your child.",
+    "Physically block the child.",
+    "Seclude them.",
+    "Hold the child.",
+    "Pin the child.",
+    "How to apply a restraint: hold the child in this position.",
+  ];
+  for (const instruction of unsafeInstructions) {
+    const card = guidance("parent_document", "plan", instruction);
+    assert.equal(isSafeParentGuidance(card), false, `positive physical-intervention instruction should be rejected: ${instruction}`);
+  }
+
+  for (const boundary of [".", "!", "?", ";", "\n"]) {
+    const contrast = guidance("parent_document", "plan", "Offer a calm choice.");
+    contrast.avoid = [`Do not use restraint${boundary} Instead hold the child.`];
+    assert.equal(
+      isSafeParentGuidance(contrast),
+      false,
+      `a prohibition must not mask a later positive instruction across ${JSON.stringify(boundary)}`,
+    );
+  }
 });
 
 test("dedup merges repeated same guidance once, retaining unique document IDs and references", () => {

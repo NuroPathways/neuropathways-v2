@@ -42,6 +42,16 @@ export interface Parent {
   accountType: 'parent_free';
 }
 
+export interface ParentBehavior {
+  /** @maxLength 100 */
+  behaviorKey: string;
+  /** @nullable */
+  customBehavior: string | null;
+  behaviorName: string;
+  /** @nullable */
+  goal: string | null;
+}
+
 export interface ParentChild {
   id: string;
   name: string;
@@ -54,6 +64,7 @@ export interface ParentChild {
   behaviorName: string | null;
   /** @nullable */
   goal: string | null;
+  behaviors: ParentBehavior[];
   workspaceId: string;
   parentId: string;
   familyId: string;
@@ -89,14 +100,37 @@ export interface ParentLoginInput {
   password: string;
 }
 
+export interface ParentBehaviorInput {
+  /** @maxLength 100 */
+  behaviorKey: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  customBehavior?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  goal?: string | null;
+}
+
 export interface ParentChildInput {
   /** @minLength 1 */
   name: string;
   age?: number;
   notes?: string;
-  behaviorKey?: string;
-  customBehavior?: string;
-  goal?: string;
+  /** @nullable */
+  behaviorKey?: string | null;
+  /** @nullable */
+  customBehavior?: string | null;
+  /** @nullable */
+  goal?: string | null;
+  /**
+     * @minItems 1
+     * @maxItems 20
+     */
+  behaviors?: ParentBehaviorInput[];
 }
 
 export interface ParentChildUpdate {
@@ -104,9 +138,17 @@ export interface ParentChildUpdate {
   name?: string;
   age?: number;
   notes?: string;
-  behaviorKey?: string;
-  customBehavior?: string;
-  goal?: string;
+  /** @nullable */
+  behaviorKey?: string | null;
+  /** @nullable */
+  customBehavior?: string | null;
+  /** @nullable */
+  goal?: string | null;
+  /**
+     * @minItems 1
+     * @maxItems 20
+     */
+  behaviors?: ParentBehaviorInput[];
 }
 
 export interface StarterTemplate {
@@ -206,6 +248,8 @@ export interface ParentLog {
   /** @nullable */
   behaviorKey: string | null;
   /** @nullable */
+  customBehavior: string | null;
+  /** @nullable */
   goal: string | null;
   happened: boolean;
   intensity: ParentLogIntensity;
@@ -242,6 +286,12 @@ export const ParentLogInputIntensity = {
 } as const;
 
 export interface ParentLogInput {
+  /** @nullable */
+  behaviorKey?: string | null;
+  /** @nullable */
+  customBehavior?: string | null;
+  /** @nullable */
+  goal?: string | null;
   happened: boolean;
   intensity: ParentLogInputIntensity;
   duration: number;

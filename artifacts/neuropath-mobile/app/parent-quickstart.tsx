@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { createParentChild, getParentDashboard, getStarterLibrary, updateParentChild } from "@workspace/api-client-react";
-import { BehaviorPicker, type BehaviorChoice } from "@/components/BehaviorPicker";
+import { createParentChild, getStarterLibrary, getParentDashboard, parentBehaviorIdentity, updateParentChild } from "@workspace/api-client-react";
+import { BehaviorGoalsEditor, selsFromChild, selsToInput, validateSels, type BehaviorSel } from "@/components/BehaviorPicker";
 import { UploadPanel } from "@/components/UploadPanel";
 import { Btn, Card, Chip, ErrorBox, Field, H, Row, Screen, Skeleton, T, msg } from "@/components/ParentUi";
 import { useParent } from "@/context/ParentContext";
@@ -16,11 +16,14 @@ export default function QuickStart() {
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [notes, setNotes] = useState("");
-  const [beh, setBeh] = useState<BehaviorChoice>({ behaviorKey: null, customBehavior: "" });
-  const [goal, setGoal] = useState("");
+  const [sels, setSels] = useState<BehaviorSel[]>([]);
+  const [more, setMore] = useState(false);
+  const [extra, setExtra] = useState<BehaviorSel[]>([]);
+  const lib = useQuery({ queryKey: ["parent-starter-library"], queryFn: () => getStarterLibrary(), enabled: more });
   const [showUpload, setShowUpload] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   // Resume where the parent stopped, based on what the server has saved.
   useEffect(() => {
@@ -28,16 +31,13 @@ export default function QuickStart() {
     started.current = true;
     if (!child) return;
     setName(child.name); setAge(child.age != null ? String(child.age) : ""); setNotes(child.notes ?? "");
-    setBeh({ behaviorKey: child.behaviorKey && child.behaviorKey !== "custom" ? child.behaviorKey : null, customBehavior: !child.behaviorKey || child.behaviorKey === "custom" ? child.behaviorName ?? "" : "" });
-    setGoal(child.goal ?? "");
-    setStep(!child.behaviorName ? 2 : !child.goal ? 3 : 4);
+    const resumed = selsFromChild(child);
+    setSels(resumed);
+    setStep(!resumed.length || resumed.some((b) => !b.goal.trim()) ? 2 : 3);
   }, [child]);
 
-  const lib = useQuery({ queryKey: ["parent-starter-library"], queryFn: () => getStarterLibrary() });
-  const goals = lib.data?.find((s) => s.key === beh.behaviorKey)?.relatedGoals ?? [];
-
   const run = async (fn: () => Promise<void>) => {
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setNotice("");
     try { await fn(); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   };
 
@@ -51,31 +51,43 @@ export default function QuickStart() {
     upsertChild(saved);
     setStep(2);
   });
-  const saveBehavior = () => run(async () => {
+  const saveBehaviors = () => run(async () => {
     if (!child) throw new Error("Save your child's nickname first.");
-    if (!beh.behaviorKey && !beh.customBehavior.trim()) throw new Error("Choose a behavior or describe your own.");
-    const saved = await updateParentChild(child.id, beh.behaviorKey ? { behaviorKey: beh.behaviorKey } : { behaviorKey: "custom", customBehavior: beh.customBehavior.trim() }, opts);
+    const v = validateSels(sels);
+    if (v) throw new Error(v);
+    const saved = await updateParentChild(child.id, { behaviors: selsToInput(sels) }, opts);
     upsertChild(saved);
+    setMore(true);
     setStep(3);
   });
-  const saveGoal = () => run(async () => {
+  const saveDraft = () => run(async () => {
     if (!child) throw new Error("Save your child's nickname first.");
-    if (!goal.trim()) throw new Error("Write a goal in your own words, or pick one.");
-    const saved = await updateParentChild(child.id, { goal: goal.trim() }, opts);
+    const issue = validateSels(sels, false);
+    if (issue) throw new Error(issue);
+    const saved = await updateParentChild(child.id, { behaviors: selsToInput(sels) }, opts);
     upsertChild(saved);
-    setStep(4);
+    setNotice("Your behaviors and goals are saved. You can return later to finish setup.");
   });
 
+  const addExtra = () => run(async () => {
+    if (!child) throw new Error("Save your child's nickname first.");
+    if (extra.some((e) => !e.goal.trim())) throw new Error("Write a goal for each behavior you add.");
+    const all = [...sels, ...extra];
+    const v = validateSels(all);
+    if (v) throw new Error(v);
+    const saved = await updateParentChild(child.id, { behaviors: selsToInput(all) }, opts);
+    upsertChild(saved); setSels(all); setExtra([]); setMore(false);
+  });
   const dash = useQuery({
     queryKey: ["parent-dashboard", child?.id],
     queryFn: () => getParentDashboard(child!.id, opts),
-    enabled: step === 4 && !!child,
+    enabled: step === 3 && !!child,
   });
-  const card = dash.data?.supportCards?.[0];
+  const cards = dash.data?.supportCards ?? [];
 
   return (
     <Screen top>
-      <T size={13} weight="semi" color={c.primary}>{step <= 3 ? `Step ${step} of 3` : "Ready"}{parent ? `  |  ${parent.firstName}` : ""}</T>
+      <T size={13} weight="semi" color={c.primary}>{step <= 2 ? `Step ${step} of 2` : "Ready"}{parent ? `  |  ${parent.firstName}` : ""}</T>
       {step === 1 ? (
         <>
           <H sub="Who are you creating support for?">Add Your Child</H>
@@ -86,34 +98,47 @@ export default function QuickStart() {
       ) : null}
       {step === 2 ? (
         <>
-          <H sub="What do you need help with most often?">Choose One Behavior</H>
+          <H sub="Choose one or more. Every behavior gets its own goal.">Behaviors and Goals</H>
           <T size={13} weight="semi" color={c.secondary}>Starter behavior support — not yet based on an uploaded clinician plan.</T>
-          <BehaviorPicker value={beh} onChange={setBeh} />
+          <BehaviorGoalsEditor value={sels} onChange={setSels} />
         </>
       ) : null}
-      {step === 3 ? (
+      {step === 3 && more ? (
         <>
-          <H sub="What would you like to work on first?">Choose One Goal</H>
-          {goals.length ? <Row wrap>{goals.map((g) => <Chip key={g} label={g} selected={goal === g} onPress={() => setGoal(g)} />)}</Row> : null}
-          <Field label="Custom goal" value={goal} onChangeText={setGoal} multiline placeholder="For example: ask for a break instead of yelling" />
+          <H sub="You can add behaviors now or come back later.">Want to add more support areas?</H>
+          {lib.isLoading ? <Skeleton lines={3} /> : lib.isError ? <ErrorBox message="Starter behaviors could not load." onRetry={() => lib.refetch()} /> : (
+            <>
+              <Row wrap>
+                {(lib.data ?? []).filter((s) => !sels.some((b) => b.behaviorKey === s.key)).map((s) => (
+                  <Chip key={s.key} label={s.name} selected={extra.some((e) => e.behaviorKey === s.key)} onPress={() => setExtra((cur) => cur.some((e) => e.behaviorKey === s.key) ? cur.filter((e) => e.behaviorKey !== s.key) : [...cur, { behaviorKey: s.key, customBehavior: "", goal: "" }])} />
+                ))}
+              </Row>
+              {extra.map((e, i) => <Field key={e.behaviorKey} label={`Goal for ${lib.data?.find((s) => s.key === e.behaviorKey)?.name ?? e.behaviorKey}`} value={e.goal} onChangeText={(t) => setExtra((cur) => cur.map((x, j) => (j === i ? { ...x, goal: t } : x)))} multiline />)}
+            </>
+          )}
+          {error ? <ErrorBox message={error} /> : null}
+          <Btn label="Add Selected Behaviors" onPress={addExtra} loading={busy} disabled={!extra.length} />
+          <Btn kind="ghost" label="Skip for Now" onPress={() => setMore(false)} disabled={busy} />
         </>
       ) : null}
-      {step === 4 ? (
+      {step === 3 && !more ? (
         <>
-          <H sub="Starter support based on common behavior patterns. It is not clinician-approved.">Your first support card is ready.</H>
-          {dash.isLoading ? <Skeleton lines={4} /> : dash.isError ? <ErrorBox message={msg(dash.error)} onRetry={() => dash.refetch()} /> : card ? (
-            <Card><T weight="bold" size={17}>{card.behaviorName}</T><T size={14}>{card.rightNow[0]}</T></Card>
-          ) : null}
+          <H sub="Starter support based on common behavior patterns. It is not clinician-approved.">Your support cards are ready.</H>
+          {dash.isLoading ? <Skeleton lines={4} /> : dash.isError ? <ErrorBox message={msg(dash.error)} onRetry={() => dash.refetch()} /> : cards.length ? cards.map((card) => {
+            const selection = sels.find((b) => parentBehaviorIdentity(b) === parentBehaviorIdentity(card));
+            if (!selection) return null;
+            return <Card key={card.id}><T weight="bold" size={17}>{card.behaviorName}</T><T size={13} weight="semi">Goal: {selection.goal}</T><T size={14}>{card.rightNow[0]}</T></Card>;
+          }) : null}
           <T weight="bold" size={16}>Have a behavior plan, school plan, or treatment plan?</T>
           {showUpload && child ? <UploadPanel key={child.id} childId={child.id} /> : <Btn testID="qs-upload-now" icon="upload" label="Upload Now" onPress={() => setShowUpload(true)} />}
         </>
       ) : null}
       {error ? <ErrorBox message={error} /> : null}
+      {notice ? <T size={14}>{notice}</T> : null}
       {step === 1 ? <Btn testID="qs-next" label="Continue" onPress={saveName} loading={busy} /> : null}
-      {step === 2 ? <><Btn label="Continue" onPress={saveBehavior} loading={busy} /><Btn kind="ghost" label="Back" onPress={() => setStep(1)} /></> : null}
-      {step === 3 ? <><Btn label="Build my card" onPress={saveGoal} loading={busy} /><Btn kind="ghost" label="Back" onPress={() => setStep(2)} /></> : null}
-      {step === 4 ? <Btn testID="qs-open" label={showUpload ? "Continue to Today's Support" : "Skip for Now"} onPress={() => router.replace("/(parent)" as never)} /> : null}
-      {step < 4 ? <Btn kind="ghost" label="Sign out" onPress={signout} /> : null}
+      {step === 2 ? <><Btn label="Build my cards" onPress={saveBehaviors} loading={busy} /><Btn kind="ghost" label="Save and finish later" onPress={saveDraft} disabled={busy || !sels.length} /><Btn kind="ghost" label="Back" onPress={() => setStep(1)} disabled={busy} /></> : null}
+      {step === 3 && !more ? <Btn testID="qs-open" label={showUpload ? "Continue to Today's Support" : "Skip for Now"} onPress={() => router.replace("/(parent)" as never)} /> : null}
+      {step < 3 ? <Btn kind="ghost" label="Sign out" onPress={signout} /> : null}
     </Screen>
   );
 }

@@ -1,14 +1,18 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAddParentLog, getGetParentDashboardQueryKey } from "@workspace/api-client-react";
+import { parentBehaviorIdentity } from "@workspace/api-client-react";
 import { parentRequest } from "@/lib/parentSession";
 import { Field, ErrorBox, errMsg } from "./common";
 
 const blank = { happened: true, intensity: "medium", duration: "5", trigger: "", whatHelped: "", notes: "" };
 
-export default function LogPanel({ childId, childName, logs }) {
+export default function LogPanel({ childId, childName, logs, behaviors = [], defaultId }) {
   const qc = useQueryClient();
   const [f, setF] = useState(blank);
+  const [bid, setBid] = useState(defaultId || null);
+  const chosen = behaviors.find((b) => parentBehaviorIdentity(b) === bid) || behaviors[0];
+  const nameOf = (l) => { const m = behaviors.find((b) => parentBehaviorIdentity(b) === parentBehaviorIdentity({ behaviorKey: l.behaviorKey, customBehavior: l.customBehavior, behaviorName: l.customBehavior })); return l.behaviorKey || l.customBehavior ? m?.behaviorName : null; };
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const add = useAddParentLog({ request: parentRequest() });
@@ -17,7 +21,7 @@ export default function LogPanel({ childId, childName, logs }) {
     e.preventDefault();
     setError(""); setSaved(false);
     add.mutate(
-      { childId, data: { happened: f.happened, intensity: f.intensity, duration: Math.max(0, Number(f.duration) || 0), trigger: f.trigger.trim() || undefined, whatHelped: f.whatHelped.trim() || undefined, notes: f.notes.trim() || undefined } },
+      { childId, data: { ...(chosen ? { behaviorKey: chosen.behaviorKey, goal: chosen.goal || undefined, ...(chosen.behaviorKey === "custom" ? { customBehavior: chosen.customBehavior || chosen.behaviorName } : {}) } : {}), happened: f.happened, intensity: f.intensity, duration: Math.max(0, Number(f.duration) || 0), trigger: f.trigger.trim() || undefined, whatHelped: f.whatHelped.trim() || undefined, notes: f.notes.trim() || undefined } },
       { onSuccess: () => { setF(blank); setSaved(true); qc.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(childId) }); }, onError: (er) => setError(errMsg(er)) }
     );
   };
@@ -26,6 +30,14 @@ export default function LogPanel({ childId, childName, logs }) {
     <div className="pf-grid2">
       <form onSubmit={submit} className="pf-card" style={{ display: "grid", gap: 14 }}>
         <h2>Log a moment for {childName}</h2>
+        {behaviors.length > 0 && (
+          <Field label="Which behavior">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {behaviors.map((b) => { const id = parentBehaviorIdentity(b); return <button key={id} type="button" className="pf-chip" aria-pressed={chosen && parentBehaviorIdentity(chosen) === id} onClick={() => setBid(id)} data-testid={`button-log-behavior-${id}`}>{b.behaviorName}</button>; })}
+            </div>
+            {chosen?.goal && <p className="pf-hint" style={{ marginTop: 6 }}>Goal: {chosen.goal}</p>}
+          </Field>
+        )}
         <div style={{ display: "flex", gap: 8 }}>
           <button type="button" className="pf-chip" aria-pressed={f.happened} onClick={() => setF({ ...f, happened: true })} data-testid="button-log-happened">It happened</button>
           <button type="button" className="pf-chip" aria-pressed={!f.happened} onClick={() => setF({ ...f, happened: false })} data-testid="button-log-win">It did not happen today</button>
@@ -55,6 +67,7 @@ export default function LogPanel({ childId, childName, logs }) {
           <ul className="pf-list" style={{ marginTop: 12 }}>
             {logs.slice(0, 8).map((l) => (
               <li key={l.id} style={{ display: "block", borderBottom: "1px solid var(--pf-line)", paddingBottom: 8 }} data-testid={`row-log-${l.id}`}>
+                {nameOf(l) && <span className="pf-eyebrow" style={{ display: "block" }}>{nameOf(l)}</span>}
                 <strong>{l.happened ? `${l.intensity}, ${l.duration} min` : "Did not happen"}</strong>
                 <span className="pf-hint"> {new Date(l.createdAt).toLocaleString()}</span>
                 {l.whatHelped && <p style={{ fontSize: ".88rem" }}>Helped: {l.whatHelped}</p>}

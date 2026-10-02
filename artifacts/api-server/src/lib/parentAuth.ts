@@ -23,6 +23,50 @@ export interface ParentIdentity {
   accountType: "parent_free";
 }
 
+export type ParentBehavior = {
+  behaviorKey: string;
+  customBehavior: string | null;
+  behaviorName: string;
+  goal: string | null;
+};
+
+export function parentBehaviorIdentity(behavior: Pick<ParentBehavior, "behaviorKey" | "customBehavior" | "behaviorName">): string {
+  if (behavior.behaviorKey === "custom") {
+    return `custom:${(behavior.customBehavior || behavior.behaviorName).normalize("NFKC").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}`;
+  }
+  return `starter:${behavior.behaviorKey}`;
+}
+
+export function parentBehaviorsFromSettings(settings: {
+  behaviors?: unknown;
+  behaviorKey?: string | null;
+  customBehavior?: string | null;
+  goal?: string | null;
+} | null | undefined): ParentBehavior[] {
+  if (Array.isArray(settings?.behaviors)) {
+    const stored = settings.behaviors.filter((value): value is ParentBehavior =>
+      !!value && typeof value === "object" &&
+      typeof (value as ParentBehavior).behaviorKey === "string" &&
+      typeof (value as ParentBehavior).behaviorName === "string",
+    ).map((value) => ({
+      behaviorKey: value.behaviorKey,
+      customBehavior: typeof value.customBehavior === "string" ? value.customBehavior : null,
+      behaviorName: value.behaviorName,
+      goal: typeof value.goal === "string" ? value.goal : null,
+    }));
+    if (stored.length) return stored;
+  }
+  if (!settings?.behaviorKey) return [];
+  const behaviorKey = settings.behaviorKey;
+  const customBehavior = settings.customBehavior ?? null;
+  return [{
+    behaviorKey,
+    customBehavior,
+    behaviorName: customBehavior || starterLibrary.find((template) => template.key === behaviorKey)?.name || behaviorKey,
+    goal: settings.goal ?? null,
+  }];
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -193,8 +237,11 @@ export function serializeParentChild(
   child: typeof childrenTable.$inferSelect,
   settings: typeof parentChildSettingsTable.$inferSelect | null,
 ) {
-  const behaviorKey = settings?.behaviorKey ?? null;
-  const behaviorName = settings?.customBehavior ??
+  const behaviors = parentBehaviorsFromSettings(settings);
+  const primary = behaviors[0];
+  const behaviorKey = primary?.behaviorKey ?? settings?.behaviorKey ?? null;
+  const behaviorName = primary?.behaviorName ??
+    settings?.customBehavior ??
     starterLibrary.find((template) => template.key === behaviorKey)?.name ??
     behaviorKey;
   return {
@@ -204,7 +251,8 @@ export function serializeParentChild(
     notes: child.notes ?? "",
     behaviorKey,
     behaviorName: behaviorName || null,
-    goal: settings?.goal ?? null,
+    goal: primary?.goal ?? settings?.goal ?? null,
+    behaviors,
     workspaceId: settings?.workspaceId ?? child.tenantId ?? child.familyId ?? "",
     parentId: child.parentId ?? "",
     familyId: child.familyId ?? "",

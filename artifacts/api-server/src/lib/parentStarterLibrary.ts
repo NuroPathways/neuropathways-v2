@@ -242,7 +242,9 @@ export function makeStarterCard(
   const behaviorName = template?.name || customBehavior?.trim() || "Behavior support";
   const key = template?.key || normalizeBehaviorKey(behaviorKey) || "custom";
   return {
-    id: `starter:${key}`,
+    id: key === "custom"
+      ? `starter:custom:${behaviorName.trim().replace(/\s+/g, " ").toLowerCase()}`
+      : `starter:${key}`,
     behaviorKey: key,
     behaviorName,
     goal,

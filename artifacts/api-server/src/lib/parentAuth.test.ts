@@ -6,6 +6,8 @@ const {
   hashParentPassword,
   hashParentSessionToken,
   normalizeParentEmail,
+  parentBehaviorIdentity,
+  parentBehaviorsFromSettings,
   validateParentPassword,
   verifyParentPassword,
 } = await import("./parentAuth.js");
@@ -39,4 +41,34 @@ test("parent session tokens are stored as one-way hashes", () => {
   assert.notEqual(hash, token);
   assert.equal(hashParentSessionToken(token), hash);
   assert.equal(hash.length, 64);
+});
+
+test("legacy scalar setup settings serialize as one parent behavior", () => {
+  assert.deepEqual(parentBehaviorsFromSettings({
+    behaviorKey: "custom",
+    customBehavior: "Morning clothing discomfort",
+    goal: "Choose one comfortable item",
+  }), [{
+    behaviorKey: "custom",
+    customBehavior: "Morning clothing discomfort",
+    behaviorName: "Morning clothing discomfort",
+    goal: "Choose one comfortable item",
+  }]);
+});
+
+test("multi-behavior settings preserve separate goals and custom identities", () => {
+  const behaviors = [
+    { behaviorKey: "task_refusal", customBehavior: null, behaviorName: "Task Refusal", goal: "Start one step" },
+    { behaviorKey: "custom", customBehavior: "Morning clothing discomfort", behaviorName: "Morning clothing discomfort", goal: null },
+  ];
+  assert.deepEqual(parentBehaviorsFromSettings({ behaviors, behaviorKey: "task_refusal" }), behaviors);
+  assert.notEqual(parentBehaviorIdentity(behaviors[0]), parentBehaviorIdentity(behaviors[1]));
+  assert.equal(
+    parentBehaviorIdentity({ ...behaviors[1], customBehavior: " MORNING   CLOTHING DISCOMFORT " }),
+    parentBehaviorIdentity(behaviors[1]),
+  );
+  assert.equal(
+    parentBehaviorIdentity({ ...behaviors[0], behaviorKey: "task_refusal-v2" }),
+    "starter:task_refusal-v2",
+  );
 });

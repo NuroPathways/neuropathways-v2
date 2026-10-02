@@ -47,7 +47,7 @@ export default function ParentWelcome() {
         <Card>
           <T weight="bold" size={16}>How it works</T>
           <T size={14}><T weight="semi" size={14}>1. Add your child.</T> Create a quick profile with just a name or nickname.</T>
-          <T size={14}><T weight="semi" size={14}>2. Choose one behavior.</T> Start with a common challenge like elopement, self-injury, aggression, meltdowns, task refusal, or transition difficulty.</T>
+          <T size={14}><T weight="semi" size={14}>2. Choose your behaviors.</T> Pick one or more, such as elopement, self-injury, aggression, meltdowns, task refusal, or transition difficulty, and set a goal for each.</T>
           <T size={14}><T weight="semi" size={14}>3. Get support steps.</T> See simple steps for what to do right now, what to avoid, and what to track.</T>
           <T weight="bold" size={15} style={{ marginTop: 6 }}>Have a treatment plan, behavior plan, or school support plan? Upload it later.</T>
           <T size={14}>You can start with starter support now. When you are ready, upload a plan so NeuroPathways can make the steps more personalized.</T>

@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQueryClient } from "@tanstack/react-query";
 import { getParentSession, loginParent, logoutParent, registerParent } from "@workspace/api-client-react";
+import { getParentBehaviors } from "@workspace/api-client-react";
 import type { ParentChild, Parent } from "@workspace/api-client-react";
 import { PARENT_CHILD_KEY, PARENT_TOKEN_KEY, clearParentStorage, clearShareCache, parentOpts } from "@/lib/parent";
 
@@ -23,7 +24,11 @@ interface ParentCtx {
 
 const Ctx = createContext<ParentCtx | null>(null);
 
-export const isSetupComplete = (c: ParentChild | null) => !!c && !!c.name && !!c.behaviorName && !!c.goal;
+export const isSetupComplete = (c: ParentChild | null) => {
+  if (!c || !c.name) return false;
+  const b = getParentBehaviors(c);
+  return b.length > 0 && b.every((x) => !!x.goal?.trim());
+};
 
 export function ParentProvider({ children: kids }: { children: React.ReactNode }) {
   const qc = useQueryClient();

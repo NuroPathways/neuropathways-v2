@@ -610,6 +610,10 @@ components:
           type: [string, "null"]
         goal:
           type: [string, "null"]
+        behaviors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentBehavior"
         workspaceId:
           type: string
         parentId:
@@ -626,6 +630,7 @@ components:
         - behaviorKey
         - behaviorName
         - goal
+        - behaviors
         - workspaceId
         - parentId
         - familyId
@@ -700,11 +705,17 @@ components:
         notes:
           type: string
         behaviorKey:
-          type: string
+          type: [string, "null"]
         customBehavior:
-          type: string
+          type: [string, "null"]
         goal:
-          type: string
+          type: [string, "null"]
+        behaviors:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/ParentBehaviorInput"
       required: [name]
     ParentChildUpdate:
       type: object
@@ -717,11 +728,43 @@ components:
         notes:
           type: string
         behaviorKey:
-          type: string
+          type: [string, "null"]
         customBehavior:
+          type: [string, "null"]
+        goal:
+          type: [string, "null"]
+        behaviors:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/ParentBehaviorInput"
+    ParentBehavior:
+      type: object
+      properties:
+        behaviorKey:
+          type: string
+          maxLength: 100
+        customBehavior:
+          type: [string, "null"]
+        behaviorName:
           type: string
         goal:
+          type: [string, "null"]
+      required: [behaviorKey, customBehavior, behaviorName, goal]
+    ParentBehaviorInput:
+      type: object
+      properties:
+        behaviorKey:
           type: string
+          maxLength: 100
+        customBehavior:
+          type: [string, "null"]
+          maxLength: 120
+        goal:
+          type: [string, "null"]
+          maxLength: 500
+      required: [behaviorKey]
     StarterTemplate:
       type: object
       properties:
@@ -909,6 +952,8 @@ components:
           type: string
         behaviorKey:
           type: [string, "null"]
+        customBehavior:
+          type: [string, "null"]
         goal:
           type: [string, "null"]
         happened:
@@ -931,6 +976,7 @@ components:
         - id
         - childId
         - behaviorKey
+        - customBehavior
         - goal
         - happened
         - intensity
@@ -974,6 +1020,12 @@ components:
     ParentLogInput:
       type: object
       properties:
+        behaviorKey:
+          type: [string, "null"]
+        customBehavior:
+          type: [string, "null"]
+        goal:
+          type: [string, "null"]
         happened:
           type: boolean
         intensity:

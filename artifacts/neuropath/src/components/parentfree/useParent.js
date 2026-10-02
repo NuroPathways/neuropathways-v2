@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { getParentBehaviors } from "@workspace/api-client-react";
 
 const KEY = "np_parent_selected_child";
 
@@ -17,5 +18,7 @@ export function useSelectedChild() {
 }
 
 export function isSetupComplete(child) {
-  return !!(child && child.behaviorKey !== undefined && (child.behaviorKey || child.behaviorName) && child.goal);
+  if (!child?.name) return false;
+  const behaviors = getParentBehaviors(child);
+  return behaviors.length > 0 && behaviors.every((behavior) => !!behavior.goal?.trim());
 }

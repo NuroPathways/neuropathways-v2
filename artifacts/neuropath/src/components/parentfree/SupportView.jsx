@@ -56,6 +56,7 @@ export function HelpNowView({ card, onClose, onLog }) {
         <p className="pf-eyebrow">Support Now</p>
         <h1 style={{ fontSize: "clamp(1.8rem,7vw,2.6rem)" }}>{card.behaviorName} Support</h1>
         {card.goal && <p><strong>Current Goal:</strong> {card.goal}</p>}
+        {card.guidanceGoal && <p className="pf-hint">These saved steps were written for the earlier goal: {card.guidanceGoal}.</p>}
         <h2>What to do right now</h2>
         <Steps items={card.rightNow} big />
         <Block title="What to avoid" tone="warn"><Steps items={card.avoid} dash /></Block>
@@ -70,7 +71,7 @@ export function HelpNowView({ card, onClose, onLog }) {
   );
 }
 
-export default function SupportCardView({ card, childName, onHelp }) {
+export default function SupportCardView({ card, childName, onHelp, onUpload }) {
   const src = sourceLabel(card);
   return (
     <div style={{ display: "grid", gap: 16 }} data-testid={`card-support-${card.id}`}>
@@ -82,6 +83,7 @@ export default function SupportCardView({ card, childName, onHelp }) {
         <h2>{card.behaviorName}</h2>
         {card.goal && <p style={{ marginTop: 6 }}><strong>Current Goal:</strong> {card.goal}</p>}
         <SourceNotes card={card} />
+        {onUpload && <button className="pf-btn small" style={{ marginTop: 12 }} onClick={onUpload} data-testid={`button-source-upload-${card.id}`}>Upload a Plan</button>}
       </div>
       <Block title="What to do right now"><Steps items={card.rightNow} /></Block>
       <div className="pf-grid2 even">

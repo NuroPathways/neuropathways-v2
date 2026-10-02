@@ -13,6 +13,8 @@ export interface ParentLog {
   /** @nullable */
   behaviorKey: string | null;
   /** @nullable */
+  customBehavior: string | null;
+  /** @nullable */
   goal: string | null;
   happened: boolean;
   intensity: ParentLogIntensity;

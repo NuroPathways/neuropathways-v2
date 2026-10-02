@@ -20,10 +20,22 @@ function check(value: unknown, description: string) {
   checks++;
   console.log(`PASS ${description}`);
 }
+function checkScan(
+  result: { response: Response; data: any },
+  description: string,
+  additionalCheck: (data: any) => boolean = () => true,
+) {
+  const error = !result.response.ok && typeof result.data?.error === "string"
+    ? `: ${result.data.error.slice(0, 500)}`
+    : "";
+  check(result.response.ok && result.data?.ok === true && additionalCheck(result.data), `${description}${error}`);
+}
 async function request(path: string, method = "GET", body?: unknown, token?: string) {
   const response = await fetch(`${base}${path}`, {
     method, headers: {
-      ...(["localhost", "127.0.0.1"].includes(hostname) ? { "X-Forwarded-For": fixtureIp } : {}),
+      ...(hostname.endsWith(".replit.dev") || ["localhost", "127.0.0.1"].includes(hostname)
+        ? { "X-Forwarded-For": fixtureIp }
+        : {}),
       ...(body && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...(token ? { "X-Parent-Token": token } : {}),
     },
@@ -73,8 +85,28 @@ try {
   const child = created.data;
   childIds.push(child.id);
   check(child.parentId === one.parent.id && child.workspaceId === one.parent.workspaceId && child.familyId && !child.clinicianId, "child ownership and workspace are server-derived");
+  const initialBehaviors = [
+    { behaviorKey: task.key, goal: "Start one small step" },
+    { behaviorKey: "custom", customBehavior: "Morning clothing discomfort", goal: "Choose one comfortable item" },
+  ];
+  const setupMultiChild = await request("/parent/children", "POST", {
+    name: "Synthetic Multi Setup",
+    behaviors: initialBehaviors,
+  }, one.token);
+  check(setupMultiChild.response.status === 201 && setupMultiChild.data.behaviors.length === 2,
+    "initial setup accepts multiple behaviors and independent goals");
+  childIds.push(setupMultiChild.data.id);
+  check(setupMultiChild.data.behaviorKey === task.key && setupMultiChild.data.goal === "Start one small step" &&
+    setupMultiChild.data.behaviors[1].customBehavior === "Morning clothing discomfort",
+  "initial multi-behavior setup retains primary scalar projection and custom label");
+  const setupMultiDashboard = await request(`/parent/children/${setupMultiChild.data.id}/dashboard`, "GET", undefined, one.token);
+  check(setupMultiDashboard.response.ok && setupMultiDashboard.data.supportCards.some((card: any) => card.behaviorKey === task.key) &&
+    setupMultiDashboard.data.supportCards.some((card: any) => card.behaviorKey === "custom" && card.goal === "Choose one comfortable item"),
+  "initial setup creates a starter support card per selected behavior");
   const partial = await request("/parent/session", "GET", undefined, one.token);
-  check(partial.data.children.some((value: any) => value.id === child.id && !value.behaviorKey && !value.goal), "incomplete setup persists and can resume");
+  check(partial.data.children.some((value: any) => value.id === child.id && !value.behaviorKey && !value.goal) &&
+    partial.data.children.some((value: any) => value.id === setupMultiChild.data.id && value.behaviors.length === 2),
+  "parent session resumes both incomplete and multi-behavior setup");
   const chosenBehavior = await request(`/parent/children/${child.id}`, "PATCH", { behaviorKey: task.key }, one.token);
   check(chosenBehavior.response.ok && chosenBehavior.data.behaviorKey === task.key, "behavior selection persists independently");
   const chosenGoal = await request(`/parent/children/${child.id}`, "PATCH", { goal: task.relatedGoals[0] }, one.token);
@@ -116,12 +148,12 @@ try {
   const noClinicShare = await request(`/parent/children/${child.id}/documents/${documentId}/sharing`, "PATCH", { shared: true }, one.token);
   check([400, 409].includes(noClinicShare.response.status), "a plan cannot be shared with an unlinked clinic");
   const scan = await request(`/parent/children/${child.id}/documents/${documentId}/scan`, "POST", {}, one.token);
-  check(scan.response.ok && scan.data.ok, "real uploaded text plan scans successfully");
+  checkScan(scan, "real uploaded text plan scans successfully");
   check(scan.data.supportCards.some((card: any) => card.source === "parent_document" && card.sourceDocumentIds.includes(documentId) && card.sourceReferences.length), "support upgrades with document sources and no false clinician approval");
   const second = await upload(child.id, one.token, `${text}\nAdditional parent observation: first-then helps after school.`, "second-synthetic-plan.txt");
   check(second.response.ok, "parent can upload a second plan after onboarding");
   const scanSecond = await request(`/parent/children/${child.id}/documents/${second.data.id}/scan`, "POST", {}, one.token);
-  check(scanSecond.response.ok, "second plan scans successfully");
+  checkScan(scanSecond, "second plan scans successfully");
   const matched = scanSecond.data.supportCards.filter((card: any) => card.source !== "starter" && card.behaviorKey === task.key);
   check(matched.length === 1, "matching uploaded behavior information merges instead of creating duplicate cards");
   const chat = await request(`/parent/children/${child.id}/chat`, "POST", { message: "What does my uploaded plan say I can offer when homework feels hard?" }, one.token);
@@ -138,6 +170,112 @@ try {
   const customDashboard = await request(`/parent/children/${child.id}/dashboard`, "GET", undefined, one.token);
   check(customDashboard.data.supportCards[0].behaviorName === customBehavior && customDashboard.data.supportCards[0].goal === "Choose one comfortable item", "custom support becomes the current focus instead of the old uploaded behavior");
   check(customDashboard.data.documents.length === 2 && customDashboard.data.logs.some((value: any) => value.id === log.data.id), "behavior and goal edits retain uploaded documents and past logs");
+  const behaviorSelections = [
+    { behaviorKey: task.key, goal: "Finish one small step" },
+    { behaviorKey: "custom", customBehavior, goal: "Choose one comfortable item" },
+  ];
+  const multiBehavior = await request(`/parent/children/${child.id}`, "PATCH", { behaviors: behaviorSelections }, one.token);
+  if (!multiBehavior.response.ok) {
+    console.error("Multi-behavior edit failed:", multiBehavior.response.status, multiBehavior.data?.error);
+  }
+  check(multiBehavior.response.ok && multiBehavior.data.behaviors.length === 2, "parent can select multiple behaviors with independent goals");
+  check(multiBehavior.data.behaviorKey === task.key && multiBehavior.data.goal === "Finish one small step", "legacy scalar fields project the first selected behavior");
+  const duplicateBehaviors = await request(`/parent/children/${child.id}`, "PATCH", {
+    behaviors: [
+      { behaviorKey: "custom", customBehavior: "Morning clothing discomfort" },
+      { behaviorKey: "custom", customBehavior: " MORNING   CLOTHING DISCOMFORT " },
+    ],
+  }, one.token);
+  check(duplicateBehaviors.response.status === 400, "normalized duplicate custom selections are rejected");
+  const overLimitBehaviors = await request(`/parent/children/${child.id}`, "PATCH", {
+    behaviors: Array.from({ length: 21 }, (_, index) => ({ behaviorKey: task.key, goal: `Goal ${index}` })),
+  }, one.token);
+  check(overLimitBehaviors.response.status === 400, "behavior selection limit is enforced");
+  const scalarGoalEdit = await request(`/parent/children/${child.id}`, "PATCH", { goal: "Do the first step" }, one.token);
+  check(scalarGoalEdit.response.ok && scalarGoalEdit.data.behaviors.length === 2 &&
+    scalarGoalEdit.data.behaviors[0].goal === "Do the first step" &&
+    scalarGoalEdit.data.behaviors[1].goal === "Choose one comfortable item",
+  "legacy scalar goal edits update only the primary behavior");
+  const multiScanUpload = await upload(child.id, one.token, `${text}\nMorning routine support: choose one comfortable clothing item.`, "multi-behavior-plan.txt");
+  const multiScan = await request(`/parent/children/${child.id}/documents/${multiScanUpload.data.id}/scan`, "POST", {}, one.token);
+  checkScan(multiScan, "one document scan generates guidance for every selected behavior", (data) =>
+    data.supportCards.some((card: any) => card.behaviorKey === task.key) &&
+    data.supportCards.some((card: any) => card.behaviorKey === "custom" && card.behaviorName === customBehavior));
+  const selectedBehaviorCards = multiScan.data.supportCards.filter((card: any) =>
+    behaviorSelections.some((selection) =>
+      selection.behaviorKey === card.behaviorKey &&
+      (selection.behaviorKey !== "custom" || card.behaviorName === customBehavior),
+    ),
+  );
+  check(selectedBehaviorCards.length >= 2, "multi-behavior scan response preserves both selected guidance cards");
+  check(selectedBehaviorCards.filter((card: any) => card.source !== "starter").length === 2 &&
+    selectedBehaviorCards.filter((card: any) => card.source !== "starter").every((card: any) =>
+      card.sourceDocumentIds.includes(multiScanUpload.data.id) &&
+      card.sourceReferences.some((reference: any) => reference.documentId === multiScanUpload.data.id),
+    ),
+  "multi-behavior scan preserves document provenance for each generated card");
+  const discoveredPlanText = [
+    "Additional target behavior: Repetitive questioning (repeating the same question without distress).",
+    "Explicit goal for repetitive questioning: Ask a question once, then use the written answer card.",
+    "Support: Show the familiar written answer card and praise using it.",
+    "Avoid arguing or physical restraint.",
+  ].join(" ");
+  const discoveredUpload = await upload(child.id, one.token, discoveredPlanText, "additional-explicit-target.txt");
+  check(discoveredUpload.response.ok, "parent can upload a plan naming an additional unselected target and explicit goal");
+  const discoveredScan = await request(`/parent/children/${child.id}/documents/${discoveredUpload.data.id}/scan`, "POST", {}, one.token);
+  checkScan(discoveredScan, "plan scan discovers additional explicit target");
+  const discoveredCard = discoveredScan.data.supportCards.find((card: any) =>
+    card.behaviorKey === "custom" && /repetitive questioning/i.test(card.behaviorName),
+  );
+  check(discoveredCard && discoveredCard.goal === "Ask a question once, then use the written answer card." &&
+    discoveredCard.source === "parent_document" && discoveredCard.sourceDocumentIds.includes(discoveredUpload.data.id) &&
+    discoveredCard.sourceReferences.some((reference: any) => reference.documentId === discoveredUpload.data.id) &&
+    !discoveredCard.reviewedBy && !discoveredCard.reviewedAt,
+  "discovered unselected target persists with its explicit goal and authentic parent-plan provenance only");
+  const discoveredReload = await request(`/parent/children/${child.id}/dashboard`, "GET", undefined, one.token);
+  const reloadedCandidate = discoveredReload.data.supportCards.find((card: any) =>
+    card.behaviorKey === "custom" && /repetitive questioning/i.test(card.behaviorName),
+  );
+  check(reloadedCandidate?.goal === discoveredCard.goal &&
+    reloadedCandidate.sourceDocumentIds.includes(discoveredUpload.data.id),
+  "discovered candidate and goal survive dashboard reload");
+  const rescannedCandidate = await request(`/parent/children/${child.id}/documents/${discoveredUpload.data.id}/scan`, "POST", {}, one.token);
+  checkScan(rescannedCandidate, "discovered target rescan succeeds");
+  const rescannedCard = rescannedCandidate.data.supportCards.find((card: any) =>
+    card.behaviorKey === "custom" && /repetitive questioning/i.test(card.behaviorName),
+  );
+  check(rescannedCard?.goal === discoveredCard.goal &&
+    rescannedCard.sourceDocumentIds.includes(discoveredUpload.data.id) &&
+    rescannedCard.sourceReferences.some((reference: any) => reference.documentId === discoveredUpload.data.id) &&
+    !rescannedCard.reviewedBy && !rescannedCard.reviewedAt,
+  "rescan deduplicates discovered candidate without fabricated clinician review");
+  const afterDiscovery = await request(`/parent/children/${child.id}/dashboard`, "GET", undefined, one.token);
+  check(afterDiscovery.data.child.behaviors.length === 2 &&
+    afterDiscovery.data.child.behaviors[0].goal === "Finish one small step" &&
+    afterDiscovery.data.child.behaviors[1].goal === "Choose one comfortable item" &&
+    !afterDiscovery.data.child.behaviors.some((behavior: any) => /repetitive questioning/i.test(behavior.behaviorName || "")),
+  "discovery and rescan leave manually selected goals unchanged");
+  const removedBehavior = await request(`/parent/children/${child.id}`, "PATCH", {
+    behaviors: [{ behaviorKey: "custom", customBehavior, goal: "Choose one comfortable item" }],
+  }, one.token);
+  check(removedBehavior.response.ok && removedBehavior.data.behaviors.length === 1 &&
+    removedBehavior.data.behaviorKey === "custom" && removedBehavior.data.goal === "Choose one comfortable item",
+  "removing a selected behavior projects the next selection without clearing its goal");
+  const preservedDashboard = await request(`/parent/children/${child.id}/dashboard`, "GET", undefined, one.token);
+  check(preservedDashboard.data.child.behaviors.length === 1 && preservedDashboard.data.child.behaviors[0].behaviorKey === "custom" &&
+    preservedDashboard.data.supportCards[0].behaviorKey === "custom" && preservedDashboard.data.documents.length === 4 &&
+    preservedDashboard.data.supportCards.some((card: any) => card.source === "parent_document"),
+    "behavior edits preserve source-backed cards and all uploaded documents");
+  const customLog = await request(`/parent/children/${child.id}/logs`, "POST", {
+    happened: false, intensity: "low", duration: 0, behaviorKey: "custom", customBehavior, goal: "Choose one comfortable item",
+  }, one.token);
+  check(customLog.response.ok && customLog.data.behaviorKey === "custom" &&
+    customLog.data.customBehavior === customBehavior && customLog.data.goal === "Choose one comfortable item",
+  "parent logs persist the selected custom behavior label and its goal");
+  const [storedCustomLog] = await db.select().from(parentLogsTable).where(inArray(parentLogsTable.id, [customLog.data.id]));
+  check(storedCustomLog?.behaviorKey === "custom" && storedCustomLog.customBehavior === customBehavior &&
+    storedCustomLog.goal === "Choose one comfortable item",
+  "custom behavior log metadata persists in the database");
   const badChat = await request(`/parent/children/${child.id}/chat`, "POST", { message: "Read this child plan" }, two.token);
   check([403, 404].includes(badChat.response.status), "chat cannot retrieve another parent's knowledge base");
   console.log(`Parent integration: ${checks} checks passed.`);

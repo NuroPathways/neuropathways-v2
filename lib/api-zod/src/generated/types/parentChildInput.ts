@@ -5,13 +5,22 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ParentBehaviorInput } from './parentBehaviorInput';
 
 export interface ParentChildInput {
   /** @minLength 1 */
   name: string;
   age?: number;
   notes?: string;
-  behaviorKey?: string;
-  customBehavior?: string;
-  goal?: string;
+  /** @nullable */
+  behaviorKey?: string | null;
+  /** @nullable */
+  customBehavior?: string | null;
+  /** @nullable */
+  goal?: string | null;
+  /**
+     * @minItems 1
+     * @maxItems 20
+     */
+  behaviors?: ParentBehaviorInput[];
 }

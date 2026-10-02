@@ -31,7 +31,7 @@ export default function RoleSelection() {
           <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-5 shadow-lg shadow-primary/25">
             <Brain className="w-7 h-7 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">How will you use Aspire?</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-2">How will you use NeuroPathways?</h1>
           <p className="text-muted-foreground text-sm">Choose your role to personalize your experience</p>
         </div>
 
