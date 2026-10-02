@@ -19,6 +19,9 @@ export type SupportCard = {
   behaviorKey: string;
   behaviorName: string;
   goal: string | null;
+  planGoal?: string | null;
+  planGoalSourceDocumentIds: string[];
+  planGoalSourceReferences: SourceReference[];
   source: "starter" | "parent_document" | "clinician_document" | "clinician_reviewed";
   sourceDocumentIds: string[];
   sourceReferences: SourceReference[];
@@ -248,6 +251,9 @@ export function makeStarterCard(
     behaviorKey: key,
     behaviorName,
     goal,
+    planGoal: null,
+    planGoalSourceDocumentIds: [],
+    planGoalSourceReferences: [],
     source: "starter",
     sourceDocumentIds: [],
     sourceReferences: [],

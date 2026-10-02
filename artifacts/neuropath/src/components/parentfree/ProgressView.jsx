@@ -1,4 +1,5 @@
 import { cardIdentity, logIdentity, summarize } from "./progress";
+import GoalLines from "./GoalLines";
 
 function Stats({ s }) {
   if (s.entries === 0) return <p className="pf-hint">Nothing logged in the last 7 days.</p>;
@@ -24,7 +25,7 @@ export default function ProgressView({ cards, logs, selectedId, onLog }) {
       {card && (
         <div className="pf-card sage" style={{ display: "grid", gap: 8, marginBottom: 12 }} data-testid="progress-selected">
           <p className="pf-eyebrow">{card.behaviorName}</p>
-          <p><strong>Goal:</strong> {card.goal || "No goal set yet"}</p>
+           <GoalLines card={card} />
           <Stats s={s} />
           {s.last && <p className="pf-hint">Last logged {new Date(s.last).toLocaleDateString()}</p>}
         </div>

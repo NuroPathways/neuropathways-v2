@@ -7,7 +7,11 @@ import type { ParentBehavior, SupportCard } from "@workspace/api-client-react";
 import { Btn, Card, ErrorBox, Row, Skeleton, T } from "@/components/ParentUi";
 import { useColors } from "@/hooks/useColors";
 
-type Status = "Active" | "Available to Add" | "Based on Uploaded Plan" | "Clinician Reviewed" | "Found in Uploaded Plan";
+type Status = "Active" | "Available to Add" | "Based on Uploaded Plan · Active" | "Clinician Reviewed · Active" | "Found in Uploaded Plan";
+
+const planGoal = (card: SupportCard) => card.planGoal;
+const hasPlanGoal = (card: SupportCard) =>
+  typeof card.planGoal === "string" && card.planGoal.trim().length > 0;
 
 export function BehaviorLibrary({ behaviors, cards, onOpen }: { behaviors: ParentBehavior[]; cards: SupportCard[]; onOpen: (id: string) => void }) {
   const c = useColors();
@@ -20,7 +24,7 @@ export function BehaviorLibrary({ behaviors, cards, onOpen }: { behaviors: Paren
   const cardFor = (id: string) => cards.find((k) => parentBehaviorIdentity(k) === id);
   const statusOf = (id: string): Status => {
     const k = cardFor(id);
-    if (selected.has(id)) return k?.source === "clinician_reviewed" ? "Clinician Reviewed" : k && k.source !== "starter" ? "Based on Uploaded Plan" : "Active";
+    if (selected.has(id)) return k?.source === "clinician_reviewed" ? "Clinician Reviewed · Active" : k && k.source !== "starter" ? "Based on Uploaded Plan · Active" : "Active";
     return k && k.source !== "starter" ? "Found in Uploaded Plan" : "Available to Add";
   };
   const starterIds = new Set(q.data.map((s) => `starter:${s.key}`));
@@ -36,15 +40,20 @@ export function BehaviorLibrary({ behaviors, cards, onOpen }: { behaviors: Paren
         const st = statusOf(r.id);
         const k = cardFor(r.id);
         const active = selected.has(r.id);
+        const behavior = behaviors.find((item) => parentBehaviorIdentity(item) === r.id);
+        const savedGoal = behavior?.goal;
         const add: Record<string, string> = k ? { card: k.id } : { add: r.key };
         return (
           <Card key={r.id}>
             <T weight="bold" size={16}>{r.name}</T>
             <T size={13} weight="semi" color={st === "Available to Add" ? c.mutedForeground : c.primary}>{st}</T>
             <T size={14} color={c.secondary}>{r.desc}</T>
+            {active ? <T size={13}>Saved goal: {savedGoal ?? "No goal chosen yet"}</T> : null}
+            {active && k && hasPlanGoal(k) ? <T size={13}>Plan goal: {planGoal(k)}</T> : active && k?.goal ? <T size={13}>Saved guidance goal: {k.goal}</T> : null}
             {st === "Found in Uploaded Plan" && k ? (
               <>
-                <T size={13} weight="semi">Goal in plan: {k.goal ?? "none listed"}</T>
+                <T size={13} weight="semi">{hasPlanGoal(k) ? `Plan goal: ${planGoal(k)}` : "No plan goal identified in the uploaded plan."}</T>
+                {!hasPlanGoal(k) && k.goal ? <T size={13}>Saved guidance goal: {k.goal}</T> : null}
                 {k.rightNow.slice(0, 3).map((s, i) => <T key={i} size={14}>{i + 1}. {s}</T>)}
               </>
             ) : null}

@@ -107,6 +107,9 @@ try {
   "both selected goals are independently initialized");
 
   const planText = [
+    "Target behavior: Task Refusal (avoiding homework tasks).",
+    "Explicit goal for Task Refusal: Start the worksheet within two minutes after one reminder.",
+    "Support: Break the worksheet into a short first step and recognize getting started.",
     "Target behavior: Repetitive questioning (repeating the same question without distress).",
     "Explicit goal for repetitive questioning: Ask a question once, then use the written answer card.",
     "Support: Offer the written answer card after a single question and point to a short checklist.",
@@ -126,6 +129,14 @@ try {
     syntheticCandidateDiagnostic(candidate
       ? [candidate]
       : scan.data.supportCards.filter((card: any) => card.sourceDocumentIds?.includes(uploaded.data.id))));
+  const taskRefusalCard = scan.data.supportCards.find((card: any) => card.behaviorKey === "task_refusal");
+  check(taskRefusalCard?.goal === behaviors[0].goal &&
+    taskRefusalCard?.planGoal === "Start the worksheet within two minutes after one reminder." &&
+    taskRefusalCard.planGoalSourceDocumentIds.length === 1 &&
+    taskRefusalCard.planGoalSourceDocumentIds[0] === uploaded.data.id &&
+    taskRefusalCard.planGoalSourceReferences.length === 1 &&
+    taskRefusalCard.planGoalSourceReferences[0].documentId === uploaded.data.id,
+  "explicit plan goal displays alongside the unchanged manual goal with independent source references");
   check(Boolean(candidate && candidate.source === "parent_document" &&
     candidate.sourceDocumentIds.length === 1 && candidate.sourceDocumentIds[0] === uploaded.data.id &&
     candidate.sourceReferences.length === 1 && candidate.sourceReferences[0].documentId === uploaded.data.id &&
@@ -141,6 +152,11 @@ try {
     firstDashboard.data.child.behaviors[1].goal === behaviors[1].goal &&
     !firstDashboard.data.child.behaviors.some((behavior: any) => /repetitive questioning/i.test(behavior.behaviorName || "")),
   "reload retains the unselected candidate while selected goals remain unchanged");
+  const reloadedTaskRefusal = firstDashboard.data.supportCards.find((card: any) => card.behaviorKey === "task_refusal");
+  check(reloadedTaskRefusal?.goal === behaviors[0].goal &&
+    reloadedTaskRefusal?.planGoal === taskRefusalCard.planGoal &&
+    reloadedTaskRefusal.planGoalSourceReferences[0]?.documentId === uploaded.data.id,
+  "dashboard reload retains both distinct goals and plan-goal provenance");
 
   const rescan = await request(`/parent/children/${created.data.id}/documents/${uploaded.data.id}/scan`, "POST", {}, parent.token);
   checkScan(rescan, "focused discovery rescan succeeds");
@@ -156,13 +172,24 @@ try {
     rescannedCandidate.sourceReferences[0].documentId === uploaded.data.id &&
     !rescannedCandidate.reviewedBy && !rescannedCandidate.reviewedAt,
   "rescan retains one stable candidate identity with authentic private provenance");
+  const rescannedTaskRefusal = rescan.data.supportCards.find((card: any) => card.behaviorKey === "task_refusal");
+  check(rescannedTaskRefusal?.goal === behaviors[0].goal &&
+    rescannedTaskRefusal?.planGoal === taskRefusalCard.planGoal &&
+    rescannedTaskRefusal.planGoalSourceDocumentIds[0] === uploaded.data.id &&
+    rescannedTaskRefusal.planGoalSourceReferences[0]?.documentId === uploaded.data.id,
+  "rescan updates the separate explicit plan goal without changing the saved manual goal");
 
   const finalDashboard = await request(`/parent/children/${created.data.id}/dashboard`, "GET", undefined, parent.token);
+  const finalTaskRefusal = finalDashboard.data.supportCards.find((card: any) => card.behaviorKey === "task_refusal");
   check(finalDashboard.data.child.behaviors.length === 2 &&
     finalDashboard.data.child.behaviors[0].goal === behaviors[0].goal &&
     finalDashboard.data.child.behaviors[1].goal === behaviors[1].goal &&
     !finalDashboard.data.child.behaviors.some((behavior: any) => /repetitive questioning/i.test(behavior.behaviorName || "")),
   "rescan reload keeps the candidate out of selected setup behaviors and preserves both goals");
+  check(finalTaskRefusal?.goal === behaviors[0].goal &&
+    finalTaskRefusal?.planGoal === taskRefusalCard.planGoal &&
+    finalTaskRefusal.planGoalSourceReferences[0]?.documentId === uploaded.data.id,
+  "rescan reload preserves the saved and scanned goals independently");
   console.log(`Parent discovery integration: ${checks} checks passed.`);
 } finally {
   const parentIds = accounts.map((account) => account.parent.id);

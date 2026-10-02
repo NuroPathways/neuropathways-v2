@@ -31,7 +31,7 @@ function Editor() {
     const k = dash.data?.supportCards.find((x) => x.id === cardId);
     if (!k || prefilled.current) return;
     prefilled.current = true;
-    setSels((cur) => cur.some((s) => parentBehaviorIdentity(s) === parentBehaviorIdentity(k)) ? cur : [...cur, { behaviorKey: k.behaviorKey, customBehavior: k.behaviorKey === "custom" ? k.behaviorName : "", goal: k.goal ?? "" }]);
+    setSels((cur) => cur.some((s) => parentBehaviorIdentity(s) === parentBehaviorIdentity(k)) ? cur : [...cur, { behaviorKey: k.behaviorKey, customBehavior: k.behaviorKey === "custom" ? k.behaviorName : "", goal: "" }]);
   }, [dash.data, cardId]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

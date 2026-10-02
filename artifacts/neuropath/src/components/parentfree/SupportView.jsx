@@ -1,8 +1,9 @@
 import { Fragment } from "react";
+import GoalLines from "./GoalLines";
 
 export function sourceLabel(card) {
   switch (card.source) {
-    case "clinician_reviewed": return { text: "Reviewed by your clinician.", kind: "" };
+    case "clinician_reviewed": return { text: "Support steps reviewed by your clinician.", kind: "" };
     case "clinician_document": return { text: "Based on your child's uploaded plan.", kind: "" };
     case "parent_document": return { text: "Based on your uploaded plan. Not yet reviewed by a clinician.", kind: "sun" };
     default: return { text: "Starter support based on common behavior patterns. Upload your child's plan later for more personalized guidance.", kind: "sun" };
@@ -44,18 +45,17 @@ export function SourceNotes({ card }) {
   );
 }
 
-export function HelpNowView({ card, onClose, onLog }) {
+export function HelpNowView({ card, onClose, onLog, onAdd, embedded = false, active = true }) {
   const src = sourceLabel(card);
-  return (
-    <div className="pf-overlay" role="dialog" aria-label="Support Now" data-testid="dialog-help-now">
-      <div className="pf-narrow" style={{ display: "grid", gap: 18 }}>
+  const content = (
+      <div className={embedded ? undefined : "pf-narrow"} style={{ display: "grid", gap: 18 }} data-testid="help-now-steps">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span className={`pf-tag ${src.kind}`}>{src.text}</span>
-          <button className="pf-btn small" onClick={onClose} data-testid="button-close-help">Close</button>
+          {onClose && <button className="pf-btn small" onClick={onClose} data-testid="button-close-help">Close</button>}
         </div>
         <p className="pf-eyebrow">Support Now</p>
         <h1 style={{ fontSize: "clamp(1.8rem,7vw,2.6rem)" }}>{card.behaviorName} Support</h1>
-        {card.goal && <p><strong>Current Goal:</strong> {card.goal}</p>}
+        <GoalLines card={card} active={active} />
         {card.guidanceGoal && <p className="pf-hint">These saved steps were written for the earlier goal: {card.guidanceGoal}.</p>}
         <h2>What to do right now</h2>
         <Steps items={card.rightNow} big />
@@ -65,13 +65,14 @@ export function HelpNowView({ card, onClose, onLog }) {
         <SourceNotes card={card} />
         {card.source === "starter" && <p className="pf-card sun" data-testid="text-starter-note">This is starter support. Upload your child's plan for personalized guidance.</p>}
         {onLog && <button className="pf-btn" onClick={onLog} data-testid="button-help-log">Log what happened</button>}
+        {onAdd && <><p className="pf-hint">You can use these plan steps now. Add this behavior to your active list before logging it.</p><button className="pf-btn" onClick={onAdd} data-testid="button-help-add-found">Add this behavior</button></>}
         <p className="pf-hint">If anyone is in danger or hurt, call your local emergency number. {card.seekHelp}</p>
       </div>
-    </div>
   );
+  return embedded ? content : <div className="pf-overlay" role="dialog" aria-label="Support Now" data-testid="dialog-help-now">{content}</div>;
 }
 
-export default function SupportCardView({ card, childName, onHelp, onUpload }) {
+export default function SupportCardView({ card, childName, onHelp, onUpload, active = true }) {
   const src = sourceLabel(card);
   return (
     <div style={{ display: "grid", gap: 16 }} data-testid={`card-support-${card.id}`}>
@@ -81,7 +82,7 @@ export default function SupportCardView({ card, childName, onHelp, onUpload }) {
         </div>
         <p className="pf-eyebrow">Behavior Support Card{childName ? ` for ${childName}` : ""}</p>
         <h2>{card.behaviorName}</h2>
-        {card.goal && <p style={{ marginTop: 6 }}><strong>Current Goal:</strong> {card.goal}</p>}
+        <GoalLines card={card} active={active} />
         <SourceNotes card={card} />
         {onUpload && <button className="pf-btn small" style={{ marginTop: 12 }} onClick={onUpload} data-testid={`button-source-upload-${card.id}`}>Upload a Plan</button>}
       </div>

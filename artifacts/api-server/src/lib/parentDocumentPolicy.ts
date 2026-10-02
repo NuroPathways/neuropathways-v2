@@ -167,9 +167,10 @@ export function normalizeDiscoveredParentTargets(value: unknown, limit = 20): Di
     const identity = supportBehaviorIdentity({ behaviorKey, behaviorName });
     if (!identity || seen.has(identity)) continue;
     seen.add(identity);
-    const goal = typeof candidate.goal === "string"
-      ? candidate.goal.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 500)
+    const normalizedGoal = typeof candidate.goal === "string"
+      ? candidate.goal.replace(/[\u0000-\u001f\u007f]/g, "").trim()
       : "";
+    const goal = normalizedGoal.length <= 500 ? normalizedGoal : "";
     targets.push({ behaviorKey, behaviorName, goal: goal || null });
     if (targets.length >= Math.max(0, Math.min(20, limit))) break;
   }
@@ -298,7 +299,7 @@ export function reconcileSupportCards(existingCards: unknown[], incomingCards: S
   }
 
   const result: SupportCard[] = [];
-  for (const group of groups.values()) {
+  for (const [groupKey, group] of groups.entries()) {
     const ordered = group.sort((left, right) => {
       const priority = SOURCE_PRIORITY[right.source] - SOURCE_PRIORITY[left.source];
       if (priority) return priority;
@@ -308,6 +309,21 @@ export function reconcileSupportCards(existingCards: unknown[], incomingCards: S
       return Number(incomingCards.includes(right)) - Number(incomingCards.includes(left));
     });
     const winner = { ...ordered[0] };
+    const explicitPlanGoal = [...incomingCards].reverse().find((card) =>
+      supportBehaviorIdentity(card) === groupKey &&
+      typeof card.planGoal === "string" &&
+      card.planGoal.trim().length > 0,
+    );
+    if (explicitPlanGoal) {
+      winner.planGoal = explicitPlanGoal.planGoal;
+      winner.planGoalSourceDocumentIds = [...new Set(explicitPlanGoal.planGoalSourceDocumentIds || [])];
+      winner.planGoalSourceReferences = mergeReferences(explicitPlanGoal.planGoalSourceReferences || []);
+    } else {
+      const retainedPlanGoal = ordered.find((card) => typeof card.planGoal === "string" && card.planGoal.trim());
+      winner.planGoal = retainedPlanGoal?.planGoal || null;
+      winner.planGoalSourceDocumentIds = [...new Set(retainedPlanGoal?.planGoalSourceDocumentIds || [])];
+      winner.planGoalSourceReferences = mergeReferences(retainedPlanGoal?.planGoalSourceReferences || []);
+    }
     const hasDifferentGuidance = ordered.slice(1).some((card) =>
       guidanceFingerprint(card) !== guidanceFingerprint(winner),
     );
@@ -319,14 +335,39 @@ export function reconcileSupportCards(existingCards: unknown[], incomingCards: S
       winner.sourceDocumentIds = [...new Set(winner.sourceDocumentIds || [])];
       winner.sourceReferences = mergeReferences(winner.sourceReferences || []);
     }
-    winner.relatedGoals = uniqueStrings(ordered.flatMap((card) => card.relatedGoals || []));
+    winner.relatedGoals = hasDifferentGuidance
+      ? uniqueStrings(winner.relatedGoals || [])
+      : uniqueStrings(ordered.flatMap((card) => card.relatedGoals || []));
     winner.conflict = conflict;
     winner.conflictMessage = conflict
-      ? ordered.map((card) => card.conflictMessage).find(Boolean) || REVIEW_RECOMMENDATION
+      ? (hasDifferentGuidance ? winner.conflictMessage : ordered.map((card) => card.conflictMessage).find(Boolean)) ||
+        REVIEW_RECOMMENDATION
       : null;
     result.push(winner);
   }
   return result.sort((left, right) => SOURCE_PRIORITY[right.source] - SOURCE_PRIORITY[left.source]);
+}
+
+/** Clear document-derived goal fields unless every contributing source is visible to the clinician. */
+export function filterPlanGoalForVisibleSources<T extends SupportCard>(
+  card: T,
+  visibleDocumentIds: Iterable<string>,
+): T {
+  const sourceIds = [...new Set(card.planGoalSourceDocumentIds || [])];
+  const visible = new Set(visibleDocumentIds);
+  const referenceIds = new Set((card.planGoalSourceReferences || []).map((reference) => reference.documentId));
+  const fullyVisible = Boolean(
+    card.planGoal?.trim() &&
+    sourceIds.length &&
+    sourceIds.every((id) => visible.has(id) && referenceIds.has(id)),
+  );
+  if (fullyVisible) return card;
+  return {
+    ...card,
+    planGoal: null,
+    planGoalSourceDocumentIds: [],
+    planGoalSourceReferences: [],
+  };
 }
 
 /** Pin the selected behavior first and overlay only its current goal without rewriting stored approvals. */

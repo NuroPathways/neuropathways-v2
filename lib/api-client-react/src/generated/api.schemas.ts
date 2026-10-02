@@ -189,6 +189,14 @@ export interface SupportCard {
   behaviorName: string;
   /** @nullable */
   goal: string | null;
+  /**
+     * Exact goal explicitly stated in a scanned source plan, independent of the selected goal.
+     * @maxLength 500
+     * @nullable
+     */
+  planGoal?: string | null;
+  planGoalSourceDocumentIds: string[];
+  planGoalSourceReferences: SourceReference[];
   source: SupportCardSource;
   sourceDocumentIds: string[];
   sourceReferences: SourceReference[];

@@ -14,3 +14,9 @@ Do not include previous document-derived support cards in a new scan's generatio
 **Why:** Recording fetched-file sources alone still allowed private prior guidance to influence a subsequently shared scan through the prompt's existing-card context.
 
 **How to apply:** Test the production prompt builder, not just seeded complete-provenance cards. Verify prior private card content and identifiers cannot enter an independently generated scan.
+
+Separately displayed plan goals require their own consent provenance when they update independently of reviewed support steps. Auxiliary text must follow the same provenance boundaries.
+
+**Why:** A private plan goal can accompany public reviewed guidance. Clearing the explicit plan-goal field is insufficient if its text also enters merged related-goal lists or conflict messages.
+
+**How to apply:** Track all contributing goal sources and clear goal text and references unless all sources are visible to the clinician. Do not merge private losing-card auxiliary text into public winning guidance without its provenance.

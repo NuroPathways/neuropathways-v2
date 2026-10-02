@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { getParentBehaviors, parentBehaviorIdentity, useGetParentDashboard, getGetParentDashboardQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import { Shell, ErrorBox, Skeleton } from "@/components/parentfree/common";
 import { isSetupComplete, useSelectedChild } from "@/components/parentfree/useParent";
-import SupportCardView, { HelpNowView, sourceLabel } from "@/components/parentfree/SupportView";
+import SupportCardView, { sourceLabel } from "@/components/parentfree/SupportView";
+import HelpNowPanel from "@/components/parentfree/HelpNowPanel";
+import GoalLines from "@/components/parentfree/GoalLines";
 import LogPanel from "@/components/parentfree/LogPanel";
 import DocsPanel from "@/components/parentfree/DocsPanel";
 import ChatPanel from "@/components/parentfree/ChatPanel";
@@ -29,37 +31,6 @@ function clearFocus(userId) {
   } catch { /* Storage may be unavailable in a restricted browser. */ }
 }
 
-function HelpSelector({ cards, onPick, onAdd, onClose }) {
-  const ref = useRef(null);
-  const closeRef = useRef(onClose); closeRef.current = onClose;
-  useEffect(() => {
-    const prev = document.activeElement;
-    ref.current?.querySelector("button")?.focus();
-    const overflow = document.body.style.overflow; document.body.style.overflow = "hidden";
-    // restored on cleanup
-    const key = (e) => {
-      if (e.key === "Escape") closeRef.current();
-      if (e.key !== "Tab") return;
-      const buttons = [...(ref.current?.querySelectorAll("button:not([disabled])") || [])];
-      const first = buttons[0], last = buttons[buttons.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
-    };
-    document.addEventListener("keydown", key);
-    return () => { document.removeEventListener("keydown", key); document.body.style.overflow = overflow; prev?.focus?.(); };
-  }, []);
-  return (
-    <div className="pf-overlay" role="dialog" aria-modal="true" aria-labelledby="help-select-title" ref={ref} data-testid="selector-help"><div className="pf-wrap pf-modal-card" style={{ display: "grid", gap: 14 }}>
-      <h2 id="help-select-title">What do you need help with right now?</h2>
-      {cards.map((c) => <button key={c.id} className="pf-card" style={{ textAlign: "left", cursor: "pointer", display: "grid", gap: 4 }} onClick={() => onPick(c.id)} data-testid={`select-help-${c.id}`}><strong style={{ fontSize: "1.1rem" }}>{c.behaviorName}</strong><span>Goal: {c.goal || "Not set"}</span></button>)}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="pf-btn" onClick={onAdd} data-testid="button-help-add-behavior">Add Another Behavior</button>
-        <button className="pf-btn ghost" onClick={onClose} data-testid="button-help-close">Close</button>
-      </div>
-    </div></div>
-  );
-}
-
 function Body({ child }) {
   const { user } = useAuth();
   const [sp, setSp] = useSearchParams();
@@ -67,6 +38,7 @@ function Body({ child }) {
   const [help, setHelp] = useState(false);
   const [selId, setSelId] = useState(() => readFocus(user?.id, child.id));
   const [section, setSection] = useState(null);
+  const [addFromHelp, setAddFromHelp] = useState(null);
   const q = useGetParentDashboard(child.id, { query: { queryKey: getGetParentDashboardQueryKey(child.id), staleTime: 0, refetchOnMount: "always" }, request: parentRequest() });
   useEffect(() => { setHelp(false); }, [child.id]);
   useEffect(() => {
@@ -79,10 +51,12 @@ function Body({ child }) {
   const mine = d ? getParentBehaviors(d.child || child) : [];
   const allCards = (d?.supportCards || []).map((c) => {
     const m = mine.find((b) => parentBehaviorIdentity(b) === parentBehaviorIdentity(c));
-    return m && m.goal && m.goal !== c.goal ? { ...c, goal: m.goal, guidanceGoal: c.goal } : c;
+    return m ? { ...c, goal: m.goal ?? null, ...(m.goal !== c.goal && c.goal ? { guidanceGoal: c.goal } : {}) } : c;
   });
   const cards = allCards.filter((c) => mine.some((b) => parentBehaviorIdentity(b) === parentBehaviorIdentity(c)));
   const archivedCards = allCards.filter((c) => !cards.includes(c));
+  const helpCards = allCards.filter((c) => cards.includes(c) || c.source !== "starter");
+  const activeIds = new Set(cards.map(cardIdentity));
   const card = cards.find((c) => cardIdentity(c) === selId) || cards[0];
   const curId = card ? cardIdentity(card) : null;
   const behaviors = cards.map((c) => ({ behaviorKey: c.behaviorKey, customBehavior: c.behaviorKey === "custom" ? c.behaviorName : null, behaviorName: c.behaviorName, goal: c.goal }));
@@ -101,19 +75,25 @@ function Body({ child }) {
             <div className="pf-grid2 even">
               <div className="pf-card warn pf-rise">
                 <h2>Need help right now?</h2>
-                <button className="pf-btn primary" style={{ marginTop: 14 }} onClick={() => setHelp(cards.length > 1 ? "select" : card.id)} data-testid="button-help-now">I Need Help Now</button>
+                 <button className="pf-btn primary" style={{ marginTop: 14 }} onClick={() => setHelp("select")} data-testid="button-help-now">I Need Help Now</button>
               </div>
               <div className="pf-card sage">
                 <p className="pf-eyebrow">Current Focus</p>
                 <p style={{ marginTop: 8 }}><strong>Current Behavior:</strong> <span data-testid="text-current-behavior">{card.behaviorName}</span></p>
-                <p><strong>Current Goal:</strong> <span data-testid="text-current-goal">{card.goal || child.goal}</span></p>
+                 <p><strong>Current Goal:</strong> <span data-testid="text-current-goal">{card.goal || "No goal set yet"}</span></p>
+                 {card.planGoal && <p data-testid="text-current-plan-goal"><strong>Plan goal:</strong> {card.planGoal}</p>}
                 <span className={`pf-tag ${sourceLabel(card).kind}`} style={{ marginTop: 10 }}>{sourceLabel(card).text}</span>
                 <div style={{ marginTop: 12 }}><button className="pf-btn small" onClick={() => go("steps")} data-testid="button-open-steps">Open support steps</button></div>
               </div>
             </div>
             <BehaviorCards cards={cards} selectedId={curId} onSelect={setSelId} />
             <ProgressView cards={cards} logs={d.logs} selectedId={curId} onLog={() => go("log")} />
-            <BehaviorLibrary child={d.child || child} allCards={allCards} onUpload={() => go("docs")} onEdit={(sec) => go("edit", sec)} />
+             {archivedCards.some((c) => c.planGoal) && <div className="pf-card" data-testid="goals-found-in-plan">
+               <h3>More goals found in your plan</h3>
+               <p className="pf-hint">Available in Help Now without changing your saved behaviors or goals.</p>
+               {archivedCards.filter((c) => c.planGoal).map((c) => <div key={c.id} style={{ marginTop: 12 }}><strong>{c.behaviorName}</strong><GoalLines card={c} active={false} /></div>)}
+             </div>}
+             <BehaviorLibrary child={d.child || child} allCards={allCards} requestAdd={addFromHelp} onAddHandled={() => setAddFromHelp(null)} onUpload={() => go("docs")} onEdit={(sec) => go("edit", sec)} />
             <div className="pf-card">
               <h3 style={{ marginBottom: 12 }}>Quick Actions</h3>
               <div className="pf-actions">
@@ -129,8 +109,7 @@ function Body({ child }) {
               <p style={{ margin: "6px 0 14px" }}>Upload a behavior plan, school support plan, or treatment plan when you are ready.</p>
               <button className="pf-btn ink" onClick={() => go("docs")} data-testid="button-upload-plan">Upload a Plan</button>
             </div>
-            {help === "select" && <HelpSelector cards={cards} onPick={(id) => { const chosen = cards.find((c) => c.id === id); if (chosen) setSelId(cardIdentity(chosen)); setHelp(id); }} onClose={() => setHelp(false)} onAdd={() => { setHelp(false); go("edit", "behaviors"); }} />}
-            {help && help !== "select" && cards.find((c) => c.id === help) && <HelpNowView card={cards.find((c) => c.id === help)} onClose={() => setHelp(false)} onLog={() => { setHelp(false); go("log"); }} />}
+             {help && <HelpNowPanel cards={helpCards} activeIds={activeIds} selectedId={help} onPick={(chosen) => { const id = cardIdentity(chosen); if (activeIds.has(id)) setSelId(id); setHelp(id); }} onClose={() => setHelp(false)} onLog={() => { setHelp(false); go("log"); }} onUpload={() => { setHelp(false); go("docs"); }} onAdd={(chosen) => { setHelp(false); if (chosen) { setAddFromHelp(cardIdentity(chosen)); go("today"); } else go("edit", "behaviors"); }} />}
           </div>
         ) : (
           <div className="pf-card" data-testid="empty-support">
@@ -150,7 +129,7 @@ function Body({ child }) {
             <p className="pf-hint">These behaviors are not currently active. Their plan guidance is kept for reference and can be added from the library.</p>
             {archivedCards.map((saved) => <details key={saved.id} style={{ marginTop: 12 }}>
               <summary>{saved.behaviorName} — {saved.goal}</summary>
-              <SupportCardView card={saved} childName={child.name} onUpload={() => go("docs")} />
+               <SupportCardView card={saved} childName={child.name} active={false} onUpload={() => go("docs")} />
             </details>)}
           </div>}
         </div>

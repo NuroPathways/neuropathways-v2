@@ -31,6 +31,7 @@ import {
   detectParentDocumentType,
   discoveredTargetsForScan,
   documentSupportCardId,
+  filterPlanGoalForVisibleSources,
   guidanceFingerprint,
   hasDuplicateParentDocumentHash,
   isSafeParentGuidance,
@@ -361,6 +362,7 @@ function toolSchema() {
         seek_help: { type: "string" },
         selected_goal: {
           type: "string",
+          maxLength: 500,
           description: "A specific goal explicitly stated in the supplied source documents for this behavior, or an empty string if none is explicit.",
         },
         track: { type: "array", items: { type: "string" } },
@@ -622,7 +624,7 @@ export async function scanParentDocument(
       if (!result?.input || typeof result.input !== "object") throw new Error("The AI returned an unreadable result. Please try scanning again.");
       const value = result.input as Record<string, unknown>;
       const extractedGoal = typeof value.selected_goal === "string"
-        ? value.selected_goal.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 1000)
+        ? value.selected_goal.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 500)
         : "";
       const provenance = deriveSupportProvenance(
         sources.map((source) => ({
@@ -637,11 +639,17 @@ export async function scanParentDocument(
         id: source.document.id,
         title: source.document.title || source.document.fileName || "Uploaded support plan",
       })), sourceIds);
+      const explicitPlanGoal = discoveredTargets.find((target) =>
+        supportBehaviorIdentity(target) === supportBehaviorIdentity(behavior),
+      )?.goal || null;
       const incoming: SupportCard = {
         id: documentSupportCardId(documentId, starter.behaviorKey, behaviorName),
         behaviorKey: starter.behaviorKey,
         behaviorName,
         goal: behavior.goal || extractedGoal || null,
+        planGoal: explicitPlanGoal,
+        planGoalSourceDocumentIds: explicitPlanGoal ? sourceIds : [],
+        planGoalSourceReferences: explicitPlanGoal ? refs : [],
         source: provenance.source,
         sourceDocumentIds: sourceIds,
         sourceReferences: refs,
@@ -708,26 +716,9 @@ export async function scanParentDocument(
       }
     }
 
-    const nextBehaviors = selectedBehaviors.map((behavior) => {
-      if (behavior.goal) return behavior;
-      const incoming = incomingCards.find((card) =>
-        supportBehaviorIdentity(card) === supportBehaviorIdentity({
-          behaviorKey: behavior.behaviorKey === "custom" ? "custom" : behavior.behaviorKey,
-          behaviorName: behavior.behaviorName,
-        }),
-      );
-      return incoming?.goal ? { ...behavior, goal: incoming.goal } : behavior;
-    });
-    const primary = nextBehaviors[0];
     await db.transaction(async (tx) => {
       await tx.update(parentChildSettingsTable).set({
         supportCards: nextCards as any,
-        ...(selectedBehaviors.length ? {
-          behaviors: nextBehaviors,
-          behaviorKey: primary?.behaviorKey ?? null,
-          customBehavior: primary?.customBehavior ?? null,
-          goal: primary?.goal ?? null,
-        } : {}),
         updatedAt: new Date(),
       }).where(eq(parentChildSettingsTable.childId, childId));
       await tx.update(parentDocumentsTable).set({
@@ -831,10 +822,26 @@ export async function getParentSharedSupport(
       }];
     });
     if (sourceReferences.length !== sourceIds.length) return [];
-    return [{ ...card, sourceDocumentIds: sourceIds, sourceReferences }];
+    return [filterPlanGoalForVisibleSources({
+      ...card,
+      sourceDocumentIds: sourceIds,
+      sourceReferences,
+      planGoalSourceReferences: (card.planGoalSourceReferences || []).flatMap((reference) => {
+        const source = visibleDocuments.get(reference.documentId);
+        if (!source) return [];
+        return [{
+          documentId: reference.documentId,
+          title: source.document.title || source.document.fileName || reference.title,
+          excerpt: reference.excerpt || null,
+        }];
+      }),
+    }, visibleDocuments.keys())];
   });
 
-  const referencedIds = new Set(supportCards.flatMap((card) => card.sourceDocumentIds));
+  const referencedIds = new Set(supportCards.flatMap((card) => [
+    ...card.sourceDocumentIds,
+    ...(card.planGoalSourceDocumentIds || []),
+  ]));
   const visibleDocWires = [...referencedIds].flatMap((id) => {
     const source = visibleDocuments.get(id);
     if (!source) return [];
@@ -906,6 +913,9 @@ export async function getParentSupportCards(parentId: string, childId: string): 
     );
     currentCards.push({
       ...card,
+      planGoal: card.planGoal || null,
+      planGoalSourceDocumentIds: card.planGoalSourceDocumentIds || [],
+      planGoalSourceReferences: card.planGoalSourceReferences || [],
       sourceDocumentIds: allowed,
       sourceReferences: visibleRefs,
       source: reviewStillValid

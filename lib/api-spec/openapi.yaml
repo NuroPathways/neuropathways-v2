@@ -836,6 +836,18 @@ components:
           type: string
         goal:
           type: [string, "null"]
+        planGoal:
+          type: [string, "null"]
+          maxLength: 500
+          description: Exact goal explicitly stated in a scanned source plan, independent of the selected goal.
+        planGoalSourceDocumentIds:
+          type: array
+          items:
+            type: string
+        planGoalSourceReferences:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceReference"
         source:
           type: string
           enum: [starter, parent_document, clinician_document, clinician_reviewed]
@@ -889,6 +901,8 @@ components:
         - behaviorName
         - goal
         - source
+        - planGoalSourceDocumentIds
+        - planGoalSourceReferences
         - sourceDocumentIds
         - sourceReferences
         - conflict

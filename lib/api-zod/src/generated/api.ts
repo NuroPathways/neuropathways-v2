@@ -310,6 +310,8 @@ export const GetParentDashboardParams = zod.object({
 
 export const getParentDashboardResponseChildBehaviorsItemBehaviorKeyMax = 100;
 
+export const getParentDashboardResponseSupportCardsItemPlanGoalMax = 500;
+
 
 
 export const GetParentDashboardResponse = zod.object({
@@ -337,6 +339,13 @@ export const GetParentDashboardResponse = zod.object({
   "behaviorKey": zod.string(),
   "behaviorName": zod.string(),
   "goal": zod.string().nullable(),
+  "planGoal": zod.string().max(getParentDashboardResponseSupportCardsItemPlanGoalMax).nullish().describe('Exact goal explicitly stated in a scanned source plan, independent of the selected goal.'),
+  "planGoalSourceDocumentIds": zod.array(zod.string()),
+  "planGoalSourceReferences": zod.array(zod.object({
+  "documentId": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullable()
+})),
   "source": zod.enum(['starter', 'parent_document', 'clinician_document', 'clinician_reviewed']),
   "sourceDocumentIds": zod.array(zod.string()),
   "sourceReferences": zod.array(zod.object({
@@ -493,6 +502,10 @@ export const ScanParentDocumentParams = zod.object({
   "documentId": zod.coerce.string()
 })
 
+export const scanParentDocumentResponseSupportCardsItemPlanGoalMax = 500;
+
+
+
 export const ScanParentDocumentResponse = zod.object({
   "ok": zod.literal(true),
   "supportCards": zod.array(zod.object({
@@ -500,6 +513,13 @@ export const ScanParentDocumentResponse = zod.object({
   "behaviorKey": zod.string(),
   "behaviorName": zod.string(),
   "goal": zod.string().nullable(),
+  "planGoal": zod.string().max(scanParentDocumentResponseSupportCardsItemPlanGoalMax).nullish().describe('Exact goal explicitly stated in a scanned source plan, independent of the selected goal.'),
+  "planGoalSourceDocumentIds": zod.array(zod.string()),
+  "planGoalSourceReferences": zod.array(zod.object({
+  "documentId": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullable()
+})),
   "source": zod.enum(['starter', 'parent_document', 'clinician_document', 'clinician_reviewed']),
   "sourceDocumentIds": zod.array(zod.string()),
   "sourceReferences": zod.array(zod.object({
@@ -669,6 +689,10 @@ export const ReviewParentSupportBody = zod.object({
   "approved": zod.boolean()
 })
 
+export const reviewParentSupportResponseSupportCardsItemPlanGoalMax = 500;
+
+
+
 export const ReviewParentSupportResponse = zod.object({
   "ok": zod.literal(true),
   "supportCards": zod.array(zod.object({
@@ -676,6 +700,13 @@ export const ReviewParentSupportResponse = zod.object({
   "behaviorKey": zod.string(),
   "behaviorName": zod.string(),
   "goal": zod.string().nullable(),
+  "planGoal": zod.string().max(reviewParentSupportResponseSupportCardsItemPlanGoalMax).nullish().describe('Exact goal explicitly stated in a scanned source plan, independent of the selected goal.'),
+  "planGoalSourceDocumentIds": zod.array(zod.string()),
+  "planGoalSourceReferences": zod.array(zod.object({
+  "documentId": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullable()
+})),
   "source": zod.enum(['starter', 'parent_document', 'clinician_document', 'clinician_reviewed']),
   "sourceDocumentIds": zod.array(zod.string()),
   "sourceReferences": zod.array(zod.object({
@@ -707,6 +738,10 @@ export const GetParentSharedSupportParams = zod.object({
   "childId": zod.coerce.string()
 })
 
+export const getParentSharedSupportResponseSupportCardsItemPlanGoalMax = 500;
+
+
+
 export const GetParentSharedSupportResponse = zod.object({
   "childName": zod.string(),
   "supportCards": zod.array(zod.object({
@@ -714,6 +749,13 @@ export const GetParentSharedSupportResponse = zod.object({
   "behaviorKey": zod.string(),
   "behaviorName": zod.string(),
   "goal": zod.string().nullable(),
+  "planGoal": zod.string().max(getParentSharedSupportResponseSupportCardsItemPlanGoalMax).nullish().describe('Exact goal explicitly stated in a scanned source plan, independent of the selected goal.'),
+  "planGoalSourceDocumentIds": zod.array(zod.string()),
+  "planGoalSourceReferences": zod.array(zod.object({
+  "documentId": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullable()
+})),
   "source": zod.enum(['starter', 'parent_document', 'clinician_document', 'clinician_reviewed']),
   "sourceDocumentIds": zod.array(zod.string()),
   "sourceReferences": zod.array(zod.object({

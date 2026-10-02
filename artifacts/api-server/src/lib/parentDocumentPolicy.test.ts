@@ -9,6 +9,7 @@ import {
   detectParentDocumentType,
   discoveredTargetsForScan,
   documentSupportCardId,
+  filterPlanGoalForVisibleSources,
   hasDuplicateParentDocumentHash,
   isSafeParentGuidance,
   normalizeDiscoveredParentTargets,
@@ -135,7 +136,7 @@ test("discovery accepts only supported starter keys or named custom targets, can
     ["elopement", "Elopement / Running Away"],
   ]);
   assert.equal(targets[1].goal, "Choose one item");
-  assert.equal(targets[2].goal?.length, 500);
+  assert.equal(targets[2].goal, null, "overlong source goals are omitted rather than returned as inexact truncated wording");
   assert.equal(normalizeDiscoveredParentTargets(
     Array.from({ length: 24 }, (_, i) => ({
       behavior_key: "custom",
@@ -361,6 +362,37 @@ test("goal edits overlay selected document cards without resetting from stored d
   assert.equal(firstRead[0].conflict, false);
 });
 
+test("an explicitly empty saved goal stays empty while unselected document candidate goals remain intact", () => {
+  const selectedStarter = makeStarterCard("task_refusal", null, null);
+  const selectedDocument = {
+    ...guidance("parent_document", "selected-plan", "Offer one clear choice."),
+    behaviorKey: "task_refusal",
+    goal: "Private document goal that must not become the saved goal",
+    planGoal: "Explicit source plan goal",
+    planGoalSourceDocumentIds: ["selected-plan"],
+    planGoalSourceReferences: [{ documentId: "selected-plan", title: "Selected plan", excerpt: null }],
+  };
+  const unselectedCandidate = {
+    ...guidance("parent_document", "candidate-plan", "Use a short written answer."),
+    behaviorKey: "custom",
+    behaviorName: "Repetitive questioning",
+    goal: "Ask once, then use the answer card",
+    planGoal: "Ask a question once, then use the written answer card",
+    planGoalSourceDocumentIds: ["candidate-plan"],
+    planGoalSourceReferences: [{ documentId: "candidate-plan", title: "Candidate plan", excerpt: null }],
+  };
+
+  const projected = orderSupportCardsForSelectedFocus(
+    [selectedDocument, unselectedCandidate],
+    selectedStarter,
+    null,
+  );
+  assert.equal(projected[0].goal, null, "the selected behavior must reflect its empty saved goal, not a scanned goal");
+  assert.equal(projected[0].planGoal, "Explicit source plan goal");
+  assert.equal(projected[1].goal, "Ask once, then use the answer card", "unselected candidate compatibility is preserved");
+  assert.equal(projected[1].planGoal, unselectedCandidate.planGoal);
+});
+
 test("reviewed instructions stay unchanged when the current goal changes and disclose the review mismatch", () => {
   const selectedStarter = makeStarterCard("task_refusal", null, "New parent-selected goal");
   const reviewed = {
@@ -380,6 +412,83 @@ test("reviewed instructions stay unchanged when the current goal changes and dis
   assert.equal(result[0].conflict, true);
   assert.match(result[0].conflictMessage || "", /current goal has not been reviewed/i);
   assert.match(result[0].conflictMessage || "", /support steps were reviewed for a different goal/i);
+});
+
+test("explicit plan goals reconcile independently of manual goals and preserve reviewed guidance", () => {
+  const reviewed = {
+    ...guidance("clinician_reviewed", "clinical-plan", "Follow the approved first-then routine.", true),
+    goal: "Clinician-approved goal",
+    relatedGoals: ["Clinician-approved related goal"],
+  };
+  const scanned = {
+    ...guidance("parent_document", "private-plan", "Use a different worksheet routine."),
+    goal: "Parent-saved manual goal",
+    relatedGoals: ["PRIVATE_RELATED_GOAL_MARKER"],
+    conflict: true,
+    conflictMessage: "PRIVATE_CONFLICT_MESSAGE_MARKER",
+    planGoal: "Start the worksheet within two minutes after one reminder.",
+    planGoalSourceDocumentIds: ["private-plan"],
+    planGoalSourceReferences: [{ documentId: "private-plan", title: "Private plan", excerpt: null }],
+  };
+
+  const reconciled = reconcileSupportCards([reviewed], [scanned])[0];
+  assert.equal(reconciled.source, "clinician_reviewed");
+  assert.equal(reconciled.rightNow[0], reviewed.rightNow[0]);
+  assert.equal(reconciled.goal, "Clinician-approved goal");
+  assert.equal(reconciled.planGoal, scanned.planGoal);
+  assert.deepEqual(reconciled.planGoalSourceDocumentIds, ["private-plan"]);
+  assert.equal(reconciled.conflict, true);
+  assert.deepEqual(reconciled.relatedGoals, ["Clinician-approved related goal"]);
+  assert.equal(reconciled.conflictMessage, "Conflict detected. Clinician review recommended.");
+
+  const rescanned = {
+    ...scanned,
+    planGoal: "Start the worksheet after one reminder.",
+  };
+  const updated = reconcileSupportCards([reconciled], [rescanned])[0];
+  assert.equal(updated.source, "clinician_reviewed");
+  assert.equal(updated.goal, "Clinician-approved goal");
+  assert.equal(updated.planGoal, "Start the worksheet after one reminder.");
+  assert.deepEqual(updated.relatedGoals, ["Clinician-approved related goal"]);
+  assert.doesNotMatch(updated.conflictMessage || "", /PRIVATE_CONFLICT_MESSAGE_MARKER/);
+
+  const clinicianProjection = filterPlanGoalForVisibleSources(updated, ["clinical-plan"]);
+  const serializedProjection = JSON.stringify(clinicianProjection);
+  assert.equal(clinicianProjection.planGoal, null);
+  assert.equal(clinicianProjection.source, "clinician_reviewed");
+  assert.equal(clinicianProjection.reviewedBy, "clinician-1");
+  assert.match(clinicianProjection.rightNow[0], /approved first-then routine/);
+  assert.doesNotMatch(serializedProjection, /PRIVATE_RELATED_GOAL_MARKER|PRIVATE_CONFLICT_MESSAGE_MARKER|Start the worksheet after one reminder/);
+});
+
+test("clinician plan-goal projection requires consent for every contributing document", () => {
+  const card = {
+    ...guidance("clinician_reviewed", "clinical-plan", "Use the approved support.", true),
+    goal: "Clinician-approved goal",
+    planGoal: "Private explicit parent-plan goal",
+    planGoalSourceDocumentIds: ["private-parent-plan", "clinical-plan"],
+    planGoalSourceReferences: [
+      { documentId: "private-parent-plan", title: "Parent plan", excerpt: null },
+      { documentId: "clinical-plan", title: "Clinical plan", excerpt: null },
+    ],
+  };
+
+  const beforeSharing = filterPlanGoalForVisibleSources(card, ["clinical-plan"]);
+  assert.equal(beforeSharing.planGoal, null);
+  assert.deepEqual(beforeSharing.planGoalSourceDocumentIds, []);
+  assert.deepEqual(beforeSharing.planGoalSourceReferences, []);
+  assert.equal(beforeSharing.goal, "Clinician-approved goal");
+  assert.equal(beforeSharing.source, "clinician_reviewed");
+
+  const afterSharing = filterPlanGoalForVisibleSources(card, ["private-parent-plan", "clinical-plan"]);
+  assert.equal(afterSharing.planGoal, "Private explicit parent-plan goal");
+  assert.deepEqual(afterSharing.planGoalSourceDocumentIds, ["private-parent-plan", "clinical-plan"]);
+
+  const afterRevocation = filterPlanGoalForVisibleSources(card, ["clinical-plan"]);
+  assert.equal(afterRevocation.planGoal, null);
+  assert.deepEqual(afterRevocation.planGoalSourceDocumentIds, []);
+  assert.equal(afterRevocation.goal, "Clinician-approved goal");
+  assert.equal(afterRevocation.source, "clinician_reviewed");
 });
 
 test("recognized file types require matching extension, MIME, signatures, UTF-8, and size limit", () => {

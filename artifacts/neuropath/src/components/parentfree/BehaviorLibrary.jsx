@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getParentBehaviors, parentBehaviorIdentity, useGetStarterLibrary, useUpdateParentChild, getGetParentDashboardQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import { toSelections, toInput } from "./BehaviorFields";
 import { Field, ErrorBox, errMsg } from "./common";
+import GoalLines from "./GoalLines";
 
 function statusOf(active, card) {
   if (active) {
@@ -16,7 +17,7 @@ function statusOf(active, card) {
   return { text: "Available to Add", kind: "warn" };
 }
 
-export default function BehaviorLibrary({ child, allCards, onUpload, onEdit }) {
+export default function BehaviorLibrary({ child, allCards, onUpload, onEdit, requestAdd, onAddHandled }) {
   const qc = useQueryClient();
   const { refreshParent } = useAuth();
   const lib = useGetStarterLibrary({ request: parentRequest() });
@@ -37,6 +38,14 @@ export default function BehaviorLibrary({ child, allCards, onUpload, onEdit }) {
   allCards.filter((c) => c.source !== "starter" && !seen.has(parentBehaviorIdentity(c)) && !extra.some((e) => e.id === parentBehaviorIdentity(c))).forEach((c) => extra.push({ id: parentBehaviorIdentity(c), key: c.behaviorKey, custom: c.behaviorKey === "custom" ? c.behaviorName : null, name: c.behaviorName, goals: [] }));
 
   const start = (e) => { setError(""); setOpen(e.id); setGoal(cardOf(e.id)?.goal || e.goals[0] || ""); };
+  useEffect(() => {
+    if (!requestAdd) return;
+    const entry = [...entries, ...extra].find((e) => e.id === requestAdd);
+    if (!entry) return;
+    start(entry);
+    document.getElementById(`library-row-${entry.id}`)?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    onAddHandled?.();
+  }, [requestAdd, lib.data, allCards]);
   const activate = (e) => {
     const b = { behaviorKey: e.key, goal: goal.trim() };
     if (e.key === "custom") b.customBehavior = (e.custom || e.name || "").trim();
@@ -71,11 +80,11 @@ export default function BehaviorLibrary({ child, allCards, onUpload, onEdit }) {
         {[...entries, ...extra].map((e) => {
           const active = isMine(e.id); const card = cardOf(e.id); const st = statusOf(active, card);
           return (
-            <div key={e.id} className={`pf-card pf-lib-item ${active ? "sage" : ""}`} data-testid={`library-${e.id}`}>
+             <div key={e.id} id={`library-row-${e.id}`} className={`pf-card pf-lib-item ${active ? "sage" : ""}`} data-testid={`library-${e.id}`}>
               <span className={`pf-tag ${st.kind}`} style={{ justifySelf: "start" }} data-testid={`status-${e.id}`}>{st.text}</span>
               <strong style={{ fontSize: "1.05rem" }}>{e.name}</strong>
               {e.desc && <span style={{ fontSize: ".9rem" }}>{e.desc}</span>}
-              {active && <span style={{ fontSize: ".85rem" }}>Goal: {card?.goal || mine.find((b) => parentBehaviorIdentity(b) === e.id)?.goal || "Not set"}</span>}
+               {card && (active || card.planGoal) && <GoalLines card={card} active={active} />}
               {active && <button className="pf-btn small ghost" style={{ justifySelf: "start", padding: 0 }} onClick={() => onEdit("goals")}>Edit goal</button>}
               {!active && open !== e.id && <button className="pf-btn small" style={{ justifySelf: "start" }} onClick={() => start(e)} data-testid={`button-add-${e.id}`}>Add</button>}
               {!active && open === e.id && form(e, true)}

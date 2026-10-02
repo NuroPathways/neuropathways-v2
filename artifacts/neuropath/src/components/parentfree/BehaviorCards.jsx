@@ -1,5 +1,6 @@
 import { cardIdentity } from "./progress";
 import { sourceLabel } from "./SupportView";
+import GoalLines from "./GoalLines";
 
 export default function BehaviorCards({ cards, selectedId, onSelect }) {
   return (
@@ -10,7 +11,7 @@ export default function BehaviorCards({ cards, selectedId, onSelect }) {
           <button key={id} type="button" aria-pressed={on} onClick={() => onSelect(id)} className={`pf-card ${on ? "sage" : ""}`} style={{ textAlign: "left", cursor: "pointer", display: "grid", gap: 6, borderColor: on ? "var(--pf-accent)" : undefined, borderWidth: on ? 2 : 1 }} data-testid={`card-behavior-${c.id}`}>
             <p className="pf-eyebrow">{on ? "Showing now" : "Tap to show"}</p>
             <strong style={{ fontSize: "1.1rem" }}>{c.behaviorName}</strong>
-            <span style={{ fontSize: ".9rem" }}>Goal: {c.goal || "Not set"}</span>
+            <GoalLines card={c} />
             <span className={`pf-tag ${src.kind}`} style={{ justifySelf: "start" }}>{src.text}</span>
           </button>
         );
