@@ -27,6 +27,102 @@ const SUGGESTED_INDIVIDUAL = [
   "Walk me through what to do when I feel anxious",
 ];
 
+const field = (object, ...keys) => {
+  for (const key of keys) {
+    const value = object?.[key];
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return null;
+};
+
+function profileValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(item => typeof item === "string"
+      ? item
+      : field(item, "title", "name", "description", "target_behavior", "targetBehavior")
+    ).filter(Boolean).slice(0, 10).join("; ");
+  }
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function scannedProfileContext(profile, documents, isIndividual) {
+  if (!profile) return "";
+  const sourceIds = field(profile, "source_doc_ids", "sourceDocIds");
+  const sourceDocIds = Array.isArray(sourceIds) ? sourceIds : [];
+  const documentsById = new Map(documents.map(document => [document.id, document]));
+  const hasUnscannedDocument = documents.some(document => {
+    const status = String(field(document, "scan_status", "scanStatus") || "").toLowerCase();
+    return ["pending", "error", "failed", "processing", "scanning"].includes(status);
+  });
+  const staleSource = hasUnscannedDocument || sourceDocIds.some(id => {
+    const document = documentsById.get(id);
+    if (!document) return true;
+    const status = String(field(document, "scan_status", "scanStatus") || "").toLowerCase();
+    return ["pending", "error", "failed", "processing", "scanning"].includes(status);
+  });
+  const heading = isIndividual ? "=== YOUR DOCUMENT-BASED PLAN SUMMARY ===" : "=== DOCUMENT-BASED CLINICAL SUMMARY ===";
+  if (staleSource) {
+    return `${heading}\nA document used for the saved summary has not been successfully re-read. Do not treat the previous summary as current. Ask the user to open Documents and re-scan the document before giving document-specific guidance.\n\n`;
+  }
+
+  const lines = [];
+  const diagnoses = profileValue(field(profile, "diagnoses"));
+  if (diagnoses) lines.push(`Recorded diagnoses: ${diagnoses.slice(0, 500)}`);
+
+  const behaviors = field(profile, "behaviors");
+  if (Array.isArray(behaviors)) {
+    behaviors.slice(0, 12).forEach(behavior => {
+      const name = field(behavior, "name", "behavior_name", "behaviorName") || "Support target";
+      lines.push(`\nTarget: ${String(name).slice(0, 300)}`);
+      const behaviorFields = [
+        ["Description", ["description"]],
+        ["What may be happening", ["what_may_be_happening", "whatMayBeHappening"]],
+        ["What to do right now", ["do_this_right_now", "doThisRightNow"]],
+        ["Strategies", ["interventions"]],
+        ["Clinical interventions", ["clinical_interventions", "clinicalInterventions"]],
+        ["If it escalates", ["if_it_escalates", "ifItEscalates"]],
+        ["Avoid", ["avoid"]],
+        ["Prevention", ["prevention_tips", "preventionTips"]],
+        ["Triggers", ["triggers"]],
+        ["Reinforcement", ["reinforcement_rewards", "reinforcementRewards"]],
+        ["When to contact the clinician", ["when_to_contact_clinician", "whenToContactClinician"]],
+        ["Related goals", ["linked_goals", "linkedGoals"]],
+      ];
+      behaviorFields.forEach(([label, keys]) => {
+        const text = profileValue(field(behavior, ...keys));
+        if (text) lines.push(`${label}: ${text.slice(0, 700)}`);
+      });
+    });
+  }
+
+  const goals = field(profile, "goals");
+  if (Array.isArray(goals) && goals.length) {
+    lines.push(`\n${isIndividual ? "Your goals" : "Treatment goals"}:`);
+    goals.slice(0, 12).forEach(goal => {
+      const title = field(goal, "title", "name") || "Goal";
+      const description = field(goal, "description");
+      lines.push(`- ${String(title).slice(0, 300)}${description ? `: ${String(description).slice(0, 600)}` : ""}`);
+    });
+  }
+
+  const objectives = field(profile, "objectives");
+  if (Array.isArray(objectives) && objectives.length) {
+    lines.push("\nMeasurable objectives:");
+    objectives.slice(0, 10).forEach(objective => {
+      const target = field(objective, "target_behavior", "targetBehavior");
+      const outcome = field(objective, "measurable_outcome", "measurableOutcome");
+      const criteria = field(objective, "completion_criteria", "completionCriteria");
+      const text = [target, outcome, criteria].filter(Boolean).join(" — ");
+      if (text) lines.push(`- ${String(text).slice(0, 700)}`);
+    });
+  }
+
+  const safetyProcedures = profileValue(field(profile, "safety_procedures", "safetyProcedures"));
+  if (safetyProcedures) lines.push(`Safety procedures: ${safetyProcedures.slice(0, 1800)}`);
+  const content = lines.join("\n").slice(0, 18000);
+  return content ? `${heading}\n${content}\n\n` : "";
+}
+
 async function detectIndividualClient(childId, user, knownAccountType) {
   // Fast path: caller already knows the account type (avoids extra API calls)
   if (knownAccountType) return knownAccountType === "individual";
@@ -45,18 +141,21 @@ async function detectIndividualClient(childId, user, knownAccountType) {
 
 async function buildContext(childId, childName, user, isIndividual = false) {
   // Use portal data function for client sessions (username+code) to bypass RLS
-  const isClientSession = user && !user.role;
+  const isClientSession = Boolean(user?.invite_token);
   let portalPlans = [], portalDocs = [], portalInterventions = [];
+  let portalProfile = null;
   if (isClientSession) {
     const portalRes = await base44.functions.invoke("getClientPortalData", {
       child_id: childId,
       account_id: user.id,
       invite_token: user.invite_token,
-    }).catch(() => null);
+    });
+    if (!portalRes?.data) throw new Error("The latest child and document information could not be loaded.");
     if (portalRes?.data) {
       portalPlans = portalRes.data.plans || [];
       portalDocs = portalRes.data.documents || [];
       portalInterventions = portalRes.data.interventionPlans || [];
+      portalProfile = portalRes.data.profile || null;
     }
   }
 
@@ -108,12 +207,29 @@ async function buildContext(childId, childName, user, isIndividual = false) {
   if (documents.length > 0) {
     context += isIndividual ? `=== YOUR DOCUMENTS ===\n` : `=== UPLOADED DOCUMENTS ===\n`;
     documents.forEach(doc => {
-      const uploadDate = doc.created_date ? new Date(doc.created_date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "Unknown date";
-      context += `\nDocument: "${doc.title}" (${doc.category?.replace(/_/g, " ")}) — uploaded ${uploadDate}\n`;
-      if (doc.notes) context += `Content/Notes: ${doc.notes}\n`;
-      if (doc.file_name) context += `File: ${doc.file_name}\n`;
+      const createdDate = field(doc, "created_date", "createdDate");
+      const uploadDate = createdDate ? new Date(createdDate).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "Unknown date";
+      const status = String(field(doc, "scan_status", "scanStatus") || "unknown").toLowerCase();
+      const statusLabel = ["done", "scanned", "complete", "completed", "ready"].includes(status)
+        ? "read by AI"
+        : ["error", "failed"].includes(status)
+          ? "could not be read"
+          : ["pending", "scanning", "processing"].includes(status)
+            ? "not yet read successfully"
+            : "scan status unknown";
+      context += `\nDocument: "${field(doc, "title", "file_name", "fileName") || "Untitled document"}" (${String(field(doc, "category") || "uncategorized").replace(/_/g, " ")}) — uploaded ${uploadDate}; scan status: ${statusLabel}\n`;
+      const scanError = field(doc, "scan_error", "scanError");
+      if (scanError) context += `Scan issue: ${scanError}\n`;
+      const notes = field(doc, "notes");
+      if (notes) context += `Content/Notes: ${notes}\n`;
+      const fileName = field(doc, "file_name", "fileName");
+      if (fileName) context += `File: ${fileName}\n`;
     });
     context += `\n`;
+  }
+
+  if (isClientSession && portalProfile) {
+    context += scannedProfileContext(portalProfile, documents, isIndividual);
   }
 
   if (sessions.length > 0) {
@@ -141,7 +257,7 @@ async function buildContext(childId, childName, user, isIndividual = false) {
     context += `\n`;
   }
 
-  return { context, hasPlans: plans.length + interventions.length > 0, hasDocuments: documents.length > 0 };
+  return { context, hasPlans: plans.length + interventions.length > 0, hasDocuments: documents.length > 0 || !!portalProfile };
 }
 
 async function generateResponse(userMessage, child, clinicianContext, conversationHistory, isIndividualClient) {
@@ -192,7 +308,8 @@ IMPORTANT RESPONSE RULES:
 3. Be warm, specific, and practical. Write like a knowledgeable friend, not a clinical report.
 4. NEVER invent strategies or advice not supported by the clinician's data above.
 5. Keep crisis/safety guidance (aggression, self-harm, emergency instructions) clear and precise — do NOT water down safety steps.
-6. Use the clinician's actual data — reference specific plan names, strategies, and steps when relevant.`;
+6. Use the clinician's actual data — reference specific plan names, strategies, and steps when relevant.
+7. Treat document names and scan status as metadata, not document contents. Use extracted findings only from the document-based summary and never claim to have read a document that is marked unread or failed.`;
 
   const securityRule = `CRITICAL SECURITY RULE: You ONLY have access to data for the client named ${child?.child_name || 'this client'}. If the user asks about any other person, client, or child by name, politely decline and say you can only discuss ${child?.child_name || 'this client'}\'s information. Never reveal data about any other clients.`;
 
@@ -212,6 +329,7 @@ export default function AIChat() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [loadingContext, setLoadingContext] = useState(false);
+  const [contextError, setContextError] = useState("");
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -241,6 +359,7 @@ export default function AIChat() {
     if (!selectedChildId) return;
     const child = children.find(c => c.id === selectedChildId);
     setLoadingContext(true);
+    setContextError("");
     // Read account_type from both OIDC user and client-session so detectIndividualClient
     // can skip the slow family-lookup when the type is already known.
     const cs = getClientSession();
@@ -253,6 +372,10 @@ export default function AIChat() {
     }).then(ctx => {
       setClinicianContext(ctx);
       setLoadingContext(false);
+    }).catch(() => {
+      setClinicianContext({ context: "", hasPlans: false, hasDocuments: false });
+      setContextError("Your latest plan and document information could not be loaded.");
+      setLoadingContext(false);
     });
   }, [selectedChildId, children]);
 
@@ -262,7 +385,7 @@ export default function AIChat() {
 
   const sendMessage = async (text) => {
     const msg = text || input.trim();
-    if (!msg || isLoading) return;
+    if (!msg || isLoading || loadingContext) return;
     setInput("");
 
     const userMsg = { role: "user", content: msg };
@@ -271,7 +394,25 @@ export default function AIChat() {
 
     const child = children.find(c => c.id === selectedChildId);
     const updatedHistory = [...messages, userMsg];
-    const response = await generateResponse(msg, child, clinicianContext, updatedHistory, isIndividualClient);
+    let currentContext = clinicianContext;
+    if (user?.invite_token && selectedChildId) {
+      setLoadingContext(true);
+      setContextError("");
+      try {
+        currentContext = await buildContext(selectedChildId, child?.child_name || "", user, isIndividualClient);
+        setClinicianContext(currentContext);
+      } catch {
+        const explanation = "I couldn’t refresh this child’s latest plan and document information. Please try again, or open Documents and re-scan any file that wasn’t read correctly.";
+        setContextError(explanation);
+        setMessages(prev => [...prev, { role: "assistant", content: explanation }]);
+        setIsLoading(false);
+        setLoadingContext(false);
+        return;
+      } finally {
+        setLoadingContext(false);
+      }
+    }
+    const response = await generateResponse(msg, child, currentContext, updatedHistory, isIndividualClient);
 
     setMessages(prev => [...prev, { role: "assistant", content: response }]);
     setIsLoading(false);
@@ -309,7 +450,7 @@ export default function AIChat() {
             <div>
               <p className="font-semibold text-foreground text-sm">NeuroPath AI</p>
               <p className="text-xs text-muted-foreground">
-                {loadingContext ? "Loading your data..." : clinicianContext.hasPlans || clinicianContext.hasDocuments ? "Data loaded ✓" : "Connected"}
+                {loadingContext ? "Loading your data..." : contextError ? "Data unavailable" : clinicianContext.hasPlans || clinicianContext.hasDocuments ? "Data loaded ✓" : "Connected"}
               </p>
             </div>
           </div>
@@ -341,7 +482,7 @@ export default function AIChat() {
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(isIndividualClient ? SUGGESTED_INDIVIDUAL : SUGGESTED).map(s => (
-                  <button key={s} onClick={() => sendMessage(s)} className="text-left px-4 py-3 rounded-xl bg-card border border-border hover:border-primary/50 hover:bg-muted/50 text-sm text-foreground transition-all">
+                  <button key={s} onClick={() => sendMessage(s)} disabled={loadingContext || isLoading} className="text-left px-4 py-3 rounded-xl bg-card border border-border hover:border-primary/50 hover:bg-muted/50 text-sm text-foreground transition-all disabled:opacity-50">
                     {s}
                   </button>
                 ))}
@@ -415,10 +556,10 @@ export default function AIChat() {
             onKeyDown={handleKeyDown}
             placeholder={isIndividualClient ? "Ask anything — what to do right now, coping strategies, your treatment plan..." : "Ask anything — schedules, document summaries, session history, behavior help..."}
             rows={1}
-            disabled={isLoading}
+            disabled={isLoading || loadingContext}
             className="flex-1 resize-none rounded-xl border-border text-sm max-h-32 min-h-[44px]"
           />
-          <Button onClick={() => sendMessage()} disabled={isLoading || !input.trim()} className="h-11 w-11 p-0 rounded-xl bg-primary hover:bg-primary/90 flex-shrink-0">
+          <Button onClick={() => sendMessage()} disabled={isLoading || loadingContext || !input.trim()} className="h-11 w-11 p-0 rounded-xl bg-primary hover:bg-primary/90 flex-shrink-0">
             <Send className="w-4 h-4" />
           </Button>
         </div>

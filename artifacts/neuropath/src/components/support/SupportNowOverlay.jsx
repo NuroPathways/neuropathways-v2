@@ -28,31 +28,58 @@ const behaviorFromPlan = (plan) => ({
 
 const SUPPORT_POPUP_DISMISSED_KEY = "np_support_popup_dismissed";
 
-function ChildSelector({ children, onSelect }) {
+function ChildSelector({ children, selectedChildId, onSelect, onContinue, onDismiss }) {
   return (
     <div className="p-6">
-      <h2 className="text-xl font-bold text-foreground mb-1">Who do you need support for?</h2>
-      <p className="text-sm text-muted-foreground mb-5">Select the person so we can show the right plan.</p>
-      <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div>
+          <h2 className="text-xl font-bold text-foreground mb-1">Who do you need help with?</h2>
+          <p className="text-sm text-muted-foreground">Choose a child to see the right support plan.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Close support"
+          className="min-w-[40px] min-h-[40px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="space-y-3 mt-5">
         {children.map((child) => (
           <button
+            type="button"
             key={child.id}
-            onClick={() => onSelect(child)}
-            className="w-full flex items-center justify-between bg-card border-2 border-border hover:border-primary/50 rounded-2xl p-4 text-left transition-all group"
+            onClick={() => onSelect(child.id)}
+            aria-pressed={selectedChildId === child.id}
+            className={`w-full flex items-center justify-between bg-card border-2 rounded-2xl p-4 text-left transition-all group ${selectedChildId === child.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-primary font-bold text-base">{child.child_name?.[0]?.toUpperCase() || "?"}</span>
+                <span className="text-primary font-bold text-base">{(child.child_name || child.childName || child.name)?.[0]?.toUpperCase() || "?"}</span>
               </div>
               <div>
-                <p className="font-semibold text-foreground">{child.child_name}</p>
+                <p className="font-semibold text-foreground">{child.child_name || child.childName || child.name || "Child"}</p>
                 {child.diagnosis && <p className="text-xs text-muted-foreground">{child.diagnosis}</p>}
               </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+            {selectedChildId === child.id
+              ? <span className="text-xs font-semibold text-primary">Selected</span>
+              : <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />}
           </button>
         ))}
       </div>
+      {children.length === 0 && (
+        <p role="status" className="text-sm text-muted-foreground mt-5">No child profile is connected to this sign-in. Please contact your care team.</p>
+      )}
+      <button
+        type="button"
+        onClick={onContinue}
+        disabled={!selectedChildId}
+        className="w-full mt-5 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Continue to support options
+      </button>
     </div>
   );
 }
@@ -64,7 +91,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
       <div className="flex items-start justify-between mb-2">
         <div>
           <h2 className="text-2xl font-bold text-foreground leading-tight">Need support right now?</h2>
-          {name && !isIndividual && (
+          {name && (
             <p className="text-sm text-muted-foreground mt-1">For: <span className="font-semibold text-foreground">{name}</span></p>
           )}
         </div>
@@ -76,7 +103,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
         </button>
       </div>
 
-      <p className="text-sm text-muted-foreground mb-6">Choose what you need — all guidance comes from {isIndividual ? "your" : `${name}'s`} clinician-approved plans.</p>
+      <p className="text-sm text-muted-foreground mb-6">Choose what you need — all guidance comes from {name ? `${name}'s` : isIndividual ? "your" : "the child's"} clinician-approved plans.</p>
 
       <div className="space-y-3">
         <button
@@ -145,6 +172,7 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState("menu"); // "child_select" | "menu" | "behavior" | "crisis" | "calm"
   const [selectedChild, setSelectedChild] = useState(null);
+  const [pendingChildId, setPendingChildId] = useState("");
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
 
@@ -165,13 +193,9 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
 
   useEffect(() => {
     if (!visible) return;
-    if (children.length === 0) return;
-    if (children.length === 1) {
-      setSelectedChild(children[0]);
-      setStep("menu");
-    } else {
-      setStep("child_select");
-    }
+    setSelectedChild(null);
+    setPendingChildId(children.length === 1 ? children[0].id : "");
+    setStep("child_select");
   }, [visible, children.length]);
 
   useEffect(() => {
@@ -229,6 +253,11 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
     setStep("menu");
   };
 
+  const handleContinueFromChildSelect = () => {
+    const child = children.find((item) => item.id === pendingChildId);
+    if (child) handleSelectChild(child);
+  };
+
   const handleSelectSection = (section) => {
     if (selectedChild) {
       base44.entities.EngagementEvent.create({
@@ -261,10 +290,19 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
           exit={{ y: 60, opacity: 0 }}
           transition={{ type: "spring", stiffness: 320, damping: 30 }}
           className="pointer-events-auto relative w-full max-w-md bg-background rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-y-auto border border-border"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose support for a child"
           style={{ zIndex: 1, maxHeight: "90vh" }}
         >
           {step === "child_select" && (
-            <ChildSelector children={children} onSelect={handleSelectChild} />
+            <ChildSelector
+              children={children}
+              selectedChildId={pendingChildId}
+              onSelect={setPendingChildId}
+              onContinue={handleContinueFromChildSelect}
+              onDismiss={handleDismiss}
+            />
           )}
 
           {step === "menu" && (

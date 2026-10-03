@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, CheckCircle2, RefreshCw, Sparkles, AlertCircle } from "lucide-react";
 import { base44 } from '@/api/entities';
+
+const scanStatus = (doc) => String(doc?.scan_status ?? doc?.scanStatus ?? "pending").toLowerCase();
+const scanError = (doc) => doc?.scan_error ?? doc?.scanError ?? "";
 
 // Reusable AI scan / re-scan control for a single document.
 // Rebuilds the child's full ClientProfile from their documents — the same reliable
@@ -25,22 +28,41 @@ function parseErrorMessage(err) {
 }
 
 export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned }) {
-  const initial = doc.scan_status === "done" ? "done" : doc.scan_status === "scanning" ? "scanning" : "pending";
+  const initialScanStatus = scanStatus(doc);
+  const initial = initialScanStatus === "done" || initialScanStatus === "scanned" || initialScanStatus === "complete" || initialScanStatus === "completed" || initialScanStatus === "ready"
+    ? "done"
+    : initialScanStatus === "error" || initialScanStatus === "failed"
+      ? "error"
+      : initialScanStatus === "scanning" || initialScanStatus === "processing"
+        ? "scanning"
+        : "pending";
   const [status, setStatus] = useState(initial);
-  const [errorMsg, setErrorMsg] = useState(doc.scan_status === "error" ? (doc.scan_error || "Failed") : "");
+  const [errorMsg, setErrorMsg] = useState(initial === "error" ? (scanError(doc) || "Failed") : "");
+
+  useEffect(() => {
+    if (status === "scanning") return;
+    const nextStatus = scanStatus(doc);
+    const next = nextStatus === "done" || nextStatus === "scanned" || nextStatus === "complete" || nextStatus === "completed" || nextStatus === "ready"
+      ? "done"
+      : nextStatus === "error" || nextStatus === "failed"
+        ? "error"
+        : nextStatus === "scanning" || nextStatus === "processing"
+          ? "scanning"
+          : "pending";
+    setStatus(next);
+    setErrorMsg(next === "error" ? (scanError(doc) || "Failed") : "");
+  }, [doc.id, doc.scan_status, doc.scanStatus, doc.scan_error, doc.scanError]);
 
   const runScan = async () => {
     if ((!clinicianId && !inviteToken) || status === "scanning") return;
-    const isReScan = status === "done";
     setStatus("scanning");
     setErrorMsg("");
     try {
-      // force_rebuild forces a re-read on explicit re-scan. The server also
-      // auto-bypasses its cache whenever a document isn't yet in the profile,
-      // so a first scan of a freshly uploaded doc still reads the file.
+      // Explicitly scanning, retrying, or re-scanning must always read the current
+      // file bytes, even when this document ID was present in an older profile.
       const res = await base44.functions.invoke('buildClientProfile', {
-        child_id: doc.child_id,
-        force_rebuild: isReScan,
+        child_id: doc.child_id || doc.childId,
+        force_rebuild: true,
         invite_token: inviteToken,
       });
       const data = res?.data || {};

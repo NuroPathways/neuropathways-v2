@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
@@ -41,6 +41,20 @@ const CATEGORY_ICON_COLORS = {
   other: "bg-gray-50 text-gray-500",
 };
 
+function scanDetails(doc) {
+  const status = String(doc.scan_status ?? doc.scanStatus ?? "pending").toLowerCase();
+  if (["done", "scanned", "complete", "completed", "ready"].includes(status)) {
+    return { label: "Read by NeuroPath AI", className: "bg-green-100 text-green-700", error: "" };
+  }
+  if (["error", "failed"].includes(status)) {
+    return { label: "Could not be read", className: "bg-red-100 text-red-700", error: doc.scan_error || doc.scanError || "Try scanning this document again." };
+  }
+  if (["scanning", "processing"].includes(status)) {
+    return { label: "Reading now", className: "bg-amber-100 text-amber-800", error: "" };
+  }
+  return { label: "Not read yet", className: "bg-amber-100 text-amber-800", error: "" };
+}
+
 export default function DocumentCenter() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -52,11 +66,16 @@ export default function DocumentCenter() {
   const [isIndividual, setIsIndividual] = useState(false);
   const [fileError, setFileError] = useState("");
 
-  useEffect(() => {
-    if (!user) return;
-    const load = async () => {
+  const loadDocuments = useCallback(async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setFileError("");
+    try {
       const me = user;
-      if (me.account_type === "individual") setIsIndividual(true);
+      setIsIndividual(me.account_type === "individual");
 
       // Resolve children the same way the Layout does, so username+code client
       // sessions (which carry their children on the session) also work.
@@ -70,6 +89,9 @@ export default function DocumentCenter() {
         ]);
         const seen = new Set();
         kids = [...byId, ...byEmail].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+      }
+      if (me.invite_token && kids.length === 0 && me.id) {
+        kids = [{ id: me.id, child_name: me.child_name }];
       }
 
       if (!me.account_type && kids.length > 0) {
@@ -87,20 +109,27 @@ export default function DocumentCenter() {
       // Fetch docs through the same authorized backend ChildProfile uses, so the
       // documents always match what's shown there (service-role, RLS-safe).
       const docResults = await Promise.all(
-        kids.map(c =>
-          base44.functions.invoke('getClientPortalData', {
+        kids.map(async c => {
+          const result = await base44.functions.invoke('getClientPortalData', {
             child_id: c.id,
             account_id: me.id,
             invite_token: me.invite_token,
-          }).then(r => r?.data?.documents || []).catch(() => [])
-        )
+          });
+          if (!result?.data) throw new Error("The document list could not be loaded.");
+          return result.data.documents || [];
+        })
       );
       const seenIds = new Set();
       setDocuments(docResults.flat().filter(d => { if (seenIds.has(d.id)) return false; seenIds.add(d.id); return true; }));
+    } catch (error) {
+      setDocuments([]);
+      setFileError(error?.message || "Documents could not be loaded. Please sign in again and retry.");
+    } finally {
       setLoading(false);
-    };
-    load();
+    }
   }, [user]);
+
+  useEffect(() => { void loadDocuments(); }, [loadDocuments]);
 
   const childMap = Object.fromEntries(children.map(c => [c.id, c.child_name]));
 
@@ -140,7 +169,7 @@ export default function DocumentCenter() {
       </div>
 
       <div className="px-5 py-5 max-w-2xl mx-auto -mt-2">
-        {fileError && (
+        {fileError && documents.length > 0 && (
           <p role="alert" className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {fileError}
           </p>
@@ -171,6 +200,12 @@ export default function DocumentCenter() {
           <div className="space-y-3">
             {[1, 2, 3].map(i => <div key={i} className="h-20 bg-muted rounded-2xl animate-pulse" />)}
           </div>
+        ) : fileError && documents.length === 0 ? (
+          <div role="alert" className="text-center py-12 border border-destructive/30 bg-destructive/5 rounded-2xl">
+            <p className="font-medium text-foreground mb-1">Documents could not be loaded</p>
+            <p className="text-sm text-muted-foreground">{fileError}</p>
+            <button onClick={loadDocuments} className="mt-4 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold">Try again</button>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 border-2 border-dashed border-border rounded-2xl">
             <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
@@ -199,7 +234,7 @@ export default function DocumentCenter() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">{doc.title}</p>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
                       {doc.category && (
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[doc.category] || "bg-muted text-muted-foreground"}`}>
                           {CATEGORY_LABELS[doc.category] || doc.category}
@@ -208,14 +243,20 @@ export default function DocumentCenter() {
                       {!isIndividual && doc.child_id && childMap[doc.child_id] && (
                         <span className="text-xs text-muted-foreground">{childMap[doc.child_id]}</span>
                       )}
+                      {(() => {
+                        const scan = scanDetails(doc);
+                        return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${scan.className}`}>{scan.label}</span>;
+                      })()}
                     </div>
+                    {(doc.scan_error || doc.scanError) && !user?.invite_token && <p className="text-xs text-red-700 mt-1 line-clamp-2">{doc.scan_error || doc.scanError}</p>}
                   </div>
                   <Download className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
                 </a>
-                {isIndividual && (
+                {user?.invite_token && (
                   <DocScanButton
                     doc={doc}
                     inviteToken={user?.invite_token}
+                    onScanned={loadDocuments}
                   />
                 )}
               </motion.div>

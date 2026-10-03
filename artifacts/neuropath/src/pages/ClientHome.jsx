@@ -15,6 +15,13 @@ const ROUTES = [
   { label: "Rewards", route: "/RewardTracker", icon: Heart, note: "Celebrate progress" },
 ];
 
+const CLIENT_TABS = [
+  { label: "Dashboard", route: "/ClientHome", icon: BookOpen },
+  { label: "NeuroPath AI", route: "/AIChat", icon: Sparkles },
+  { label: "Help Now", route: "/HelpNow", icon: ShieldCheck },
+  { label: "Documents", route: "/DocumentCenter", icon: FileText },
+];
+
 const value = (row, ...keys) => {
   for (const key of keys) if (row?.[key] !== undefined && row?.[key] !== null && row?.[key] !== "") return row[key];
   return null;
@@ -145,6 +152,7 @@ export default function ClientHome() {
         .ch-shell{width:min(1220px,100% - 48px);margin:auto}.ch-header{height:78px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(24,60,67,.12)}
         .ch-brand{display:flex;align-items:center;gap:10px;color:var(--ch-ink);font-weight:800;font-size:15px;letter-spacing:-.04em}.ch-brand-mark{width:29px;height:29px;border-radius:10px 10px 10px 3px;background:var(--ch-teal);color:#eff6eb;display:grid;place-items:center;font-family:Georgia,serif;font-size:18px}
         .ch-header-actions{display:flex;align-items:center;gap:10px}.ch-quiet-btn{border:0;background:transparent;color:var(--ch-muted);font:inherit;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:11px;cursor:pointer}.ch-quiet-btn:hover{background:rgba(255,255,255,.7);color:var(--ch-ink)}
+         .ch-tabs{display:flex;gap:5px;align-items:center;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid rgba(24,60,67,.12);padding:8px 0 0}.ch-tabs::-webkit-scrollbar{display:none}.ch-tab{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 14px;border:0;border-bottom:2px solid transparent;border-radius:10px 10px 0 0;background:transparent;color:var(--ch-muted);font:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}.ch-tab:hover{background:rgba(255,255,255,.65);color:var(--ch-ink)}.ch-tab[aria-current="page"]{color:var(--ch-teal-deep);border-bottom-color:var(--ch-teal);background:rgba(255,255,255,.55)}
         .ch-main{padding:44px 0 72px}.ch-topline{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:24px}.ch-eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ch-teal);font-weight:800;margin:0 0 11px}.ch-title{font-family:"Fraunces",Georgia,serif;font-size:clamp(35px,5vw,56px);font-weight:500;letter-spacing:-.045em;line-height:1.02;margin:0}.ch-title em{color:var(--ch-teal);font-weight:400}.ch-subtitle{color:var(--ch-muted);margin:12px 0 0;max-width:540px;font-size:14px;line-height:1.6}
         .ch-select-wrap{position:relative;min-width:210px}.ch-select-label{display:block;color:var(--ch-muted);font-size:10px;text-transform:uppercase;letter-spacing:.13em;font-weight:800;margin:0 0 7px 2px}.ch-select{appearance:none;width:100%;border:1px solid #cad9d0;background:rgba(255,253,248,.88);padding:12px 40px 12px 14px;border-radius:13px;color:var(--ch-ink);font:inherit;font-size:14px;font-weight:600;outline:none}.ch-select:focus{border-color:var(--ch-teal);box-shadow:0 0 0 3px rgba(23,108,104,.12)}.ch-select-chevron{position:absolute;right:14px;bottom:13px;color:var(--ch-muted);pointer-events:none}
         .ch-layout{display:grid;grid-template-columns:minmax(0,1fr) 286px;gap:20px;align-items:start}.ch-primary{min-width:0;display:grid;gap:18px}.ch-side{display:grid;gap:16px;position:sticky;top:18px}
@@ -157,7 +165,7 @@ export default function ClientHome() {
         .ch-error{border:1px solid #e4b9a7;background:#fbefe7;border-radius:18px;padding:23px;display:flex;align-items:center;justify-content:space-between;gap:16px}.ch-error strong{font-family:"Fraunces",Georgia,serif;font-size:21px;font-weight:500}.ch-error p{font-size:12px;color:#765a4c;margin:6px 0 0}.ch-retry{border:1px solid #c9886d;color:#7e4d3a;background:#fff9f5;border-radius:10px;padding:10px 14px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}.ch-retry:hover{background:#f7e2d5}
         .ch-skeleton{background:linear-gradient(100deg,#e4eae2 20%,#eff2ea 45%,#e4eae2 70%);background-size:240% 100%;animation:ch-shimmer 1.6s ease-in-out infinite;border-radius:18px;min-height:112px}.ch-skel-wide{height:214px}.ch-skel-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.ch-skel-columns{display:grid;grid-template-columns:1.4fr 1fr;gap:16px}.ch-skel-columns .ch-skeleton{height:260px}@keyframes ch-shimmer{to{background-position:-240% 0}}.ch-footer{padding:18px 0 32px;border-top:1px solid rgba(24,60,67,.12);font-size:11px;color:#728586;display:flex;justify-content:space-between;gap:12px}.ch-footer-note{display:flex;align-items:center;gap:7px}.ch-profile{display:flex;align-items:center;gap:8px;border:1px solid rgba(24,60,67,.12);padding:6px 10px 6px 6px;border-radius:30px;color:var(--ch-muted);font-size:11px;font-weight:700}.ch-avatar{height:27px;width:27px;border-radius:50%;background:#d8e9df;color:#256a63;display:grid;place-items:center}
         @media(max-width:900px){.ch-layout{grid-template-columns:minmax(0,1fr) 250px;gap:14px}.ch-shell{width:min(100% - 36px,760px)}.ch-welcome-card{padding:25px}.ch-stat{padding:14px}.ch-panel{padding:19px}}
-        @media(max-width:700px){.ch-shell{width:calc(100% - 32px)}.ch-header{height:68px}.ch-main{padding:32px 0 48px}.ch-topline{align-items:stretch;flex-direction:column;margin-bottom:18px;gap:17px}.ch-select-wrap{max-width:none}.ch-layout{grid-template-columns:1fr}.ch-side{position:static;grid-template-columns:1fr}.ch-welcome-card{min-height:250px;padding:24px;align-items:flex-start;flex-direction:column;justify-content:center}.ch-welcome-card:after{right:-92px;top:-10px}.ch-welcome-action{padding:12px 15px}.ch-stats{gap:8px}.ch-stat{padding:13px 12px;border-radius:14px}.ch-stat strong{font-size:24px}.ch-stat-label{font-size:10px}.ch-stat small{font-size:9px}.ch-skel-columns{grid-template-columns:1fr}.ch-skel-columns .ch-skeleton:last-child{display:none}.ch-footer{flex-direction:column}.ch-header-actions .ch-quiet-btn span{display:none}}
+         @media(max-width:700px){.ch-shell{width:calc(100% - 32px)}.ch-header{height:68px}.ch-tabs{width:100%;padding:7px 12px 0;gap:2px}.ch-tab{flex:1;gap:5px;padding:8px 6px;font-size:10px}.ch-main{padding:32px 0 48px}.ch-topline{align-items:stretch;flex-direction:column;margin-bottom:18px;gap:17px}.ch-select-wrap{max-width:none}.ch-layout{grid-template-columns:1fr}.ch-side{position:static;grid-template-columns:1fr}.ch-welcome-card{min-height:250px;padding:24px;align-items:flex-start;flex-direction:column;justify-content:center}.ch-welcome-card:after{right:-92px;top:-10px}.ch-welcome-action{padding:12px 15px}.ch-stats{gap:8px}.ch-stat{padding:13px 12px;border-radius:14px}.ch-stat strong{font-size:24px}.ch-stat-label{font-size:10px}.ch-stat small{font-size:9px}.ch-skel-columns{grid-template-columns:1fr}.ch-skel-columns .ch-skeleton:last-child{display:none}.ch-footer{flex-direction:column}.ch-header-actions .ch-quiet-btn span{display:none}}
         @media(prefers-reduced-motion:reduce){.client-home *{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
       `}</style>
       <header className="ch-shell ch-header">
@@ -168,6 +176,22 @@ export default function ClientHome() {
           <button className="ch-quiet-btn" type="button" onClick={logout} aria-label="Sign out"><span>Sign out</span><LogOut size={15} /></button>
         </div>
       </header>
+      <nav className="ch-shell ch-tabs" aria-label="Family portal">
+        {CLIENT_TABS.map(({ label, route, icon: Icon }) => {
+          const active = route === "/ClientHome";
+          return (
+            <button
+              key={route}
+              type="button"
+              className="ch-tab"
+              aria-current={active ? "page" : undefined}
+              onClick={() => active ? window.scrollTo({ top: 0, behavior: "smooth" }) : go(route)}
+            >
+              <Icon size={15} /> {label}
+            </button>
+          );
+        })}
+      </nav>
 
       <main className="ch-shell ch-main">
         <div className="ch-topline">

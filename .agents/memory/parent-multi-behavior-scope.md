@@ -46,3 +46,11 @@ Keep established username/access-code client accounts, credentials, and associat
 **Why:** The user explicitly chose to keep current client logins and existing records rather than convert or duplicate accounts.
 
 **How to apply:** Reuse the existing client-session authentication and portal data endpoints; make new client screens read the existing records.
+
+## Client documents and support entry
+
+Give username/access-code families a prominent Documents tab with visible scan status and a way to re-read a document. Start the support popup with child selection before its menu, even for a single-child account.
+
+**Why:** The user explicitly requested these as the expected entry points for client documents and immediate support.
+
+**How to apply:** Keep document reads and scans within the authenticated child or authorized same-family, same-clinician sibling boundary. The AI should refresh the scanned profile before answering and must not present an unread or failed document as current.
