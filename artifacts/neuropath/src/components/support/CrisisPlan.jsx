@@ -1,6 +1,6 @@
 import { ArrowLeft, X, ShieldAlert, Phone, AlertTriangle } from "lucide-react";
 
-export default function CrisisPlan({ child, profile, loadingProfile, onBack, onDismiss, isIndividual }) {
+export default function CrisisPlan({ child, profile, loadingProfile, profileLoadError, onBack, onDismiss, isIndividual }) {
   const crisisPlan = profile?.crisis_plan || [];
   const safetyProcedures = profile?.safety_procedures || [];
   const name = child?.child_name;
@@ -30,6 +30,11 @@ export default function CrisisPlan({ child, profile, loadingProfile, onBack, onD
           <div className="py-12 text-center">
             <div className="w-10 h-10 border-4 border-border border-t-red-500 rounded-full animate-spin mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">Loading safety plan...</p>
+          </div>
+        ) : profileLoadError ? (
+          <div role="alert" className="bg-red-50 border border-red-200 rounded-2xl p-5">
+            <p className="text-sm font-semibold text-red-800 mb-1">Could not load safety information.</p>
+            <p className="text-sm text-red-700">Return to the support menu and try again.</p>
           </div>
         ) : crisisPlan.length === 0 && safetyProcedures.length === 0 ? (
           <div className="py-6">

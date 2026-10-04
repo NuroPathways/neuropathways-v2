@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { base44 } from '@/api/entities';
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, ShieldAlert, Wind, X, ChevronRight, Loader2, Phone } from "lucide-react";
@@ -18,6 +18,7 @@ const splitGuidance = (value) => String(value || "")
 const behaviorFromPlan = (plan) => ({
   name: plan.behavior_name || plan.behaviorName || "Behavior support",
   emoji: "📋",
+  sourceLabel: "Source: Behavior plan",
   what_may_be_happening: plan.behavior_description || plan.behaviorDescription || plan.behavior_function || plan.behaviorFunction,
   interventions: splitGuidance(plan.strategy_steps || plan.strategySteps),
   if_it_escalates: splitGuidance(plan.deescalation_steps || plan.deescalationSteps),
@@ -27,6 +28,10 @@ const behaviorFromPlan = (plan) => ({
 });
 
 const SUPPORT_POPUP_DISMISSED_KEY = "np_support_popup_dismissed";
+
+export function clearSupportPopupSession(userId) {
+  if (userId) shownThisLoad.delete(userId);
+}
 
 function ChildSelector({ children, selectedChildId, onSelect, onContinue, onDismiss }) {
   return (
@@ -103,7 +108,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
         </button>
       </div>
 
-      <p className="text-sm text-muted-foreground mb-6">Choose what you need — all guidance comes from {name ? `${name}'s` : isIndividual ? "your" : "the child's"} clinician-approved plans.</p>
+      <p className="text-sm text-muted-foreground mb-6">Choose what you need. Support guidance is labeled by where it came from.</p>
 
       <div className="space-y-3">
         <button
@@ -115,7 +120,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
           </div>
           <div className="flex-1">
             <p className="font-bold text-orange-900 text-base">Help With a Behavior</p>
-            <p className="text-xs text-orange-700 mt-0.5">Step-by-step guidance from the treatment plan</p>
+            <p className="text-xs text-orange-700 mt-0.5">Step-by-step support for a selected behavior</p>
           </div>
           <ChevronRight className="w-5 h-5 text-orange-400 group-hover:text-orange-600 transition-colors" />
         </button>
@@ -129,7 +134,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
           </div>
           <div className="flex-1">
             <p className="font-bold text-red-900 text-base">Safety / Crisis Plan</p>
-            <p className="text-xs text-red-700 mt-0.5">Immediate safety steps from the safety plan</p>
+            <p className="text-xs text-red-700 mt-0.5">Review available safety information and next steps</p>
           </div>
           <ChevronRight className="w-5 h-5 text-red-400 group-hover:text-red-600 transition-colors" />
         </button>
@@ -168,51 +173,29 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
   );
 }
 
-export default function SupportNowOverlay({ user, children, isIndividual }) {
+export default function SupportNowOverlay({
+  user,
+  children,
+  isIndividual,
+  loadProfileForChild,
+  logEngagement = true,
+}) {
   const [visible, setVisible] = useState(false);
-  const [step, setStep] = useState("menu"); // "child_select" | "menu" | "behavior" | "crisis" | "calm"
+  const [step, setStep] = useState("child_select"); // "child_select" | "menu" | "behavior" | "crisis" | "calm"
   const [selectedChild, setSelectedChild] = useState(null);
   const [pendingChildId, setPendingChildId] = useState("");
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [profileLoadError, setProfileLoadError] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-    const key = user.invite_token || user.id;
-    if (user.invite_token) {
-      try {
-        if (sessionStorage.getItem(SUPPORT_POPUP_DISMISSED_KEY) === "1") return;
-      } catch {
-        if (shownThisLoad.has(key)) return;
-      }
-    } else if (shownThisLoad.has(key)) return;
-    // Short delay so the dashboard paints first
-    const t = setTimeout(() => setVisible(true), 300);
-    return () => clearTimeout(t);
-  }, [user?.invite_token, user?.id]);
-
-  useEffect(() => {
-    if (!visible) return;
-    setSelectedChild(null);
-    setPendingChildId(children.length === 1 ? children[0].id : "");
-    setStep("child_select");
-  }, [visible, children.length]);
-
-  useEffect(() => {
-    if (!selectedChild) return;
-    loadProfile(selectedChild.id);
-    // Log engagement event
-    base44.entities.EngagementEvent.create({
-      child_id: selectedChild.id,
-      clinician_id: selectedChild.clinician_id,
-      event_type: "help_opened",
-      topic: "support_now_opened",
-    }).catch(() => {});
-  }, [selectedChild?.id]);
-
-  const loadProfile = async (childId) => {
+  const loadProfile = useCallback(async (childId) => {
     setLoadingProfile(true);
+    setProfileLoadError(false);
     try {
+      if (loadProfileForChild) {
+        setProfile(await loadProfileForChild(childId) || null);
+        return;
+      }
       const isClientSession = user && !user.role;
       if (isClientSession) {
         const res = await base44.functions.invoke("getClientPortalData", {
@@ -227,16 +210,58 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
             ...(res.data.profile || {}),
             behaviors: generatedBehaviors.length > 0 ? generatedBehaviors : approvedPlanBehaviors,
           });
-          setLoadingProfile(false);
           return;
         }
       }
       const profiles = await base44.entities.ClientProfile.filter({ child_id: childId }).catch(() => []);
       setProfile(profiles[0] || null);
+    } catch (error) {
+      console.error("Unable to load support information for the selected child.", error);
+      setProfile(null);
+      setProfileLoadError(true);
     } finally {
       setLoadingProfile(false);
     }
-  };
+  }, [loadProfileForChild, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const key = user.invite_token || user.id;
+    if (user.invite_token) {
+      try {
+        if (sessionStorage.getItem(SUPPORT_POPUP_DISMISSED_KEY) === "1") return;
+      } catch {
+        if (shownThisLoad.has(key)) return;
+      }
+    } else if (shownThisLoad.has(key)) return;
+    // Short delay so the dashboard paints first
+    const t = setTimeout(() => {
+      setStep("child_select");
+      setVisible(true);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [user?.invite_token, user?.id]);
+
+  useEffect(() => {
+    if (!visible) return;
+    setSelectedChild(null);
+    setPendingChildId(children.length === 1 ? children[0].id : "");
+    setStep("child_select");
+  }, [visible, children.length]);
+
+  useEffect(() => {
+    if (!selectedChild) return;
+    loadProfile(selectedChild.id);
+    // Log engagement event
+    if (logEngagement && selectedChild.clinician_id) {
+      base44.entities.EngagementEvent.create({
+        child_id: selectedChild.id,
+        clinician_id: selectedChild.clinician_id,
+        event_type: "help_opened",
+        topic: "support_now_opened",
+      }).catch(() => {});
+    }
+  }, [selectedChild?.id, loadProfile, logEngagement]);
 
   const handleDismiss = () => {
     const key = user?.invite_token || user?.id;
@@ -249,6 +274,7 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
 
   const handleSelectChild = (child) => {
     setProfile(null);
+    setProfileLoadError(false);
     setSelectedChild(child);
     setStep("menu");
   };
@@ -259,7 +285,7 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
   };
 
   const handleSelectSection = (section) => {
-    if (selectedChild) {
+    if (logEngagement && selectedChild?.clinician_id) {
       base44.entities.EngagementEvent.create({
         child_id: selectedChild.id,
         clinician_id: selectedChild.clinician_id,
@@ -319,6 +345,7 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
               child={selectedChild}
               profile={profile}
               loadingProfile={loadingProfile}
+              profileLoadError={profileLoadError}
               onBack={handleBack}
               onDismiss={handleDismiss}
               isIndividual={isIndividual}
@@ -330,6 +357,7 @@ export default function SupportNowOverlay({ user, children, isIndividual }) {
               child={selectedChild}
               profile={profile}
               loadingProfile={loadingProfile}
+              profileLoadError={profileLoadError}
               onBack={handleBack}
               onDismiss={handleDismiss}
               isIndividual={isIndividual}

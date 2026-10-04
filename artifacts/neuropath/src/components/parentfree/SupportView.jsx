@@ -1,12 +1,13 @@
-import { Fragment } from "react";
 import GoalLines from "./GoalLines";
 
 export function sourceLabel(card) {
   switch (card.source) {
-    case "clinician_reviewed": return { text: "Support steps reviewed by your clinician.", kind: "" };
-    case "clinician_document": return { text: "Based on your child's uploaded plan.", kind: "" };
-    case "parent_document": return { text: "Based on your uploaded plan. Not yet reviewed by a clinician.", kind: "sun" };
-    default: return { text: "Starter support based on common behavior patterns. Upload your child's plan later for more personalized guidance.", kind: "sun" };
+    case "starter": return { text: "Source: Pre-programmed library", kind: "sun" };
+    case "clinician_reviewed":
+    case "clinician_document":
+    case "parent_document":
+      return { text: "Source: Behavior plan", kind: "" };
+    default: return { text: "Source: Not available", kind: "sun" };
   }
 }
 
@@ -27,24 +28,6 @@ export function Block({ title, children, tone }) {
   );
 }
 
-export function SourceNotes({ card }) {
-  const refs = card.sourceReferences || [];
-  return (
-    <Fragment>
-      {card.conflict && (
-        <div className="pf-error" data-testid="text-conflict" style={{ marginTop: 12 }}>
-          Conflict detected. Clinician review recommended.{card.conflictMessage ? ` ${card.conflictMessage}` : ""}
-        </div>
-      )}
-      {refs.length > 0 && (
-        <p className="pf-hint" data-testid="text-sources" style={{ marginTop: 10 }}>
-          Based on: {refs.map((r) => r.title).join(", ")}
-        </p>
-      )}
-    </Fragment>
-  );
-}
-
 export function HelpNowView({ card, onClose, onLog, onAdd, embedded = false, active = true }) {
   const src = sourceLabel(card);
   const content = (
@@ -62,8 +45,6 @@ export function HelpNowView({ card, onClose, onLog, onAdd, embedded = false, act
         <Block title="What to avoid" tone="warn"><Steps items={card.avoid} dash /></Block>
         <Block title="What may be happening"><p>{card.whatMayBeHappening}</p></Block>
         <Block title="Try this replacement skill"><p>{card.replacementSkill}</p></Block>
-        <SourceNotes card={card} />
-        {card.source === "starter" && <p className="pf-card sun" data-testid="text-starter-note">This is starter support. Upload your child's plan for personalized guidance.</p>}
         {onLog && <button className="pf-btn" onClick={onLog} data-testid="button-help-log">Log what happened</button>}
         {onAdd && <><p className="pf-hint">You can use these plan steps now. Add this behavior to your active list before logging it.</p><button className="pf-btn" onClick={onAdd} data-testid="button-help-add-found">Add this behavior</button></>}
         <p className="pf-hint">If anyone is in danger or hurt, call your local emergency number. {card.seekHelp}</p>
@@ -83,7 +64,6 @@ export default function SupportCardView({ card, childName, onHelp, onUpload, act
         <p className="pf-eyebrow">Behavior Support Card{childName ? ` for ${childName}` : ""}</p>
         <h2>{card.behaviorName}</h2>
         <GoalLines card={card} active={active} />
-        <SourceNotes card={card} />
         {onUpload && <button className="pf-btn small" style={{ marginTop: 12 }} onClick={onUpload} data-testid={`button-source-upload-${card.id}`}>Upload a Plan</button>}
       </div>
       <Block title="What to do right now"><Steps items={card.rightNow} /></Block>

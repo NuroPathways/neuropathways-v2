@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { getParentBehaviors, parentBehaviorIdentity, useGetParentDashboard, getGetParentDashboardQueryKey } from "@workspace/api-client-react";
+import { getParentBehaviors, getParentDashboard, parentBehaviorIdentity, useGetParentDashboard, getGetParentDashboardQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import { Shell, ErrorBox, Skeleton } from "@/components/parentfree/common";
@@ -17,6 +17,7 @@ import ProgressView from "@/components/parentfree/ProgressView";
 import { cardIdentity } from "@/components/parentfree/progress";
 import BehaviorLibrary from "@/components/parentfree/BehaviorLibrary";
 import ChildEditor from "@/components/parentfree/ChildEditor";
+import SupportNowOverlay, { clearSupportPopupSession } from "@/components/support/SupportNowOverlay";
 
 const TABS = [["today", "Today's Support"], ["steps", "Support Steps"], ["log", "Log What Happened"], ["docs", "Upload Plan"], ["ask", "Ask"], ["clinic", "Clinic"], ["edit", "Edit Child Profile"]];
 
@@ -149,13 +150,32 @@ export default function ParentHome() {
   const { user, isAuthenticated, logout } = useAuth();
   const { children, selected, select } = useSelectedChild();
   const incomplete = useMemo(() => children.find((c) => !isSetupComplete(c)), [children]);
+  const popupChildren = useMemo(() => children.map((child) => ({ ...child, child_name: child.name })), [children]);
+  const loadPopupProfile = useCallback(async (childId) => {
+    const dashboard = await getParentDashboard(childId, parentRequest());
+    return {
+      ...(dashboard.child || {}),
+      behaviors: (dashboard.supportCards || []).map((card) => ({
+        id: card.id,
+        name: card.behaviorName,
+        emoji: card.source === "starter" ? "🧩" : "📋",
+        sourceLabel: card.source === "starter" ? "Source: Pre-programmed library" : "Source: Behavior plan",
+        what_may_be_happening: card.whatMayBeHappening,
+        do_this_right_now: card.rightNow || [],
+        avoid: card.avoid || [],
+        prevention_tips: card.prevention || [],
+        reinforcement_rewards: card.reinforcementIdea ? [card.reinforcementIdea] : [],
+        when_to_contact_clinician: card.seekHelp,
+      })),
+    };
+  }, []);
   if (!isAuthenticated || user?.account_type !== "parent_free") return <Navigate to="/ParentLogin" replace />;
   if (children.length === 0 || (incomplete && incomplete.id === selected?.id)) return <Navigate to="/ParentQuickStart" replace />;
 
   return (
     <Shell right={<>
       <button className="pf-btn small" onClick={() => nav("/ParentQuickStart?new=1")} data-testid="button-add-child">Add a child</button>
-      <button className="pf-btn small ghost" onClick={() => { clearFocus(user?.id); logout(); }} data-testid="button-logout">Sign out</button>
+      <button className="pf-btn small ghost" onClick={() => { clearFocus(user?.id); clearSupportPopupSession(user?.id); logout(); }} data-testid="button-logout">Sign out</button>
     </>}>
       <main className="pf-wrap wide" style={{ paddingBottom: 80 }}>
         <p className="pf-eyebrow">Hi {user.first_name}</p>
@@ -167,6 +187,13 @@ export default function ParentHome() {
         )}
         <Body key={selected.id} child={selected} />
       </main>
+      <SupportNowOverlay
+        user={user}
+        children={popupChildren}
+        isIndividual={children.length === 1}
+        loadProfileForChild={loadPopupProfile}
+        logEngagement={false}
+      />
     </Shell>
   );
 }

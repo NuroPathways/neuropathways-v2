@@ -49,8 +49,16 @@ Keep established username/access-code client accounts, credentials, and associat
 
 ## Client documents and support entry
 
-Give username/access-code families a prominent Documents tab with visible scan status and a way to re-read a document. Start the support popup with child selection before its menu, even for a single-child account.
+Give username/access-code families a prominent Documents tab with visible scan status and a way to re-read a document. Start support for client and parent accounts with child selection before the menu, even for a single-child account.
 
-**Why:** The user explicitly requested these as the expected entry points for client documents and immediate support.
+**Why:** The user explicitly requested these as the expected entry points for client documents and immediate support, then clarified that parent logins also need the child-first support popup.
 
-**How to apply:** Keep document reads and scans within the authenticated child or authorized same-family, same-clinician sibling boundary. The AI should refresh the scanned profile before answering and must not present an unread or failed document as current.
+**How to apply:** Keep document reads and scans within the authenticated child or authorized same-family, same-clinician sibling boundary. Use each parent route's own authenticated child data when loading support. The AI should refresh the scanned profile before answering and must not present an unread or failed document as current.
+
+## Parent-facing behavior provenance
+
+Show parent behavior blocks only a concise origin label: "Source: Pre-programmed library" or "Source: Behavior plan." Keep conflict-review warnings on clinician review surfaces, not family support cards.
+
+**Why:** The user explicitly asked to replace repeated parent-facing conflict warnings with the behavior's origin.
+
+**How to apply:** Map starter guidance to the pre-programmed label and uploaded or reviewed plan guidance to the behavior-plan label. Do not surface conflict messages or source excerpts in parent support blocks.

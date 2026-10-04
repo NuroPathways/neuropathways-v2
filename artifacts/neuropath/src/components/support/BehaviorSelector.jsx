@@ -42,7 +42,7 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
         </button>
         <div className="flex-1">
           <p className="font-bold text-foreground text-sm">{behavior.emoji || "📋"} {behavior.name}</p>
-          <p className="text-xs text-primary font-medium">Clinician-approved guidance</p>
+          <p className="text-xs text-primary font-medium">{behavior.sourceLabel || "Support guidance"}</p>
         </div>
       </div>
 
@@ -116,7 +116,7 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-yellow-800">No clinician-approved strategy on file for this behavior.</p>
+              <p className="text-sm font-semibold text-yellow-800">No support steps are on file for this behavior.</p>
               <p className="text-sm text-yellow-700 mt-1">Please contact your clinician for guidance.</p>
             </div>
           </div>
@@ -131,7 +131,7 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
   );
 }
 
-export default function BehaviorSelector({ child, profile, loadingProfile, onBack, onDismiss, isIndividual }) {
+export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onDismiss, isIndividual }) {
   const [selectedBehavior, setSelectedBehavior] = useState(null);
 
   const behaviors = profile?.behaviors || [];
@@ -160,7 +160,7 @@ export default function BehaviorSelector({ child, profile, loadingProfile, onBac
         </button>
         <div className="flex-1">
           <p className="font-bold text-foreground text-sm">Help With a Behavior</p>
-          {child && <p className="text-xs text-muted-foreground">{child.child_name} · Clinician-approved plans only</p>}
+          {child && <p className="text-xs text-muted-foreground">{child.child_name} · available support guidance</p>}
         </div>
         <button onClick={onDismiss} className="min-w-[40px] min-h-[40px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors">
           <X className="w-5 h-5" />
@@ -172,6 +172,11 @@ export default function BehaviorSelector({ child, profile, loadingProfile, onBac
           <div className="py-12 text-center">
             <div className="w-10 h-10 border-4 border-border border-t-primary rounded-full animate-spin mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">Loading {child?.child_name}'s plans...</p>
+          </div>
+        ) : profileLoadError ? (
+          <div role="alert" className="bg-red-50 border border-red-200 rounded-2xl p-5">
+            <p className="text-sm font-semibold text-red-800 mb-1">Could not load this support information.</p>
+            <p className="text-sm text-red-700">Return to the support menu and try again.</p>
           </div>
         ) : behaviors.length === 0 ? (
           <div className="py-8 space-y-4">
@@ -196,13 +201,14 @@ export default function BehaviorSelector({ child, profile, loadingProfile, onBac
                   >
                     <div className="text-3xl mb-2">{behavior.emoji || "📋"}</div>
                     <p className={`text-sm font-semibold leading-snug ${colors.text}`}>{behavior.name}</p>
+                    {behavior.sourceLabel && <span className="text-[11px] font-medium text-muted-foreground">{behavior.sourceLabel}</span>}
                     <ChevronRight className={`w-4 h-4 mt-1 opacity-60 ${colors.text}`} />
                   </button>
                 );
               })}
             </div>
             <p className="text-xs text-muted-foreground text-center mt-4">
-              Only showing behaviors from {child?.child_name}'s clinician-approved plans.
+              Only showing support information available for {child?.child_name}.
             </p>
           </>
         )}
