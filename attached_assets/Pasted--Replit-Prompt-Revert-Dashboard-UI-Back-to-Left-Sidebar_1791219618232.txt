@@ -1,0 +1,399 @@
+# Replit Prompt: Revert Dashboard UI Back to Left Sidebar Layout While Keeping All Features
+
+I want to improve the NeuroPathways app UI by reverting the main dashboard layout back to the older design style that used a **left-side sidebar menu**.
+
+Do not remove, rename, or break any current features. This is mainly a UI/layout change.
+
+The current app has improved features, but I liked the older dashboard structure better because the left sidebar made the app feel more organized, more professional, and easier to navigate.
+
+The goal is to keep all current functionality but redesign the dashboard navigation around a clean left sidebar.
+
+---
+
+## 1. Restore the Left Sidebar Dashboard Layout
+
+Bring back the older dashboard format with a persistent menu on the left side.
+
+The sidebar should be visible on desktop/tablet layouts.
+
+The sidebar should include clear navigation items based on the user’s role.
+
+Use a calm, modern healthcare SaaS design.
+
+The sidebar should feel polished, simple, and professional.
+
+Do not make the app feel cluttered.
+
+---
+
+## 2. Keep All Current Features
+
+Do not remove any of the current features.
+
+Preserve:
+
+- parent self-signup
+- parent email login
+- clinician login
+- clinician dashboard
+- parent dashboard
+- caregiver dashboard
+- individual client dashboard
+- child/client profiles
+- family profiles
+- document upload
+- document scanning
+- starter behavior library
+- supplemental behaviors
+- Support Now
+- I Need Help Now
+- goals
+- behavior logs
+- AI chat
+- uploaded-plan support
+- clinician-created accounts
+- parent-created accounts
+- multi-child selection
+- privacy/trust language
+- landing page updates
+
+Only change the layout and navigation structure.
+
+---
+
+## 3. Sidebar Navigation by Role
+
+The sidebar should change based on the logged-in user role.
+
+---
+
+# Parent / Caregiver Sidebar
+
+For parent/caregiver users, show:
+
+- **Home**
+- **Support Now**
+- **Behavior Support Library**
+- **Goals**
+- **Documents**
+- **Logs**
+- **AI Chat**
+- **Child Profiles**
+- **Upload Plan**
+- **Settings**
+
+If the parent has multiple children, the sidebar should include a child selector near the top.
+
+Example:
+
+Selected Child:
+John
+
+Switch Child button:
+**Switch Child**
+
+If there is only one child, show the child name but do not require selection every time.
+
+---
+
+# Clinician Sidebar
+
+For clinicians, show:
+
+- **Dashboard**
+- **Clients**
+- **Families**
+- **Caregivers**
+- **Documents**
+- **Goals**
+- **Support Now Usage**
+- **Behavior Logs**
+- **AI Review**
+- **Invites**
+- **Settings**
+
+Clinician sidebar should feel more clinical and administrative.
+
+Clinicians should be able to quickly move between clients, uploaded documents, AI-extracted content, goals, and Support Now usage.
+
+---
+
+# Individual Client Sidebar
+
+For individual/self-managed client accounts, show:
+
+- **Home**
+- **Support Now**
+- **My Goals**
+- **My Documents**
+- **My Logs**
+- **AI Chat**
+- **My Support Plan**
+- **Settings**
+
+Do not show parent-only language for individual clients.
+
+Do not show “children,” “my child,” or “child profiles” for individual client accounts.
+
+---
+
+## 4. Dashboard Main Area
+
+The main content area should sit to the right of the sidebar.
+
+Keep the existing dashboard cards and features, but organize them better.
+
+For parent dashboard, main area should show:
+
+## Today’s Support
+
+- I Need Help Now
+- Current Behavior
+- Current Goal
+- Open Support Steps
+
+## Behavior Support Library
+
+- active behavior cards
+- available starter behaviors
+- uploaded-plan behaviors
+- clinician-reviewed behaviors
+
+## Quick Actions
+
+- Log What Happened
+- Upload a Plan
+- Add Behavior
+- Add Goal
+- Edit Child Profile
+
+---
+
+## 5. Support Now / I Need Help Now Placement
+
+The **I Need Help Now** button should remain highly visible.
+
+Even with the sidebar layout, it should still be easy to access in one tap/click.
+
+Place it:
+
+- near the top of the main dashboard
+- also as a sidebar item under **Support Now**
+- optionally as a floating button on mobile
+
+Do not bury the crisis/support feature inside multiple menus.
+
+If a user has multiple children/clients, clicking I Need Help Now must ask:
+
+**Who do you need support for?**
+
+Then:
+
+**What do you need help with right now?**
+
+Do not randomly select a child or behavior.
+
+---
+
+## 6. Behavior Support Library Layout
+
+Keep the full behavior support library available.
+
+The sidebar should help users get to it quickly.
+
+Behavior cards should show status:
+
+- Active
+- Available to Add
+- Based on Uploaded Plan
+- Clinician Reviewed
+- Needs Review
+
+Parents should be able to add supplemental behaviors from this page.
+
+Do not limit parents to only one behavior.
+
+---
+
+## 7. Documents and Upload Plan
+
+The sidebar should include **Documents** and **Upload Plan**.
+
+Parents should still be able to upload their own documents to their own child profiles.
+
+Clinicians should still be able to upload documents to assigned clients.
+
+Document upload should remain connected to:
+
+- document scanning
+- AI extraction
+- goals
+- Support Now cards
+- AI chat
+- behavior support cards
+
+Do not break the document scan flow.
+
+---
+
+## 8. Goals Section
+
+Goals should be accessible from the sidebar.
+
+For parents:
+
+- show goals tied to the selected child
+- show starter goals
+- show document-extracted goals
+- show goal status
+
+For clinicians:
+
+- show goals by selected client
+- allow review/editing
+- show source documents
+
+Goals should never be disconnected from the selected child/client.
+
+---
+
+## 9. Responsive Mobile Layout
+
+On desktop and tablet:
+
+- use the full left sidebar
+
+On mobile:
+
+- collapse the sidebar into a hamburger menu
+- optionally use a bottom navigation bar for key actions
+
+Mobile bottom nav can include:
+
+- Home
+- Support Now
+- Logs
+- Documents
+- Menu
+
+The mobile version must still make **I Need Help Now** easy to access.
+
+---
+
+## 10. Visual Style
+
+Use a clean, calming NeuroPathways design.
+
+Preferred design direction:
+
+- soft blue/green palette
+- dark blue accents
+- rounded cards
+- clear icons
+- spacious layout
+- readable typography
+- minimal clutter
+- professional SaaS feel
+- calm behavioral health style
+
+The left sidebar should have:
+
+- NeuroPathways logo at the top
+- user/profile section
+- role-aware menu items
+- selected menu highlight
+- logout/settings near bottom
+
+---
+
+## 11. Do Not Break Existing Routes
+
+Keep all current routes working.
+
+If routes changed during previous redesigns, map them cleanly into the sidebar.
+
+Examples:
+
+- Dashboard → Home
+- I Need Help → Support Now
+- Behavior Library → Behavior Support Library
+- Documents → Documents
+- Goals → Goals
+- Logs → Logs
+- AI Chat → AI Chat
+- Settings → Settings
+
+Do not create duplicate pages for the same feature.
+
+Consolidate duplicate navigation if needed.
+
+---
+
+## 12. Fix UI Inconsistencies
+
+While reverting to the left sidebar layout, fix these UI issues:
+
+- remove duplicated menu items
+- remove confusing top navigation clutter
+- remove inconsistent terminology
+- prevent undefined family/client labels
+- make role-specific language correct
+- make child/client switching clear
+- keep current selected child/client visible
+- make upload and Support Now easy to find
+
+---
+
+## 13. Preserve Current Landing Page Work
+
+Do not undo the landing page copy and parent-first flow unless needed for layout consistency.
+
+Keep:
+
+- parent self-signup
+- parent account creation
+- starter behavior library
+- supplemental behaviors
+- upload later flow
+- clinician section lower on page if present
+- privacy/trust language
+
+This prompt is focused mainly on the logged-in dashboard UI.
+
+---
+
+## 14. Required Testing
+
+After the UI update, test:
+
+1. Parent logs in and sees left sidebar dashboard.
+2. Parent can access I Need Help Now.
+3. Parent can access Behavior Support Library.
+4. Parent can add supplemental behaviors.
+5. Parent can upload a plan.
+6. Parent can view documents.
+7. Parent can view goals.
+8. Parent can log behavior.
+9. Parent with multiple children can switch children.
+10. Clinician logs in and sees clinician sidebar.
+11. Clinician can access clients, documents, goals, invites, logs, and AI review.
+12. Individual client logs in and sees self-directed sidebar.
+13. Individual client does not see child/parent language.
+14. Mobile layout works with collapsed sidebar or bottom navigation.
+15. No existing feature is removed or broken.
+
+---
+
+## Final Goal
+
+Revert the logged-in NeuroPathways dashboard back to the older UI style with the left-side sidebar menu, while keeping all current features and improvements.
+
+The app should feel more organized, more polished, and easier to navigate.
+
+The left sidebar should become the main navigation structure for the app again.
+
+Do not remove features.
+
+Do not rebuild the product from scratch.
+
+Only improve the dashboard UI and navigation by restoring the sidebar-based layout.
