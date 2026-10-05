@@ -308,6 +308,7 @@ export default function SupportNowOverlay({
         exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex justify-center pointer-events-none"
           style={{
+            position: "fixed",
             alignItems: "flex-start",
             paddingTop: "max(16px, env(safe-area-inset-top))",
           }}
