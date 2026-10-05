@@ -3,119 +3,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/entities";
 import { useAuth } from "@/lib/AuthContext";
 import SupportNowOverlay from "@/components/support/SupportNowOverlay";
-import {
-  Activity,
-  BarChart2,
-  Bot,
-  ClipboardList,
-  FileText,
-  Home,
-  LifeBuoy,
-  Mail,
-  Settings,
-  ShieldAlert,
-  Target,
-  Upload,
-  Users,
-} from "lucide-react";
 import RoleAwareShell from "@/components/navigation/RoleAwareShell";
+import { createRoleNavigation, mobilePrimaryKeysForRole, resolveNavigationRole } from "@/components/navigation/navigationModels";
 
 const noLayoutPages = ["Splash", "Login", "RoleSelection", "ClinicianLogin", "ParentLogin", "ParentSignup", "ParentQuickStart", "ParentHome", "ClientLogin", "RoleSetup", "HelpNow"];
-
-function createNavigation(role, homePath, includeUploadPlan) {
-  if (role === "clinician") {
-    return [
-      {
-        label: "Workspace",
-        items: [
-          { key: "dashboard", label: "Dashboard", icon: Home, to: "/ClinicianDashboard", pages: ["ClinicianDashboard"] },
-          { key: "clients", label: "Clients", icon: Users, to: "/ClinicianUsers", pages: ["ClinicianUsers", "FamilyDetail", "ClientDetail"] },
-          { key: "documents", label: "Documents", icon: FileText, to: "/ClinicianDocuments", pages: ["ClinicianDocuments"] },
-        ],
-      },
-      {
-        label: "Clinical",
-        items: [
-          { key: "plans", label: "Intervention Plans", icon: ShieldAlert, to: "/InterventionBuilder", pages: ["InterventionBuilder", "BehaviorPlanBuilder"] },
-          { key: "reports", label: "Progress Reports", icon: BarChart2, to: "/ProgressReports", pages: ["ProgressReports"] },
-          { key: "ai-review", label: "AI Review", icon: Bot, to: "/AIChat", pages: ["AIChat"] },
-        ],
-      },
-      {
-        label: "Account",
-        items: [
-          { key: "messages", label: "Messages", icon: Mail, to: "/Messages", pages: ["Messages"] },
-          { key: "settings", label: "Settings", icon: Settings, to: "/Settings", pages: ["Settings"] },
-        ],
-      },
-    ];
-  }
-
-  if (role === "individual") {
-    return [
-      {
-        label: "Your space",
-        items: [
-          { key: "home", label: "Home", icon: Home, to: "/ClientHome", pages: ["ClientHome"] },
-          { key: "support", label: "Support Now", icon: LifeBuoy, to: "/HelpNow", support: true, pages: ["HelpNow"] },
-        ],
-      },
-      {
-        label: "Your plan",
-        items: [
-          { key: "goals", label: "Goals", icon: Target, to: "/GoalsMilestones", pages: ["GoalsMilestones"] },
-          { key: "documents", label: "Documents", icon: FileText, to: "/DocumentCenter", pages: ["DocumentCenter"] },
-          { key: "logs", label: "Logs", icon: ClipboardList, to: "/LogBehavior", pages: ["LogBehavior"] },
-          { key: "ai-chat", label: "AI Chat", icon: Bot, to: "/AIChat", pages: ["AIChat"] },
-          { key: "progress", label: "Progress", icon: Activity, to: "/ProgressReports", pages: ["ProgressReports"] },
-          { key: "rewards", label: "Rewards", icon: Heart, to: "/RewardTracker", pages: ["RewardTracker"] },
-        ],
-      },
-      {
-        label: "Account",
-        items: [
-          { key: "messages", label: "Messages", icon: Mail, to: "/Messages", pages: ["Messages"] },
-          { key: "settings", label: "Settings", icon: Settings, to: "/Settings", pages: ["Settings"] },
-        ],
-      },
-    ];
-  }
-
-  return [
-    {
-      label: "Today",
-      items: [
-        { key: "home", label: "Home", icon: Home, to: homePath, pages: ["ParentDashboard", "ClientDashboard"] },
-        { key: "support", label: "Support Now", icon: LifeBuoy, to: "/HelpNow", support: true, pages: ["HelpNow"] },
-      ],
-    },
-    {
-      label: "Care plan",
-      items: [
-        { key: "goals", label: "Goals", icon: Target, to: "/GoalsMilestones", pages: ["GoalsMilestones"] },
-        { key: "documents", label: "Documents", icon: FileText, to: "/DocumentCenter", pages: ["DocumentCenter"] },
-        { key: "logs", label: "Logs", icon: ClipboardList, to: "/LogBehavior", pages: ["LogBehavior"] },
-        { key: "ai-chat", label: "AI Chat", icon: Bot, to: "/AIChat", pages: ["AIChat"] },
-      ],
-    },
-    {
-      label: "Family",
-      items: [
-        { key: "profiles", label: "Child Profiles", icon: Users, to: "/ChildProfile", pages: ["ChildProfile"] },
-        ...(includeUploadPlan
-          ? [{ key: "upload-plan", label: "Upload Plan", icon: Upload, to: "/UploadBehaviorPlan", pages: ["UploadBehaviorPlan"] }]
-          : []),
-      ],
-    },
-    {
-      label: "Account",
-      items: [
-        { key: "messages", label: "Messages", icon: Mail, to: "/Messages", pages: ["Messages"] },
-        { key: "settings", label: "Settings", icon: Settings, to: "/Settings", pages: ["Settings"] },
-      ],
-    },
-  ];
-}
 
 export default function Layout({ children, currentPageName }) {
   const { user, isLoadingAuth } = useAuth();
@@ -181,13 +72,7 @@ export default function Layout({ children, currentPageName }) {
 
   if (!user) return <>{children}</>;
 
-  const isIndividualClient = user.account_type === "individual" || isIndividualFallback;
-  const rawRole = user.app_role || user.role;
-  const role = rawRole === "clinician" || rawRole === "admin"
-    ? "clinician"
-    : isIndividualClient
-      ? "individual"
-      : "caregiver";
+  const role = resolveNavigationRole(user, isIndividualFallback);
   const homePath = user.invite_token ? "/ClientHome" : "/ParentDashboard";
   const currentChildId = new URLSearchParams(location.search).get("child_id") || user.child_id || user.children?.[0]?.id;
   const selectedChild = role === "caregiver" && childrenList.length
@@ -207,7 +92,7 @@ export default function Layout({ children, currentPageName }) {
     : role === "individual"
       ? "Individual account"
       : "Family account";
-  const baseGroups = createNavigation(role, homePath, role === "caregiver" && !user.invite_token);
+  const baseGroups = createRoleNavigation(role, homePath, role === "caregiver" && !user.invite_token);
   const groups = baseGroups.map((group) => ({
     ...group,
     items: group.items.map((item) => {
@@ -228,11 +113,7 @@ export default function Layout({ children, currentPageName }) {
   }));
   const currentItem = groups.flatMap((group) => group.items).find((item) => item.active);
   const currentLabel = currentItem?.label || currentPageName;
-  const mobilePrimaryKeys = role === "clinician"
-    ? ["dashboard", "clients", "reports"]
-    : role === "individual"
-      ? ["home", "support", "progress"]
-      : ["home", "support", "logs"];
+  const mobilePrimaryKeys = mobilePrimaryKeysForRole(role);
 
   const handleChildSelect = (childId) => {
     if (user.invite_token) {

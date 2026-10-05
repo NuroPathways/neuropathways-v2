@@ -12,6 +12,11 @@ import {
   X,
 } from "lucide-react";
 import "./role-aware-navigation.css";
+import {
+  activateNavigationItem,
+  canChooseNavigationChild,
+  getMobileNavigationItems,
+} from "./navigationModels";
 
 const displayName = (person) =>
   person?.child_name || person?.childName || person?.name || "Child";
@@ -37,11 +42,7 @@ function NavigationLink({ item, active, variant, closeMenu }) {
     "aria-current": active ? "page" : undefined,
     "aria-disabled": item.disabled || undefined,
     "data-testid": `nav-${item.key}-${variant}`,
-    onClick: () => {
-      if (item.disabled) return;
-      item.onSelect?.();
-      closeMenu?.();
-    },
+    onClick: () => activateNavigationItem(item, closeMenu),
   };
 
   if (item.to) {
@@ -51,7 +52,7 @@ function NavigationLink({ item, active, variant, closeMenu }) {
 }
 
 function ChildContext({ childrenOptions, selectedChild, contextLabel, onChildSelect, compact = false }) {
-  const canChoose = childrenOptions?.length > 1 && onChildSelect;
+  const canChoose = canChooseNavigationChild(childrenOptions, onChildSelect);
   if (!selectedChild && !canChoose) return null;
 
   return (
@@ -100,9 +101,7 @@ export default function RoleAwareShell({
   const allItems = navGroups.flatMap((group) => group.items);
   const activeItem = allItems.find((item) => item.key === activeKey || item.active);
   const pageLabel = currentLabel || activeItem?.label || "Home";
-  const mobileItems = mobilePrimaryKeys
-    .map((key) => allItems.find((item) => item.key === key))
-    .filter(Boolean);
+  const mobileItems = getMobileNavigationItems(navGroups, mobilePrimaryKeys);
   const initials = String(accountName || "A").trim().charAt(0).toUpperCase() || "A";
 
   useEffect(() => {

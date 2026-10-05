@@ -101,7 +101,9 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
           )}
         </div>
         <button
+          type="button"
           onClick={onDismiss}
+          aria-label="Close support"
           className="min-w-[40px] min-h-[40px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors"
         >
           <X className="w-5 h-5" />

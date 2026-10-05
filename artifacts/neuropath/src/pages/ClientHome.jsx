@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardList, FileText, Heart, LifeBuoy, Mail, MessageCircle, Settings, ShieldCheck, Sparkles, Star, Target, UserRound, Wind } from "lucide-react";
+import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardList, FileText, Heart, MessageCircle, ShieldCheck, Sparkles, Star, UserRound, Wind } from "lucide-react";
 import { base44 } from "@/api/entities";
 import { useAuth } from "@/lib/AuthContext";
 import RoleAwareShell from "@/components/navigation/RoleAwareShell";
+import { createClientHomeNavigation, mobilePrimaryKeysForRole } from "@/components/navigation/navigationModels";
 
 const ROUTES = [
   { label: "Help right now", route: "/HelpNow", icon: ShieldCheck, note: "Plan-guided support" },
@@ -136,72 +137,11 @@ export default function ClientHome({ onSupportNow }) {
   const overviewCount = (arr) => arr.length.toLocaleString();
   const go = (route) => navigate(`${route}?child_id=${encodeURIComponent(selectedId || "")}`);
   const portalSubject = isIndividualClient ? "you" : childName;
-  const navigationRoute = (route) => selectedId
-    ? `${route}?child_id=${encodeURIComponent(selectedId)}`
-    : route;
-  const navigationGroups = isIndividualClient
-    ? [
-        {
-          label: "Your space",
-          items: [
-            { key: "home", label: "Home", icon: BookOpen, to: "/ClientHome", active: true, pages: ["ClientHome"] },
-            { key: "support", label: "Support Now", icon: LifeBuoy, support: true, onSelect: () => onSupportNow?.() },
-            { key: "support-steps", label: "Support Steps", icon: ShieldCheck, to: navigationRoute("/HelpNow") },
-          ],
-        },
-        {
-          label: "Your plan",
-          items: [
-            { key: "goals", label: "Goals", icon: Target, to: navigationRoute("/GoalsMilestones") },
-            { key: "progress", label: "Progress", icon: Activity, to: navigationRoute("/ProgressReports") },
-            { key: "documents", label: "Documents", icon: FileText, to: navigationRoute("/DocumentCenter") },
-            { key: "logs", label: "Logs", icon: ClipboardList, to: navigationRoute("/LogBehavior") },
-            { key: "ai-chat", label: "AI Chat", icon: Sparkles, to: navigationRoute("/AIChat") },
-            { key: "rewards", label: "Rewards", icon: Heart, to: navigationRoute("/RewardTracker") },
-          ],
-        },
-        {
-          label: "Account",
-          items: [
-            { key: "messages", label: "Messages", icon: Mail, to: navigationRoute("/Messages") },
-            { key: "settings", label: "Settings", icon: Settings, to: navigationRoute("/Settings") },
-          ],
-        },
-      ]
-    : [
-        {
-          label: "Today",
-          items: [
-            { key: "home", label: "Home", icon: BookOpen, to: "/ClientHome", active: true, pages: ["ClientHome"] },
-            { key: "support", label: "Support Now", icon: LifeBuoy, support: true, onSelect: () => onSupportNow?.() },
-          ],
-        },
-        {
-          label: "Care plan",
-          items: [
-            { key: "support-steps", label: "Support Steps", icon: ShieldCheck, to: navigationRoute("/HelpNow") },
-            { key: "goals", label: "Goals", icon: Target, to: navigationRoute("/GoalsMilestones") },
-            { key: "documents", label: "Documents", icon: FileText, to: navigationRoute("/DocumentCenter") },
-            { key: "logs", label: "Logs", icon: ClipboardList, to: navigationRoute("/LogBehavior") },
-            { key: "ai-chat", label: "AI Chat", icon: Sparkles, to: navigationRoute("/AIChat") },
-            { key: "progress", label: "Progress", icon: Activity, to: navigationRoute("/ProgressReports") },
-            { key: "rewards", label: "Rewards", icon: Heart, to: navigationRoute("/RewardTracker") },
-          ],
-        },
-        {
-          label: "Family",
-          items: [
-            { key: "profiles", label: "Child Profiles", icon: UserRound, to: navigationRoute("/ChildProfile") },
-          ],
-        },
-        {
-          label: "Account",
-          items: [
-            { key: "messages", label: "Messages", icon: Mail, to: navigationRoute("/Messages") },
-            { key: "settings", label: "Settings", icon: Settings, to: navigationRoute("/Settings") },
-          ],
-        },
-      ];
+  const navigationGroups = createClientHomeNavigation({
+    isIndividualClient,
+    selectedId,
+    onSupportNow,
+  });
 
   if (!isAuthenticated || !user?.invite_token) return <Navigate to="/UsernameLogin" replace />;
 
@@ -212,7 +152,7 @@ export default function ClientHome({ onSupportNow }) {
       currentLabel="Home"
       activeKey="home"
       navGroups={navigationGroups}
-      mobilePrimaryKeys={isIndividualClient ? ["home", "support", "progress"] : ["home", "support", "logs"]}
+      mobilePrimaryKeys={mobilePrimaryKeysForRole(isIndividualClient ? "individual" : "caregiver")}
       accountName={isIndividualClient ? firstName(user?.display_name || user?.full_name || childName) : `${firstName(childName)}’s family`}
       accountMeta={isIndividualClient ? "Individual account" : "Family account"}
       selectedChild={isIndividualClient ? null : siblings.find((sibling) => sibling.id === selectedId) || child}

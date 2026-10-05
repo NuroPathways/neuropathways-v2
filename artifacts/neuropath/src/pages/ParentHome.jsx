@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, Skeleton } from "@/components/parentfree/common";
 import RoleAwareShell from "@/components/navigation/RoleAwareShell";
-import { BookOpen, ClipboardList, FileText, Heart, Home, LifeBuoy, Plus, Sparkles, Target, UserRound } from "lucide-react";
+import { createFreeCaregiverNavigation, mobilePrimaryKeysForRole } from "@/components/navigation/navigationModels";
 import { isSetupComplete, useSelectedChild } from "@/components/parentfree/useParent";
 import SupportCardView, { sourceLabel } from "@/components/parentfree/SupportView";
 import HelpNowPanel from "@/components/parentfree/HelpNowPanel";
@@ -193,34 +193,13 @@ export default function ParentHome() {
   if (!isAuthenticated || user?.account_type !== "parent_free") return <Navigate to="/ParentLogin" replace />;
   if (children.length === 0 || (incomplete && incomplete.id === selected?.id)) return <Navigate to="/ParentQuickStart" replace />;
 
-  const navGroups = [
-    {
-      label: "Today",
-      items: [
-        { key: "home", label: "Home", icon: Home, active: activeTab === "today" && !activeSection, onSelect: () => goToTab("today") },
-        { key: "support", label: "Support Now", icon: LifeBuoy, support: true, onSelect: () => setSupportRequest((request) => request + 1) },
-      ],
-    },
-    {
-      label: "Care plan",
-      items: [
-        { key: "support-steps", label: "Support Steps", icon: BookOpen, active: activeTab === "steps", onSelect: () => goToTab("steps") },
-        { key: "library", label: "Behavior Support Library", icon: BookOpen, active: activeTab === "today" && activeSection === "library", onSelect: () => goToTab("today", "library") },
-        { key: "goals", label: "Goals", icon: Target, active: activeTab === "edit" && activeSection === "goals", onSelect: () => goToTab("edit", "goals") },
-        { key: "logs", label: "Logs", icon: ClipboardList, active: activeTab === "log", onSelect: () => goToTab("log") },
-        { key: "documents", label: "Upload Plan", icon: FileText, active: activeTab === "docs", onSelect: () => goToTab("docs") },
-        { key: "ask", label: "AI Chat", icon: Sparkles, active: activeTab === "ask", onSelect: () => goToTab("ask") },
-      ],
-    },
-    {
-      label: "Family",
-      items: [
-        { key: "profiles", label: "Child Profiles", icon: UserRound, active: activeTab === "edit" && activeSection !== "goals", onSelect: () => goToTab("edit", "profile") },
-        { key: "clinic", label: "Clinic", icon: Heart, active: activeTab === "clinic", onSelect: () => goToTab("clinic") },
-        { key: "add-child", label: "Add a child", icon: Plus, onSelect: () => nav("/ParentQuickStart?new=1") },
-      ],
-    },
-  ];
+  const navGroups = createFreeCaregiverNavigation({
+    activeTab,
+    activeSection,
+    goToTab,
+    onSupportNow: () => setSupportRequest((request) => request + 1),
+    onAddChild: () => nav("/ParentQuickStart?new=1"),
+  });
   const activeItem = navGroups.flatMap((group) => group.items).find((item) => item.active);
   const currentLabel = activeItem?.label || "Home";
 
@@ -231,7 +210,7 @@ export default function ParentHome() {
       currentLabel={currentLabel}
       activeKey={activeItem?.key}
       navGroups={navGroups}
-      mobilePrimaryKeys={["home", "support", "logs"]}
+      mobilePrimaryKeys={mobilePrimaryKeysForRole("caregiver")}
       accountName={user.first_name || user.full_name || "Caregiver"}
       accountMeta="Caregiver account"
       selectedChild={selected}
