@@ -306,7 +306,7 @@ export default function SupportNowOverlay({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none"
+          className="fixed inset-0 z-50 flex items-start justify-center pt-4 sm:pt-8 pointer-events-none"
       >
         {/* Dark backdrop — blocks background taps/clicks, sits behind the modal */}
         <div className="absolute inset-0 bg-black/50 pointer-events-auto" style={{ zIndex: 0 }} />
