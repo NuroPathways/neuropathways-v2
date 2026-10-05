@@ -12,7 +12,7 @@ export interface PlanUploadItem<T> {
 export const PLAN_UPLOAD_LABELS: Record<PlanUploadPhase, string> = {
   queued: "Waiting to upload",
   uploading: "Uploading",
-  scanning: "Saved · Reading plan",
+  scanning: "Saved · Reading plan (this may take a minute)",
   complete: "Saved · Support steps updated",
   upload_failed: "Upload failed",
   scan_failed: "Saved · Reading failed",
@@ -64,4 +64,51 @@ export async function runPlanUploadBatch<T>(
     }
   }
   return result;
+}
+
+export type ParentDocumentScanOutcome<T> =
+  | { document: T; ok: true }
+  | { document: T; ok: false; error: unknown };
+
+/**
+ * Read saved plans in sequence because every scan updates the same child's guidance.
+ * A failed read is recorded but does not prevent later plans from being attempted.
+ */
+export async function runParentDocumentScanBatch<T extends { id: string }>(
+  documents: T[],
+  handlers: {
+    scan: (document: T) => Promise<unknown>;
+    isActive?: () => boolean;
+    onProgress?: (document: T, index: number, total: number) => void;
+    onSettled?: (
+      outcome: ParentDocumentScanOutcome<T>,
+      index: number,
+      total: number,
+    ) => void | Promise<void>;
+  },
+) {
+  const outcomes: ParentDocumentScanOutcome<T>[] = [];
+  const active = () => handlers.isActive?.() ?? true;
+
+  for (let index = 0; index < documents.length; index++) {
+    if (!active()) break;
+    const document = documents[index];
+    handlers.onProgress?.(document, index, documents.length);
+    let outcome: ParentDocumentScanOutcome<T>;
+    try {
+      await handlers.scan(document);
+      outcome = { document, ok: true };
+    } catch (error) {
+      outcome = { document, ok: false, error };
+    }
+    outcomes.push(outcome);
+    await handlers.onSettled?.(outcome, index, documents.length);
+  }
+
+  return {
+    outcomes,
+    scanned: outcomes.filter((outcome) => outcome.ok).length,
+    failed: outcomes.filter((outcome) => !outcome.ok).length,
+    cancelled: outcomes.length < documents.length && !active(),
+  };
 }

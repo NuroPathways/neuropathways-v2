@@ -262,6 +262,19 @@ export function isSafeParentGuidance(card: SupportCard): boolean {
     !/\b(?:restraint|hold|pin(?:ning)?|seclusion|physical block|wrap|immobiliz)\b[^.!?;\n]{0,40}\b(?:step|technique|method|position|grip|instruction)\b/i.test(actionableText);
 }
 
+export function partitionParentGuidanceBySafety(cards: SupportCard[]): {
+  safeCards: SupportCard[];
+  omittedUnsafeCount: number;
+} {
+  const safeCards: SupportCard[] = [];
+  let omittedUnsafeCount = 0;
+  for (const card of cards) {
+    if (isSafeParentGuidance(card)) safeCards.push(card);
+    else omittedUnsafeCount++;
+  }
+  return { safeCards, omittedUnsafeCount };
+}
+
 function mergeReferences(...groups: SourceReference[][]): SourceReference[] {
   const seen = new Set<string>();
   const references: SourceReference[] = [];

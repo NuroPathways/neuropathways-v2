@@ -219,7 +219,9 @@ async function buildContext(childId, childName, user, isIndividual = false) {
             : "scan status unknown";
       context += `\nDocument: "${field(doc, "title", "file_name", "fileName") || "Untitled document"}" (${String(field(doc, "category") || "uncategorized").replace(/_/g, " ")}) — uploaded ${uploadDate}; scan status: ${statusLabel}\n`;
       const scanError = field(doc, "scan_error", "scanError");
-      if (scanError) context += `Scan issue: ${scanError}\n`;
+      if (scanError) {
+        context += `${["done", "scanned", "complete", "completed", "ready"].includes(status) ? "Safety note" : "Scan issue"}: ${scanError}\n`;
+      }
       const notes = field(doc, "notes");
       if (notes) context += `Content/Notes: ${notes}\n`;
       const fileName = field(doc, "file_name", "fileName");

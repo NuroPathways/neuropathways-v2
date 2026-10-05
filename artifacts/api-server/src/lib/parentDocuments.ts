@@ -35,6 +35,7 @@ import {
   guidanceFingerprint,
   hasDuplicateParentDocumentHash,
   isSafeParentGuidance,
+  partitionParentGuidanceBySafety,
   normalizedParentText,
   normalizeDiscoveredParentTargets,
   orderSupportCardsForSelectedFocus,
@@ -602,7 +603,7 @@ export async function scanParentDocument(
           goal: target.goal,
         })),
     ];
-    const incomingCards: SupportCard[] = [];
+    const generatedCards: SupportCard[] = [];
     for (const behavior of scanBehaviors) {
       const starter = makeStarterCard(behavior.behaviorKey, behavior.customBehavior, behavior.goal);
       const behaviorName = behavior.behaviorName || getStarterTemplate(behavior.behaviorKey)?.name || starter.behaviorName;
@@ -679,12 +680,11 @@ export async function scanParentDocument(
         !incoming.replacementSkill ||
         !incoming.seekHelp
       ) throw new Error("The AI returned incomplete support steps. Please try scanning again.");
-      if (!isSafeParentGuidance(incoming)) {
-        throw new Error("The scan returned unsafe physical-intervention guidance and was not saved. Please ask the clinician for an individualized safety plan.");
-      }
-      incomingCards.push(incoming);
+      generatedCards.push(incoming);
     }
 
+    const { safeCards: incomingCards, omittedUnsafeCount } =
+      partitionParentGuidanceBySafety(generatedCards);
     const approvedCards = currentCards.filter((card) => card.source === "clinician_reviewed" && card.reviewedBy && card.reviewedAt);
     for (const incoming of incomingCards) {
       const identity = supportBehaviorIdentity(incoming);
@@ -716,6 +716,9 @@ export async function scanParentDocument(
       }
     }
 
+    const safetyNotice = omittedUnsafeCount > 0
+      ? "The plan was read. Physical-intervention instructions were excluded from family guidance; ask the clinician for an individualized safety plan."
+      : null;
     await db.transaction(async (tx) => {
       await tx.update(parentChildSettingsTable).set({
         supportCards: nextCards as any,
@@ -725,13 +728,13 @@ export async function scanParentDocument(
         extractedSupport: incomingCards as any,
         updatedAt: new Date(),
       }).where(eq(parentDocumentsTable.documentId, documentId));
-      await tx.update(documentsTable).set({ scanStatus: "done", scanError: null, scannedAt: new Date() })
+      await tx.update(documentsTable).set({ scanStatus: "done", scanError: safetyNotice, scannedAt: new Date() })
         .where(eq(documentsTable.id, documentId));
     });
     return {
       ok: true,
       supportCards: await getParentSupportCards(parentId, childId),
-      message: "Your support steps were updated from your uploaded plan.",
+      message: safetyNotice || "Your support steps were updated from your uploaded plan.",
     };
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : "";
@@ -745,7 +748,6 @@ export async function scanParentDocument(
       "Unsupported document type for scanning.",
       "The AI returned an unreadable result. Please try scanning again.",
       "The AI returned incomplete support steps. Please try scanning again.",
-      "The scan returned unsafe physical-intervention guidance and was not saved. Please ask the clinician for an individualized safety plan.",
     ]);
     const message = safeMessages.has(rawMessage)
       ? rawMessage

@@ -44,10 +44,13 @@ const CATEGORY_ICON_COLORS = {
 function scanDetails(doc) {
   const status = String(doc.scan_status ?? doc.scanStatus ?? "pending").toLowerCase();
   if (["done", "scanned", "complete", "completed", "ready"].includes(status)) {
-    return { label: "Read by NeuroPath AI", className: "bg-green-100 text-green-700", error: "" };
+    const notice = doc.scan_error || doc.scanError || "";
+    return notice
+      ? { label: "Read with safety note", className: "bg-amber-100 text-amber-800", error: notice, errorClass: "text-amber-800" }
+      : { label: "Read by NeuroPath AI", className: "bg-green-100 text-green-700", error: "", errorClass: "text-red-700" };
   }
   if (["error", "failed"].includes(status)) {
-    return { label: "Could not be read", className: "bg-red-100 text-red-700", error: doc.scan_error || doc.scanError || "Try scanning this document again." };
+    return { label: "Could not be read", className: "bg-red-100 text-red-700", error: doc.scan_error || doc.scanError || "Try scanning this document again.", errorClass: "text-red-700" };
   }
   if (["scanning", "processing"].includes(status)) {
     return { label: "Reading now", className: "bg-amber-100 text-amber-800", error: "" };
@@ -248,7 +251,12 @@ export default function DocumentCenter() {
                         return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${scan.className}`}>{scan.label}</span>;
                       })()}
                     </div>
-                    {(doc.scan_error || doc.scanError) && !user?.invite_token && <p className="text-xs text-red-700 mt-1 line-clamp-2">{doc.scan_error || doc.scanError}</p>}
+                    {(() => {
+                      const scan = scanDetails(doc);
+                      return scan.error && !user?.invite_token
+                        ? <p className={`text-xs ${scan.errorClass || "text-amber-800"} mt-1 line-clamp-2`}>{scan.error}</p>
+                        : null;
+                    })()}
                   </div>
                   <Download className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
                 </a>

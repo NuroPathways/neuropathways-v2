@@ -14,6 +14,7 @@ import {
   isSafeParentGuidance,
   normalizeDiscoveredParentTargets,
   orderSupportCardsForSelectedFocus,
+  partitionParentGuidanceBySafety,
   reconcileSupportCards,
 } from "./parentDocumentPolicy";
 
@@ -219,6 +220,15 @@ test("explicitly avoiding physical restraint is safe while teaching a restraint 
       `a prohibition must not mask a later positive instruction across ${JSON.stringify(boundary)}`,
     );
   }
+});
+
+test("unsafe generated guidance is omitted without discarding safe guidance from the same plan", () => {
+  const safe = guidance("parent_document", "safe-plan", "Offer a calm choice.");
+  const unsafe = guidance("parent_document", "unsafe-plan", "Hold the child.");
+  const result = partitionParentGuidanceBySafety([safe, unsafe]);
+
+  assert.deepEqual(result.safeCards.map((card) => card.id), ["safe-plan"]);
+  assert.equal(result.omittedUnsafeCount, 1);
 });
 
 test("dedup merges repeated same guidance once, retaining unique document IDs and references", () => {

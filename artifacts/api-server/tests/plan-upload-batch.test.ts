@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { runPlanUploadBatch, type PlanUploadItem } from "../../../lib/api-client-react/src/plan-upload-batch";
+import {
+  runParentDocumentScanBatch,
+  runPlanUploadBatch,
+  type PlanUploadItem,
+} from "../../../lib/api-client-react/src/plan-upload-batch";
 
 function items(...names: string[]): PlanUploadItem<string>[] {
   return names.map((file) => ({ key: file, file, phase: "queued" }));
@@ -69,4 +73,28 @@ test("leaving the child's upload screen stops remaining requests without losing 
   assert.deepEqual(requests, ["one"]);
   assert.equal(result.saved, 1);
   assert.equal(result.cancelled, true);
+});
+
+test("saved plans are read sequentially and later plans continue after one fails", async () => {
+  const documents = [{ id: "one" }, { id: "two" }, { id: "three" }];
+  const events: string[] = [];
+  const result = await runParentDocumentScanBatch(documents, {
+    scan: async (document) => {
+      events.push(`start:${document.id}`);
+      if (document.id === "two") throw new Error("Unreadable plan");
+      events.push(`finish:${document.id}`);
+    },
+    onProgress: (document, index, total) => {
+      events.push(`progress:${index + 1}/${total}:${document.id}`);
+    },
+  });
+
+  assert.deepEqual(events, [
+    "progress:1/3:one", "start:one", "finish:one",
+    "progress:2/3:two", "start:two",
+    "progress:3/3:three", "start:three", "finish:three",
+  ]);
+  assert.equal(result.scanned, 2);
+  assert.equal(result.failed, 1);
+  assert.deepEqual(result.outcomes.map((outcome) => outcome.ok), [true, false, true]);
 });
