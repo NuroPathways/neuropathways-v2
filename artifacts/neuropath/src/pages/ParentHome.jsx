@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { getParentBehaviors, getParentDashboard, parentBehaviorIdentity, useGetParentDashboard, getGetParentDashboardQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
-import { Shell, ErrorBox, Skeleton } from "@/components/parentfree/common";
+import { ErrorBox, Skeleton } from "@/components/parentfree/common";
+import RoleAwareShell from "@/components/navigation/RoleAwareShell";
+import { BookOpen, ClipboardList, FileText, Heart, Home, LifeBuoy, Plus, Sparkles, Target, UserRound } from "lucide-react";
 import { isSetupComplete, useSelectedChild } from "@/components/parentfree/useParent";
 import SupportCardView, { sourceLabel } from "@/components/parentfree/SupportView";
 import HelpNowPanel from "@/components/parentfree/HelpNowPanel";
@@ -38,16 +40,26 @@ function Body({ child }) {
   const tab = TABS.some(([k]) => k === sp.get("tab")) ? sp.get("tab") : "today";
   const [help, setHelp] = useState(false);
   const [selId, setSelId] = useState(() => readFocus(user?.id, child.id));
-  const [section, setSection] = useState(null);
+  const [section, setSection] = useState(() => sp.get("section"));
   const [addFromHelp, setAddFromHelp] = useState(null);
+  const libraryRef = useRef(null);
   const q = useGetParentDashboard(child.id, { query: { queryKey: getGetParentDashboardQueryKey(child.id), staleTime: 0, refetchOnMount: "always" }, request: parentRequest() });
   useEffect(() => { setHelp(false); }, [child.id]);
+  useEffect(() => { setSection(sp.get("section")); }, [sp]);
+  useEffect(() => {
+    if (tab === "today" && sp.get("section") === "library") {
+      libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [tab, sp, q.data]);
   useEffect(() => {
     if (!selId) return;
     try { sessionStorage.setItem(`${focusPrefix(user?.id)}${child.id}`, selId); }
     catch { console.warn("This browser could not remember the selected support area for reloads."); }
   }, [child.id, user?.id, selId]);
-  const go = (k, sec) => { setSection(sec || null); setSp({ tab: k }, { replace: true }); };
+  const go = (k, sec) => {
+    setSection(sec || null);
+    setSp(sec ? { tab: k, section: sec } : { tab: k }, { replace: true });
+  };
   const d = q.data;
   const mine = d ? getParentBehaviors(d.child || child) : [];
   const allCards = (d?.supportCards || []).map((c) => {
@@ -64,9 +76,6 @@ function Body({ child }) {
 
   return (
     <div className="pf-app">
-      <nav><div className="pf-tabs" role="tablist" style={{ margin: "0" }}>
-        {TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className="pf-tab" onClick={() => go(k)} data-testid={`tab-${k}`}>{l}</button>)}
-      </div></nav>
       <section style={{ minWidth: 0 }}>
       {q.isLoading && <div style={{ display: "grid", gap: 14 }}><Skeleton h={160} /><Skeleton h={220} /></div>}
       {q.isError && <ErrorBox error={q.error} onRetry={() => q.refetch()} />}
@@ -94,7 +103,9 @@ function Body({ child }) {
                <p className="pf-hint">Available in Help Now without changing your saved behaviors or goals.</p>
                {archivedCards.filter((c) => c.planGoal).map((c) => <div key={c.id} style={{ marginTop: 12 }}><strong>{c.behaviorName}</strong><GoalLines card={c} active={false} /></div>)}
              </div>}
-             <BehaviorLibrary child={d.child || child} allCards={allCards} requestAdd={addFromHelp} onAddHandled={() => setAddFromHelp(null)} onUpload={() => go("docs")} onEdit={(sec) => go("edit", sec)} />
+              <div id="parent-behavior-library" ref={libraryRef} style={{ scrollMarginTop: 84 }}>
+                <BehaviorLibrary child={d.child || child} allCards={allCards} requestAdd={addFromHelp} onAddHandled={() => setAddFromHelp(null)} onUpload={() => go("docs")} onEdit={(sec) => go("edit", sec)} />
+              </div>
             <div className="pf-card">
               <h3 style={{ marginBottom: 12 }}>Quick Actions</h3>
               <div className="pf-actions">
@@ -149,8 +160,18 @@ export default function ParentHome() {
   const nav = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const { children, selected, select } = useSelectedChild();
+  const [searchParams] = useSearchParams();
+  const [supportRequest, setSupportRequest] = useState(0);
   const incomplete = useMemo(() => children.find((c) => !isSetupComplete(c)), [children]);
   const popupChildren = useMemo(() => children.map((child) => ({ ...child, child_name: child.name })), [children]);
+  const activeTab = TABS.some(([key]) => key === searchParams.get("tab")) ? searchParams.get("tab") : "today";
+  const activeSection = searchParams.get("section") || "";
+  const goToTab = (tab, section) => {
+    const params = new URLSearchParams();
+    if (tab !== "today" || section) params.set("tab", tab);
+    if (section) params.set("section", section);
+    nav(`/ParentHome${params.size ? `?${params.toString()}` : ""}`);
+  };
   const loadPopupProfile = useCallback(async (childId) => {
     const dashboard = await getParentDashboard(childId, parentRequest());
     return {
@@ -172,28 +193,68 @@ export default function ParentHome() {
   if (!isAuthenticated || user?.account_type !== "parent_free") return <Navigate to="/ParentLogin" replace />;
   if (children.length === 0 || (incomplete && incomplete.id === selected?.id)) return <Navigate to="/ParentQuickStart" replace />;
 
+  const navGroups = [
+    {
+      label: "Today",
+      items: [
+        { key: "home", label: "Home", icon: Home, active: activeTab === "today" && !activeSection, onSelect: () => goToTab("today") },
+        { key: "support", label: "Support Now", icon: LifeBuoy, support: true, onSelect: () => setSupportRequest((request) => request + 1) },
+      ],
+    },
+    {
+      label: "Care plan",
+      items: [
+        { key: "support-steps", label: "Support Steps", icon: BookOpen, active: activeTab === "steps", onSelect: () => goToTab("steps") },
+        { key: "library", label: "Behavior Support Library", icon: BookOpen, active: activeTab === "today" && activeSection === "library", onSelect: () => goToTab("today", "library") },
+        { key: "goals", label: "Goals", icon: Target, active: activeTab === "edit" && activeSection === "goals", onSelect: () => goToTab("edit", "goals") },
+        { key: "logs", label: "Logs", icon: ClipboardList, active: activeTab === "log", onSelect: () => goToTab("log") },
+        { key: "documents", label: "Upload Plan", icon: FileText, active: activeTab === "docs", onSelect: () => goToTab("docs") },
+        { key: "ask", label: "AI Chat", icon: Sparkles, active: activeTab === "ask", onSelect: () => goToTab("ask") },
+      ],
+    },
+    {
+      label: "Family",
+      items: [
+        { key: "profiles", label: "Child Profiles", icon: UserRound, active: activeTab === "edit" && activeSection !== "goals", onSelect: () => goToTab("edit", "profile") },
+        { key: "clinic", label: "Clinic", icon: Heart, active: activeTab === "clinic", onSelect: () => goToTab("clinic") },
+        { key: "add-child", label: "Add a child", icon: Plus, onSelect: () => nav("/ParentQuickStart?new=1") },
+      ],
+    },
+  ];
+  const activeItem = navGroups.flatMap((group) => group.items).find((item) => item.active);
+  const currentLabel = activeItem?.label || "Home";
+
   return (
-    <Shell right={<>
-      <button className="pf-btn small" onClick={() => nav("/ParentQuickStart?new=1")} data-testid="button-add-child">Add a child</button>
-      <button className="pf-btn small ghost" onClick={() => { clearFocus(user?.id); clearSupportPopupSession(user?.id); logout(); }} data-testid="button-logout">Sign out</button>
-    </>}>
-      <main className="pf-wrap wide" style={{ paddingBottom: 80 }}>
+    <RoleAwareShell
+      role="caregiver"
+      roleLabel="Caregiver workspace"
+      currentLabel={currentLabel}
+      activeKey={activeItem?.key}
+      navGroups={navGroups}
+      mobilePrimaryKeys={["home", "support", "logs"]}
+      accountName={user.first_name || user.full_name || "Caregiver"}
+      accountMeta="Caregiver account"
+      selectedChild={selected}
+      childrenOptions={children}
+      contextLabel="Viewing support for"
+      onChildSelect={select}
+      onLogout={() => { clearFocus(user?.id); clearSupportPopupSession(user?.id); logout(); }}
+    >
+      <div className="pf">
+      <main className="pf-wrap wide">
         <p className="pf-eyebrow">Hi {user.first_name}</p>
-        <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>Today's Support <span style={{ color: "var(--pf-ink-soft)", fontWeight: 400 }}>for {selected.name}</span></h1>
-        {children.length > 1 && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} data-testid="list-children">
-            {children.map((c) => <button key={c.id} className="pf-chip" aria-pressed={c.id === selected.id} onClick={() => select(c.id)} data-testid={`button-child-${c.id}`}>{c.name}</button>)}
-          </div>
-        )}
+        <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span style={{ color: "var(--pf-ink-soft)", fontWeight: 400 }}>for {selected.name}</span></h1>
         <Body key={selected.id} child={selected} />
       </main>
+      </div>
       <SupportNowOverlay
         user={user}
         children={popupChildren}
         isIndividual={children.length === 1}
         loadProfileForChild={loadPopupProfile}
         logEngagement={false}
+        openRequest={supportRequest}
       />
-    </Shell>
+    </RoleAwareShell>
   );
 }

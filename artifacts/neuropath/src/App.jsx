@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster"
+import { useState } from "react";
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { pagesConfig } from './pages.config'
@@ -53,6 +54,7 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 
 const ClientHomeRoute = () => {
   const { user } = useAuth();
+  const [supportRequest, setSupportRequest] = useState(0);
   const children = (Array.isArray(user?.children) && user.children.length
     ? user.children
     : user?.id
@@ -61,8 +63,8 @@ const ClientHomeRoute = () => {
 
   return (
     <>
-      {user?.invite_token && <SupportNowOverlay user={user} children={children} isIndividual={children.length === 1} />}
-      <ClientHome />
+      {user?.invite_token && <SupportNowOverlay user={user} children={children} isIndividual={user?.account_type === "individual"} openRequest={supportRequest} />}
+      <ClientHome onSupportNow={() => setSupportRequest((request) => request + 1)} />
     </>
   );
 };

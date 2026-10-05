@@ -179,6 +179,8 @@ export default function SupportNowOverlay({
   isIndividual,
   loadProfileForChild,
   logEngagement = true,
+  openRequest = 0,
+  autoOpen = true,
 }) {
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState("child_select"); // "child_select" | "menu" | "behavior" | "crisis" | "calm"
@@ -225,7 +227,7 @@ export default function SupportNowOverlay({
   }, [loadProfileForChild, user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !autoOpen) return;
     const key = user.invite_token || user.id;
     if (user.invite_token) {
       try {
@@ -240,7 +242,17 @@ export default function SupportNowOverlay({
       setVisible(true);
     }, 300);
     return () => clearTimeout(t);
-  }, [user?.invite_token, user?.id]);
+  }, [user?.invite_token, user?.id, autoOpen]);
+
+  useEffect(() => {
+    if (!user || !openRequest) return;
+    setStep("child_select");
+    setSelectedChild(null);
+    setPendingChildId("");
+    setProfile(null);
+    setProfileLoadError(false);
+    setVisible(true);
+  }, [openRequest, user?.id]);
 
   useEffect(() => {
     if (!visible) return;
