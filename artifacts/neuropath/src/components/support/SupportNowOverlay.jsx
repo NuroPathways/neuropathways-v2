@@ -306,7 +306,11 @@ export default function SupportNowOverlay({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-start justify-center pt-4 sm:pt-8 pointer-events-none"
+          className="fixed inset-0 z-50 flex justify-center pointer-events-none"
+          style={{
+            alignItems: "flex-start",
+            paddingTop: "max(16px, env(safe-area-inset-top))",
+          }}
       >
         {/* Dark backdrop — blocks background taps/clicks, sits behind the modal */}
         <div className="absolute inset-0 bg-black/50 pointer-events-auto" style={{ zIndex: 0 }} />
@@ -315,7 +319,7 @@ export default function SupportNowOverlay({
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 60, opacity: 0 }}
           transition={{ type: "spring", stiffness: 320, damping: 30 }}
-          className="pointer-events-auto relative w-full max-w-md bg-background rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-y-auto border border-border"
+          className="pointer-events-auto relative w-full max-w-md bg-background rounded-3xl shadow-2xl overflow-y-auto border border-border"
           role="dialog"
           aria-modal="true"
           aria-label="Choose support for a child"
