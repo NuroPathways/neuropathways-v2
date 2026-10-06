@@ -28,6 +28,8 @@ export type ParentBehavior = {
   customBehavior: string | null;
   behaviorName: string;
   goal: string | null;
+  goalRating?: "positive" | "needs_support" | null;
+  goalRatingAt?: string | null;
 };
 
 export function parentBehaviorIdentity(behavior: Pick<ParentBehavior, "behaviorKey" | "customBehavior" | "behaviorName">): string {
@@ -53,6 +55,10 @@ export function parentBehaviorsFromSettings(settings: {
       customBehavior: typeof value.customBehavior === "string" ? value.customBehavior : null,
       behaviorName: value.behaviorName,
       goal: typeof value.goal === "string" ? value.goal : null,
+      goalRating: value.goalRating === "positive" || value.goalRating === "needs_support"
+        ? value.goalRating
+        : null,
+      goalRatingAt: typeof value.goalRatingAt === "string" ? value.goalRatingAt : null,
     }));
     if (stored.length) return stored;
   }
@@ -64,6 +70,8 @@ export function parentBehaviorsFromSettings(settings: {
     customBehavior,
     behaviorName: customBehavior || starterLibrary.find((template) => template.key === behaviorKey)?.name || behaviorKey,
     goal: settings.goal ?? null,
+    goalRating: null,
+    goalRatingAt: null,
   }];
 }
 

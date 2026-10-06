@@ -76,6 +76,52 @@ test("legacy scalar goal edits affect only the primary and replacing selections 
   assert.equal(removed[0].goal, "Choose one item");
 });
 
+test("goal feedback persists through unchanged selections and clears when a goal changes", () => {
+  const current = completeBehaviorSelections([
+    { behaviorKey: "task_refusal", goal: "Start one step" },
+    { behaviorKey: "custom", customBehavior: "Morning clothing discomfort", goal: "Choose one item" },
+  ]);
+  current[0] = {
+    ...current[0],
+    goalRating: "positive",
+    goalRatingAt: "2026-10-06T18:00:00.000Z",
+  };
+  current[1] = {
+    ...current[1],
+    goalRating: "needs_support",
+    goalRatingAt: "2026-10-06T18:05:00.000Z",
+  };
+
+  const unchangedInput = validateChildInput({
+    behaviors: [
+      { behaviorKey: "task_refusal", goal: "Start one step" },
+      { behaviorKey: "custom", customBehavior: "Morning clothing discomfort", goal: "Choose one item" },
+    ],
+  }, "patch");
+  assert.equal(unchangedInput.ok, true);
+  if (!unchangedInput.ok) return;
+  const unchanged = applyLegacyBehaviorEdits(current, unchangedInput.input, {
+    behaviors: unchangedInput.input.behaviors,
+  });
+  assert.equal(unchanged[0].goalRating, "positive");
+  assert.equal(unchanged[1].goalRating, "needs_support");
+
+  const changedInput = validateChildInput({
+    behaviors: [
+      { behaviorKey: "task_refusal", goal: "Ask for a break" },
+      { behaviorKey: "custom", customBehavior: "Morning clothing discomfort", goal: "Choose one item" },
+    ],
+  }, "patch");
+  assert.equal(changedInput.ok, true);
+  if (!changedInput.ok) return;
+  const changed = applyLegacyBehaviorEdits(current, changedInput.input, {
+    behaviors: changedInput.input.behaviors,
+  });
+  assert.equal(changed[0].goalRating, null);
+  assert.equal(changed[0].goalRatingAt, null);
+  assert.equal(changed[1].goalRating, "needs_support");
+});
+
 test("behavior regeneration keeps all document and clinician-reviewed support cards", () => {
   const documentCard = {
     ...makeStarterCard("task_refusal", null, "Start one step"),

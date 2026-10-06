@@ -53,13 +53,15 @@ test("legacy scalar setup settings serialize as one parent behavior", () => {
     customBehavior: "Morning clothing discomfort",
     behaviorName: "Morning clothing discomfort",
     goal: "Choose one comfortable item",
+    goalRating: null,
+    goalRatingAt: null,
   }]);
 });
 
 test("multi-behavior settings preserve separate goals and custom identities", () => {
   const behaviors = [
-    { behaviorKey: "task_refusal", customBehavior: null, behaviorName: "Task Refusal", goal: "Start one step" },
-    { behaviorKey: "custom", customBehavior: "Morning clothing discomfort", behaviorName: "Morning clothing discomfort", goal: null },
+    { behaviorKey: "task_refusal", customBehavior: null, behaviorName: "Task Refusal", goal: "Start one step", goalRating: null, goalRatingAt: null },
+    { behaviorKey: "custom", customBehavior: "Morning clothing discomfort", behaviorName: "Morning clothing discomfort", goal: null, goalRating: null, goalRatingAt: null },
   ];
   assert.deepEqual(parentBehaviorsFromSettings({ behaviors, behaviorKey: "task_refusal" }), behaviors);
   assert.notEqual(parentBehaviorIdentity(behaviors[0]), parentBehaviorIdentity(behaviors[1]));

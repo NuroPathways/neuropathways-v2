@@ -15,6 +15,10 @@ import {
   userProfilesTable,
   usersTable,
 } from "@workspace/db";
+import {
+  RecordParentGoalFeedbackBody,
+  RecordParentGoalFeedbackResponse,
+} from "@workspace/api-zod";
 import { makeStarterCard, starterLibrary } from "../lib/parentStarterLibrary";
 import { getParentSupportCards, listParentDocuments } from "../lib/parentDocuments";
 import {
@@ -286,6 +290,27 @@ export function completeBehaviorSelections(
         ? customBehavior!
         : starterLibrary.find((template) => template.key === behaviorKey)!.name,
       goal: selection.goal ?? null,
+      goalRating: null,
+      goalRatingAt: null,
+    };
+  });
+}
+
+function preserveGoalFeedback(
+  current: ReturnType<typeof parentBehaviorsFromSettings>,
+  next: ReturnType<typeof parentBehaviorsFromSettings>,
+): ReturnType<typeof parentBehaviorsFromSettings> {
+  return next.map((behavior) => {
+    const previous = current.find((candidate) =>
+      parentBehaviorIdentity(candidate) === parentBehaviorIdentity(behavior),
+    );
+    if (!previous || previous.goal !== behavior.goal) {
+      return { ...behavior, goalRating: null, goalRatingAt: null };
+    }
+    return {
+      ...behavior,
+      goalRating: previous.goalRating ?? null,
+      goalRatingAt: previous.goalRatingAt ?? null,
     };
   });
 }
@@ -299,7 +324,7 @@ export function applyLegacyBehaviorEdits(
     ? completeBehaviorSelections(input.behaviors)
     : current.map((behavior) => ({ ...behavior }));
   const hasLegacyBehaviorEdit = ["behaviorKey", "customBehavior", "goal"].some((key) => hasOwn(body, key));
-  if (!hasLegacyBehaviorEdit) return behaviors;
+  if (!hasLegacyBehaviorEdit) return preserveGoalFeedback(current, behaviors);
 
   let primary = behaviors[0];
   if (hasOwn(body, "behaviorKey") && input.behaviorKey === null) {
@@ -341,7 +366,7 @@ export function applyLegacyBehaviorEdits(
   if (hasOwn(body, "goal")) {
     if (primary) primary.goal = input.goal ?? null;
   }
-  return behaviors;
+  return preserveGoalFeedback(current, behaviors);
 }
 
 function serializeParentLog(log: typeof parentLogsTable.$inferSelect) {
@@ -656,6 +681,106 @@ router.post("/parent/children", requireParent, async (req: Request, res: Respons
     res.status(201).json(serializeParentChild(child.child, child.settings));
   } catch {
     res.status(500).json({ error: "Unable to create child profile" });
+  }
+});
+
+router.patch("/parent/children/:childId/goal-feedback", requireParent, async (req: Request, res: Response) => {
+  const childId = getRouteChildId(req);
+  if (!childId) {
+    res.status(400).json({ error: "A valid childId is required" });
+    return;
+  }
+  const checked = RecordParentGoalFeedbackBody.safeParse(req.body);
+  if (!checked.success) {
+    res.status(400).json({ error: "Invalid goal check-in" });
+    return;
+  }
+
+  const behaviorKey = cleanText(checked.data.behaviorKey, 100);
+  const customBehavior = checked.data.customBehavior == null
+    ? null
+    : cleanText(checked.data.customBehavior, 120);
+  const goal = cleanText(checked.data.goal, 500);
+  if (
+    !behaviorKey ||
+    !goal ||
+    (checked.data.behaviorKey === "custom" && !customBehavior) ||
+    (checked.data.behaviorKey !== "custom" && customBehavior) ||
+    !validateBehaviorSelection(behaviorKey, customBehavior)
+  ) {
+    res.status(400).json({ error: "Choose a valid active behavior and goal" });
+    return;
+  }
+
+  try {
+    const parent = req.parentAccount!;
+    const owned = await ownedParentChild(parent.id, childId);
+    if (!owned) {
+      res.status(404).json({ error: "Child not found" });
+      return;
+    }
+
+    const identity = parentBehaviorIdentity({
+      behaviorKey,
+      customBehavior,
+      behaviorName: customBehavior || behaviorKey,
+    });
+    const result = await db.transaction(async (tx) => {
+      const [settings] = await tx
+        .select()
+        .from(parentChildSettingsTable)
+        .where(and(
+          eq(parentChildSettingsTable.childId, owned.id),
+          eq(parentChildSettingsTable.parentId, parent.id),
+        ))
+        .for("update");
+      if (!settings) return { kind: "child_not_found" as const };
+
+      const behaviors = parentBehaviorsFromSettings(settings);
+      const index = behaviors.findIndex((behavior) =>
+        parentBehaviorIdentity(behavior) === identity,
+      );
+      if (index < 0) return { kind: "behavior_not_selected" as const };
+      if (behaviors[index].goal !== goal) return { kind: "goal_changed" as const };
+
+      behaviors[index] = {
+        ...behaviors[index],
+        goalRating: checked.data.rating,
+        goalRatingAt: new Date().toISOString(),
+      };
+      const [updated] = await tx
+        .update(parentChildSettingsTable)
+        .set({ behaviors, updatedAt: new Date() })
+        .where(and(
+          eq(parentChildSettingsTable.childId, owned.id),
+          eq(parentChildSettingsTable.parentId, parent.id),
+        ))
+        .returning();
+      if (!updated) return { kind: "child_not_found" as const };
+      const updatedBehavior = parentBehaviorsFromSettings(updated).find((behavior) =>
+        parentBehaviorIdentity(behavior) === identity,
+      );
+      return updatedBehavior
+        ? { kind: "ok" as const, behavior: updatedBehavior }
+        : { kind: "child_not_found" as const };
+    });
+
+    if (result.kind === "child_not_found") {
+      res.status(404).json({ error: "Child not found" });
+      return;
+    }
+    if (result.kind === "behavior_not_selected") {
+      res.status(400).json({ error: "Choose one of this child's active behaviors" });
+      return;
+    }
+    if (result.kind === "goal_changed") {
+      res.status(409).json({ error: "This goal changed. Reload the page before checking in." });
+      return;
+    }
+    res.json(RecordParentGoalFeedbackResponse.parse(result.behavior));
+  } catch (error) {
+    req.log.error({ err: error }, "Unable to save parent goal feedback");
+    res.status(500).json({ error: "Unable to save goal check-in" });
   }
 });
 

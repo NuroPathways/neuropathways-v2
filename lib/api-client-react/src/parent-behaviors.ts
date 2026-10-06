@@ -3,6 +3,8 @@ type ParentBehaviorRecord = {
   customBehavior: string | null;
   behaviorName: string;
   goal: string | null;
+  goalRating: "positive" | "needs_support" | null;
+  goalRatingAt: string | null;
 };
 
 type ParentBehaviorSelectionInput = {
@@ -16,6 +18,8 @@ type ParentBehaviorSource = {
   customBehavior?: unknown;
   behaviorName?: unknown;
   goal?: unknown;
+  goalRating?: unknown;
+  goalRatingAt?: unknown;
 };
 
 function normalizedName(value: unknown): string {
@@ -50,6 +54,10 @@ export function getParentBehaviors(child: ParentBehaviorSource & {
         customBehavior: typeof value.customBehavior === "string" ? value.customBehavior : null,
         behaviorName: value.behaviorName,
         goal: typeof value.goal === "string" ? value.goal : null,
+        goalRating: value.goalRating === "positive" || value.goalRating === "needs_support"
+          ? value.goalRating
+          : null,
+        goalRatingAt: typeof value.goalRatingAt === "string" ? value.goalRatingAt : null,
       }];
     });
     if (behaviors.length) return behaviors;
@@ -64,5 +72,7 @@ export function getParentBehaviors(child: ParentBehaviorSource & {
     customBehavior,
     behaviorName,
     goal: typeof child.goal === "string" ? child.goal : null,
+    goalRating: null,
+    goalRatingAt: null,
   }];
 }

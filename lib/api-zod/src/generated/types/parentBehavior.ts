@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ParentBehaviorGoalRating } from './parentBehaviorGoalRating';
 
 export interface ParentBehavior {
   /** @maxLength 100 */
@@ -14,4 +15,8 @@ export interface ParentBehavior {
   behaviorName: string;
   /** @nullable */
   goal: string | null;
+  /** @nullable */
+  goalRating?: ParentBehaviorGoalRating;
+  /** @nullable */
+  goalRatingAt?: Date | null;
 }

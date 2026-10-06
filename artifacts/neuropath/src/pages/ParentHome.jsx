@@ -15,11 +15,13 @@ import DocsPanel from "@/components/parentfree/DocsPanel";
 import ChatPanel from "@/components/parentfree/ChatPanel";
 import ClinicPanel from "@/components/parentfree/ClinicPanel";
 import BehaviorCards from "@/components/parentfree/BehaviorCards";
+import ParentGoalsTab from "@/components/parentfree/ParentGoalsTab";
 import ProgressView from "@/components/parentfree/ProgressView";
 import { cardIdentity } from "@/components/parentfree/progress";
 import BehaviorLibrary from "@/components/parentfree/BehaviorLibrary";
 import ChildEditor from "@/components/parentfree/ChildEditor";
 import SupportNowOverlay, { clearSupportPopupSession } from "@/components/support/SupportNowOverlay";
+import { behaviorEmoji } from "@/lib/behaviorEmoji";
 
 const TABS = [["today", "Today's Support"], ["steps", "Support Steps"], ["log", "Log What Happened"], ["docs", "Upload Plan"], ["ask", "Ask"], ["clinic", "Clinic"], ["edit", "Edit Child Profile"]];
 
@@ -42,10 +44,12 @@ function Body({ child }) {
   const [selId, setSelId] = useState(() => readFocus(user?.id, child.id));
   const [section, setSection] = useState(() => sp.get("section"));
   const [addFromHelp, setAddFromHelp] = useState(null);
+  const [supportStepId, setSupportStepId] = useState(null);
   const libraryRef = useRef(null);
   const q = useGetParentDashboard(child.id, { query: { queryKey: getGetParentDashboardQueryKey(child.id), staleTime: 0, refetchOnMount: "always" }, request: parentRequest() });
   useEffect(() => { setHelp(false); }, [child.id]);
   useEffect(() => { setSection(sp.get("section")); }, [sp]);
+  useEffect(() => { if (tab !== "steps") setSupportStepId(null); }, [tab]);
   useEffect(() => {
     if (tab === "today" && sp.get("section") === "library") {
       libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -71,6 +75,7 @@ function Body({ child }) {
   const helpCards = allCards.filter((c) => cards.includes(c) || c.source !== "starter");
   const activeIds = new Set(cards.map(cardIdentity));
   const card = cards.find((c) => cardIdentity(c) === selId) || cards[0];
+  const supportStepCard = helpCards.find((c) => cardIdentity(c) === supportStepId);
   const curId = card ? cardIdentity(card) : null;
   const behaviors = cards.map((c) => ({ behaviorKey: c.behaviorKey, customBehavior: c.behaviorKey === "custom" ? c.behaviorName : null, behaviorName: c.behaviorName, goal: c.goal }));
 
@@ -131,26 +136,75 @@ function Body({ child }) {
           </div>
         )
       )}
-      {d && tab === "steps" && card && (
-        <div style={{ display: "grid", gap: 16 }}>
-          {cards.length > 1 && <BehaviorCards cards={cards} selectedId={curId} onSelect={setSelId} />}
-          {card.guidanceGoal && <p className="pf-hint" data-testid="text-guidance-earlier-goal">Guidance below was written for the earlier goal: {card.guidanceGoal}</p>}
-          <SupportCardView card={card} childName={child.name} onUpload={() => go("docs")} />
-          {archivedCards.length > 0 && <div className="pf-card">
-            <h3>Other saved plan guidance</h3>
-            <p className="pf-hint">These behaviors are not currently active. Their plan guidance is kept for reference and can be added from the library.</p>
-            {archivedCards.map((saved) => <details key={saved.id} style={{ marginTop: 12 }}>
-              <summary>{saved.behaviorName} — {saved.goal}</summary>
-               <SupportCardView card={saved} childName={child.name} active={false} onUpload={() => go("docs")} />
-            </details>)}
-          </div>}
+      {d && tab === "steps" && (
+        <div style={{ display: "grid", gap: 16 }} data-testid="panel-support-steps">
+          {supportStepCard ? (
+            <>
+              <button
+                type="button"
+                className="pf-btn small"
+                style={{ justifySelf: "start" }}
+                onClick={() => setSupportStepId(null)}
+                data-testid="button-back-to-support-blocks"
+              >
+                <span aria-hidden="true">←</span> All support behaviors
+              </button>
+              {supportStepCard.guidanceGoal && (
+                <p className="pf-hint" data-testid="text-guidance-earlier-goal">
+                  Guidance below was written for the earlier goal: {supportStepCard.guidanceGoal}
+                </p>
+              )}
+              <SupportCardView
+                card={supportStepCard}
+                childName={child.name}
+                active={activeIds.has(cardIdentity(supportStepCard))}
+                onUpload={() => go("docs")}
+              />
+            </>
+          ) : helpCards.length > 0 ? (
+            <>
+              <div className="pf-card sage">
+                <h2>Choose a support behavior</h2>
+                <p className="pf-hint" style={{ marginTop: 6 }}>
+                  Select a block to see its full support steps. Behaviors found in an uploaded plan are available here without adding them to your active list.
+                </p>
+              </div>
+              <BehaviorCards cards={helpCards} selectedId={null} onSelect={setSupportStepId} />
+            </>
+          ) : (
+            <div className="pf-card" data-testid="empty-support-steps">
+              <h2>No support blocks yet</h2>
+              <p className="pf-hint" style={{ marginTop: 6 }}>
+                Add a behavior or upload a support plan to see behavior-specific steps here.
+              </p>
+              <button type="button" className="pf-btn small" style={{ marginTop: 14 }} onClick={() => go("docs")}>
+                Upload a plan
+              </button>
+            </div>
+          )}
         </div>
       )}
       {d && tab === "log" && <LogPanel childId={child.id} childName={child.name} logs={d.logs} behaviors={behaviors} defaultId={curId} />}
       {d && tab === "docs" && <DocsPanel child={d.child || child} documents={d.documents} />}
       {tab === "ask" && <ChatPanel childId={child.id} childName={child.name} cards={cards} />}
       {d && tab === "clinic" && <ClinicPanel child={d.child || child} documents={d.documents} />}
-      {tab === "edit" && <ChildEditor child={d?.child || child} section={section} onUpload={() => go("docs")} />}
+      {tab === "edit" && section === "goals" && (
+        <ParentGoalsTab
+          child={d?.child || child}
+          behaviors={mine}
+          cards={cards}
+          allCards={allCards}
+          onUpload={() => go("docs")}
+          onEdit={(targetSection) => go("edit", targetSection === "goals" ? "goal-editor" : targetSection)}
+        />
+      )}
+      {tab === "edit" && section !== "goals" && (
+        <ChildEditor
+          child={d?.child || child}
+          section={section === "goal-editor" ? "goals" : section}
+          onUpload={() => go("docs")}
+        />
+      )}
       </section>
     </div>
   );
@@ -174,12 +228,17 @@ export default function ParentHome() {
   };
   const loadPopupProfile = useCallback(async (childId) => {
     const dashboard = await getParentDashboard(childId, parentRequest());
+    if (!Array.isArray(dashboard.supportCards)) {
+      throw new Error("Support cards could not be loaded.");
+    }
     return {
       ...(dashboard.child || {}),
-      behaviors: (dashboard.supportCards || []).map((card) => ({
+      behaviors: dashboard.supportCards
+        .filter((card) => card && typeof card === "object" && !Array.isArray(card))
+        .map((card) => ({
         id: card.id,
         name: card.behaviorName,
-        emoji: card.source === "starter" ? "🧩" : "📋",
+        emoji: behaviorEmoji(card.behaviorKey, card.behaviorName),
         sourceLabel: card.source === "starter" ? "Source: Pre-programmed library" : "Source: Behavior plan",
         what_may_be_happening: card.whatMayBeHappening,
         do_this_right_now: card.rightNow || [],

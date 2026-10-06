@@ -51,6 +51,8 @@ export const parentChildSettingsTable = pgTable("parent_child_settings", {
     customBehavior: string | null;
     behaviorName: string;
     goal: string | null;
+    goalRating?: "positive" | "needs_support" | null;
+    goalRatingAt?: string | null;
   }[]>().notNull().default([]),
   supportCards: jsonb("support_cards").$type<Record<string, unknown>[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

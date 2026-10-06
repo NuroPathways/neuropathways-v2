@@ -73,7 +73,9 @@ export const RegisterParentResponse = zod.object({
   "behaviorKey": zod.string().max(registerParentResponseChildrenItemBehaviorsItemBehaviorKeyMax),
   "customBehavior": zod.string().nullable(),
   "behaviorName": zod.string(),
-  "goal": zod.string().nullable()
+  "goal": zod.string().nullable(),
+  "goalRating": zod.union([zod.literal('positive'),zod.literal('needs_support'),zod.literal(null)]).nullish(),
+  "goalRatingAt": zod.coerce.date().nullish()
 })),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
@@ -116,7 +118,9 @@ export const LoginParentResponse = zod.object({
   "behaviorKey": zod.string().max(loginParentResponseChildrenItemBehaviorsItemBehaviorKeyMax),
   "customBehavior": zod.string().nullable(),
   "behaviorName": zod.string(),
-  "goal": zod.string().nullable()
+  "goal": zod.string().nullable(),
+  "goalRating": zod.union([zod.literal('positive'),zod.literal('needs_support'),zod.literal(null)]).nullish(),
+  "goalRatingAt": zod.coerce.date().nullish()
 })),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
@@ -161,7 +165,9 @@ export const GetParentSessionResponse = zod.object({
   "behaviorKey": zod.string().max(getParentSessionResponseChildrenItemBehaviorsItemBehaviorKeyMax),
   "customBehavior": zod.string().nullable(),
   "behaviorName": zod.string(),
-  "goal": zod.string().nullable()
+  "goal": zod.string().nullable(),
+  "goalRating": zod.union([zod.literal('positive'),zod.literal('needs_support'),zod.literal(null)]).nullish(),
+  "goalRatingAt": zod.coerce.date().nullish()
 })),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
@@ -235,7 +241,9 @@ export const CreateParentChildResponse = zod.object({
   "behaviorKey": zod.string().max(createParentChildResponseBehaviorsItemBehaviorKeyMax),
   "customBehavior": zod.string().nullable(),
   "behaviorName": zod.string(),
-  "goal": zod.string().nullable()
+  "goal": zod.string().nullable(),
+  "goalRating": zod.union([zod.literal('positive'),zod.literal('needs_support'),zod.literal(null)]).nullish(),
+  "goalRatingAt": zod.coerce.date().nullish()
 })),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
@@ -292,12 +300,50 @@ export const UpdateParentChildResponse = zod.object({
   "behaviorKey": zod.string().max(updateParentChildResponseBehaviorsItemBehaviorKeyMax),
   "customBehavior": zod.string().nullable(),
   "behaviorName": zod.string(),
-  "goal": zod.string().nullable()
+  "goal": zod.string().nullable(),
+  "goalRating": zod.union([zod.literal('positive'),zod.literal('needs_support'),zod.literal(null)]).nullish(),
+  "goalRatingAt": zod.coerce.date().nullish()
 })),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
   "familyId": zod.string(),
   "clinicianId": zod.string().nullable()
+})
+
+
+/**
+ * @summary Record a caregiver's current rating of an active goal
+ */
+export const RecordParentGoalFeedbackParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const recordParentGoalFeedbackBodyBehaviorKeyMax = 100;
+
+export const recordParentGoalFeedbackBodyCustomBehaviorMax = 120;
+
+export const recordParentGoalFeedbackBodyGoalMax = 500;
+
+
+
+export const RecordParentGoalFeedbackBody = zod.object({
+  "behaviorKey": zod.string().min(1).max(recordParentGoalFeedbackBodyBehaviorKeyMax),
+  "customBehavior": zod.string().min(1).max(recordParentGoalFeedbackBodyCustomBehaviorMax).nullish(),
+  "goal": zod.string().min(1).max(recordParentGoalFeedbackBodyGoalMax),
+  "rating": zod.enum(['positive', 'needs_support'])
+})
+
+export const recordParentGoalFeedbackResponseBehaviorKeyMax = 100;
+
+
+
+export const RecordParentGoalFeedbackResponse = zod.object({
+  "behaviorKey": zod.string().max(recordParentGoalFeedbackResponseBehaviorKeyMax),
+  "customBehavior": zod.string().nullable(),
+  "behaviorName": zod.string(),
+  "goal": zod.string().nullable(),
+  "goalRating": zod.union([zod.literal('positive'),zod.literal('needs_support'),zod.literal(null)]).nullish(),
+  "goalRatingAt": zod.coerce.date().nullish()
 })
 
 
@@ -327,7 +373,9 @@ export const GetParentDashboardResponse = zod.object({
   "behaviorKey": zod.string().max(getParentDashboardResponseChildBehaviorsItemBehaviorKeyMax),
   "customBehavior": zod.string().nullable(),
   "behaviorName": zod.string(),
-  "goal": zod.string().nullable()
+  "goal": zod.string().nullable(),
+  "goalRating": zod.union([zod.literal('positive'),zod.literal('needs_support'),zod.literal(null)]).nullish(),
+  "goalRatingAt": zod.coerce.date().nullish()
 })),
   "workspaceId": zod.string(),
   "parentId": zod.string(),
@@ -667,7 +715,9 @@ export const ConnectParentClinicResponse = zod.object({
   "behaviorKey": zod.string().max(connectParentClinicResponseChildBehaviorsItemBehaviorKeyMax),
   "customBehavior": zod.string().nullable(),
   "behaviorName": zod.string(),
-  "goal": zod.string().nullable()
+  "goal": zod.string().nullable(),
+  "goalRating": zod.union([zod.literal('positive'),zod.literal('needs_support'),zod.literal(null)]).nullish(),
+  "goalRatingAt": zod.coerce.date().nullish()
 })),
   "workspaceId": zod.string(),
   "parentId": zod.string(),

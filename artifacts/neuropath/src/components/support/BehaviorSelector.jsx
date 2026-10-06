@@ -2,6 +2,7 @@ import { useState } from "react";
 import { base44 } from '@/api/entities';
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, X, CheckCircle2, AlertCircle, ShieldAlert, Phone, ChevronRight } from "lucide-react";
+import { behaviorEmoji } from "@/lib/behaviorEmoji";
 
 const BEHAVIOR_COLORS = [
   { bg: "bg-red-50", border: "border-red-200", text: "text-red-800", badge: "bg-red-100 text-red-700" },
@@ -13,6 +14,80 @@ const BEHAVIOR_COLORS = [
   { bg: "bg-pink-50", border: "border-pink-200", text: "text-pink-800", badge: "bg-pink-100 text-pink-700" },
   { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-800", badge: "bg-indigo-100 text-indigo-700" },
 ];
+
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function textValue(value) {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number") return String(value);
+  if (isRecord(value)) {
+    return textValue(value.text ?? value.step ?? value.description ?? value.label ?? value.title ?? "");
+  }
+  return "";
+}
+
+function listItems(value) {
+  if (Array.isArray(value)) return value.map(textValue).filter(Boolean);
+  if (typeof value === "string") {
+    return value
+      .split(/\r?\n/)
+      .map((item) => item.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
+      .filter(Boolean);
+  }
+  if (isRecord(value)) {
+    const nested = value.items ?? value.steps ?? value.procedures ?? value.guidance;
+    return nested === undefined ? [] : listItems(nested);
+  }
+  return [];
+}
+
+function normalizeBehavior(value, index) {
+  const raw = isRecord(value) ? value : { name: typeof value === "string" ? value : "" };
+  const behaviorKey = textValue(raw.behaviorKey ?? raw.behavior_key ?? raw.key);
+  const name = textValue(raw.name ?? raw.behaviorName ?? raw.behavior_name ?? raw.title) || `Behavior ${index + 1}`;
+  const suppliedEmoji = textValue(raw.emoji);
+
+  return {
+    ...raw,
+    id: textValue(raw.id ?? raw.behaviorId ?? raw.behavior_id) || `${behaviorKey || "behavior"}-${name}`,
+    behaviorKey,
+    name,
+    emoji: suppliedEmoji && suppliedEmoji !== "📋" ? suppliedEmoji : behaviorEmoji(behaviorKey, name),
+    sourceLabel: textValue(raw.sourceLabel ?? raw.source_label),
+    what_may_be_happening: textValue(raw.what_may_be_happening ?? raw.whatMayBeHappening ?? raw.context),
+    do_this_right_now: listItems(raw.do_this_right_now ?? raw.doThisRightNow ?? raw.rightNow ?? raw.right_now ?? raw.immediate_steps),
+    interventions: listItems(raw.interventions ?? raw.clinicianApprovedSteps ?? raw.clinician_approved_strategies ?? raw.strategies),
+    if_it_escalates: listItems(raw.if_it_escalates ?? raw.ifItEscalates ?? raw.escalationSteps ?? raw.escalation_steps),
+    avoid: listItems(raw.avoid ?? raw.thingsToAvoid ?? raw.things_to_avoid ?? raw.avoid_this),
+    prevention_tips: listItems(raw.prevention_tips ?? raw.preventionTips ?? raw.prevention),
+    reinforcement_rewards: listItems(raw.reinforcement_rewards ?? raw.reinforcementRewards ?? raw.reinforcement),
+    when_to_contact_clinician: textValue(raw.when_to_contact_clinician ?? raw.whenToContactClinician ?? raw.seekHelp),
+  };
+}
+
+function normalizeBehaviorRows(value) {
+  let rows = value;
+  if (typeof rows === "string") {
+    try { rows = JSON.parse(rows); } catch { return []; }
+  }
+  if (isRecord(rows)) {
+    if (Array.isArray(rows.items)) rows = rows.items;
+    else if (["name", "behaviorName", "behavior_name", "behaviorKey", "behavior_key", "key"].some((key) => key in rows)) {
+      rows = [rows];
+    } else {
+      rows = Object.entries(rows).map(([name, item]) =>
+        isRecord(item)
+          ? { ...item, name: item.name ?? item.behaviorName ?? name }
+          : { name, do_this_right_now: item },
+      );
+    }
+  }
+  return Array.isArray(rows)
+    ? rows.map(normalizeBehavior).filter((behavior) => behavior.name.trim())
+    : [];
+}
 
 function Section({ title, items, colorClass }) {
   if (!items || items.length === 0) return null;
@@ -37,7 +112,7 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
   return (
     <div>
       <div className="sticky top-0 bg-background border-b border-border px-5 py-4 flex items-center gap-3 z-10">
-        <button onClick={onBack} className="min-w-[40px] min-h-[40px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors">
+        <button type="button" onClick={onBack} className="min-w-[40px] min-h-[40px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex-1">
@@ -134,7 +209,7 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
 export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onDismiss, isIndividual }) {
   const [selectedBehavior, setSelectedBehavior] = useState(null);
 
-  const behaviors = profile?.behaviors || [];
+  const behaviors = normalizeBehaviorRows(profile?.behaviors);
 
   const handleSelectBehavior = (behavior) => {
     if (child) {
@@ -155,14 +230,14 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
   return (
     <div>
       <div className="sticky top-0 bg-background border-b border-border px-5 py-4 flex items-center gap-3 z-10">
-        <button onClick={onBack} className="min-w-[40px] min-h-[40px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors">
+        <button type="button" onClick={onBack} className="min-w-[40px] min-h-[40px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex-1">
           <p className="font-bold text-foreground text-sm">Help With a Behavior</p>
           {child && <p className="text-xs text-muted-foreground">{child.child_name} · available support guidance</p>}
         </div>
-        <button onClick={onDismiss} className="min-w-[40px] min-h-[40px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors">
+        <button type="button" onClick={onDismiss} className="min-w-[40px] min-h-[40px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors">
           <X className="w-5 h-5" />
         </button>
       </div>
@@ -196,6 +271,7 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
                 return (
                   <button
                     key={i}
+                    type="button"
                     onClick={() => handleSelectBehavior(behavior)}
                     className={`${colors.bg} border-2 ${colors.border} rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-100`}
                   >

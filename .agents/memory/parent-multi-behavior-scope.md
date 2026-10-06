@@ -7,7 +7,7 @@ Parents must be able to select one or more behaviors from initial setup, with an
 
 **Why:** The user explicitly rejected restricting initial setup to a single behavior and requested both separate behavior cards and the dashboard progress, goals, and quick-action cards back.
 
-**How to apply:** Preserve both card groups on website and mobile. A selected behavior can focus a help or logging interaction, but must not replace or hide the other saved selections. Progress reflects recorded observations, not inferred goal completion.
+**How to apply:** Preserve both card groups on website and mobile. A selected behavior can focus a help or logging interaction, but must not replace or hide the other saved selections. Progress is based on recorded observations; goal check-ins are explicit caregiver ratings per behavior and do not increment numeric progress. Clear the prior check-in when that behavior's goal changes.
 
 ## Restore presentation without removing functionality
 

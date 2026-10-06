@@ -42,6 +42,17 @@ export interface Parent {
   accountType: 'parent_free';
 }
 
+/**
+ * @nullable
+ */
+export type ParentBehaviorGoalRating = typeof ParentBehaviorGoalRating[keyof typeof ParentBehaviorGoalRating] | null;
+
+
+export const ParentBehaviorGoalRating = {
+  positive: 'positive',
+  needs_support: 'needs_support',
+} as const;
+
 export interface ParentBehavior {
   /** @maxLength 100 */
   behaviorKey: string;
@@ -50,6 +61,10 @@ export interface ParentBehavior {
   behaviorName: string;
   /** @nullable */
   goal: string | null;
+  /** @nullable */
+  goalRating?: ParentBehaviorGoalRating;
+  /** @nullable */
+  goalRatingAt?: string | null;
 }
 
 export interface ParentChild {
@@ -149,6 +164,34 @@ export interface ParentChildUpdate {
      * @maxItems 20
      */
   behaviors?: ParentBehaviorInput[];
+}
+
+export type ParentGoalFeedbackInputRating = typeof ParentGoalFeedbackInputRating[keyof typeof ParentGoalFeedbackInputRating];
+
+
+export const ParentGoalFeedbackInputRating = {
+  positive: 'positive',
+  needs_support: 'needs_support',
+} as const;
+
+export interface ParentGoalFeedbackInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  behaviorKey: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     * @nullable
+     */
+  customBehavior?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  goal: string;
+  rating: ParentGoalFeedbackInputRating;
 }
 
 export interface StarterTemplate {

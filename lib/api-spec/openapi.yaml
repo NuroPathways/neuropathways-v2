@@ -174,6 +174,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ParentChild"
+  /parent/children/{childId}/goal-feedback:
+    patch:
+      operationId: recordParentGoalFeedback
+      tags: [parent]
+      summary: Record a caregiver's current rating of an active goal
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentGoalFeedbackInput"
+      responses:
+        "200":
+          description: Updated behavior with the latest goal check-in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentBehavior"
   /parent/children/{childId}/dashboard:
     get:
       operationId: getParentDashboard
@@ -739,6 +767,25 @@ components:
           maxItems: 20
           items:
             $ref: "#/components/schemas/ParentBehaviorInput"
+    ParentGoalFeedbackInput:
+      type: object
+      properties:
+        behaviorKey:
+          type: string
+          minLength: 1
+          maxLength: 100
+        customBehavior:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 120
+        goal:
+          type: string
+          minLength: 1
+          maxLength: 500
+        rating:
+          type: string
+          enum: [positive, needs_support]
+      required: [behaviorKey, goal, rating]
     ParentBehavior:
       type: object
       properties:
@@ -751,6 +798,12 @@ components:
           type: string
         goal:
           type: [string, "null"]
+        goalRating:
+          type: [string, "null"]
+          enum: [positive, needs_support, null]
+        goalRatingAt:
+          type: [string, "null"]
+          format: date-time
       required: [behaviorKey, customBehavior, behaviorName, goal]
     ParentBehaviorInput:
       type: object

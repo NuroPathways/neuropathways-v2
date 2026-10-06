@@ -114,6 +114,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
 
       <div className="space-y-3">
         <button
+          type="button"
           onClick={() => onSelect("behavior")}
           className="w-full flex items-center gap-4 bg-orange-50 border-2 border-orange-200 hover:border-orange-400 rounded-2xl p-5 text-left transition-all group"
         >
@@ -128,6 +129,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
         </button>
 
         <button
+          type="button"
           onClick={() => onSelect("crisis")}
           className="w-full flex items-center gap-4 bg-red-50 border-2 border-red-200 hover:border-red-400 rounded-2xl p-5 text-left transition-all group"
         >
@@ -142,6 +144,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
         </button>
 
         <button
+          type="button"
           onClick={() => onSelect("calm")}
           className="w-full flex items-center gap-4 bg-teal-50 border-2 border-teal-200 hover:border-teal-400 rounded-2xl p-5 text-left transition-all group"
         >
@@ -156,6 +159,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
         </button>
 
         <button
+          type="button"
           onClick={onDismiss}
           className="w-full flex items-center gap-4 bg-muted border-2 border-border hover:border-muted-foreground/30 rounded-2xl p-5 text-left transition-all group"
         >
@@ -202,22 +206,62 @@ export default function SupportNowOverlay({
       }
       const isClientSession = user && !user.role;
       if (isClientSession) {
-        const res = await base44.functions.invoke("getClientPortalData", {
-          child_id: childId,
-          account_id: user.id,
-          invite_token: user.invite_token,
-        }).catch(() => null);
-        if (res?.data) {
-          const generatedBehaviors = res.data.profile?.behaviors || [];
-          const approvedPlanBehaviors = (res.data.plans || []).map(behaviorFromPlan);
-          setProfile({
-            ...(res.data.profile || {}),
-            behaviors: generatedBehaviors.length > 0 ? generatedBehaviors : approvedPlanBehaviors,
+        let portalRequestFailed = false;
+        try {
+          const res = await base44.functions.invoke("getClientPortalData", {
+            child_id: childId,
+            account_id: user.id,
+            invite_token: user.invite_token,
           });
-          return;
+          if (res?.error) throw new Error("The client support request failed.");
+          if (res?.data && typeof res.data === "object" && !Array.isArray(res.data)) {
+            const rawBehaviors = res.data.profile?.behaviors;
+            let generatedBehaviors = Array.isArray(rawBehaviors)
+              ? rawBehaviors
+              : rawBehaviors && typeof rawBehaviors === "object"
+                ? rawBehaviors
+                : [];
+            if (typeof rawBehaviors === "string") {
+              try {
+                const parsed = JSON.parse(rawBehaviors);
+                generatedBehaviors = Array.isArray(parsed)
+                  ? parsed
+                  : parsed && typeof parsed === "object"
+                    ? parsed
+                    : [];
+              } catch {
+                generatedBehaviors = [];
+              }
+            }
+            const plans = Array.isArray(res.data.plans) ? res.data.plans : [];
+            const approvedPlanBehaviors = plans
+              .filter((plan) => plan && typeof plan === "object" && !Array.isArray(plan))
+              .map(behaviorFromPlan);
+            const hasGeneratedBehaviors = Array.isArray(generatedBehaviors)
+              ? generatedBehaviors.length > 0
+              : Object.keys(generatedBehaviors).length > 0;
+            setProfile({
+              ...(res.data.profile && typeof res.data.profile === "object" ? res.data.profile : {}),
+              behaviors: hasGeneratedBehaviors
+                ? generatedBehaviors
+                : approvedPlanBehaviors,
+            });
+            return;
+          }
+        } catch {
+          portalRequestFailed = true;
         }
+
+        const profiles = await base44.entities.ClientProfile.filter({ child_id: childId });
+        if (!Array.isArray(profiles)) throw new Error("Client support information could not be verified.");
+        if (profiles.length === 0 && portalRequestFailed) {
+          throw new Error("Neither client support source could be reached.");
+        }
+        setProfile(profiles[0] || null);
+        return;
       }
-      const profiles = await base44.entities.ClientProfile.filter({ child_id: childId }).catch(() => []);
+      const profiles = await base44.entities.ClientProfile.filter({ child_id: childId });
+      if (!Array.isArray(profiles)) throw new Error("Client support information could not be verified.");
       setProfile(profiles[0] || null);
     } catch (error) {
       console.error("Unable to load support information for the selected child.", error);
