@@ -40,6 +40,7 @@ import {
   normalizeDiscoveredParentTargets,
   orderSupportCardsForSelectedFocus,
   PARENT_DOCUMENT_MIME_BY_EXTENSION,
+  type ParentDocumentGenerationPart,
   reconcileSupportCards,
   supportBehaviorIdentity,
   uniqueStrings,
@@ -52,7 +53,9 @@ import {
 import { batchProcessParentSupport } from "./parentSupportBatch";
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
-const MAX_TEXT_CHARS = 24000;
+const MAX_TEXT_CHARS = 120_000;
+const TEXT_TOO_LONG_ERROR =
+  "This plan is too long to read in one pass. Split it into smaller files and retry.";
 const MAX_REFERENCES = 8;
 const REVIEW_RECOMMENDATION = "Conflict detected. Clinician review recommended.";
 const SUPPORT_DISCLAIMER =
@@ -369,26 +372,31 @@ function asStrings(value: unknown, max = 12): string[] {
 }
 
 function toolSchema() {
+  const shortStep = {
+    type: "string",
+    maxLength: 90,
+    description: "One plain-language action or reminder, short enough to read at a glance.",
+  };
   return {
     name: "save_parent_support",
-    description: "Return plain-language, safe support steps grounded only in the supplied child support document(s).",
+    description: "Return brief, plain-language, safe support steps grounded only in the supplied child support document(s).",
     input_schema: {
       type: "object",
       properties: {
         behavior_name: { type: "string" },
-        what_may_be_happening: { type: "string" },
-        right_now: { type: "array", items: { type: "string" } },
-        avoid: { type: "array", items: { type: "string" } },
-        prevention: { type: "array", items: { type: "string" } },
-        replacement_skill: { type: "string" },
-        reinforcement_idea: { type: "string" },
-        seek_help: { type: "string" },
+        what_may_be_happening: { type: "string", maxLength: 150, description: "One short, plain-language sentence." },
+        right_now: { type: "array", maxItems: 4, items: shortStep },
+        avoid: { type: "array", maxItems: 4, items: shortStep },
+        prevention: { type: "array", maxItems: 4, items: shortStep },
+        replacement_skill: { type: "string", maxLength: 100, description: "One brief, practical sentence." },
+        reinforcement_idea: { type: "string", maxLength: 100, description: "One brief sentence." },
+        seek_help: { type: "string", maxLength: 180, description: "One brief sentence; retain any safety or escalation condition." },
         selected_goal: {
           type: "string",
           maxLength: 500,
           description: "A specific goal explicitly stated in the supplied source documents for this behavior, or an empty string if none is explicit.",
         },
-        track: { type: "array", items: { type: "string" } },
+        track: { type: "array", maxItems: 4, items: shortStep },
         related_goals: { type: "array", items: { type: "string" } },
         source_document_ids: { type: "array", items: { type: "string" } },
         conflict: { type: "boolean" },
@@ -433,11 +441,60 @@ function discoveryToolSchema() {
   };
 }
 
+async function readTextFromCommand(
+  command: string,
+  args: string[],
+  bytes: Buffer,
+  unavailableMessage: string,
+  failureMessage: string,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const process = spawn(command, args, { stdio: ["pipe", "pipe", "ignore"] });
+    const chunks: Buffer[] = [];
+    let byteLength = 0;
+    let exceededLimit = false;
+
+    process.stdout.on("data", (chunk: Buffer) => {
+      byteLength += chunk.length;
+      if (byteLength <= MAX_TEXT_CHARS * 4) chunks.push(chunk);
+      else exceededLimit = true;
+    });
+    process.once("error", () => reject(new Error(unavailableMessage)));
+    process.stdin.on("error", () => undefined);
+    process.once("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(failureMessage));
+        return;
+      }
+      if (exceededLimit) {
+        reject(new Error(TEXT_TOO_LONG_ERROR));
+        return;
+      }
+      const text = Buffer.concat(chunks).toString("utf8").trim();
+      if (text.length > MAX_TEXT_CHARS) {
+        reject(new Error(TEXT_TOO_LONG_ERROR));
+        return;
+      }
+      resolve(text);
+    });
+    process.stdin.end(bytes);
+  });
+}
+
 export async function extractParentDocumentText(fileName: string, bytes: Buffer): Promise<string> {
   const extension = path.extname(fileName).toLowerCase();
   const expectedMime = PARENT_DOCUMENT_MIME_BY_EXTENSION[extension];
   if (!expectedMime || !detectParentDocumentType(fileName, expectedMime, bytes)) {
     throw new Error("The document type or file signature is invalid.");
+  }
+  if (extension === ".pdf") {
+    return readTextFromCommand(
+      "pdftotext",
+      ["-layout", "-enc", "UTF-8", "-", "-"],
+      bytes,
+      "The PDF text reader is unavailable.",
+      "The PDF could not be read.",
+    );
   }
   if (extension === ".docx") {
     const mammoth: any = await import("mammoth");
@@ -445,31 +502,25 @@ export async function extractParentDocumentText(fileName: string, bytes: Buffer)
     const result = await extractRawText({ buffer: bytes });
     const text = String(result?.value || "").trim();
     if (!text) throw new Error("No readable text was found in this Word document.");
-    return text.slice(0, MAX_TEXT_CHARS);
+    if (text.length > MAX_TEXT_CHARS) throw new Error(TEXT_TOO_LONG_ERROR);
+    return text;
   }
   if (extension === ".doc") {
-    const output = await new Promise<string>((resolve, reject) => {
-      const process = spawn("antiword", ["-"], { stdio: ["pipe", "pipe", "ignore"] });
-      const chunks: Buffer[] = [];
-      let length = 0;
-      process.stdout.on("data", (chunk: Buffer) => {
-        length += chunk.length;
-        if (length <= MAX_TEXT_CHARS * 4) chunks.push(chunk);
-      });
-      process.once("error", () => reject(new Error("The .doc reader is unavailable.")));
-      process.once("close", (code) => {
-        if (code !== 0) reject(new Error("The Word document could not be read."));
-        else resolve(Buffer.concat(chunks).toString("utf8").trim().slice(0, MAX_TEXT_CHARS));
-      });
-      process.stdin.end(bytes);
-    });
+    const output = await readTextFromCommand(
+      "antiword",
+      ["-"],
+      bytes,
+      "The .doc reader is unavailable.",
+      "The Word document could not be read.",
+    );
     if (!output) throw new Error("No readable text was found in this Word document.");
     return output;
   }
   if (extension === ".txt") {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes).trim();
     if (!text) throw new Error("The text document is empty.");
-    return text.slice(0, MAX_TEXT_CHARS);
+    if (text.length > MAX_TEXT_CHARS) throw new Error(TEXT_TOO_LONG_ERROR);
+    return text;
   }
   throw new Error("Unsupported document type for text extraction.");
 }
@@ -479,11 +530,7 @@ async function extractDocumentContent(
   document: typeof documentsTable.$inferSelect,
   bytes: Buffer,
   mimeType: string,
-): Promise<
-  | { type: "text"; text: string }
-  | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png"; data: string } }
-  | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } }
-> {
+): Promise<ParentDocumentGenerationPart[]> {
   const name = document.fileName || "document";
   const extension = path.extname(name).toLowerCase();
   if (!detectParentDocumentType(name, mimeType, bytes)) {
@@ -492,20 +539,33 @@ async function extractDocumentContent(
   const prefix = `[Source document id=${document.id}; title=${(document.title || name).slice(0, 160)}; type=${metadata ? "parent upload (not clinician-reviewed)" : "current clinician document"}]`;
   if (extension === ".pdf") {
     if (bytes.subarray(0, 5).toString("ascii") !== "%PDF-") throw new Error("The PDF appears to be corrupt or invalid.");
-    return { type: "document", source: { type: "base64", media_type: "application/pdf", data: bytes.toString("base64") } };
+    const extractedText = await extractParentDocumentText(name, bytes);
+    const originalPdf: ParentDocumentGenerationPart = {
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data: bytes.toString("base64") },
+    };
+    return [
+      {
+        type: "text",
+        text: extractedText
+          ? `${prefix}\n[Full text extracted from this PDF. The original pages follow for charts and scanned content.]\n${extractedText}`
+          : `${prefix}\n[No searchable text was found; inspect the original PDF pages that follow.]`,
+      },
+      originalPdf,
+    ];
   }
   if (extension === ".jpg" || extension === ".jpeg" || extension === ".png") {
     const imageMime = extension === ".png" ? "image/png" : "image/jpeg";
-    return { type: "image", source: { type: "base64", media_type: imageMime, data: bytes.toString("base64") } };
+    return [{ type: "image", source: { type: "base64", media_type: imageMime, data: bytes.toString("base64") } }];
   }
   if (extension === ".docx") {
-    return { type: "text", text: `${prefix}\n${await extractParentDocumentText(name, bytes)}` };
+    return [{ type: "text", text: `${prefix}\n${await extractParentDocumentText(name, bytes)}` }];
   }
   if (extension === ".doc") {
-    return { type: "text", text: `${prefix}\n${await extractParentDocumentText(name, bytes)}` };
+    return [{ type: "text", text: `${prefix}\n${await extractParentDocumentText(name, bytes)}` }];
   }
   if (extension === ".txt") {
-    return { type: "text", text: `${prefix}\n${await extractParentDocumentText(name, bytes)}` };
+    return [{ type: "text", text: `${prefix}\n${await extractParentDocumentText(name, bytes)}` }];
   }
   throw new Error("Unsupported document type for scanning.");
 }
@@ -567,7 +627,7 @@ export async function scanParentDocument(
     const generationDocuments: Array<{
       id: string;
       title: string;
-      content: Awaited<ReturnType<typeof extractDocumentContent>>;
+      content: ParentDocumentGenerationPart[];
     }> = [];
     for (const source of sources) {
       const part = await extractDocumentContent(
@@ -684,13 +744,13 @@ export async function scanParentDocument(
               : REVIEW_RECOMMENDATION)
           : null,
         whatMayBeHappening: typeof value.what_may_be_happening === "string" ? value.what_may_be_happening.slice(0, 1200) : "",
-        rightNow: asStrings(value.right_now),
-        avoid: asStrings(value.avoid),
-        prevention: asStrings(value.prevention),
+        rightNow: asStrings(value.right_now, 4),
+        avoid: asStrings(value.avoid, 4),
+        prevention: asStrings(value.prevention, 4),
         replacementSkill: typeof value.replacement_skill === "string" ? value.replacement_skill.slice(0, 1200) : "",
         reinforcementIdea: typeof value.reinforcement_idea === "string" ? value.reinforcement_idea.slice(0, 1200) : "",
         seekHelp: typeof value.seek_help === "string" ? value.seek_help.slice(0, 1200) : "",
-        track: asStrings(value.track),
+        track: asStrings(value.track, 4),
         relatedGoals: uniqueStrings([extractedGoal, behavior.goal || "", ...asStrings(value.related_goals)]),
         reviewedBy: null,
         reviewedAt: null,
@@ -789,6 +849,9 @@ export async function scanParentDocument(
       "No readable text was found in this Word document.",
       "The .doc reader is unavailable.",
       "The Word document could not be read.",
+      "The PDF text reader is unavailable.",
+      "The PDF could not be read.",
+      TEXT_TOO_LONG_ERROR,
       "The text document is empty.",
       "The document type or file signature is invalid.",
       "Unsupported document type for scanning.",

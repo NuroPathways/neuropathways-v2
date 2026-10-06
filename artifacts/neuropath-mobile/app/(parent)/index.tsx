@@ -25,19 +25,39 @@ const planGoal = (card: SupportCard) => card.planGoal;
 const hasPlanGoal = (card: SupportCard) =>
   typeof card.planGoal === "string" && card.planGoal.trim().length > 0;
 
-function List({ title, items, tone }: { title: string; items: string[]; tone?: "warn" }) {
+type SupportTone = "now" | "avoid" | "context" | "prevention" | "skill" | "track" | "help";
+
+function SupportSection({ title, items, body, detail, tone }: {
+  title: string;
+  items?: string[];
+  body?: string;
+  detail?: string;
+  tone: SupportTone;
+}) {
   const c = useColors();
-  if (!items?.length) return null;
+  const accent = tone === "avoid" || tone === "help"
+    ? c.destructive
+    : tone === "prevention"
+      ? c.accent
+      : tone === "context" || tone === "track"
+        ? c.secondary
+        : c.primary;
+  const readableAccent = tone === "prevention" ? c.secondary : accent;
+  if (!items?.length && !body) return null;
   return (
-    <Card tone={tone}>
-      <T weight="bold" size={16}>{title}</T>
-      {items.map((it, i) => (
-        <View key={i} style={{ flexDirection: "row", gap: 10 }}>
-          <T weight="bold" color={c.primary}>{i + 1}.</T>
-          <View style={{ flex: 1 }}><T>{it}</T></View>
+    <View style={{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderLeftWidth: 5, borderLeftColor: accent, borderRadius: 16, padding: 16, gap: 10 }}>
+      <T weight="bold" size={16} color={readableAccent}>{title}</T>
+      {body ? <T>{body}</T> : null}
+      {detail ? <T size={14} color={c.secondary}>{detail}</T> : null}
+      {(items ?? []).map((it, i) => (
+        <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+          <View style={{ width: 23, height: 23, borderRadius: 12, backgroundColor: c.muted, alignItems: "center", justifyContent: "center" }}>
+            <T weight="bold" size={12} color={readableAccent}>{i + 1}</T>
+          </View>
+          <View style={{ flex: 1 }}><T size={14} style={{ lineHeight: 21 }}>{it}</T></View>
         </View>
       ))}
-    </Card>
+    </View>
   );
 }
 
@@ -113,26 +133,19 @@ export default function SupportNow() {
                 {showHelpBlocks ? <Btn kind="ghost" label="Close steps" onPress={() => setSelectedId(null)} /> : null}
                 <T size={13} weight="semi" color={c.primary}>{isFoundCard ? "Found in uploaded plan · not active" : "Active behavior"}</T>
                 <T size={13} weight="semi" color={card.source === "clinician_reviewed" ? c.primary : c.secondary}>{SOURCE[card.source]}</T>
-                {card.conflict ? <Card tone="warn"><T weight="semi">Conflict detected. Clinician review recommended.</T>{card.conflictMessage ? <T size={14}>{card.conflictMessage}</T> : null}</Card> : null}
                 {selectedBehavior ? <Card><T weight="bold" size={16}>Saved goal</T><T>{activeGoal ?? "No goal chosen yet"}</T></Card> : null}
                 {hasPlanGoal(card) ? <Card><T weight="bold" size={16}>Plan goal</T><T>{planGoal(card)}</T></Card> : <>{isFoundCard ? <Card><T weight="bold" size={16}>Plan goal</T><T>No plan goal identified in the uploaded plan.</T></Card> : null}{card.goal ? <Card><T weight="bold" size={16}>Saved guidance goal</T><T>{card.goal}</T></Card> : null}</>}
                 {activeGoal && hasPlanGoal(card) && activeGoal !== planGoal(card) ? <Card tone="warn"><T size={14}>The plan goal is different from the saved goal. Saved goal: {activeGoal}. Plan goal: {planGoal(card)}.</T></Card> : null}
-                <List title="What to do right now" items={card.rightNow} />
-                <Card><T weight="bold" size={16}>What may be happening</T><T>{card.whatMayBeHappening}</T></Card>
-                <List title="What to avoid" items={card.avoid} tone="warn" />
-                <List title="Prevent it next time" items={card.prevention} />
-                <Card><T weight="bold" size={16}>Try this replacement skill</T><T>{card.replacementSkill}</T><T size={14} color={c.secondary}>{card.reinforcementIdea}</T></Card>
+                <SupportSection title="Try these steps first" items={card.rightNow} tone="now" />
+                <SupportSection title="What to avoid" items={card.avoid} tone="avoid" />
+                <SupportSection title="Prevent it next time" items={card.prevention} tone="prevention" />
+                <SupportSection title="Why this may be happening" body={card.whatMayBeHappening} tone="context" />
+                <SupportSection title="Practice a helpful skill" body={card.replacementSkill} detail={`Reinforce: ${card.reinforcementIdea}`} tone="skill" />
                 {selectedBehavior ? <Card><T weight="bold" size={16}>Current focus</T><T>{activeGoal ?? "No goal chosen yet"}</T></Card> : null}
-                <Card><T weight="bold" size={16}>When to get help</T><T>{card.seekHelp}</T></Card>
-                <List title="What to track" items={card.track} />
+                <SupportSection title="When to get help" body={card.seekHelp} tone="help" />
+                <SupportSection title="What to notice" items={card.track} tone="track" />
                 {isFoundCard ? <Btn kind="ghost" icon="plus" label="Add Behavior to your setup" onPress={() => router.push({ pathname: "/parent-edit", params: { card: card.id } } as never)} /> : <Btn icon="edit-3" label="Log what happened" onPress={() => router.push({ pathname: "/(parent)/log", params: { b: parentBehaviorIdentity(card) } } as never)} />}
                 {card.source === "starter" ? <T size={13} weight="semi" color={c.secondary}>This is starter support. Upload your child's plan for personalized guidance.</T> : null}
-                {card.sourceReferences?.length ? (
-                  <Card>
-                    <T weight="bold" size={16}>Sources</T>
-                    {card.sourceReferences.map((r, i) => (<View key={i}><T weight="semi" size={14}>{r.title}</T>{r.excerpt ? <T size={13} color={c.secondary}>{r.excerpt}</T> : null}</View>))}
-                  </Card>
-                ) : null}
               </>
             )
           ) : null}

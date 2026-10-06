@@ -100,6 +100,25 @@ test("document B generation prompt excludes existing private card A content", ()
   assert.doesNotMatch(serializedPrompt, /Current support cards|Starter guidance for context/);
 });
 
+test("document generation asks for brief, one-action caregiver steps without dropping safety instructions", () => {
+  const prompt = buildParentDocumentGenerationContent(
+    [{
+      id: "brief-plan",
+      title: "Brief plan",
+      content: { type: "text", text: "Use the child's established support plan." },
+    }],
+    "Task Refusal",
+    null,
+    ["brief-plan"],
+  );
+  const serializedPrompt = JSON.stringify(prompt);
+
+  assert.match(serializedPrompt, /everyday words, short direct sentences, and one clear action per list item/);
+  assert.match(serializedPrompt, /one or two short lines per item/);
+  assert.match(serializedPrompt, /no more than four items/);
+  assert.match(serializedPrompt, /Do not drop a safety condition or escalation instruction/);
+});
+
 test("discovery prompt uses only fetched documents and never receives prior document-derived cards", () => {
   const priorCardSentinel = guidance("parent_document", "prior-private-plan", "PRIOR_CARD_PRIVATE_SENTINEL");
   const prompt = buildParentDocumentDiscoveryContent(

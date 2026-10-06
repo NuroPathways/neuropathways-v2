@@ -95,21 +95,28 @@ export type ParentDocumentGenerationPart =
   | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png"; data: string } }
   | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } };
 
+export type ParentDocumentContent = ParentDocumentGenerationPart | ParentDocumentGenerationPart[];
+
 export function buildParentDocumentGenerationContent(
-  documents: Array<{ id: string; title: string; content: ParentDocumentGenerationPart }>,
+  documents: Array<{ id: string; title: string; content: ParentDocumentContent }>,
   behaviorName: string,
   goal: string | null,
   allowedSourceIds: string[],
 ): ParentDocumentGenerationPart[] {
   const content: ParentDocumentGenerationPart[] = [];
   for (const document of documents) {
-    content.push({ type: "text", text: `[Document: ${document.title}; id=${document.id}]` }, document.content);
+    content.push(
+      { type: "text", text: `[Document: ${document.title}; id=${document.id}]` },
+      ...(Array.isArray(document.content) ? document.content : [document.content]),
+    );
   }
   content.push({
     type: "text",
     text: `Create safe, plain-language support for the selected behavior "${behaviorName}"${goal ? ` with goal "${goal}"` : ""}.
 
 Allowed source document IDs: ${JSON.stringify(allowedSourceIds)}
+
+Write for a caregiver who needs quick steps: use everyday words, short direct sentences, and one clear action per list item. Aim for one or two short lines per item and keep each list item under 90 characters. Return no more than four items in right_now, avoid, prevention, and track. Keep what_may_be_happening to one short sentence and each other text field to one short sentence. Do not drop a safety condition or escalation instruction to make the text shorter; if it cannot be summarized safely, tell the caregiver to follow the individualized plan and contact the child’s clinician.
 
 Use only source document IDs provided above. Choose IDs that directly support the guidance. If the documents explicitly state a goal for this selected behavior, return its exact wording in selected_goal; otherwise return an empty string. Never invent a goal. For safety or medical uncertainty, say to follow an existing individualized plan and contact the child’s clinician. If immediate danger is described, recommend emergency services. Do not invent that a clinician reviewed or approved anything.`,
   });
@@ -124,12 +131,15 @@ export type DiscoveredParentTarget = {
 
 /** Discovery is deliberately independent of saved/generated cards: its only evidence is fetched source text. */
 export function buildParentDocumentDiscoveryContent(
-  documents: Array<{ id: string; title: string; content: ParentDocumentGenerationPart }>,
+  documents: Array<{ id: string; title: string; content: ParentDocumentContent }>,
   allowedSourceIds: string[],
 ): ParentDocumentGenerationPart[] {
   const content: ParentDocumentGenerationPart[] = [];
   for (const document of documents) {
-    content.push({ type: "text", text: `[Document: ${document.title}; id=${document.id}]` }, document.content);
+    content.push(
+      { type: "text", text: `[Document: ${document.title}; id=${document.id}]` },
+      ...(Array.isArray(document.content) ? document.content : [document.content]),
+    );
   }
   content.push({
     type: "text",

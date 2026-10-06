@@ -13,7 +13,7 @@ export function sourceLabel(card) {
 
 function Steps({ items, dash, big }) {
   return (
-    <ol className={`pf-list ${dash ? "dash" : ""}`} style={big ? { fontSize: "1.2rem", gap: 16 } : undefined}>
+    <ol className={`pf-list pf-support-steps ${dash ? "dash" : ""} ${big ? "featured" : ""}`}>
       {(items || []).map((t, i) => <li key={i} data-n={i + 1}><span>{t}</span></li>)}
     </ol>
   );
@@ -21,10 +21,10 @@ function Steps({ items, dash, big }) {
 
 export function Block({ title, children, tone }) {
   return (
-    <div className={`pf-card ${tone || ""}`}>
-      <h3 style={{ marginBottom: 10 }}>{title}</h3>
+    <section className={`pf-card pf-support-section pf-support-section--${tone || "context"}`}>
+      <h3>{title}</h3>
       {children}
-    </div>
+    </section>
   );
 }
 
@@ -40,14 +40,18 @@ export function HelpNowView({ card, onClose, onLog, onAdd, embedded = false, act
         <h1 style={{ fontSize: "clamp(1.8rem,7vw,2.6rem)" }}>{card.behaviorName} Support</h1>
         <GoalLines card={card} active={active} />
         {card.guidanceGoal && <p className="pf-hint">These saved steps were written for the earlier goal: {card.guidanceGoal}.</p>}
-        <h2>What to do right now</h2>
+        <Block title="Try these steps first" tone="now">
         <Steps items={card.rightNow} big />
-        <Block title="What to avoid" tone="warn"><Steps items={card.avoid} dash /></Block>
-        <Block title="What may be happening"><p>{card.whatMayBeHappening}</p></Block>
-        <Block title="Try this replacement skill"><p>{card.replacementSkill}</p></Block>
+        </Block>
+        <Block title="What to avoid" tone="avoid"><Steps items={card.avoid} dash /></Block>
+        <Block title="Why this may be happening" tone="context"><p>{card.whatMayBeHappening}</p></Block>
+        <Block title="Practice a helpful skill" tone="skill">
+          <p>{card.replacementSkill}</p>
+          <p className="pf-support-detail"><strong>Reinforce:</strong> {card.reinforcementIdea}</p>
+        </Block>
         {onLog && <button className="pf-btn" onClick={onLog} data-testid="button-help-log">Log what happened</button>}
         {onAdd && <><p className="pf-hint">You can use these plan steps now. Add this behavior to your active list before logging it.</p><button className="pf-btn" onClick={onAdd} data-testid="button-help-add-found">Add this behavior</button></>}
-        <p className="pf-hint">If anyone is in danger or hurt, call your local emergency number. {card.seekHelp}</p>
+        <Block title="When to get help" tone="help"><p>If anyone is in danger or hurt, call your local emergency number. {card.seekHelp}</p></Block>
       </div>
   );
   return embedded ? content : <div className="pf-overlay" role="dialog" aria-label="Support Now" data-testid="dialog-help-now">{content}</div>;
@@ -66,21 +70,21 @@ export default function SupportCardView({ card, childName, onHelp, onUpload, act
         <GoalLines card={card} active={active} />
         {onUpload && <button className="pf-btn small" style={{ marginTop: 12 }} onClick={onUpload} data-testid={`button-source-upload-${card.id}`}>Upload a Plan</button>}
       </div>
-      <Block title="What to do right now"><Steps items={card.rightNow} /></Block>
+      <Block title="Try these steps first" tone="now"><Steps items={card.rightNow} big /></Block>
       <div className="pf-grid2 even">
-        <Block title="What to avoid" tone="warn"><Steps items={card.avoid} dash /></Block>
-        <Block title="What may be happening"><p>{card.whatMayBeHappening}</p></Block>
+        <Block title="What to avoid" tone="avoid"><Steps items={card.avoid} dash /></Block>
+        <Block title="Why this may be happening" tone="context"><p>{card.whatMayBeHappening}</p></Block>
       </div>
       <div className="pf-grid2 even">
-        <Block title="Prevent it next time"><Steps items={card.prevention} dash /></Block>
-        <Block title="Replacement skill">
+        <Block title="Prevent it next time" tone="prevention"><Steps items={card.prevention} dash /></Block>
+        <Block title="Practice a helpful skill" tone="skill">
           <p>{card.replacementSkill}</p>
-          <p style={{ marginTop: 10 }}><strong>Reinforce:</strong> {card.reinforcementIdea}</p>
+          <p className="pf-support-detail"><strong>Reinforce:</strong> {card.reinforcementIdea}</p>
         </Block>
       </div>
       <div className="pf-grid2 even">
-        <Block title="What to track"><Steps items={card.track} dash /></Block>
-        <Block title="When to seek help" tone="sun"><p>{card.seekHelp}</p></Block>
+        <Block title="What to notice" tone="track"><Steps items={card.track} dash /></Block>
+        <Block title="When to get help" tone="help"><p>{card.seekHelp}</p></Block>
       </div>
     </div>
   );

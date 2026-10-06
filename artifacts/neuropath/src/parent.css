@@ -80,4 +80,51 @@
 .pf-lib { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
 .pf-lib-item { display: grid; gap: 8px; align-content: start; }
 .pf-actions { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.pf-support-section {
+  --pf-section-bg: var(--pf-paper);
+  --pf-section-border: var(--pf-line);
+  --pf-section-accent: var(--pf-accent);
+  padding: 18px 20px;
+  background: var(--pf-section-bg);
+  border: 1px solid var(--pf-section-border);
+  border-left: 5px solid var(--pf-section-accent);
+  border-radius: 18px;
+  box-shadow: none;
+}
+.pf-support-section h3 { margin: 0 0 10px; color: var(--pf-section-accent); font-size: 1.02rem; line-height: 1.3; }
+.pf-support-section--now { --pf-section-bg: #eaf3f9; --pf-section-border: #bcd6e6; --pf-section-accent: #235b7a; }
+.pf-support-section--avoid { --pf-section-bg: #fbe9df; --pf-section-border: #efc2ae; --pf-section-accent: #7a2d12; }
+.pf-support-section--context { --pf-section-bg: #f1f6f8; --pf-section-border: #cfdfe5; --pf-section-accent: #415862; }
+.pf-support-section--prevention { --pf-section-bg: #dff0e4; --pf-section-border: #b9dcc6; --pf-section-accent: #2f6b4d; }
+.pf-support-section--skill { --pf-section-bg: #dcecf5; --pf-section-border: #bcd6e6; --pf-section-accent: #1f5675; }
+.pf-support-section--track { --pf-section-bg: #f1f5f9; --pf-section-border: #cbd7e1; --pf-section-accent: #435c74; }
+.pf-support-section--help { --pf-section-bg: #fff8e9; --pf-section-border: #e7d59e; --pf-section-accent: #725300; }
+.pf-support-steps { gap: 8px; }
+.pf-support-steps li {
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 9px 11px;
+  border: 1px solid rgba(23, 52, 63, .1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .66);
+  color: var(--pf-ink);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+.pf-support-steps li::before {
+  width: 24px;
+  height: 24px;
+  background: var(--pf-section-accent);
+  color: #ffffff;
+  font-size: .76rem;
+}
+.pf-support-steps.dash li { grid-template-columns: 16px minmax(0, 1fr); }
+.pf-support-steps.dash li::before { color: var(--pf-section-accent); }
+.pf-support-steps.featured li { font-size: 1.04rem; }
+.pf-support-detail { margin-top: 10px; }
+@media (max-width: 560px) {
+  .pf-support-section { padding: 16px; }
+  .pf-support-steps li { grid-template-columns: 24px minmax(0, 1fr); gap: 8px; padding: 9px; font-size: .97rem; }
+}
 .pf-modal-card { max-width: 720px; margin: 0 auto; }
