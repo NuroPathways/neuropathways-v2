@@ -8,7 +8,6 @@ import RoleAwareShell from "@/components/navigation/RoleAwareShell";
 import { createFreeCaregiverNavigation, mobilePrimaryKeysForRole } from "@/components/navigation/navigationModels";
 import { isSetupComplete, useSelectedChild } from "@/components/parentfree/useParent";
 import SupportCardView, { sourceLabel } from "@/components/parentfree/SupportView";
-import HelpNowPanel from "@/components/parentfree/HelpNowPanel";
 import GoalLines from "@/components/parentfree/GoalLines";
 import LogPanel from "@/components/parentfree/LogPanel";
 import DocsPanel from "@/components/parentfree/DocsPanel";
@@ -40,14 +39,12 @@ function Body({ child }) {
   const { user } = useAuth();
   const [sp, setSp] = useSearchParams();
   const tab = TABS.some(([k]) => k === sp.get("tab")) ? sp.get("tab") : "today";
-  const [help, setHelp] = useState(false);
   const [selId, setSelId] = useState(() => readFocus(user?.id, child.id));
   const [section, setSection] = useState(() => sp.get("section"));
   const [addFromHelp, setAddFromHelp] = useState(null);
   const [supportStepId, setSupportStepId] = useState(null);
   const libraryRef = useRef(null);
   const q = useGetParentDashboard(child.id, { query: { queryKey: getGetParentDashboardQueryKey(child.id), staleTime: 0, refetchOnMount: "always" }, request: parentRequest() });
-  useEffect(() => { setHelp(false); }, [child.id]);
   useEffect(() => { setSection(sp.get("section")); }, [sp]);
   useEffect(() => { if (tab !== "steps") setSupportStepId(null); }, [tab]);
   useEffect(() => {
@@ -87,19 +84,13 @@ function Body({ child }) {
       {d && tab === "today" && (
         card ? (
           <div style={{ display: "grid", gap: 16 }} data-testid="panel-today">
-            <div className="pf-grid2 even">
-              <div className="pf-card warn pf-rise">
-                <h2>Need help right now?</h2>
-                 <button className="pf-btn primary" style={{ marginTop: 14 }} onClick={() => setHelp("select")} data-testid="button-help-now">I Need Help Now</button>
-              </div>
-              <div className="pf-card sage">
-                <p className="pf-eyebrow">Current Focus</p>
-                <p style={{ marginTop: 8 }}><strong>Current Behavior:</strong> <span data-testid="text-current-behavior">{card.behaviorName}</span></p>
-                 <p><strong>Current Goal:</strong> <span data-testid="text-current-goal">{card.goal || "No goal set yet"}</span></p>
-                 {card.planGoal && <p data-testid="text-current-plan-goal"><strong>Plan goal:</strong> {card.planGoal}</p>}
-                <span className={`pf-tag ${sourceLabel(card).kind}`} style={{ marginTop: 10 }}>{sourceLabel(card).text}</span>
-                <div style={{ marginTop: 12 }}><button className="pf-btn small" onClick={() => go("steps")} data-testid="button-open-steps">Open support steps</button></div>
-              </div>
+            <div className="pf-card sage">
+              <p className="pf-eyebrow">Current Focus</p>
+              <p style={{ marginTop: 8 }}><strong>Current Behavior:</strong> <span data-testid="text-current-behavior">{card.behaviorName}</span></p>
+              <p><strong>Current Goal:</strong> <span data-testid="text-current-goal">{card.goal || "No goal set yet"}</span></p>
+              {card.planGoal && <p data-testid="text-current-plan-goal"><strong>Plan goal:</strong> {card.planGoal}</p>}
+              <span className={`pf-tag ${sourceLabel(card).kind}`} style={{ marginTop: 10 }}>{sourceLabel(card).text}</span>
+              <div style={{ marginTop: 12 }}><button className="pf-btn small" onClick={() => go("steps")} data-testid="button-open-steps">Open support steps</button></div>
             </div>
             <BehaviorCards cards={cards} selectedId={curId} onSelect={setSelId} />
             <ProgressView cards={cards} logs={d.logs} selectedId={curId} onLog={() => go("log")} />
@@ -126,7 +117,6 @@ function Body({ child }) {
               <p style={{ margin: "6px 0 14px" }}>Upload a behavior plan, school support plan, or treatment plan when you are ready.</p>
               <button className="pf-btn ink" onClick={() => go("docs")} data-testid="button-upload-plan">Upload a Plan</button>
             </div>
-             {help && <HelpNowPanel cards={helpCards} activeIds={activeIds} selectedId={help} onPick={(chosen) => { const id = cardIdentity(chosen); if (activeIds.has(id)) setSelId(id); setHelp(id); }} onClose={() => setHelp(false)} onLog={() => { setHelp(false); go("log"); }} onUpload={() => { setHelp(false); go("docs"); }} onAdd={(chosen) => { setHelp(false); if (chosen) { setAddFromHelp(cardIdentity(chosen)); go("today"); } else go("edit", "behaviors"); }} />}
           </div>
         ) : (
           <div className="pf-card" data-testid="empty-support">
