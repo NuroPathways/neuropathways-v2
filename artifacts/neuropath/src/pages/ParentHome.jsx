@@ -20,6 +20,7 @@ import { cardIdentity } from "@/components/parentfree/progress";
 import BehaviorLibrary from "@/components/parentfree/BehaviorLibrary";
 import ChildEditor from "@/components/parentfree/ChildEditor";
 import SupportNowOverlay, { clearSupportPopupSession } from "@/components/support/SupportNowOverlay";
+import { AlertTriangle } from "lucide-react";
 import { behaviorEmoji } from "@/lib/behaviorEmoji";
 
 const TABS = [["today", "Today's Support"], ["steps", "Support Steps"], ["log", "Log What Happened"], ["docs", "Upload Plan"], ["ask", "Ask"], ["clinic", "Clinic"], ["edit", "Edit Child Profile"]];
@@ -255,7 +256,8 @@ export default function ParentHome() {
   return (
     <RoleAwareShell
       role="caregiver"
-      roleLabel="Caregiver workspace"
+      roleLabel="Client Portal"
+      legacyAppearance
       currentLabel={currentLabel}
       activeKey={activeItem?.key}
       navGroups={navGroups}
@@ -270,8 +272,9 @@ export default function ParentHome() {
     >
       <div className="pf">
       <main className="pf-wrap wide">
-        <p className="pf-eyebrow">Hi {user.first_name}</p>
-        <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span style={{ color: "var(--pf-ink-soft)", fontWeight: 400 }}>for {selected.name}</span></h1>
+        <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
+        <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span style={{ color: "rgba(255,255,255,.75)", fontWeight: 400 }}>for {selected.name}</span></h1></div>
+        {activeTab === "today" && !activeSection && <button type="button" className="pf-help-cta" onClick={() => setSupportRequest((request) => request + 1)} data-testid="button-dashboard-help-now"><span className="ico"><AlertTriangle size={20} /></span><span><strong>I Need Help Right Now</strong><small>Get guidance from your saved support plans</small></span></button>}
         <Body key={selected.id} child={selected} />
       </main>
       </div>

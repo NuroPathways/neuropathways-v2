@@ -206,13 +206,13 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
   );
 }
 
-export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onDismiss, isIndividual }) {
+export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onDismiss, isIndividual, logEngagement = true }) {
   const [selectedBehavior, setSelectedBehavior] = useState(null);
 
   const behaviors = normalizeBehaviorRows(profile?.behaviors);
 
   const handleSelectBehavior = (behavior) => {
-    if (child) {
+    if (logEngagement && child) {
       base44.entities.EngagementEvent.create({
         child_id: child.id,
         clinician_id: child.clinician_id,

@@ -412,6 +412,7 @@ export default function SupportNowOverlay({
               onBack={handleBack}
               onDismiss={handleDismiss}
               isIndividual={isIndividual}
+              logEngagement={logEngagement}
             />
           )}
 

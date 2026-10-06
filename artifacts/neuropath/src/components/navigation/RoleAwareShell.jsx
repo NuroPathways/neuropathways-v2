@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowRight,
+  Baby,
   Brain,
   ChevronDown,
   ChevronRight,
@@ -12,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import "./role-aware-navigation.css";
+import "./legacy-skin.css";
 import {
   activateNavigationItem,
   canChooseNavigationChild,
@@ -94,6 +96,9 @@ export default function RoleAwareShell({
   onChildSelect,
   onLogout,
   headerActions,
+  legacyAppearance = false,
+  showChildLinks = false,
+  hideTopbar = false,
   children,
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -112,9 +117,9 @@ export default function RoleAwareShell({
 
   const navigation = (variant) => (
     <nav className={`np-nav-groups np-nav-groups-${variant}`} aria-label="Main navigation">
-      {navGroups.map((group) => (
-        <section className="np-nav-group" key={group.label}>
-          <h2>{group.label}</h2>
+      {navGroups.map((group, index) => (
+        <section className="np-nav-group" key={group.label || index}>
+          {group.label && <h2>{group.label}</h2>}
           {group.items.map((item) => (
             <NavigationLink
               key={item.key}
@@ -124,6 +129,24 @@ export default function RoleAwareShell({
               closeMenu={closeMenu}
             />
           ))}
+          {showChildLinks && index === 0 && childrenOptions.length > 0 && (
+            <section className="np-nav-children" aria-label="Children">
+              <h2>Children</h2>
+              {childrenOptions.map((child) => (
+                <button
+                  key={child.id}
+                  type="button"
+                  className={`np-nav-child-link ${selectedChild?.id === child.id ? "is-selected" : ""}`}
+                  onClick={() => { onChildSelect?.(child.id); closeMenu(); }}
+                  aria-pressed={selectedChild?.id === child.id}
+                  data-testid={`button-navigation-child-${child.id}`}
+                >
+                  <Baby size={15} aria-hidden="true" />
+                  <span>{displayName(child)}</span>
+                </button>
+              ))}
+            </section>
+          )}
         </section>
       ))}
     </nav>
@@ -152,13 +175,13 @@ export default function RoleAwareShell({
   );
 
   return (
-    <div className={`np-nav-shell np-nav-role-${role}`}>
+    <div className={`np-nav-shell np-nav-role-${role}${legacyAppearance ? " np-legacy" : ""}${hideTopbar ? " np-nav-hide-topbar" : ""}`}>
       <aside className="np-nav-sidebar">
         <div className="np-nav-brand">
           <span className="np-nav-brand-mark"><Brain size={19} aria-hidden="true" /></span>
           <span><strong>NeuroPathways</strong><small>{roleLabel || "Workspace"}</small></span>
         </div>
-        {selectedChild && (
+        {selectedChild && !showChildLinks && (
           <div className="np-nav-sidebar-context">
             <span className="np-nav-context-mark" aria-hidden="true"><LifeBuoy size={16} /></span>
             <span><small>{contextLabel || "Viewing support for"}</small><strong>{displayName(selectedChild)}</strong></span>

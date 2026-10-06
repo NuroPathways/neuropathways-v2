@@ -8,3 +8,4 @@
 - [Shared authentication test limits](shared-auth-test-limits.md) — API and browser checks can consume the same development IP quota despite using different accounts.
 - [Document discovery test semantics](document-discovery-test-semantics.md) — distinguish known-category matching from genuinely custom discoveries in live model tests.
 - [Replit production database pause](replit-production-db-pause.md) — a disabled production endpoint can break auth and document flows; unpause it in the Database pane before changing app code.
+- [Support availability](support-availability.md) — optional tracking failures must never interrupt guidance; verify selection of an actual behavior, not just the choice screen.

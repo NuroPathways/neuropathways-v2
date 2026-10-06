@@ -227,8 +227,8 @@ export default function HelpNow() {
   // Child picker — shown when navigating to /HelpNow with no child_id and multiple children
   if (step === "child_select") {
     return (
-      <div className="min-h-screen bg-background font-inter">
-        <div className="sticky top-0 z-10 bg-red-600 px-4 py-4 flex items-center gap-3">
+      <div className="min-h-screen font-inter" style={{ background: "#f4f5f7" }}>
+        <div className="sticky top-0 z-10 bg-red-600 px-4 py-3 flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="text-white/80 hover:text-white">
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -266,8 +266,8 @@ export default function HelpNow() {
   }
 
   return (
-    <div className="min-h-screen bg-background font-inter">
-      <div className="sticky top-0 z-10 bg-red-600 px-4 py-4 flex items-center gap-3">
+    <div className="min-h-screen font-inter" style={{ background: "#f4f5f7" }}>
+      <div className="sticky top-0 z-10 bg-red-600 px-4 py-3 flex items-center gap-3">
         <button onClick={handleBack} className="text-white/80 hover:text-white">
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -284,7 +284,7 @@ export default function HelpNow() {
         <AnimatePresence mode="wait">
 
           {step === "select_behavior" && (
-            <motion.div key="select" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
+            <motion.div key="select" initial={false} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
               {!child ? (
                 <div className="text-center py-12 space-y-4">
                   <p className="text-muted-foreground text-sm">We couldn't load your profile. Please try again, or message your clinician if this keeps happening.</p>
@@ -358,7 +358,7 @@ export default function HelpNow() {
           )}
 
           {step === "show_guidance" && selectedBehavior && (
-            <motion.div key="guidance" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+            <motion.div key="guidance" initial={false} animate={{ opacity: 1, y: 0 }}>
 
               <div className="bg-card border border-border rounded-2xl p-5 mb-5">
                 <div className="flex items-center gap-3 mb-2">

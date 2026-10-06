@@ -42,7 +42,7 @@ function bodyToCamel(obj) {
   );
 }
 
-async function apiFetch(path, options = {}) {
+async function apiFetch(path, options = {}, { redirectOnUnauthorized = true } = {}) {
   const res = await fetch(`/api${path}`, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -51,7 +51,7 @@ async function apiFetch(path, options = {}) {
   if (res.status === 401) {
     // Client sessions (username+code) handle their own session expiry.
     const isClientSession = !!localStorage.getItem("np_client_session");
-    if (!isClientSession) {
+    if (!isClientSession && redirectOnUnauthorized) {
       window.location.href = `/ClinicianLogin?returnTo=${encodeURIComponent(window.location.pathname)}`;
       return new Promise(() => {});
     }
@@ -100,6 +100,10 @@ entities.EngagementEvent = {
     return apiFetch("/engagement-events", {
       method: "POST",
       body: JSON.stringify(bodyToCamel(payload)),
+    }, {
+      // Background tracking must never navigate away from active support.
+      // Reject normally so callers can handle a tracking failure without losing the page.
+      redirectOnUnauthorized: false,
     });
   },
 };

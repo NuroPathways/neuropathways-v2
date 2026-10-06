@@ -17,6 +17,20 @@ Keep the earlier professional blue desktop website and fuller landing-page feel.
 
 **How to apply:** Use older code only as a visual reference. Preserve current accounts, plans, independent behavior goals, progress, and optional upload flows.
 
+Keep “I Need Help Right Now” separate from the Behavior Support Library.
+
+**Why:** The user explicitly asked to remove that action from the library while restoring the older dashboard presentation.
+
+**How to apply:** Urgent support may remain in navigation or a separate dashboard action, but do not put its CTA inside the library.
+
+## Essential information must be visible immediately
+
+Dashboard metrics, actions, and urgent guidance must be visible on first paint. Decorative motion must not gate their visibility.
+
+**Why:** Signed-in reference checks showed real dashboard content and urgent behavior cards present in the layout but invisible or faded during entrance animations.
+
+**How to apply:** When revising the restored dashboard and Help Now screens, keep essential content visible independently of animation timing.
+
 ## Document discoveries remain parent-controlled
 
 Surface newly discovered plan behaviors automatically in Help Now and the library, not as replacements for the parent's active selections.

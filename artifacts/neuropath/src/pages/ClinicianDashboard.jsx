@@ -68,7 +68,7 @@ export default function ClinicianDashboard() {
   const recentLogs = [...logs].sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-background font-inter">
+    <div className="min-h-screen font-inter" style={{ background: "#f4f5f7" }}>
 
       {/* Hero Header */}
       <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,47%) 0%, hsl(180,29%,55%) 100%)" }}>
@@ -116,7 +116,7 @@ export default function ClinicianDashboard() {
             ].map((s, i) => (
               <motion.div
                 key={s.label}
-                initial={{ opacity: 0, y: 16 }}
+                initial={false}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.08 }}
                 onClick={() => s.link && navigate(s.link)}
@@ -137,7 +137,7 @@ export default function ClinicianDashboard() {
       <div className="px-6 md:px-10 py-8 max-w-6xl mx-auto space-y-8">
 
         {/* Quick Actions */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
@@ -150,7 +150,7 @@ export default function ClinicianDashboard() {
             ].map((a, i) => (
               <motion.button
                 key={a.label}
-                initial={{ opacity: 0, scale: 0.95 }}
+                initial={false}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.25 + i * 0.05 }}
                 onClick={a.onClick}
@@ -170,7 +170,7 @@ export default function ClinicianDashboard() {
 
           {/* Client / Family List */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35 }}
             className="md:col-span-2"
@@ -221,7 +221,7 @@ export default function ClinicianDashboard() {
           </motion.div>
 
           {/* Side Panel */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} className="space-y-4">
+          <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} className="space-y-4">
 
             {/* Recent Behavior Activity */}
             <div className="bg-card border border-border rounded-2xl p-5">
@@ -297,7 +297,7 @@ export default function ClinicianDashboard() {
         </div>
 
         {/* Full-width nav strips */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">All Tools</h2>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
             {[
@@ -310,7 +310,7 @@ export default function ClinicianDashboard() {
             ].map((item, i) => (
               <motion.div
                 key={item.label}
-                initial={{ opacity: 0, y: 10 }}
+                initial={false}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.55 + i * 0.05 }}
                 onClick={() => navigate(item.path)}

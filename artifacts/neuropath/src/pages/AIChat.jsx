@@ -442,7 +442,7 @@ export default function AIChat() {
   };
 
   return (
-    <div className="flex flex-col h-screen font-inter">
+    <div className="flex flex-col h-screen font-inter" style={{ background: "#f4f5f7" }}>
       <div className="px-6 py-4 border-b border-border bg-card flex-shrink-0">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">

@@ -6,7 +6,7 @@ import SupportNowOverlay from "@/components/support/SupportNowOverlay";
 import RoleAwareShell from "@/components/navigation/RoleAwareShell";
 import { createRoleNavigation, mobilePrimaryKeysForRole, resolveNavigationRole } from "@/components/navigation/navigationModels";
 
-const noLayoutPages = ["Splash", "Login", "RoleSelection", "ClinicianLogin", "ParentLogin", "ParentSignup", "ParentQuickStart", "ParentHome", "ClientLogin", "RoleSetup", "HelpNow"];
+const noLayoutPages = ["Splash", "Login", "RoleSelection", "ClinicianLogin", "ParentLogin", "ParentSignup", "ParentQuickStart", "ParentHome", "ClientLogin", "RoleSetup", "HelpNow", "AIChat"];
 
 export default function Layout({ children, currentPageName }) {
   const { user, isLoadingAuth } = useAuth();
@@ -93,7 +93,7 @@ export default function Layout({ children, currentPageName }) {
       ? "Individual account"
       : "Family account";
   const baseGroups = createRoleNavigation(role, homePath, role === "caregiver" && !user.invite_token);
-  const groups = baseGroups.map((group) => ({
+  const navigationGroups = baseGroups.map((group) => ({
     ...group,
     items: group.items.map((item) => {
       const openSupportOverlay = item.key === "support" && role !== "clinician";
@@ -111,6 +111,17 @@ export default function Layout({ children, currentPageName }) {
       };
     }),
   }));
+  const isLegacyDashboard = currentPageName === "ClinicianDashboard";
+  const dashboardOrder = ["dashboard", "clients", "plans", "documents", "reports", "messages", "settings"];
+  const navigationItems = navigationGroups.flatMap((group) => group.items);
+  const groups = isLegacyDashboard ? [
+    {
+      label: "",
+      items: dashboardOrder.map((key) => navigationItems.find((item) => item.key === key)).filter(Boolean)
+        .map((item) => ({ ...item, label: item.key === "clients" ? "Users" : item.label })),
+    },
+    { label: "More tools", items: navigationItems.filter((item) => !dashboardOrder.includes(item.key)) },
+  ] : navigationGroups;
   const currentItem = groups.flatMap((group) => group.items).find((item) => item.active);
   const currentLabel = currentItem?.label || currentPageName;
   const mobilePrimaryKeys = mobilePrimaryKeysForRole(role);
@@ -128,7 +139,9 @@ export default function Layout({ children, currentPageName }) {
   return (
     <RoleAwareShell
       role={role}
-      roleLabel={role === "clinician" ? "Clinician workspace" : role === "individual" ? "Your personal space" : "Caregiver workspace"}
+      roleLabel={role === "clinician" ? isLegacyDashboard ? "Clinician Portal" : "Clinician workspace" : role === "individual" ? "Your personal space" : "Caregiver workspace"}
+      legacyAppearance={isLegacyDashboard}
+      hideTopbar={isLegacyDashboard}
       currentLabel={currentLabel}
       activeKey={currentItem?.key}
       navGroups={groups}

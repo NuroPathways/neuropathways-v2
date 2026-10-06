@@ -32,6 +32,27 @@ afterEach(() => {
 });
 
 describe("support guidance", () => {
+  it("opens a caregiver popup behavior without sending disabled engagement tracking", async () => {
+    render(
+      <SupportNowOverlay
+        user={{ id: "parent-1" }}
+        children={[{ id: "child-1", child_name: "Sam" }]}
+        loadProfileForChild={async () => ({
+          behaviors: [{ name: "Transition difficulty", do_this_right_now: ["Give a brief advance notice"] }],
+        })}
+        logEngagement={false}
+        openRequest={1}
+        autoOpen={false}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Continue to support options" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Help With a Behavior/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Transition difficulty/ }));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByText("Give a brief advance notice")).toBeTruthy();
+    expect(supportMocks.createEngagementEvent).not.toHaveBeenCalled();
+  });
+
   it("normalizes a single-object behavior profile and opens its support card", () => {
     render(
       <BehaviorSelector

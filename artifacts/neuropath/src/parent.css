@@ -128,3 +128,5 @@
   .pf-support-steps li { grid-template-columns: 24px minmax(0, 1fr); gap: 8px; padding: 9px; font-size: .97rem; }
 }
 .pf-modal-card { max-width: 720px; margin: 0 auto; }
+.pf-bubble.me { background: #496fa4; color: #fff; border-radius: 18px 18px 4px 18px; }
+.pf-bubble.ai { background: #fff; border: 1px solid #dfe3ea; border-radius: 18px 18px 18px 4px; }

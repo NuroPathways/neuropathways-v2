@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardList, FileText, Heart, MessageCircle, ShieldCheck, Sparkles, Star, UserRound, Wind } from "lucide-react";
+import { Activity, AlertCircle, ArrowDownRight, ArrowRight, ArrowUpRight, Baby, BookOpen, Brain, CalendarDays, Check, ChevronRight, ClipboardList, FileText, Heart, MessageCircle, ShieldCheck, Sparkles, Star, UserRound, Wind, Zap } from "lucide-react";
 import { base44 } from "@/api/entities";
 import { useAuth } from "@/lib/AuthContext";
 import RoleAwareShell from "@/components/navigation/RoleAwareShell";
@@ -30,6 +30,10 @@ const dateLabel = (date, options = { month: "short", day: "numeric" }) => {
   return Number.isNaN(parsed.getTime()) ? "Date not recorded" : new Intl.DateTimeFormat(undefined, options).format(parsed);
 };
 const firstName = (name) => String(name || "").trim().split(/\s+/)[0] || "there";
+const greeting = () => {
+  const hour = new Date().getHours();
+  return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+};
 
 function Stat({ label, count, foot, icon: Icon }) {
   return <div className="ch-stat"><span className="ch-stat-icon"><Icon size={17} strokeWidth={1.8} /></span><strong>{count}</strong><span className="ch-stat-label">{label}</span><small>{foot}</small></div>;
@@ -133,30 +137,48 @@ export default function ClientHome({ onSupportNow }) {
     combined.forEach((item) => { if (item?.id) unique.set(item.id, item); });
     return [...unique.values()];
   }, [portal?.siblings, sessionChildren]);
-  const unread = messages.filter((message) => value(message, "isRead", "is_read") === false && value(message, "toUserId", "to_user_id") === user.id).length;
+  const unread = messages.filter((message) => value(message, "isRead", "is_read") === false && value(message, "toUserId", "to_user_id") === user?.id).length;
   const overviewCount = (arr) => arr.length.toLocaleString();
   const go = (route) => navigate(`${route}?child_id=${encodeURIComponent(selectedId || "")}`);
-  const portalSubject = isIndividualClient ? "you" : childName;
-  const navigationGroups = createClientHomeNavigation({
+  const greetingName = firstName(user?.display_name || user?.full_name || user?.primary_contact || user?.family_name || childName);
+  const weeklyLogs = logs.filter((log) => {
+    const timestamp = new Date(dateValue(log) || 0).getTime();
+    return timestamp >= Date.now() - 7 * 24 * 60 * 60 * 1000 && timestamp <= Date.now();
+  });
+  const homeChildren = siblings.length ? siblings : [child];
+  const originalNavigation = createClientHomeNavigation({
     isIndividualClient,
     selectedId,
     onSupportNow,
   });
+  const navigationItems = originalNavigation.flatMap((group) => group.items);
+  const primaryKeys = ["ai-chat", "support", "documents", "messages", "settings"];
+  const navigationGroups = [
+    { label: "", items: navigationItems.filter((item) => item.key === "home").map((item) => ({ ...item, label: "Dashboard", icon: UserRound })) },
+    { label: "", items: primaryKeys.map((key) => navigationItems.find((item) => item.key === key)).filter(Boolean).map((item) => ({
+      ...item,
+      label: item.key === "ai-chat" ? "NeuroPath AI" : item.key === "support" ? "Help Now" : item.label,
+    })) },
+    { label: "More tools", items: navigationItems.filter((item) => item.key !== "home" && !primaryKeys.includes(item.key)) },
+  ];
 
   if (!isAuthenticated || !user?.invite_token) return <Navigate to="/UsernameLogin" replace />;
 
   return (
     <RoleAwareShell
       role={isIndividualClient ? "individual" : "caregiver"}
-      roleLabel={isIndividualClient ? "Your personal space" : "Caregiver workspace"}
-      currentLabel="Home"
+      roleLabel="Client Portal"
+      legacyAppearance
+      showChildLinks={!isIndividualClient}
+      hideTopbar
+      currentLabel="Dashboard"
       activeKey="home"
       navGroups={navigationGroups}
       mobilePrimaryKeys={mobilePrimaryKeysForRole(isIndividualClient ? "individual" : "caregiver")}
       accountName={isIndividualClient ? firstName(user?.display_name || user?.full_name || childName) : `${firstName(childName)}’s family`}
       accountMeta={isIndividualClient ? "Individual account" : "Family account"}
       selectedChild={isIndividualClient ? null : siblings.find((sibling) => sibling.id === selectedId) || child}
-      childrenOptions={isIndividualClient ? [] : siblings}
+      childrenOptions={isIndividualClient ? [] : homeChildren}
       contextLabel={isIndividualClient ? undefined : "Viewing support for"}
       onChildSelect={isIndividualClient ? undefined : setSelectedId}
       onLogout={logout}
@@ -194,29 +216,56 @@ export default function ClientHome({ onSupportNow }) {
          @media(max-width:700px){.ch-shell{width:calc(100% - 32px)}.ch-header{height:68px}.ch-tabs{width:100%;padding:7px 12px 0;gap:2px}.ch-tab{flex:1;gap:5px;padding:8px 6px;font-size:10px}.ch-main{padding:32px 0 48px}.ch-topline{align-items:stretch;flex-direction:column;margin-bottom:18px;gap:17px}.ch-select-wrap{max-width:none}.ch-layout{grid-template-columns:1fr}.ch-side{position:static;grid-template-columns:1fr}.ch-welcome-card{min-height:250px;padding:24px;align-items:flex-start;flex-direction:column;justify-content:center}.ch-welcome-card:after{right:-92px;top:-10px}.ch-welcome-action{padding:12px 15px}.ch-stats{gap:8px}.ch-stat{padding:13px 12px;border-radius:14px}.ch-stat strong{font-size:24px}.ch-stat-label{font-size:10px}.ch-stat small{font-size:9px}.ch-skel-columns{grid-template-columns:1fr}.ch-skel-columns .ch-skeleton:last-child{display:none}.ch-footer{flex-direction:column}.ch-header-actions .ch-quiet-btn span{display:none}}
         @media(prefers-reduced-motion:reduce){.client-home *{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
       `}</style>
-      <main className="ch-shell ch-main">
-        <div className="ch-topline">
+      <header className="ch-hero">
+        <div className="ch-shell ch-hero-inner">
           <div>
-             <p className="ch-eyebrow">{isIndividualClient ? "Your personal space" : "Your family space"}</p>
-            <h1 className="ch-title">A steadier day,<br /><em>one step at a time.</em></h1>
-             <p className="ch-subtitle">
-               {isIndividualClient
-                 ? `Welcome back, ${firstName(user?.display_name || user?.full_name || childName)}. Find your plans, notes, and next steps from your care team.`
-                 : `Welcome back, ${firstName(childName)}’s family. Find the plans, notes, and next steps your care team has shared.`}
-             </p>
+            <div className="ch-hero-brand"><span><Brain size={17} /></span>NeuroPathways</div>
+            <p className="ch-hero-greeting">{greeting()},</p>
+            <h1>{greetingName}</h1>
+            <p className="ch-hero-subtitle">{isIndividualClient ? "Your personal support hub" : "Your family's behavioral support hub"}</p>
+          </div>
+          <div className="ch-hero-stats" aria-label="Dashboard summary">
+            <Stat label={isIndividualClient ? "My Plans" : "Children"} count={loading ? "—" : isIndividualClient ? overviewCount(plans) : overviewCount(homeChildren)} icon={isIndividualClient ? BookOpen : Baby} />
+            <Stat label="Logs This Week" count={loading ? "—" : overviewCount(weeklyLogs)} foot={homeChildren.length > 1 ? `For ${childName}` : undefined} icon={Activity} />
+            <Stat label="Messages" count={loading ? "—" : unread} icon={MessageCircle} />
           </div>
         </div>
+      </header>
+      <main className="ch-shell ch-main">
+        <button type="button" className="ch-urgent-banner" data-testid="button-client-help-now" onClick={() => onSupportNow ? onSupportNow() : go("/HelpNow")}>
+          <span className="ch-urgent-icon"><AlertCircle size={23} /></span>
+          <span><strong>I Need Help Right Now</strong><small>Get guidance from your support plans</small></span>
+          <ChevronRight size={20} />
+        </button>
+        {!loading && !error && (
+          <section className="ch-children-section" aria-label={isIndividualClient ? "My profile" : "My Children"}>
+            <h2><Baby size={16} />{isIndividualClient ? "My Profile" : "My Children"}</h2>
+            <div className="ch-children-grid">
+              {homeChildren.map((person) => {
+                const name = value(person, "childName", "child_name", "name") || childName;
+                const route = (path) => navigate(`${path}?child_id=${encodeURIComponent(person.id || selectedId || "")}`);
+                return <article className="ch-child-card" key={person.id}>
+                  <button type="button" className="ch-child-overview" onClick={() => route("/ChildProfile")}>
+                    <span className="ch-child-avatar">{String(name).charAt(0).toUpperCase()}</span>
+                    <span className="ch-child-copy"><strong>{name}</strong><small>{[person.age ? `Age ${person.age}` : null, person.diagnosis].filter(Boolean).join(" · ") || "View profile"}</small></span>
+                    <ChevronRight size={17} />
+                  </button>
+                  <div className="ch-child-actions">
+                    <button type="button" onClick={() => { setSelectedId(person.id); onSupportNow ? onSupportNow() : route("/HelpNow"); }}><Zap size={15} />Help Now</button>
+                    <button type="button" onClick={() => route("/LogBehavior")}><ClipboardList size={15} />Log</button>
+                    <button type="button" onClick={() => route("/ChildProfile")}><BookOpen size={15} />Plans</button>
+                  </div>
+                </article>;
+              })}
+            </div>
+          </section>
+        )}
 
         {loading ? <LoadingState /> : error ? (
           <div className="ch-error" role="alert"><div><strong>We couldn’t open your home just now.</strong><p>{error?.message || "Your saved information is safe. Try again in a moment."}</p></div><button className="ch-retry" type="button" onClick={() => loadPortal(selectedId)}>Try again</button></div>
         ) : (
           <div className="ch-layout">
             <section className="ch-primary">
-              <div className="ch-welcome-card">
-                 <div className="ch-welcome-copy"><p className="ch-welcome-kicker">A place to start</p><h2>Support for {portalSubject} —<br />when you need it.</h2><p>Take a breath, then open the clinician-supported plan for practical steps that fit this moment.</p></div>
-                <button type="button" className="ch-welcome-action" onClick={() => go("/HelpNow")}>Open help now <ArrowRight size={16} /></button>
-              </div>
-
               <div className="ch-stats" aria-label="Saved information overview">
                 <Stat label="Current plans" count={overviewCount(plans)} foot={plans.length ? "Shared by your care team" : "No plan shared yet"} icon={BookOpen} />
                 <Stat label="Plan/profile goals" count={overviewCount(goals)} foot={goals.length ? "From a shared plan or profile" : "No goal recorded"} icon={Star} />
