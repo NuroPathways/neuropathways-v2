@@ -28,6 +28,15 @@ describe("public legal notices without changes to account workflows", () => {
     expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(15);
   });
 
+  it.each(["/terms", "/contact", "/copyright", "/data-requests"])("shows the operator-provided contact on %s with the exact email spelling", (path) => {
+    render(<MemoryRouter initialEntries={[path]}><PublicLegalRoutes><BlockingAccountGate /></PublicLegalRoutes></MemoryRouter>);
+    const contact = screen.getByRole("link", { name: "NuroPathways@gmail.com" });
+    expect(contact.getAttribute("href")).toBe("mailto:NuroPathways@gmail.com");
+    expect(screen.getByRole("region", { name: "Public contact" }).textContent).toContain("NeuroPathways");
+    expect(screen.queryByText(/address has not yet been published/i)).toBeNull();
+    expect(screen.queryByText(/business contact details.*not yet been confirmed/i)).toBeNull();
+  });
+
   it.each(["/", "/ParentHome", "/ClientHome", "/ClinicianDashboard", "/ParentSignup", "/Settings"])("leaves %s with the existing application", (path) => {
     render(<MemoryRouter initialEntries={[path]}><PublicLegalRoutes><p>Existing account application</p></PublicLegalRoutes></MemoryRouter>);
     expect(screen.getByText("Existing account application")).toBeTruthy();

@@ -23,7 +23,14 @@ export default function LegalDocument({ document: content }) {
             <p className="text-sm text-muted-foreground mt-2">Prepared for review October 7, 2026</p>
           </div>
         </div>
-        {content.reviewDraft && <p className="border border-amber-200 bg-amber-50 text-amber-900 rounded-xl p-4 text-sm mb-5">Draft for operator and attorney review. Required business contact details and operational procedures have not yet been confirmed.</p>}
+        {content.reviewDraft && <p className="border border-amber-200 bg-amber-50 text-amber-900 rounded-xl p-4 text-sm mb-5">Draft for operator and attorney review. Publishing contact information does not establish reviewed request-handling procedures or legal compliance.</p>}
+        {content.contact && (
+          <section aria-label="Public contact" className="bg-card border border-border rounded-2xl p-5 mb-6">
+            <h2 className="text-lg font-semibold text-foreground mb-2">Public contact</h2>
+            <p className="text-sm text-foreground">{content.contact.businessName}</p>
+            <a href={`mailto:${content.contact.email}`} className="text-sm text-primary underline underline-offset-4 break-all">{content.contact.email}</a>
+          </section>
+        )}
         <p className="text-sm text-foreground leading-7 mb-6">{content.introduction}</p>
         <div className="space-y-5">
           {content.sections.map(([heading, paragraphs]) => (

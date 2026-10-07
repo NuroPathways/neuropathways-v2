@@ -1,10 +1,16 @@
 // Informational copy only. These notices do not add consent requirements,
 // authorize new processing, or change existing account and document workflows.
+export const publicLegalContact = {
+  businessName: "NeuroPathways",
+  email: "NuroPathways@gmail.com",
+};
+
 export const legalContent = {
   "/terms": {
     title: "Terms of Use",
     description: "NeuroPathways account responsibilities, support limitations, acceptable use, and user-content information.",
     reviewDraft: true,
+    contact: publicLegalContact,
     introduction: "These draft terms describe appropriate use of NeuroPathways and its limitations. They require operator and attorney review before being adopted as a binding agreement. Reading this page does not create a new acceptance record or change your existing consents.",
     sections: [
       ["Purpose and limits", [
@@ -33,7 +39,7 @@ export const legalContent = {
       ["Billing and legal review", [
         "No active subscription checkout or automated billing integration was identified in the current app review. This page does not start a subscription or authorize a charge.",
         "Before introducing paid plans, the operator must publish reviewed pricing, renewal, trial, refund, and cancellation terms and implement the necessary consent and cancellation process.",
-        "The operator's legal identity, contact information, applicable jurisdiction, and any liability or dispute-resolution provisions require confirmation and legal review. No new waiver of statutory rights is introduced by this draft.",
+        "The operator has supplied NeuroPathways as its business name and the public contact shown on this page. Business mailing information, applicable jurisdiction, and any liability or dispute-resolution provisions still require confirmation and legal review. No new waiver of statutory rights is introduced by this draft.",
       ]],
     ],
   },
@@ -62,7 +68,7 @@ export const legalContent = {
       ]],
       ["Care limitations, retention, and requests", [
         "Starter support is general guidance, not a clinician-approved plan. Uploaded-plan support is based on uploaded documents; review labels apply only where review has occurred. NeuroPathways is not emergency care. If there is immediate danger, call 911 or your local emergency services.",
-        "The current implementation does not provide a complete self-service account deletion or data export workflow. See Data requests and Contact for the present request-channel limitations. Do not assume signing out deletes your records.",
+        "The current implementation does not provide a complete self-service account deletion or data export workflow. See Data requests and Contact for the public email channel and current processing limitations. Do not assume signing out deletes your records.",
         "Retention periods, backup deletion, incident-response arrangements, and the applicability of HIPAA or other health privacy laws require operator and legal review. No compliance certification is made.",
       ]],
     ],
@@ -70,8 +76,8 @@ export const legalContent = {
   "/contact": {
     title: "Contact",
     description: "NeuroPathways care, platform-support, privacy, and copyright contact information and current limitations.",
-    reviewDraft: true,
-    introduction: "A verified public operator support address has not yet been published in this app. This page does not submit a request or promise that a request has been received.",
+    contact: publicLegalContact,
+    introduction: "Contact NeuroPathways using the public email address below for platform support, privacy questions, data requests, or copyright concerns. Opening the email link does not send a message automatically or confirm that a request has been received.",
     sections: [
       ["Immediate danger", [
         "If there is immediate danger, call 911 or your local emergency services. NeuroPathways and its AI features are not monitored emergency-response channels.",
@@ -80,8 +86,8 @@ export const legalContent = {
         "For questions about your care, treatment plan, or records held by a clinician or clinic, contact that clinician or clinic using the contact information they provided. In-app clinician messaging, where available, is not a platform-operator privacy or copyright request channel.",
       ]],
       ["Platform, privacy, and copyright requests", [
-        "The operator must confirm and publish its legal business name and a monitored contact address before this page can provide an actionable platform-support, privacy, deletion, or copyright-request channel.",
-        "Do not send passwords, access codes, documents, or health information to an unverified address. No support form, email delivery service, or designated copyright agent is created by this page.",
+        "Describe your question or request briefly and include only the account information needed to identify it. The public email address was supplied by the NeuroPathways operator; mailbox delivery and request handling have not been independently tested.",
+        "Do not email passwords, access codes, payment details, or unnecessary health records. This page does not create an in-app support form, email delivery service, or designated copyright agent.",
       ]],
     ],
   },
@@ -89,6 +95,7 @@ export const legalContent = {
     title: "Copyright and Uploads",
     description: "Upload responsibilities and copyright notice information for NeuroPathways.",
     reviewDraft: true,
+    contact: publicLegalContact,
     introduction: "Only upload documents or files you have permission to use. This draft describes upload responsibilities and information relevant to a copyright complaint; it does not establish DMCA safe-harbor eligibility.",
     sections: [
       ["Your uploads", [
@@ -96,7 +103,7 @@ export const legalContent = {
       ]],
       ["Copyright complaints", [
         "A copyright notice generally needs identification of the copyrighted work, identification and location of the allegedly infringing material, contact information, a good-faith statement that the disputed use is not authorized, a statement of accuracy and authority under penalty of perjury, and a physical or electronic signature.",
-        "The operator's verified copyright contact has not yet been published. See Contact. Do not include unrelated health records in a complaint. A usable submission channel and reviewed notice-handling procedure are required before this draft can serve as an operational complaint policy.",
+        "Send copyright questions or notices to the public email address on this page. Identify the relevant material without including unrelated health records. A reviewed notice-handling procedure remains necessary before this draft can serve as a complete operational complaint policy.",
       ]],
       ["Agent registration and review", [
         "No registered DMCA designated agent or completed notice/counter-notice process has been verified by this review. Publishing this page is not registration with the U.S. Copyright Office.",
@@ -108,11 +115,12 @@ export const legalContent = {
     title: "Data Requests and Deletion",
     description: "NeuroPathways account deletion and data export request information, current limitations, and clinic-retention considerations.",
     reviewDraft: true,
+    contact: publicLegalContact,
     introduction: "The current app does not offer a complete self-service account deletion or data export process. This page is informational: it does not delete records, export data, or submit a request.",
     sections: [
       ["Request channel", [
-        "A monitored operator contact must be confirmed before actionable instructions for platform access, export, correction, or deletion requests can be published. See Contact for this current limitation.",
-        "Once a verified channel is available, identify the request type and the account associated with it. Do not send your password, access code, or unnecessary health documents. The operator will need a reviewed identity-verification process before releasing or deleting sensitive data.",
+        "Email the public address on this page to ask about access, export, correction, or deletion. State the request type and the email address or username associated with your account. Sending an email does not itself delete or export your records.",
+        "Do not send your password, access code, or unnecessary health documents. The operator will need a reviewed identity-verification and request-handling process before releasing or deleting sensitive data. Mailbox delivery and processing timelines have not been independently verified.",
       ]],
       ["Records to consider", [
         "A full account request may involve child profiles, documents and extracted text, generated summaries and support cards, goals, behavior logs, check-ins, rewards, AI conversation records, messages, engagement records, and authorized sharing links.",
