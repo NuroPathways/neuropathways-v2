@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { useParentChat } from "@workspace/api-client-react";
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, errMsg } from "./common";
@@ -33,12 +34,28 @@ export default function ChatPanel({ childId, childName, cards = [] }) {
   return (
     <div className="pf-card" style={{ display: "grid", gap: 14 }}>
       <h2>Ask about {childName}</h2>
-      <p className="pf-hint">Answers use {childName}'s support steps and any plan you uploaded. AI can make mistakes and does not diagnose, provide treatment, or replace your clinician. If there is immediate danger, call 911 or your local emergency services.</p>
+      <p className="pf-hint">Answers use readable information from your uploaded plans when it is relevant. If a plan does not cover your question, NeuroPath offers general ABA-informed ideas based on the behavior you describe. This is not medical or professional advice and does not replace your clinician. If there is immediate danger, call 911 or your local emergency services.</p>
       <div style={{ display: "grid", gap: 10, minHeight: 160, maxHeight: "50dvh", overflowY: "auto" }} aria-live="polite">
         {msgs.length === 0 && <p style={{ color: "var(--pf-ink-soft)" }}>Try: "What should I say when the meltdown starts?"</p>}
         {msgs.map((m, i) => (
           <div key={i} className={`pf-bubble ${m.role}`} data-testid={`bubble-${m.role}-${i}`}>
-            {m.text}
+            {m.role === "me" ? m.text : (
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <p style={{ margin: "4px 0" }}>{children}</p>,
+                  strong: ({ children }) => <strong>{children}</strong>,
+                  ul: ({ children }) => <ul style={{ margin: "6px 0 6px 20px", listStyle: "disc" }}>{children}</ul>,
+                  ol: ({ children }) => <ol style={{ margin: "6px 0 6px 20px", listStyle: "decimal" }}>{children}</ol>,
+                  li: ({ children }) => <li style={{ margin: "2px 0" }}>{children}</li>,
+                  h1: ({ children }) => <h3 style={{ margin: "10px 0 4px", fontSize: "1.05rem" }}>{children}</h3>,
+                  h2: ({ children }) => <h3 style={{ margin: "10px 0 4px", fontSize: "1rem" }}>{children}</h3>,
+                  h3: ({ children }) => <h3 style={{ margin: "8px 0 4px", fontSize: ".95rem" }}>{children}</h3>,
+                  blockquote: ({ children }) => <blockquote style={{ margin: "8px 0", paddingLeft: 12, borderLeft: "3px solid var(--pf-line)" }}>{children}</blockquote>,
+                }}
+              >
+                {m.text}
+              </ReactMarkdown>
+            )}
             {m.refs?.length > 0 && <p className="pf-hint" style={{ marginTop: 8 }}>Sources: {m.refs.map((r) => r.title).join(", ")}</p>}
             {m.refs?.length > 0 && !allRefsReviewed(m.refs, cards) && <p className="pf-hint" style={{ marginTop: 6 }} data-testid="text-unreviewed">This answer is based on the document you uploaded and has not been reviewed by a clinician.</p>}
             {m.disclaimer && <p className="pf-hint" style={{ marginTop: 6 }}>{m.disclaimer}</p>}

@@ -9,6 +9,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 
+const CHAT_DISCLAIMER =
+  "General ABA-informed information only—not medical or professional advice. It does not replace guidance from your clinician or care team.";
+
+function buildGeneralSupportFallback(question) {
+  const emergency = /\b(?:right now|immediate danger|serious injury|self[- ]harm|suicid\w*|chok\w*|overdose|weapon|someone is hurt)\b/i.test(question);
+  const safety = emergency
+    ? "If someone may be hurt or is in immediate danger, move to a safer place if possible and contact 911 or your local emergency services."
+    : "";
+  return `${safety ? `${safety}\n\n` : ""}For the behavior you described, first make the area safer and use fewer, simpler words. Notice what happened just before the behavior and what happened after, without assuming why it occurred. When it is safe, offer one clear next step or a choice and encourage a safe request for help or a break. If the behavior is frequent, worsening, or causing injury, write down the pattern and discuss it with the child’s clinician.`;
+}
+
+function isBareAssistantRefusal(value) {
+  const beginsWithRefusal = /^\s*(?:I(?:['’]m| am)\s+(?:unable|not able)\s+to|I\s+(?:cannot|can['’]t|won't))\s+(?:help|assist|answer|provide|discuss)\b/i.test(value);
+  return beginsWithRefusal && !/\b(?:instead|you can|try|safe|general information|for example)\b/i.test(value);
+}
+
+function includesUnsafePhysicalInstructions(value) {
+  return /\b(?:restraint|restrain\w*|seclusion|pin\w*|physical block(?:ing)?|immobiliz\w*)\b/i.test(value)
+    || /\bhold(?:ing)?\s+(?:them|a child|the child|your child|him|her)\s+(?:down|still|in place)\b/i.test(value);
+}
+
 const SUGGESTED = [
   "Give me a summary of my child's treatment plan",
   "Create a daily behavior schedule for today",
@@ -308,14 +329,15 @@ IMPORTANT RESPONSE RULES:
    ### What to avoid
    ### When to contact your clinician (only if relevant)
 3. Be warm, specific, and practical. Write like a knowledgeable friend, not a clinical report.
-4. NEVER invent strategies or advice not supported by the clinician's data above.
+4. Use the clinician's data when it directly applies. Do not invent child-specific facts, triggers, diagnoses, or treatment plans. If the context does not answer the question, give safe, generalized ABA-informed suggestions based on the behavior the parent described and label them as general information.
 5. Keep crisis/safety guidance (aggression, self-harm, emergency instructions) clear and precise — do NOT water down safety steps.
 6. Use the clinician's actual data — reference specific plan names, strategies, and steps when relevant.
 7. Treat document names and scan status as metadata, not document contents. Use extracted findings only from the document-based summary and never claim to have read a document that is marked unread or failed.
 8. Clearly distinguish clinician-reviewed material from unreviewed uploads and general starter information. Do not describe a support response as clinician-approved unless its source is explicitly marked as reviewed.
-9. If the provided clinical plan does not contain information that supports the requested advice, say exactly: "I could not find clinician-approved information about that in the uploaded documents. Please contact your clinician." Do not fill gaps with general tips or present general guidance as clinician-approved.`;
+9. Do not stop at a missing-source statement or give a bare refusal. For requests involving restraint, diagnosis, medication changes or doses, or medical treatment, avoid unsafe instructions but still give a useful, safe alternative. For immediate danger, direct the user to emergency services.
+10. The chat will append a fixed medical and professional advice disclaimer after your reply; do not repeat it.`;
 
-  const securityRule = `CRITICAL SECURITY RULE: You ONLY have access to data for the client named ${child?.child_name || 'this client'}. If the user asks about any other person, client, or child by name, politely decline and say you can only discuss ${child?.child_name || 'this client'}\'s information. Never reveal data about any other clients.`;
+  const securityRule = `CRITICAL SECURITY RULE: You ONLY have access to data for the client named ${child?.child_name || 'this client'}. If the user asks about another person, do not reveal or confirm any stored information about them. Offer general guidance based only on the question, without that person's private details. Never reveal data about any other clients.`;
 
   return await base44.integrations.Core.InvokeLLM({
     model: "claude_sonnet_4_6",
@@ -406,17 +428,22 @@ export default function AIChat() {
         currentContext = await buildContext(selectedChildId, child?.child_name || "", user, isIndividualClient);
         setClinicianContext(currentContext);
       } catch {
-        const explanation = "I couldn’t refresh this child’s latest plan and document information. Please try again, or open Documents and re-scan any file that wasn’t read correctly.";
-        setContextError(explanation);
-        setMessages(prev => [...prev, { role: "assistant", content: explanation }]);
-        setIsLoading(false);
-        setLoadingContext(false);
-        return;
+        setContextError("The latest plan and document information could not be refreshed. General support is still available.");
+        currentContext = { context: "No updated plan or document details could be retrieved for this question.", hasPlans: false, hasDocuments: false };
       } finally {
         setLoadingContext(false);
       }
     }
-    const response = await generateResponse(msg, child, currentContext, updatedHistory, isIndividualClient);
+    let generatedResponse = "";
+    try {
+      generatedResponse = await generateResponse(msg, child, currentContext, updatedHistory, isIndividualClient);
+    } catch {
+      generatedResponse = buildGeneralSupportFallback(msg);
+    }
+    const responseBody = !generatedResponse.trim() || isBareAssistantRefusal(generatedResponse) || includesUnsafePhysicalInstructions(generatedResponse)
+      ? buildGeneralSupportFallback(msg)
+      : generatedResponse.trim();
+    const response = `${responseBody}\n\n> ${CHAT_DISCLAIMER}`;
 
     setMessages(prev => [...prev, { role: "assistant", content: response }]);
     setIsLoading(false);
