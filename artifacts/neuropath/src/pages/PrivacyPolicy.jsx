@@ -1,5 +1,7 @@
 import { ArrowLeft, Brain, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import LegalLinks from "@/components/legal/LegalLinks";
+import useLegalMetadata from "@/components/legal/useLegalMetadata";
 
 const sections = [
   {
@@ -111,6 +113,7 @@ const sections = [
 
 export default function PrivacyPolicy() {
   const navigate = useNavigate();
+  useLegalMetadata("Consumer Health Privacy Policy", "NeuroPathways Consumer Health Privacy Policy: sensitive health information, authorized sharing, security, and privacy rights.");
 
   return (
     <div className="min-h-screen bg-background font-inter">
@@ -162,6 +165,9 @@ export default function PrivacyPolicy() {
             </section>
           ))}
         </div>
+        <footer className="border-t border-border mt-8 pt-6">
+          <LegalLinks />
+        </footer>
       </main>
     </div>
   );

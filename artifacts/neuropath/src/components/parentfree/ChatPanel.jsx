@@ -33,7 +33,7 @@ export default function ChatPanel({ childId, childName, cards = [] }) {
   return (
     <div className="pf-card" style={{ display: "grid", gap: 14 }}>
       <h2>Ask about {childName}</h2>
-      <p className="pf-hint">Answers use {childName}'s support steps and any plan you uploaded. This is not medical advice.</p>
+      <p className="pf-hint">Answers use {childName}'s support steps and any plan you uploaded. AI can make mistakes and does not diagnose, provide treatment, or replace your clinician. If there is immediate danger, call 911 or your local emergency services.</p>
       <div style={{ display: "grid", gap: 10, minHeight: 160, maxHeight: "50dvh", overflowY: "auto" }} aria-live="polite">
         {msgs.length === 0 && <p style={{ color: "var(--pf-ink-soft)" }}>Try: "What should I say when the meltdown starts?"</p>}
         {msgs.map((m, i) => (

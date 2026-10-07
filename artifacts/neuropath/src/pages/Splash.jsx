@@ -130,7 +130,7 @@ export default function Splash() {
         <section className="np-sec" style={{ paddingTop: 0 }}>
           <div className="np-panel green" data-testid="section-privacy">
             <ShieldCheck size={28} />
-            <p>Your notes stay inside your private account. Starter support is general guidance until you upload a plan or connect with a clinician.</p>
+            <p>Your notes are accessed through your account and authorized sharing. AI features may process information using service providers. Starter support is general guidance, not a clinician-approved treatment plan.</p>
           </div>
         </section>
 
@@ -145,6 +145,10 @@ export default function Splash() {
             <Link to="/ClinicianLogin" className="np-link">Clinician login</Link>
             <Link to="/UsernameLogin" className="np-link" data-testid="link-username-login">Username login</Link>
             <Link to="/privacy" className="np-link" data-testid="link-privacy">Privacy policy</Link>
+            <Link to="/terms" className="np-link">Terms of use</Link>
+            <Link to="/contact" className="np-link">Contact</Link>
+            <Link to="/copyright" className="np-link">Copyright</Link>
+            <Link to="/data-requests" className="np-link">Data requests</Link>
           </div>
         </footer>
       </div>

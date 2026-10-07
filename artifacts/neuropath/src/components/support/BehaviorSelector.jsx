@@ -122,6 +122,9 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
       </div>
 
       <div className="p-5 space-y-4">
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Starter support is general guidance, not a clinician-approved treatment plan. Uploaded-plan support is not clinician-reviewed unless a review is explicitly identified.
+        </p>
         {behavior.what_may_be_happening && (
           <div className="bg-card border border-border rounded-xl p-4">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Why This May Be Happening</h4>

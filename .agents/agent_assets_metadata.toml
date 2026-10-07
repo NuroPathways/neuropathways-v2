@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "3hdWtEpRPpDApZ-iQCMbu"
+uri = "file://audits/neuropathways-compliance-readiness.html"
+type = "html"
+title = "NeuroPathways Compliance Readiness Audit"
+description = "Read-only findings across all 18 audit areas, the 24-check verification matrix, copy-only changes, and remaining operator and attorney-review requirements."
+logical_id = "95bcff8c-6696-4891-b999-c72f02a7f0d1"
+content_hash = "sha256:27e6caac573051f68cf65bae068b787b6e3cb3b785144a0fbeaef6eb544c814a"
+size = 24088
+mtime_ms = 1791390662697
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/95bcff8c-6696-4891-b999-c72f02a7f0d1/223e9d58-3cc7-4dc7-9a0b-f62effb0c7d5"
+storage_version_token = "1791390672305459"
+content_type = "text/html"

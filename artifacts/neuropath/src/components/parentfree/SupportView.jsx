@@ -65,6 +65,7 @@ export default function SupportCardView({ card, childName, onHelp, onUpload, act
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           <span className={`pf-tag ${src.kind}`} data-testid="text-source-label">{src.text}</span>
         </div>
+        {card.source === "starter" && <p className="pf-hint">Starter support is general guidance based on common behavior patterns. It is not a clinician-approved treatment plan.</p>}
         <p className="pf-eyebrow">Behavior Support Card{childName ? ` for ${childName}` : ""}</p>
         <h2>{card.behaviorName}</h2>
         <GoalLines card={card} active={active} />

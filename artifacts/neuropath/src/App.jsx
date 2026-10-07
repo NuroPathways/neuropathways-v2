@@ -34,12 +34,12 @@ import GoalsMilestones from './pages/GoalsMilestones';
 import ParentUpload from './pages/ParentUpload';
 import ParentSignup from './pages/ParentSignup';
 import ResetAccessCode from './pages/ResetAccessCode';
-import PrivacyPolicy from './pages/PrivacyPolicy';
 import ParentQuickStart from './pages/ParentQuickStart';
 import ParentHome from './pages/ParentHome';
 import ParentSignupUsername from './pages/ParentSignupUsername';
 import ClientHome from './pages/ClientHome';
 import SupportNowOverlay from '@/components/support/SupportNowOverlay';
+import PublicLegalRoutes from '@/components/legal/PublicLegalRoutes';
 
 // Free email parents only ever use the parent-owned screens, never legacy CRUD pages.
 const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/privacy'];
@@ -147,7 +147,6 @@ const AuthenticatedApp = () => {
       <Route path="/ParentQuickStart" element={<ParentQuickStart />} />
       <Route path="/ParentHome" element={<ParentHome />} />
       <Route path="/ClientHome" element={<ClientHomeRoute />} />
-      <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/GoalsMilestones" element={<LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>} />
       <Route path="/DataImport" element={<DataImport />} />
       <Route path="*" element={<PageNotFound />} />
@@ -160,7 +159,9 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
-          <AuthenticatedApp />
+          <PublicLegalRoutes>
+            <AuthenticatedApp />
+          </PublicLegalRoutes>
         </Router>
         <Toaster />
       </QueryClientProvider>

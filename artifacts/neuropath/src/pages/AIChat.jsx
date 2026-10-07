@@ -567,8 +567,9 @@ export default function AIChat() {
         </div>
         <p className="text-center text-xs text-muted-foreground mt-2 max-w-2xl mx-auto">
           {isIndividualClient
-            ? "NeuroPath AI reads your clinician's documents and support plan to give you guidance you can use right now."
-            : "NeuroPath AI reads your clinician's documents, support plans, and session history to give you personalized answers."}
+            ? "AI uses your clinician's documents and support plan. It can make mistakes and does not diagnose, provide treatment, or replace your clinician."
+            : "AI uses available documents, support plans, and session history. It can make mistakes and does not diagnose, provide treatment, or replace your clinician."}
+          {" "}If there is immediate danger, call 911 or your local emergency services.
         </p>
       </div>
     </div>

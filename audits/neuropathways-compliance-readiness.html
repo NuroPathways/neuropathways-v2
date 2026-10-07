@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NeuroPathways — Legal, Privacy and Compliance Readiness Review</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:#203343;font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}main{max-width:1120px;margin:30px auto;padding:35px;background:#fff;border:1px solid #dce5ed;border-radius:14px}h1{font-size:30px;line-height:1.2;color:#173c61}h2{margin-top:36px;font-size:23px;color:#173c61}h3{font-size:18px}p,li{max-width:95ch}.meta{color:#577086}.notice{background:#fff6e5;border-left:4px solid #b77b16;padding:16px 20px}.good{background:#eff8f3;border-left:4px solid #38846a;padding:16px 20px}.table{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{border:1px solid #dce5ed;padding:11px;text-align:left;vertical-align:top}th{background:#edf3f8}code{font-size:13px;overflow-wrap:anywhere}a{color:#205f9d}small{color:#577086}.status{font-weight:700}.gap{color:#9a5117}.partial{color:#765c11}.pass{color:#236747}footer{margin-top:40px;border-top:1px solid #dce5ed;padding-top:16px;font-size:13px;color:#577086}@media(max-width:650px){main{padding:20px;margin:10px}h1{font-size:25px}td,th{padding:8px}}@media print{body{background:white}main{margin:0;border:0;padding:0}h2,h3{break-after:avoid}tr{break-inside:avoid}.table{overflow:visible}a{color:inherit}}
+</style>
+</head>
+<body><main>
+<h1>NeuroPathways<br>Legal, Privacy and Compliance Readiness Review</h1>
+<p class="meta">Prepared October 7, 2026 · Development-source review · Scope: audit, public legal pages and wording only</p>
+<div class="notice"><strong>Not a compliance certification or legal advice.</strong> This review does not establish HIPAA, COPPA, CAN-SPAM, DMCA, app-store, or state-law compliance. Significant technical and operator-readiness gaps remain. The app is not cleared for an unrestricted public launch by this review.</div>
+
+<h2>1. Scope and verification limits</h2>
+<p>The owner explicitly prohibited changes to infrastructure and app operations and approved only an audit plus legal pages and wording updates. The attached audit's requests for age gates, upload restrictions, deletion systems, analytics controls, and new subscription or email processes were therefore assessed, not implemented.</p>
+<p>Reviewed web UI, mobile configuration and relevant screens, account/consent routes, document storage and access routes, AI and engagement handling, logging, dependencies named in manifests, and existing privacy wording. Verification included the web test suite, a production-mode frontend build, development HTTP headers, and unauthenticated requests to two protected document endpoints. No accounts were created, no records were changed or deleted, no emails or AI requests were sent, and no production data was accessed.</p>
+<p>This was not a penetration test, dependency vulnerability scan, production configuration review, processor-contract review, or attorney opinion. Source-code absence findings cannot rule out scripts injected by hosting, integrations, or future releases.</p>
+
+<h2>2. Changes actually made</h2>
+<div class="good"><strong>Existing operations preserved:</strong> no backend, database/schema, auth permissions, storage, infrastructure, dependencies, signup validation, document processing, AI prompts, telemetry payloads, subscription flows, or deletion behavior changed.</div>
+<ul>
+<li>Made the existing <code>/privacy</code> page and new informational pages accessible independently of account-specific routing. Other paths still enter the original account router and its unchanged access rules.</li>
+<li>Preserved the accepted Consumer Health Privacy Policy's text, effective date and version 1.0. Added navigation and page metadata only. New explanations are in a separate supplemental notice.</li>
+<li>Added <code>/privacy-details</code>: feature-data notice covering accounts, sensitive records, AI/provider processing, first-party engagement, Google Fonts and current deletion limitations.</li>
+<li>Added <code>/terms</code>, <code>/contact</code>, <code>/copyright</code> and <code>/data-requests</code>. These are plainly labeled review drafts where operator details and procedures are missing. They do not create consent, email delivery, takedown or deletion mechanisms.</li>
+<li>Linked legal information from the public landing footer and privacy page.</li>
+<li>Replaced the landing page's overly broad “notes stay inside your private account” wording with disclosure of authorized sharing and AI service-provider processing.</li>
+<li>Added or clarified visible AI/emergency disclaimers, general starter-support limitations, uploaded-plan review limitations, and the optional nickname/privacy note during parent child-profile setup.</li>
+<li>Added automated tests for all legal pages, unchanged privacy-policy provenance, existing-app route fallback and metadata cleanup.</li>
+</ul>
+<p><strong>Not implemented:</strong> age verification or new signup checkboxes, self-hosted fonts, analytics consent/preferences, telemetry filtering, marketing unsubscribe, subscriptions, file-security changes, new account deletion/export, DMCA operations, revised security headers, or mobile workflow changes.</p>
+
+<h2>3. Priority findings before launch</h2>
+<ol>
+<li><strong>Account-holder age and authority are not enforced.</strong> Parent and clinician registration do not validate the account holder's age. Existing parent privacy/health consent is not an under-13 signup block or verified guardian permission. A policy statement alone does not implement these safeguards.</li>
+<li><strong>No actionable public operator/privacy/copyright contact was verified.</strong> Draft Contact and Data requests pages explicitly disclose this limitation. The operator must supply a monitored public contact, legal business identity, and actual request procedures. A clinician message is not an operator privacy request.</li>
+<li><strong>Complete account deletion and export are missing.</strong> Existing generic per-record CRUD and sign-out do not constitute deletion of files, extracted content, derived cards, AI records, links, backups and an entire account. Retention and clinic obligations remain unresolved.</li>
+<li><strong>Legacy client AI engagement captures a chat excerpt.</strong> The client AIChat page records <code>msg.slice(0, 80)</code> as an engagement topic linked to the child/clinician. This can contain sensitive health text even though it is not a full conversation. Purpose, access, retention, notice and whether to remove the excerpt require review. The existing behavior was not changed.</li>
+<li><strong>Processor and health-data obligations need confirmation.</strong> AI feature context is sent to an Anthropic-compatible service through Replit AI Integrations, and storage uses service-provider infrastructure. Relevant DPAs/BAAs, retention, training restrictions, regions and incident-notification arrangements were not verified. Do not claim that health data never leaves the app or that HIPAA compliance is established.</li>
+<li><strong>Google Fonts still loads externally.</strong> Two web CSS imports call Google Fonts, exposing visitor connection information to the provider. Fonts were not replaced because approval was limited to pages and wording.</li>
+<li><strong>Upload protections vary by route.</strong> Parent uploads have explicit authorization confirmation, private encrypted storage and ownership checks. Legacy, mobile and parent document paths differ in accepted formats, storage and attestations; malware scanning and uniform per-upload provenance were not verified. No new file policy was applied.</li>
+</ol>
+
+<h2>4. Findings across all 18 requested audit areas</h2>
+<div class="table"><table><thead><tr><th>Area</th><th>Observed state</th><th>Action / remaining requirement</th></tr></thead><tbody>
+<tr><td>1. Age gate / COPPA</td><td class="gap">Gap: no account-holder age check or server-side under-13 block located in parent/clinician registration; requested age/guardian provenance flags absent.</td><td>Adult-controlled use explained in draft terms only. Attorney/operator to determine applicability and teen model; implement a verified product flow separately if approved.</td></tr>
+<tr><td>2. Child profile safety</td><td class="pass">Parent onboarding uses first name/nickname, optional age and optional notes. No full legal name, DOB, school, address or diagnosis required in that free-parent flow.</td><td>Added nickname/minimization wording. Do not generalize this finding to every clinician-managed record.</td></tr>
+<tr><td>3. Public legal pages</td><td class="partial">Existing policy preserved; public Terms, feature notice, Contact, Copyright and Data requests added.</td><td>Terms/contact/copyright/data-request pages remain labeled drafts. Business identity, real contact and legal review outstanding; no new consent enforcement added.</td></tr>
+<tr><td>4. Fonts</td><td class="gap">External Google Fonts imports in <code>src/index.css</code> and <code>src/parent.css</code>. Mobile Inter is loaded from packaged Expo font assets.</td><td>Disclosed external loading. Web font hosting unchanged; local-font implementation deferred.</td></tr>
+<tr><td>5. Analytics / replay / pixels</td><td class="partial">No listed ad-pixel or replay SDK identified in source. First-party engagement exists, with sensitive AI question excerpts in the legacy client UI.</td><td>No preferences, masking or telemetry changes made. Confirm hosting-layer behavior, purpose, access and privacy requirements before treating tracking as anonymous.</td></tr>
+<tr><td>6. Email / CAN-SPAM</td><td>No operational marketing sender, mailing-address footer, unsubscribe endpoint or suppression system found in reviewed app code. Reset-link UI includes a manual mailto path.</td><td>Not tested as an active email service. Marketing readiness is missing, not passed. Establish sender/address, opt-in, unsubscribe and suppression before marketing is launched.</td></tr>
+<tr><td>7. Subscriptions / renewal</td><td>No active Stripe/checkout/recurring billing integration identified. No existing purchase flow was altered.</td><td>Current purchase/cancellation tests not applicable. Before paid plans: publish price/renewal/trial/refund terms and implement consent, confirmations and cancellation.</td></tr>
+<tr><td>8. Copyright / DMCA</td><td class="partial">Uploads remain enabled. Parent upload checkbox and server authorization parameter already exist. New draft copyright notice provides complaint-information guidance.</td><td>No designated agent registration, monitored complaint channel or notice/counter-notice workflow verified. No safe-harbor claim. Attestation/provenance must be reviewed across upload paths.</td></tr>
+<tr><td>9. Health / AI disclaimers</td><td class="pass">Existing support/crisis areas already show emergency wording. New visible copy clarifies starter support, AI limits and uploaded-plan review limitations.</td><td>No model behavior, grounding logic or source-review status changed. Clinical accuracy and uniform source labels were not validated with live model calls.</td></tr>
+<tr><td>10. Deletion / export</td><td class="gap">No complete user-facing account deletion/export or full parent-account erasure process found. Generic record CRUD exists for other account contexts.</td><td>Added honest draft instructions explaining limitations; actual request channel, identity verification, related-data cleanup and backup/clinic retention remain unresolved.</td></tr>
+<tr><td>11. Upload security</td><td class="partial">20 MiB limits, content/type checks and authenticated document access are present on relevant paths. Parent object storage uses AES-256-GCM and rejects missing encryption configuration.</td><td>No malware scanner verified. Legacy disk-storage compatibility allows plaintext when encryption is absent and needs deployment review. Format allowlists differ; authenticated streaming is not universal signed-URL access.</td></tr>
+<tr><td>12. Cookies / consent</td><td class="partial">Authentication cookies/tokens and existing privacy/health consents are present. No general non-essential tracker consent manager or analytics preferences found.</td><td>Do not add a banner merely to imply control of behavior it does not control. Determine lawful basis and applicable jurisdictions; no banner or preference behavior added.</td></tr>
+<tr><td>13. Headers / hardening</td><td class="partial">API Helmet headers observed: CSP, HSTS, no-referrer, nosniff and SAMEORIGIN. The development frontend legal-page response did not show those same headers; Permissions-Policy was not observed.</td><td>API headers are not proof of frontend/production header coverage. No CSP/infrastructure changes. Deployment-specific review required.</td></tr>
+<tr><td>14. Android / app store</td><td class="partial">Expo app has a privacy screen, mobile API base configuration and <code>com.replit.neuropathmobile</code> package identifiers. New web notices do not change native routing.</td><td>Published policy/support URLs, native account-deletion route, data-safety disclosures, processor declarations and store submissions remain unverified. Mobile privacy wording still requires reconciliation with approved legal copy.</td></tr>
+<tr><td>15. Audit trails</td><td class="partial">Audit and consent tables plus selected action writes exist. HTTP logs serialize method/path/status rather than request bodies and redact auth/cookie headers.</td><td>Not all requested events were verified end-to-end. Errors/metadata, sensitive path identifiers, access restrictions, retention and redaction need review. Existing logging unchanged.</td></tr>
+<tr><td>16. Risky claims</td><td>No identified “HIPAA-ready,” “medical-grade,” “crisis-certified” or guaranteed-compliance claim in reviewed shipped copy. Existing policy discusses HIPAA conditionally, not as certification.</td><td>Replaced misleading account-only note wording on landing page. Do not treat absence of the named phrases as legal approval of all claims. Existing policy promises about providers/training require substantiation.</td></tr>
+<tr><td>17. Required tests</td><td class="partial">40 web tests passed and frontend production build succeeded. Two unauthenticated document GETs returned 401. Terms of Use visually checked at a 390-pixel mobile viewport.</td><td>Use the matrix below: source observations are not browser passes. No new account, upload, email, payment or destructive deletion journey executed.</td></tr>
+<tr><td>18. Final report</td><td>This report documents both allowed changes and deferred findings.</td><td>Complete owner details and attorney/processor review before claiming launch readiness; approve operational safeguards as a separate scope.</td></tr>
+</tbody></table></div>
+
+<h2>5. Requested 24-check acceptance matrix</h2>
+<p><strong>Interpretation:</strong> “Source verified” means code inspection, not an end-to-end user test. “Not run” is not a pass. Existing product actions were not exercised if they would create accounts, send messages, call AI, upload files or alter data.</p>
+<div class="table"><table><thead><tr><th>#</th><th>Requested check</th><th>Result and evidence limits</th></tr></thead><tbody>
+<tr><td>1</td><td>Under-13 self-signup blocked</td><td class="gap">Gap: no account-holder age enforcement located. Policy copy is not a technical block.</td></tr>
+<tr><td>2</td><td>Adult parent signup succeeds</td><td>Existing signup contract reviewed; registration not executed. No change to signup.</td></tr>
+<tr><td>3</td><td>Parent child-profile creation succeeds</td><td>Minimal-fields UI and owned-child creation code reviewed; no new profile created.</td></tr>
+<tr><td>4</td><td>Parent upload after signup succeeds</td><td>Upload UI, attestation and API contract reviewed; no upload performed.</td></tr>
+<tr><td>5</td><td>Marketing footer has address/unsubscribe</td><td>No active marketing mailer identified; future capability missing, not passed.</td></tr>
+<tr><td>6</td><td>Unsubscribe works</td><td>No marketing unsubscribe process identified; no email sent.</td></tr>
+<tr><td>7</td><td>Replay disabled or masked</td><td>Source inventory: no replay SDK identified. Hosting/runtime-wide absence not independently proven.</td></tr>
+<tr><td>8</td><td>Analytics excludes form inputs</td><td class="gap">Legacy AI engagement includes the first 80 characters of question text. No telemetry change made.</td></tr>
+<tr><td>9</td><td>No Google Fonts loading</td><td class="gap">Not satisfied: web CSS has two external Google Fonts imports.</td></tr>
+<tr><td>10</td><td>No third-party font requests on load</td><td class="gap">Not satisfied by source inspection; existing imports left intact. No complete network-capture audit performed.</td></tr>
+<tr><td>11</td><td>Renewal terms beside subscribe</td><td>Not applicable to current reviewed app; no active purchase flow found.</td></tr>
+<tr><td>12</td><td>In-app cancellation works</td><td>Not applicable to current app; no active subscription implementation found.</td></tr>
+<tr><td>13</td><td>Privacy policy exists</td><td class="pass">Passed public-render test; existing version/date/text retained.</td></tr>
+<tr><td>14</td><td>Terms page exists</td><td class="pass">Passed public-render test; content explicitly remains a review draft, not an adopted contract.</td></tr>
+<tr><td>15</td><td>Account deletion instructions exist</td><td class="partial">Public information page added. Operational submission channel and complete deletion process remain missing.</td></tr>
+<tr><td>16</td><td>Permission confirmation before upload</td><td>Source verified for free-parent upload checkbox and server parameter. Other upload routes not certified uniformly.</td></tr>
+<tr><td>17</td><td>Unsupported files blocked</td><td>Content/format checks present in source; actual malicious/unsupported file tests not run. Allowlists vary.</td></tr>
+<tr><td>18</td><td>Documents private</td><td class="partial">Ownership/access checks inspected. Unauthenticated parent-list and mobile-content requests returned 401. Cross-account content and all legacy URLs not exhaustively tested.</td></tr>
+<tr><td>19</td><td>AI source/disclaimer labels</td><td>Source reviewed and visible disclaimer copy clarified. No live AI or clinical-grounding test performed.</td></tr>
+<tr><td>20</td><td>No unverified HIPAA certification</td><td>Named risky phrases not identified; conditional HIPAA policy language retained. Actual HIPAA readiness unverified.</td></tr>
+<tr><td>21</td><td>Consent blocks non-essential tracking</td><td class="gap">No general consent gate/preferences identified. No new tracking-control functionality added.</td></tr>
+<tr><td>22</td><td>Android/store privacy links work</td><td>Native privacy route/source reviewed; no store submission or published-URL verification performed.</td></tr>
+<tr><td>23</td><td>Profile-image uploads covered/disabled</td><td>No user profile-photo upload UI found in reviewed profile/settings screens; displayed initials are not an upload flow. Other upload endpoints still require review.</td></tr>
+<tr><td>24</td><td>DMCA policy exists</td><td class="partial">Draft copyright page renders. Registered agent, real submission channel and operational notice handling remain unverified/missing.</td></tr>
+</tbody></table></div>
+
+<h2>6. Technical verification performed</h2>
+<ul>
+<li><code>pnpm --filter @workspace/neuropath test</code>: <strong>40 tests passed in 7 files</strong>, including 13 new legal-routing/provenance checks and existing support-popup regressions.</li>
+<li><code>PORT=5173 BASE_PATH=/ pnpm --filter @workspace/neuropath run build</code>: succeeded. The pre-existing large-bundle warning remains; dependency or bundling changes were out of scope.</li>
+<li><code>git diff --check</code>: passed. Diff review found no backend, schema, native-app, dependency or infrastructure edits.</li>
+<li>Development <code>/terms</code> returned HTTP 200. API health returned HTTP 200 with the security headers listed above.</li>
+<li>Unauthenticated GETs to parent-owned document listing and mobile document content, using synthetic nonexistent IDs and no credentials, returned HTTP 401. These are authentication-denial checks, not a full cross-tenant authorization test.</li>
+<li>Web workflow restarted; Terms of Use inspected in the running preview at a 390 × 844 mobile viewport. Existing signed-out session checks return 401 without preventing the public notice from rendering. No signed-in browser tester or live model was needed for the copy-only changes.</li>
+</ul>
+
+<h2>7. Evidence locations</h2>
+<p>Source locations are provided for follow-up review, not as claims of production configuration:</p>
+<ul>
+<li><code>artifacts/api-server/src/routes/parent.ts</code>: registration contract, consent writes, minimal parent child-profile data and owned-record actions.</li>
+<li><code>artifacts/api-server/src/routes/clinician-email-auth.ts</code>: clinician registration/session flow.</li>
+<li><code>artifacts/api-server/src/routes/entities.ts</code> and <code>lib/db/src/schema/entities.ts</code>: generic CRUD, engagement, audit and consent data.</li>
+<li><code>artifacts/neuropath/src/pages/AIChat.jsx</code>: question excerpt in engagement payload; <code>components/parentfree/ChatPanel.jsx</code>: parent chat UI and disclaimers.</li>
+<li><code>artifacts/api-server/src/routes/parent-documents.ts</code>, <code>lib/parentDocuments.ts</code>, <code>lib/parentFileStorage.ts</code> and <code>routes/upload.ts</code>: attestation, format limits, sharing, file storage and authenticated content paths.</li>
+<li><code>artifacts/api-server/src/lib/anthropic.ts</code> and <code>routes/ai.ts</code>: AI service configuration and context processing.</li>
+<li><code>artifacts/api-server/src/app.ts</code> and <code>lib/logger.ts</code>: Helmet, rate limiting, HTTP log serialization and redaction.</li>
+<li><code>artifacts/neuropath/src/index.css</code> and <code>parent.css</code>: external font imports.</li>
+<li><code>artifacts/neuropath-mobile/app.json</code>, <code>app/privacy.tsx</code>, <code>app/_layout.tsx</code> and <code>lib/api.ts</code>: native package IDs, existing policy, packaged fonts and API routing.</li>
+</ul>
+
+<h2>8. Operator and attorney-review decisions</h2>
+<ul>
+<li>Confirm legal entity, monitored public support/privacy/copyright email, business contact address where needed, jurisdictions served, and the proposed age/access model.</li>
+<li>Determine COPPA, state consumer-health/privacy, health-breach notification, clinic/HIPAA, consent and teen-access obligations. Confirm whether applicable processor contracts and BAAs are in place; do not infer them from encryption or hosting.</li>
+<li>Review existing privacy promises against actual AI/storage processing, provider retention/training policies, data sharing and existing clinical engagement records.</li>
+<li>Define and implement actionable rights-request procedures, identity verification, response timing, record/backup retention and account/document deletion responsibilities.</li>
+<li>Review the draft Terms, Copyright and Data requests notices before adoption. Determine DMCA safe-harbor approach and any required agent registration and notice handling.</li>
+<li>Before marketing or paid plans, establish email opt-in/address/unsubscribe/suppression and subscription disclosure/consent/cancellation/refund processes.</li>
+<li>Verify published frontend headers, native privacy/support URLs, store data-safety declarations and all processors against the deployed configuration.</li>
+<li>Approve any operational safeguards as a separate scope. None were silently implemented in this review.</li>
+</ul>
+<footer>Prepared for NeuroPathways. This document is a technical readiness review, not legal advice or a promise of compliance. No production URL, private customer data, credentials or secret values are included.</footer>
+</main></body></html>

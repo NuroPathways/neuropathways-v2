@@ -81,7 +81,7 @@ export default function ParentQuickStart() {
             <p className="pf-eyebrow">Step 1 of 5</p>
             <h1 style={{ fontSize: "clamp(1.9rem,6vw,2.6rem)" }}>Add Your Child</h1>
             <p style={{ color: "var(--pf-ink-soft)" }}>Who are you creating support for?</p>
-            <Field label="Child first name or nickname"><input className="pf-input" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} data-testid="input-child-name" /></Field>
+            <Field label="Child first name or nickname" hint="Use a nickname if you prefer. Only add information you are comfortable storing in your account."><input className="pf-input" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} data-testid="input-child-name" /></Field>
             <Field label="Child age (optional)"><input className="pf-input" type="number" min="0" max="25" value={profile.age} onChange={(e) => setProfile({ ...profile, age: e.target.value })} data-testid="input-child-age" /></Field>
             <Field label="Notes (optional)"><textarea className="pf-area" placeholder="Example: transitions are hard, homework is stressful, or runs away in parking lots." value={profile.notes} onChange={(e) => setProfile({ ...profile, notes: e.target.value })} data-testid="input-child-notes" /></Field>
             <ErrorBox error={error} />
