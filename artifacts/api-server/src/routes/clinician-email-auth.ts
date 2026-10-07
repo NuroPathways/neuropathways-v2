@@ -1,9 +1,10 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { db, usersTable } from "@workspace/db";
-import { userProfilesTable, clinicianCredentialsTable } from "@workspace/db";
+import { userProfilesTable, clinicianCredentialsTable, consentEventsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { createSession, deleteSession, getSessionId, SESSION_COOKIE, SESSION_TTL } from "../lib/auth";
+import { accountAuthorityEvent, validateAccountAuthority } from "../lib/accountAuthority";
 
 const router = Router();
 
@@ -28,6 +29,10 @@ function setSessionCookie(res: any, sid: string) {
 
 async function registerClinician(req: any, res: any) {
   const { email, password, firstName, lastName } = req.body;
+  const authority = validateAccountAuthority(req.body, "clinician");
+  if (!authority.ok) {
+    return res.status(authority.error.startsWith("A parent or guardian must create this account") ? 403 : 400).json({ error: authority.error });
+  }
   if (!email || !password)
     return res.status(400).json({ error: "Email and password are required" });
   if (password.length < 8)
@@ -84,6 +89,16 @@ async function registerClinician(req: any, res: any) {
         userId,
         email: normEmail,
         passwordHash: `${salt}:${hash}`,
+      });
+      await tx.insert(consentEventsTable).values({
+        subjectId: userId,
+        eventType: accountAuthorityEvent("clinician", authority.ageGroup, false, false).eventType,
+        policyType: "account_holder_authority",
+        version: "1.0",
+        acceptanceMethod: "signup_checkbox",
+        source: "signup",
+        actorType: "user",
+        metadata: accountAuthorityEvent("clinician", authority.ageGroup, false, false).metadata,
       });
     });
 

@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -56,7 +54,7 @@ nav, button, [role="button"], label {
     --ring: 216 38% 47%;
 
     --radius: 0.75rem;
-    --font-inter: 'Inter', sans-serif;
+    --font-inter: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
   .dark {

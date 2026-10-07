@@ -14,7 +14,15 @@ interface ParentCtx {
   child: ParentChild | null;
   setupComplete: boolean;
   opts: { headers: Record<string, string> };
-  signup: (v: { firstName: string; email: string; password: string; confirmPassword: string }) => Promise<void>;
+  signup: (v: {
+    firstName: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+    accountHolderAgeGroup: "13_17" | "18_plus";
+    adultOrGuardianConfirmed: true;
+    parentGuardianAuthorityConfirmed: true;
+  }) => Promise<void>;
   signin: (email: string, password: string) => Promise<void>;
   signout: () => Promise<void>;
   selectChild: (id: string) => Promise<void>;
@@ -72,7 +80,18 @@ export function ParentProvider({ children: kids }: { children: React.ReactNode }
   };
 
   const signup: ParentCtx["signup"] = async (v) => {
-    const r = await registerParent({ firstName: v.firstName.trim(), email: v.email.trim(), password: v.password, confirmPassword: v.confirmPassword, privacyConsent: true, healthConsent: true });
+    const r = await registerParent({
+      firstName: v.firstName.trim(),
+      email: v.email.trim(),
+      password: v.password,
+      confirmPassword: v.confirmPassword,
+      privacyConsent: true,
+      healthConsent: true,
+      accountHolderType: "parent_guardian",
+      accountHolderAgeGroup: v.accountHolderAgeGroup,
+      adultOrGuardianConfirmed: v.adultOrGuardianConfirmed,
+      parentGuardianAuthorityConfirmed: v.parentGuardianAuthorityConfirmed,
+    } as any);
     await finishAuth(r.token, r.parent, r.children);
   };
   const signin: ParentCtx["signin"] = async (email, password) => {

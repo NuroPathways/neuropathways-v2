@@ -31,6 +31,13 @@ export default function LegalDocument({ document: content }) {
             <a href={`mailto:${content.contact.email}`} className="text-sm text-primary underline underline-offset-4 break-all">{content.contact.email}</a>
           </section>
         )}
+        {content.title === "Data Requests and Deletion" && (
+          <section className="bg-card border border-border rounded-2xl p-5 mb-6">
+            <h2 className="text-lg font-semibold text-foreground mb-2">Signed-in account holders</h2>
+            <p className="text-sm text-muted-foreground leading-6 mb-3">Parent and clinician account holders can sign in to submit a tracked request. Submitting does not delete records automatically.</p>
+            <Link to="/DataRequests" className="text-sm text-primary underline underline-offset-4">Open data request form</Link>
+          </section>
+        )}
         <p className="text-sm text-foreground leading-7 mb-6">{content.introduction}</p>
         <div className="space-y-5">
           {content.sections.map(([heading, paragraphs]) => (

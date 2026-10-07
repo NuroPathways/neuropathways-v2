@@ -10,8 +10,9 @@
 </head>
 <body><main>
 <h1>NeuroPathways<br>Legal, Privacy and Compliance Readiness Review</h1>
-<p class="meta">Prepared October 7, 2026 · Development-source review · Scope: audit, public legal pages and wording only</p>
+<p class="meta">Baseline review and implementation update · October 7, 2026 · Development-source review</p>
 <div class="notice"><strong>Not a compliance certification or legal advice.</strong> This review does not establish HIPAA, COPPA, CAN-SPAM, DMCA, app-store, or state-law compliance. Significant technical and operator-readiness gaps remain. The app is not cleared for an unrestricted public launch by this review.</div>
+<div class="notice"><strong>Status note:</strong> Sections 1–8 and the original 24-check matrix describe the initial, copy-only baseline. A later authorized implementation pass changed application behavior. Section 9 records the current implementation and verification results and supersedes conflicting “not implemented” statements in the baseline sections.</div>
 
 <h2>1. Scope and verification limits</h2>
 <p>The owner explicitly prohibited changes to infrastructure and app operations and approved only an audit plus legal pages and wording updates. The attached audit's requests for age gates, upload restrictions, deletion systems, analytics controls, and new subscription or email processes were therefore assessed, not implemented.</p>
@@ -128,7 +129,29 @@
 <li>Review the draft Terms, Copyright and Data requests notices before adoption. Determine DMCA safe-harbor approach and any required agent registration and notice handling.</li>
 <li>Before marketing or paid plans, establish email opt-in/address/unsubscribe/suppression and subscription disclosure/consent/cancellation/refund processes.</li>
 <li>Verify published frontend headers, native privacy/support URLs, store data-safety declarations and all processors against the deployed configuration.</li>
-<li>Approve any operational safeguards as a separate scope. None were silently implemented in this review.</li>
+<li>Approve any additional operational safeguards as a separate scope. The implementation follow-up below is not a legal or production-readiness approval.</li>
+</ul>
+<h2>9. Implementation follow-up — current source status</h2>
+<p class="meta">Authorized engineering follow-up completed October 7, 2026. These are source and development checks, not proof of production behavior or legal compliance.</p>
+<div class="good"><strong>Implemented in the application:</strong></div>
+<ul>
+<li><strong>Account age and authority checks:</strong> email signup screens for parents and clinicians and mobile signup screens collect age-group and authority self-attestations. Server validation blocks under-13 account-holder signup and missing confirmations, including parent-created child profiles and role setup. These checks do not verify identity, age, guardianship, or legal authority; invitation-based client accounts remain invitation-based.</li>
+<li><strong>Separate consent provenance:</strong> authority acknowledgements are recorded as distinct, versioned events. Existing Privacy Policy version 1.0 and earlier consent records were not rewritten.</li>
+<li><strong>Upload authorization:</strong> the client-session upload screen now requires an explicit authorization confirmation, and both file and document-record endpoints enforce it. New document records and their upload-authorization attestations are written together. Rejected temporary files are removed; existing private-storage, format-check and access-control behavior was retained.</li>
+<li><strong>Data-request tracking:</strong> signed-in parent and clinician users can submit export and deletion-related requests from the web Data requests screen. Requests are recorded as received with verification pending; the Settings deletion control now submits a tracked request and does not sign the user out or delete records. Requests are not fulfilled or deleted automatically.</li>
+<li><strong>New AI engagement events:</strong> client AI engagement now records fixed event/topic labels instead of a question excerpt, while retaining the established event type used by the clinician engagement display. Older events containing excerpts were not erased.</li>
+<li><strong>Web-font requests:</strong> remote Google Fonts imports were removed in favor of system font stacks. This affects new page loads and does not change mobile font assets.</li>
+<li><strong>Support clarity:</strong> parent source labels and the missing-plan fallback now distinguish general starter guidance from uploaded-plan support. Supplemental notices explain the changes without altering previously accepted privacy-policy text.</li>
+</ul>
+<div class="notice"><strong>Still outstanding:</strong> Data requests have no staff verification, processing, export, fulfillment, or completion workflow. No records or historical AI excerpts were bulk-deleted. Age and authority values are self-reported. Mailbox monitoring, response deadlines, identity verification, data retention and backup processes, incident response, production headers and service-provider agreements still require operator review. Have counsel and relevant providers review the policies and business obligations. Do not claim legal compliance from this implementation.</div>
+<h3>Verification for this implementation follow-up</h3>
+<ul>
+<li><code>pnpm --filter @workspace/api-server run typecheck</code>: passed after the upload-attestation endpoint and consent-event changes.</li>
+<li><code>pnpm --filter @workspace/neuropath-mobile exec tsc --noEmit</code>: passed.</li>
+<li><code>PORT=3000 BASE_PATH=/neuropath/ pnpm --filter @workspace/neuropath run build</code>: passed; Vite reported its existing large-bundle warning.</li>
+<li><code>PORT=3000 BASE_PATH=/neuropath/ pnpm --filter @workspace/neuropath exec vitest run</code>: 44 tests passed in 7 files.</li>
+<li><code>git diff --check</code>: passed. Authenticated signup, document upload, and data-request completion were not exercised end to end; no production account or record was accessed.</li>
+<li>Development previews: the Terms page rendered at a mobile viewport and the Expo landing screen opened. The browser was signed out, so authenticated screens were not visually verified; their unauthenticated API calls returned the expected 401 responses.</li>
 </ul>
 <footer>Prepared for NeuroPathways. This document is a technical readiness review, not legal advice or a promise of compliance. No production URL, private customer data, credentials or secret values are included.</footer>
 </main></body></html>

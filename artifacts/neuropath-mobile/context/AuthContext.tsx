@@ -21,7 +21,14 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (username: string, accessCode: string) => Promise<void>;
   loginClinician: (email: string, password: string) => Promise<void>;
-  registerClinician: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
+  registerClinician: (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    accountHolderAgeGroup: "13_17" | "18_plus",
+    adultOrGuardianConfirmed: true,
+  ) => Promise<void>;
   logout: () => Promise<void>;
   switchChild: (childId: string) => Promise<void>;
 }
@@ -93,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setUser(session);
   };
 
-  const clinicianAuth = async (path: "login" | "register", payload: Record<string, string>) => {
+  const clinicianAuth = async (path: "login" | "register", payload: Record<string, unknown>) => {
     const res = await fetch(`${getApiBase()}/api/mobile/clinician/${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -113,8 +120,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const loginClinician = (email: string, password: string) =>
     clinicianAuth("login", { email: email.trim(), password });
 
-  const registerClinician = (email: string, password: string, firstName: string, lastName: string) =>
-    clinicianAuth("register", { email: email.trim(), password, firstName: firstName.trim(), lastName: lastName.trim() });
+  const registerClinician = (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    accountHolderAgeGroup: "13_17" | "18_plus",
+    adultOrGuardianConfirmed: true,
+  ) => clinicianAuth("register", {
+    email: email.trim(),
+    password,
+    firstName: firstName.trim(),
+    lastName: lastName.trim(),
+    accountHolderType: "clinician",
+    accountHolderAgeGroup,
+    adultOrGuardianConfirmed,
+  });
 
   const switchChild = async (childId: string) => {
     if (user?.role !== "client") throw new Error("Family access required");

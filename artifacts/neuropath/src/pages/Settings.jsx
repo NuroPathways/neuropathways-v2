@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
+import { parentRequest } from "@/lib/parentSession";
 import { getClientSession, saveClientSession, clearClientSession } from "@/lib/clientSession";
 import { Moon, Sun, User, LogOut, Trash2, AlertTriangle, Check, Pencil, Phone, Lock, Eye, EyeOff, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ export default function Settings() {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
+  const [deleteResult, setDeleteResult] = useState("");
 
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
   const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
@@ -120,11 +122,26 @@ export default function Settings() {
   const handleDeleteAccount = async () => {
     if (deleteInput !== "DELETE") return;
     if (isClientSession) {
-      clearClientSession();
-      window.location.href = "/";
+      setDeleteResult("Client sessions cannot submit account-deletion requests directly. Ask your parent/guardian or clinician to submit one from a signed-in account.");
+      setShowDeleteConfirm(false);
+      setDeleteInput("");
     } else {
-      await base44.auth.updateMe({ account_deletion_requested: true }).catch(() => {});
-      logout();
+      try {
+        const isParent = user?.account_type === "parent_free" || user?.accountType === "parent_free" || user?.app_role === "parent" || user?.appRole === "parent";
+        const response = await fetch(isParent ? "/api/parent/data-requests" : "/api/data-requests", {
+          ...(isParent
+            ? parentRequest({ method: "POST", headers: { "Content-Type": "application/json" } })
+            : { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" } }),
+          body: JSON.stringify({ requestType: "account_deletion" }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Your request could not be submitted.");
+        setDeleteResult(`Request ${result.request_id} is recorded as received and pending review. No account data was deleted.`);
+        setShowDeleteConfirm(false);
+        setDeleteInput("");
+      } catch (error) {
+        setDeleteResult(error instanceof Error ? error.message : "Your request could not be submitted. Please try again.");
+      }
     }
   };
 
@@ -189,7 +206,9 @@ export default function Settings() {
     <div className="p-6 md:p-8 max-w-xl mx-auto font-inter pb-16">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <a href="/DataRequests" className="mt-2 inline-block text-sm text-primary underline underline-offset-4">Privacy &amp; data requests</a>
         <p className="text-muted-foreground text-sm mt-1">Manage your account and preferences</p>
+        {deleteResult && <p role="status" className="mt-3 rounded-lg border border-border bg-muted p-3 text-sm text-foreground">{deleteResult} <a href="/DataRequests" className="ml-1 underline">View request status</a></p>}
       </div>
 
       {/* Profile card */}
@@ -427,7 +446,7 @@ export default function Settings() {
                 <p className="text-xs text-muted-foreground">This cannot be undone</p>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">Type <strong>DELETE</strong> to confirm your account will be flagged for removal.</p>
+            <p className="text-sm text-muted-foreground mb-4">Type <strong>DELETE</strong> to submit a tracked request for review. This will not delete your account or its records automatically.</p>
             <input type="text" value={deleteInput} onChange={e => setDeleteInput(e.target.value)}
               placeholder="Type DELETE to confirm"
               className="w-full border border-border rounded-xl px-4 py-3 text-sm bg-background text-foreground mb-4 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-destructive/40"
@@ -439,7 +458,7 @@ export default function Settings() {
               </button>
               <button onClick={handleDeleteAccount} disabled={deleteInput !== "DELETE"}
                 className="flex-1 min-h-[44px] rounded-xl bg-destructive text-white text-sm font-medium disabled:opacity-40 transition-colors">
-                Delete Account
+                Submit deletion request
               </button>
             </div>
           </motion.div>

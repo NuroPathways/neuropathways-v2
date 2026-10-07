@@ -4,6 +4,7 @@ import { useRegisterParent, useLoginParent } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/AuthContext";
 import { rememberInvite } from "@/lib/parentSession";
 import { Shell, Field, ErrorBox, errMsg } from "./common";
+import SignupAuthorityFields from "@/components/signup/SignupAuthorityFields";
 
 export default function AuthForm({ mode }) {
   const signup = mode === "signup";
@@ -15,6 +16,9 @@ export default function AuthForm({ mode }) {
   const [f, setF] = useState({ firstName: "", email: "", password: "", confirmPassword: "" });
   const [privacy, setPrivacy] = useState(false);
   const [health, setHealth] = useState(false);
+  const [ageGroup, setAgeGroup] = useState("");
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
+  const [parentConfirmed, setParentConfirmed] = useState(false);
   const [error, setError] = useState("");
   const reg = useRegisterParent();
   const log = useLoginParent();
@@ -31,9 +35,11 @@ export default function AuthForm({ mode }) {
     setError("");
     if (signup) {
       if (!privacy || !health) return setError("Please read and confirm both consent statements.");
+      if (!ageGroup || ageGroup === "under_13") return setError("A parent or guardian must create this account. Children under 13 cannot sign up independently.");
+      if (!adultConfirmed || !parentConfirmed) return setError("Confirm the adult/guardian and child-profile authorization statements to continue.");
       if (f.password !== f.confirmPassword) return setError("The two passwords do not match.");
       reg.mutate(
-        { data: { firstName: f.firstName.trim(), email: f.email.trim(), password: f.password, confirmPassword: f.confirmPassword, privacyConsent: true, healthConsent: true } },
+        { data: { firstName: f.firstName.trim(), email: f.email.trim(), password: f.password, confirmPassword: f.confirmPassword, privacyConsent: true, healthConsent: true, accountHolderType: "parent_guardian", accountHolderAgeGroup: ageGroup, adultOrGuardianConfirmed: adultConfirmed, parentGuardianAuthorityConfirmed: parentConfirmed } },
         { onSuccess: done, onError: (er) => setError(errMsg(er, "We could not create your account.")) }
       );
     } else {
@@ -41,7 +47,7 @@ export default function AuthForm({ mode }) {
     }
   };
 
-  const can = f.email && f.password && (!signup || (f.firstName.trim() && f.confirmPassword && privacy && health));
+  const can = f.email && f.password && (!signup || (f.firstName.trim() && f.confirmPassword && privacy && health && ageGroup && ageGroup !== "under_13" && adultConfirmed && parentConfirmed));
 
   return (
     <Shell right={<Link to="/UsernameLogin" className="pf-btn small ghost" data-testid="link-username-login">Have a username and code?</Link>}>
@@ -76,6 +82,7 @@ export default function AuthForm({ mode }) {
                 <input type="checkbox" checked={health} onChange={(e) => setHealth(e.target.checked)} data-testid="checkbox-health" />
                 <span>I understand that electronic health information has risks, and I consent to NeuroPathways storing health-related information about my child that I choose to enter or upload.</span>
               </label>
+              <SignupAuthorityFields role="parent_guardian" ageGroup={ageGroup} setAgeGroup={setAgeGroup} adultConfirmed={adultConfirmed} setAdultConfirmed={setAdultConfirmed} parentConfirmed={parentConfirmed} setParentConfirmed={setParentConfirmed} />
             </>
           )}
           <ErrorBox error={error} />

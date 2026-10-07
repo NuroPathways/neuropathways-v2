@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   behaviorLogsTable,
+  auditLogsTable,
   childrenTable,
   consentEventsTable,
   db,
@@ -20,6 +21,12 @@ import {
   RecordParentGoalFeedbackResponse,
 } from "@workspace/api-zod";
 import { makeStarterCard, starterLibrary } from "../lib/parentStarterLibrary";
+import {
+  ACCOUNT_AUTHORITY_CONSENT_VERSION,
+  accountAuthorityEvent,
+  validateAccountAuthority,
+  accountAuthorityInvalidStatus,
+} from "../lib/accountAuthority";
 import { getParentSupportCards, listParentDocuments } from "../lib/parentDocuments";
 import {
   hashParentPassword,
@@ -414,8 +421,13 @@ router.get("/parent/starter-library", (_req, res) => {
 
 router.post("/parent/auth/register", authLimiter, async (req: Request, res: Response) => {
   const body = req.body;
-  if (!isRecord(body) || !hasOnlyKeys(body, ["firstName", "email", "password", "confirmPassword", "privacyConsent", "healthConsent"])) {
+  if (!isRecord(body) || !hasOnlyKeys(body, ["firstName", "email", "password", "confirmPassword", "privacyConsent", "healthConsent", "accountHolderType", "accountHolderAgeGroup", "adultOrGuardianConfirmed", "parentGuardianAuthorityConfirmed"])) {
     res.status(400).json({ error: "Invalid registration request" });
+    return;
+  }
+  const accountAuthority = validateAccountAuthority(body, "parent_guardian", true);
+  if (!accountAuthority.ok) {
+    res.status(accountAuthorityInvalidStatus(accountAuthority.error)).json({ error: accountAuthority.error });
     return;
   }
   const firstName = cleanText(body.firstName, 80);
@@ -524,6 +536,11 @@ router.post("/parent/auth/register", authLimiter, async (req: Request, res: Resp
           source: "signup",
           actorType: "user",
         },
+        {
+          subjectId: parentId,
+          familyId: workspaceId,
+          ...accountAuthorityEvent("parent_guardian", accountAuthority.ageGroup, true, false),
+        },
       ]);
       return true;
     });
@@ -613,6 +630,77 @@ router.get("/parent/session", requireParent, async (req: Request, res: Response)
   }
 });
 
+const PARENT_DATA_REQUEST_TYPES = new Set([
+  "data_export",
+  "account_deletion",
+  "child_profile_deletion",
+  "document_deletion",
+  "behavior_log_deletion",
+]);
+
+router.get("/parent/data-requests", requireParent, async (req: any, res: Response) => {
+  try {
+    const rows = await db.select({ id: auditLogsTable.id, createdDate: auditLogsTable.createdDate, metadata: auditLogsTable.metadata })
+      .from(auditLogsTable)
+      .where(and(
+        eq(auditLogsTable.userId, req.parentAccount.id),
+        eq(auditLogsTable.tenantId, req.parentAccount.workspaceId),
+        eq(auditLogsTable.targetType, "parent_data_request"),
+      ))
+      .orderBy(desc(auditLogsTable.createdDate))
+      .limit(20);
+    return res.json({ requests: rows.map((row) => ({
+      request_id: row.id,
+      requested_at: row.createdDate,
+      ...(typeof row.metadata === "object" && row.metadata !== null ? row.metadata : {}),
+    })) });
+  } catch {
+    return res.status(500).json({ error: "Unable to load your data requests." });
+  }
+});
+
+router.post("/parent/data-requests", requireParent, async (req: any, res: Response) => {
+  const requestType = req.body?.requestType;
+  if (typeof requestType !== "string" || !PARENT_DATA_REQUEST_TYPES.has(requestType)) {
+    return res.status(400).json({ error: "Choose a valid data request type." });
+  }
+  const requestId = crypto.randomUUID();
+  const requestedAt = new Date();
+  try {
+    await db.insert(auditLogsTable).values({
+      id: requestId,
+      userId: req.parentAccount.id,
+      userRole: "parent",
+      tenantId: req.parentAccount.workspaceId,
+      action: "parent_data_request_received",
+      targetType: "parent_data_request",
+      targetId: requestId,
+      success: true,
+      reason: "Authenticated account holder submitted a data request.",
+      metadata: {
+        request_id: requestId,
+        account_type: "parent_free",
+        request_type: requestType,
+        requested_at: requestedAt.toISOString(),
+        status: "received",
+        verification_status: "pending",
+        admin_notes: null,
+        completed_at: null,
+      },
+    });
+    return res.status(201).json({
+      request_id: requestId,
+      requested_at: requestedAt.toISOString(),
+      status: "received",
+      verification_status: "pending",
+      message: "Your request has been received. Some records may need review before deletion is completed.",
+      clinicNotice: "Some records may need to be retained by your clinician or clinic according to their policies.",
+    });
+  } catch {
+    return res.status(500).json({ error: "Your request could not be recorded. Please try again or email the public support address." });
+  }
+});
+
 router.post("/parent/children", requireParent, async (req: Request, res: Response) => {
   const checked = validateChildInput(req.body, "create");
   if (!checked.ok) {
@@ -676,6 +764,21 @@ router.post("/parent/children", requireParent, async (req: Request, res: Respons
         behaviors,
         supportCards,
       }).returning();
+      await tx.insert(consentEventsTable).values({
+        subjectId: childId,
+        familyId: parent.workspaceId,
+        eventType: "CHILD_PROFILE_CREATED_BY_AUTHORIZED_ADULT",
+        policyType: "account_holder_authority",
+        version: ACCOUNT_AUTHORITY_CONSENT_VERSION,
+        acceptanceMethod: "parent_authority_at_signup",
+        source: "parent_child_profile_creation",
+        actorType: "parent",
+        metadata: {
+          account_holder_type: "parent_guardian",
+          parent_guardian_authority_confirmed: true,
+          child_profile_created_by_adult: true,
+        },
+      });
       return { child: createdChild, settings };
     });
     res.status(201).json(serializeParentChild(child.child, child.settings));

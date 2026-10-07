@@ -15,6 +15,9 @@ export default function ParentWelcome() {
   const [confirm, setConfirm] = useState("");
   const [privacy, setPrivacy] = useState(false);
   const [health, setHealth] = useState(false);
+  const [accountHolderAgeGroup, setAccountHolderAgeGroup] = useState<"" | "under_13" | "13_17" | "18_plus">("");
+  const [adultOrGuardianConfirmed, setAdultOrGuardianConfirmed] = useState(false);
+  const [parentGuardianAuthorityConfirmed, setParentGuardianAuthorityConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -26,10 +29,20 @@ export default function ParentWelcome() {
       if (password.length < 8) return setError("Use at least 8 characters for your password.");
       if (password !== confirm) return setError("Passwords do not match.");
       if (!privacy || !health) return setError("Please agree to both statements to continue.");
+      if (accountHolderAgeGroup === "under_13") return setError("A parent or guardian must create this account. NeuroPathways does not allow children under 13 to create their own accounts.");
+      if (!accountHolderAgeGroup || !adultOrGuardianConfirmed || !parentGuardianAuthorityConfirmed) return setError("Select your age group and confirm the adult/guardian statements to continue.");
     }
     setBusy(true);
     try {
-      if (mode === "signup") await signup({ firstName, email, password, confirmPassword: confirm });
+      if (mode === "signup") await signup({
+        firstName,
+        email,
+        password,
+        confirmPassword: confirm,
+        accountHolderAgeGroup: accountHolderAgeGroup as "13_17" | "18_plus",
+        adultOrGuardianConfirmed: true,
+        parentGuardianAuthorityConfirmed: true,
+      });
       else await signin(email, password);
     } catch (e) {
       setError(msg(e, "We could not sign you in."));
@@ -51,8 +64,8 @@ export default function ParentWelcome() {
           <T size={14}><T weight="semi" size={14}>3. Get support steps.</T> See simple steps for what to do right now, what to avoid, and what to track.</T>
           <T weight="bold" size={15} style={{ marginTop: 6 }}>Have a treatment plan, behavior plan, or school support plan? Upload it later.</T>
           <T size={14}>You can start with starter support now. When you are ready, upload a plan so NeuroPathways can make the steps more personalized.</T>
-          <T weight="bold" size={15} style={{ marginTop: 6 }}>Simple, private, and built for stressful moments.</T>
-          <T size={14}>Your notes stay inside your private account. Starter support is general guidance until you upload a plan or connect with a clinician.</T>
+          <T weight="bold" size={15} style={{ marginTop: 6 }}>Simple support for stressful moments.</T>
+          <T size={14}>Your notes and documents are stored in your account and may be processed by service providers that help operate NeuroPathways. Starter support is general guidance until you upload a plan or connect with a clinician.</T>
         </Card>
       ) : null}
       <Card>
@@ -67,6 +80,23 @@ export default function ParentWelcome() {
             </Check>
             <Check checked={health} onToggle={() => setHealth(!health)}>
               <T size={14}>I understand that electronic health information has risks, and I consent to NeuroPathways storing health-related information about my child that I choose to enter or upload.</T>
+            </Check>
+            <T weight="semi" size={14}>Who is creating this account? Parent / Guardian.</T>
+            <T size={13}>Client accounts are created by an authorized parent/guardian or clinician; clients do not self-register here.</T>
+            <T weight="semi" size={14}>Account holder's age group</T>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {([["under_13", "Under 13"], ["13_17", "13–17"], ["18_plus", "18 or older"]] as const).map(([value, label]) => (
+                <Btn key={value} kind={accountHolderAgeGroup === value ? "primary" : "ghost"} label={label} onPress={() => setAccountHolderAgeGroup(value)} />
+              ))}
+            </View>
+            {accountHolderAgeGroup === "under_13" && (
+              <T color={c.destructive}>A parent or guardian must create this account. NeuroPathways does not allow children under 13 to create their own accounts.</T>
+            )}
+            <Check checked={adultOrGuardianConfirmed} onToggle={() => setAdultOrGuardianConfirmed(!adultOrGuardianConfirmed)}>
+              <T size={14}>I confirm I am 18 or older, or I have parent/guardian permission to use this account.</T>
+            </Check>
+            <Check checked={parentGuardianAuthorityConfirmed} onToggle={() => setParentGuardianAuthorityConfirmed(!parentGuardianAuthorityConfirmed)}>
+              <T size={14}>I confirm I am the parent, guardian, or authorized caregiver for any child profile I create.</T>
             </Check>
           </>
         ) : null}

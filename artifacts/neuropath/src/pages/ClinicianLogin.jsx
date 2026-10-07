@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Shell } from "@/components/parentfree/common";
+import SignupAuthorityFields from "@/components/signup/SignupAuthorityFields";
 
 export default function ClinicianLogin() {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ export default function ClinicianLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ email: "", password: "", firstName: "", lastName: "" });
+  const [ageGroup, setAgeGroup] = useState("");
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
 
   useEffect(() => {
     base44.auth.isAuthenticated().then(async (authed) => {
@@ -62,12 +65,19 @@ export default function ClinicianLogin() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    if (!ageGroup || ageGroup === "under_13" || !adultConfirmed) {
+      setError(ageGroup === "under_13"
+        ? "A parent or guardian must create this account. NeuroPathways does not allow children under 13 to create their own accounts."
+        : "Select your age group and confirm the adult/guardian statement to continue.");
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch("/api/clinician/register", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email, password: form.password, firstName: form.firstName, lastName: form.lastName }),
+        body: JSON.stringify({ email: form.email, password: form.password, firstName: form.firstName, lastName: form.lastName, accountHolderType: "clinician", accountHolderAgeGroup: ageGroup, adultOrGuardianConfirmed: adultConfirmed }),
       });
       const data = await res.json();
       if (!res.ok || data.error) { setError(data.error || "Registration failed"); setLoading(false); return; }
@@ -168,6 +178,7 @@ export default function ClinicianLogin() {
                   ← Back
                 </button>
                 <h2 className="font-semibold text-foreground">Create Account</h2>
+                <SignupAuthorityFields role="clinician" ageGroup={ageGroup} setAgeGroup={setAgeGroup} adultConfirmed={adultConfirmed} setAdultConfirmed={setAdultConfirmed} parentConfirmed={false} setParentConfirmed={() => {}} />
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>

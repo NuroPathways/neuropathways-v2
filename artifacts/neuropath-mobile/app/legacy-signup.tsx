@@ -66,6 +66,9 @@ export default function SignupScreen() {
   const [showCode, setShowCode] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState(false);
+  const [accountHolderAgeGroup, setAccountHolderAgeGroup] = useState<"" | "under_13" | "13_17" | "18_plus">("");
+  const [adultOrGuardianConfirmed, setAdultOrGuardianConfirmed] = useState(false);
+  const [parentGuardianAuthorityConfirmed, setParentGuardianAuthorityConfirmed] = useState(false);
 
   const loadConfig = useCallback(async () => {
     setConfigLoading(true);
@@ -91,7 +94,9 @@ export default function SignupScreen() {
   const set = (key: keyof Form) => (value: string) => setForm(current => ({ ...current, [key]: value }));
   const valid = !!config && !!form.parent_name.trim() && !!form.child_name.trim() &&
     form.username.trim().length >= 3 && form.access_code.trim().length >= 4 &&
-    consent.privacy && consent.security && consent.authorizedUploader;
+    consent.privacy && consent.security && consent.authorizedUploader &&
+    accountHolderAgeGroup !== "" && accountHolderAgeGroup !== "under_13" &&
+    adultOrGuardianConfirmed && parentGuardianAuthorityConfirmed;
 
   const submit = async () => {
     if (!valid || loading || !config || created) return;
@@ -103,6 +108,10 @@ export default function SignupScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          accountHolderType: "parent_guardian",
+          accountHolderAgeGroup,
+          adultOrGuardianConfirmed,
+          parentGuardianAuthorityConfirmed,
           consent: {
             privacy_policy_accepted: consent.privacy,
             privacy_policy_version: config.privacy_policy_version,
@@ -173,6 +182,24 @@ export default function SignupScreen() {
         <Text style={s.title}>A place to keep care connected.</Text>
         <Text style={s.intro}>Create your account to track your child’s behavioral goals, upload documents, and access personalized guidance.</Text>
         <View style={s.card}>
+          <Text style={[s.label, { marginTop: 0 }]}>Who is creating this account? Parent / Guardian</Text>
+          <Text style={s.label}>Account holder's age group</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {(["under_13", "13_17", "18_plus"] as const).map((group) => (
+              <Pressable key={group} accessibilityRole="radio" accessibilityState={{ selected: accountHolderAgeGroup === group }} onPress={() => setAccountHolderAgeGroup(group)} style={{ padding: 10, borderRadius: 10, borderWidth: 1, borderColor: accountHolderAgeGroup === group ? colors.primary : colors.border }}>
+                <Text style={{ color: colors.foreground, fontSize: 12 }}>{group === "under_13" ? "Under 13" : group === "13_17" ? "13–17" : "18 or older"}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {accountHolderAgeGroup === "under_13" && <Text accessibilityRole="alert" style={s.error}>A parent or guardian must create this account. NeuroPathways does not allow children under 13 to create their own accounts.</Text>}
+          <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: adultOrGuardianConfirmed }} onPress={() => setAdultOrGuardianConfirmed(!adultOrGuardianConfirmed)} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start", marginTop: 12 }}>
+            <Text style={{ color: colors.primary, fontSize: 20 }}>{adultOrGuardianConfirmed ? "☑" : "□"}</Text>
+            <Text style={{ color: colors.foreground, flex: 1, lineHeight: 20 }}>I confirm I am 18 or older, or I have parent/guardian permission to use this account.</Text>
+          </Pressable>
+          <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: parentGuardianAuthorityConfirmed }} onPress={() => setParentGuardianAuthorityConfirmed(!parentGuardianAuthorityConfirmed)} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start", marginTop: 12 }}>
+            <Text style={{ color: colors.primary, fontSize: 20 }}>{parentGuardianAuthorityConfirmed ? "☑" : "□"}</Text>
+            <Text style={{ color: colors.foreground, flex: 1, lineHeight: 20 }}>I confirm I am the parent, guardian, or authorized caregiver for any child profile I create.</Text>
+          </Pressable>
           <Text style={[s.label, { marginTop: 0 }]}>Your Name</Text>
           <TextInput testID="signup-parent-name" style={s.input} value={form.parent_name} onChangeText={set("parent_name")} placeholder="e.g. Maria Rivera" placeholderTextColor={colors.mutedForeground} autoComplete="name" />
           <Text style={s.label}>Child&apos;s Name</Text>

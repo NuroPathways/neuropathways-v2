@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
-
 .pf {
   --pf-bg: #eaf3f9;
   --pf-paper: #ffffff;
@@ -15,7 +13,7 @@
   background: linear-gradient(135deg, #f0f7ff 0%, #e8f5f0 55%, #eef3fb 100%);
   background-attachment: fixed;
   color: var(--pf-ink);
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   min-height: 100dvh;
   position: relative;
 }

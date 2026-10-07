@@ -4,6 +4,7 @@ import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
 import { Brain, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import SignupAuthorityFields from "@/components/signup/SignupAuthorityFields";
 
 // This page no longer asks the user to pick a role.
 // The role comes from which login portal they used (?role=clinician or ?role=parent),
@@ -11,6 +12,13 @@ import { motion } from "framer-motion";
 export default function RoleSetup() {
   const [status, setStatus] = useState("Setting up your account...");
   const [invalidInvite, setInvalidInvite] = useState(false);
+  const [signupRole, setSignupRole] = useState("");
+  const [signupContext, setSignupContext] = useState(null);
+  const [ageGroup, setAgeGroup] = useState("");
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
+  const [parentConfirmed, setParentConfirmed] = useState(false);
+  const [setupError, setSetupError] = useState("");
+  const [submittingAuthority, setSubmittingAuthority] = useState(false);
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
 
@@ -18,7 +26,7 @@ export default function RoleSetup() {
   const inviteToken = params.get("invite");
   const forceRole = params.get("role");
 
-  const finishParent = async (me, family) => {
+  const finishParent = async (me, family, authority = null) => {
     const updates = { app_role: "parent" };
     if (family) {
       // Only an invite can establish care-team relationships. Never accept
@@ -37,13 +45,14 @@ export default function RoleSetup() {
       // invite and must start without fabricated relationship identifiers.
       updates.account_type = "parent_family";
     }
+    if (authority) Object.assign(updates, authority);
     await base44.auth.updateMe(updates);
     await refreshUser();
     navigate("/ParentDashboard");
   };
 
-  const finishClinician = async () => {
-    await base44.auth.updateMe({ app_role: "clinician", account_type: "clinician" });
+  const finishClinician = async (authority = null) => {
+    await base44.auth.updateMe({ app_role: "clinician", account_type: "clinician", ...(authority || {}) });
     await refreshUser();
     navigate("/ClinicianDashboard");
   };
@@ -60,8 +69,8 @@ export default function RoleSetup() {
       if (inviteToken) {
         const families = await base44.entities.Family.filter({ invite_token: inviteToken }).catch(() => []);
         if (families[0]) {
-          setStatus("Linking your account to your care profile...");
-          await finishParent(me, families[0]);
+          setSignupRole("parent");
+          setSignupContext({ me, family: families[0] });
           return;
         }
         // Invalid token — if they already have a role, just route them
@@ -77,17 +86,72 @@ export default function RoleSetup() {
 
       // ── New users: role comes from the portal they signed in through ──
       if (forceRole === "clinician") {
-        setStatus("Creating your clinician account...");
-        await finishClinician();
+        setSignupRole("clinician");
+        setSignupContext({ me, family: null });
         return;
       }
 
-      // Default: anyone coming from the client portal (or with no role param) is a client/parent
-      setStatus("Creating your account...");
-      await finishParent(me, null);
+      if (forceRole === "parent") {
+        setSignupRole("parent");
+        setSignupContext({ me, family: null });
+        return;
+      }
+
+      setInvalidInvite(true);
     };
     init();
   }, [inviteToken, forceRole]);
+
+  const submitAuthority = async (event) => {
+    event.preventDefault();
+    setSetupError("");
+    if (!signupRole || !signupContext) return;
+    if (!ageGroup || ageGroup === "under_13") {
+      setSetupError(ageGroup === "under_13"
+        ? "A parent or guardian must create this account. NeuroPathways does not allow children under 13 to create their own accounts."
+        : "Select your age group before continuing.");
+      return;
+    }
+    if (!adultConfirmed || (signupRole === "parent" && !parentConfirmed)) {
+      setSetupError("Confirm the adult/guardian and child-profile authority statements to continue.");
+      return;
+    }
+    const authority = {
+      account_holder_type: signupRole === "parent" ? "parent_guardian" : "clinician",
+      account_holder_age_group: ageGroup,
+      adult_or_guardian_confirmed: true,
+      ...(signupRole === "parent" ? { parent_guardian_authority_confirmed: true } : {}),
+    };
+    setSubmittingAuthority(true);
+    try {
+      if (signupRole === "clinician") await finishClinician(authority);
+      else await finishParent(signupContext.me, signupContext.family, authority);
+    } catch {
+      setSetupError("We could not record your account details. Please try again.");
+      setSubmittingAuthority(false);
+    }
+  };
+
+  if (signupRole && signupContext) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 font-inter">
+        <motion.main initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-lg space-y-4 rounded-2xl border border-border bg-card p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center"><Brain className="w-6 h-6 text-primary-foreground" /></div>
+            <div><p className="text-xs text-muted-foreground">NeuroPathways</p><h1 className="text-xl font-semibold text-foreground">Account holder details</h1></div>
+          </div>
+          <p className="text-sm leading-6 text-muted-foreground">We ask for an age group and these statements to record who is creating the account. Children under 13 cannot create their own accounts.</p>
+          <form onSubmit={submitAuthority} className="space-y-4">
+            <SignupAuthorityFields role={signupRole === "parent" ? "parent_guardian" : "clinician"} ageGroup={ageGroup} setAgeGroup={setAgeGroup} adultConfirmed={adultConfirmed} setAdultConfirmed={setAdultConfirmed} parentConfirmed={parentConfirmed} setParentConfirmed={setParentConfirmed} />
+            {setupError && <p role="alert" className="text-sm text-destructive">{setupError}</p>}
+            <button type="submit" disabled={submittingAuthority || !ageGroup || ageGroup === "under_13" || !adultConfirmed || (signupRole === "parent" && !parentConfirmed)} className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-50">
+              {submittingAuthority ? "Saving…" : "Continue"}
+            </button>
+          </form>
+        </motion.main>
+      </div>
+    );
+  }
 
   if (invalidInvite) {
     return (
@@ -97,8 +161,8 @@ export default function RoleSetup() {
             <Brain className="w-8 h-8 text-primary-foreground" />
           </div>
           <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
-            <p className="text-sm font-semibold text-yellow-800 mb-1">Invalid or expired invite link</p>
-            <p className="text-sm text-yellow-700">Please contact your clinician for a new invitation.</p>
+            <p className="text-sm font-semibold text-yellow-800 mb-1">Unable to set up this account</p>
+            <p className="text-sm text-yellow-700">Client accounts require a parent/guardian or clinician invitation. Return to the correct signup page or contact your clinician.</p>
           </div>
           <button onClick={() => navigate("/")} className="mt-6 text-sm text-muted-foreground hover:text-foreground">
             ← Back to welcome page

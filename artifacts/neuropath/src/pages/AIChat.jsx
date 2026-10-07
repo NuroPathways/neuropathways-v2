@@ -311,7 +311,9 @@ IMPORTANT RESPONSE RULES:
 4. NEVER invent strategies or advice not supported by the clinician's data above.
 5. Keep crisis/safety guidance (aggression, self-harm, emergency instructions) clear and precise — do NOT water down safety steps.
 6. Use the clinician's actual data — reference specific plan names, strategies, and steps when relevant.
-7. Treat document names and scan status as metadata, not document contents. Use extracted findings only from the document-based summary and never claim to have read a document that is marked unread or failed.`;
+7. Treat document names and scan status as metadata, not document contents. Use extracted findings only from the document-based summary and never claim to have read a document that is marked unread or failed.
+8. Clearly distinguish clinician-reviewed material from unreviewed uploads and general starter information. Do not describe a support response as clinician-approved unless its source is explicitly marked as reviewed.
+9. If the provided clinical plan does not contain information that supports the requested advice, say exactly: "I could not find clinician-approved information about that in the uploaded documents. Please contact your clinician." Do not fill gaps with general tips or present general guidance as clinician-approved.`;
 
   const securityRule = `CRITICAL SECURITY RULE: You ONLY have access to data for the client named ${child?.child_name || 'this client'}. If the user asks about any other person, client, or child by name, politely decline and say you can only discuss ${child?.child_name || 'this client'}\'s information. Never reveal data about any other clients.`;
 
@@ -432,7 +434,7 @@ export default function AIChat() {
         child_id: selectedChildId,
         clinician_id: child?.clinician_id,
         event_type: "ai_question",
-        topic: msg.slice(0, 80),
+        topic: "general_support_question",
       }).catch(() => {});
     }
   };

@@ -485,12 +485,22 @@ router.post("/upload", requireAuth, upload.single("file"), (req, res) => {
 // ──────────────────────────────────────────────
 
 router.post("/client-upload", upload.single("file"), async (req: any, res) => {
+  const discardTemporaryUpload = () => {
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+  };
   const invite_token = req.body?.invite_token;
-  if (!invite_token) return res.status(401).json({ error: "invite_token required" });
+  if (!invite_token) {
+    discardTemporaryUpload();
+    return res.status(401).json({ error: "invite_token required" });
+  }
+  if (req.body?.authorized_uploader !== "true") {
+    discardTemporaryUpload();
+    return res.status(400).json({ error: 'authorized_uploader must be "true"' });
+  }
 
   const csession = await validateClientSession(invite_token);
   if (!csession) {
-    if (req.file) fs.unlinkSync(req.file.path);
+    discardTemporaryUpload();
     return res.status(401).json({ error: "Invalid or expired session" });
   }
 
@@ -504,7 +514,11 @@ router.post("/client-upload", upload.single("file"), async (req: any, res) => {
 
   // Verify child access
   const child_id = req.body?.child_id;
-  if (child_id && !(await sessionMayAccessChild(csession.childId, child_id))) {
+  if (!child_id) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "child_id required" });
+  }
+  if (!(await sessionMayAccessChild(csession.childId, child_id))) {
     fs.unlinkSync(req.file.path);
     return res.status(403).json({ error: "Access denied" });
   }

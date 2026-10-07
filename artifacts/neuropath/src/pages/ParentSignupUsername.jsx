@@ -4,12 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { saveClientSession } from "@/lib/clientSession";
+import SignupAuthorityFields from "@/components/signup/SignupAuthorityFields";
 
 export default function ParentSignupUsername() {
   const [form, setForm] = useState({ parent_name: "", child_name: "", child_age: "", diagnosis: "", username: "", access_code: "" });
   const [showCode, setShowCode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [accountHolderAgeGroup, setAccountHolderAgeGroup] = useState("");
+  const [adultOrGuardianConfirmed, setAdultOrGuardianConfirmed] = useState(false);
+  const [parentGuardianAuthorityConfirmed, setParentGuardianAuthorityConfirmed] = useState(false);
   const [privacyConfig, setPrivacyConfig] = useState(null);
   const [consent, setConsent] = useState({
     privacy: false,
@@ -30,7 +34,8 @@ export default function ParentSignupUsername() {
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
 
   const allConsentAccepted = consent.privacy && consent.security && consent.authorizedUploader;
-  const valid = form.parent_name.trim() && form.child_name.trim() && form.username.trim().length >= 3 && form.access_code.trim().length >= 4 && privacyConfig && allConsentAccepted;
+  const allAuthorityAccepted = accountHolderAgeGroup && accountHolderAgeGroup !== "under_13" && adultOrGuardianConfirmed && parentGuardianAuthorityConfirmed;
+  const valid = form.parent_name.trim() && form.child_name.trim() && form.username.trim().length >= 3 && form.access_code.trim().length >= 4 && privacyConfig && allConsentAccepted && allAuthorityAccepted;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -44,6 +49,10 @@ export default function ParentSignupUsername() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          accountHolderType: "parent_guardian",
+          accountHolderAgeGroup,
+          adultOrGuardianConfirmed,
+          parentGuardianAuthorityConfirmed,
           consent: {
             privacy_policy_accepted: consent.privacy,
             privacy_policy_version: privacyConfig.privacy_policy_version,
@@ -86,6 +95,15 @@ export default function ParentSignupUsername() {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <SignupAuthorityFields
+              role="parent_guardian"
+              ageGroup={accountHolderAgeGroup}
+              setAgeGroup={setAccountHolderAgeGroup}
+              adultConfirmed={adultOrGuardianConfirmed}
+              setAdultConfirmed={setAdultOrGuardianConfirmed}
+              parentConfirmed={parentGuardianAuthorityConfirmed}
+              setParentConfirmed={setParentGuardianAuthorityConfirmed}
+            />
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
                 Your Name

@@ -40,9 +40,10 @@ import ParentSignupUsername from './pages/ParentSignupUsername';
 import ClientHome from './pages/ClientHome';
 import SupportNowOverlay from '@/components/support/SupportNowOverlay';
 import PublicLegalRoutes from '@/components/legal/PublicLegalRoutes';
+import DataRequests from '@/pages/DataRequests';
 
 // Free email parents only ever use the parent-owned screens, never legacy CRUD pages.
-const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/privacy'];
+const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/DataRequests', '/privacy'];
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -129,6 +130,7 @@ const AuthenticatedApp = () => {
       <Route path="/ChildProfile" element={<LayoutWrapper currentPageName="ChildProfile"><ChildProfile /></LayoutWrapper>} />
       <Route path="/ClinicianUsers" element={<LayoutWrapper currentPageName="ClinicianUsers"><ClinicianUsers /></LayoutWrapper>} />
       <Route path="/Settings" element={<LayoutWrapper currentPageName="Settings"><Settings /></LayoutWrapper>} />
+      <Route path="/DataRequests" element={<DataRequests />} />
       <Route path="/HelpNow" element={<HelpNow />} />
       <Route path="/LogBehavior" element={<LayoutWrapper currentPageName="LogBehavior"><LogBehavior /></LayoutWrapper>} />
       <Route path="/DocumentCenter" element={<LayoutWrapper currentPageName="DocumentCenter"><DocumentCenter /></LayoutWrapper>} />

@@ -3,10 +3,9 @@ import GoalLines from "./GoalLines";
 export function sourceLabel(card) {
   switch (card.source) {
     case "starter": return { text: "Source: Pre-programmed library", kind: "sun" };
-    case "clinician_reviewed":
-    case "clinician_document":
-    case "parent_document":
-      return { text: "Source: Behavior plan", kind: "" };
+    case "parent_document": return { text: "Source: Uploaded plan · not yet reviewed by a clinician", kind: "" };
+    case "clinician_reviewed": return { text: "Source: Reviewed by your clinician", kind: "" };
+    case "clinician_document": return { text: "Source: Clinician-uploaded document", kind: "" };
     default: return { text: "Source: Not available", kind: "sun" };
   }
 }

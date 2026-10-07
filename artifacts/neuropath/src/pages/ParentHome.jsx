@@ -273,7 +273,8 @@ export default function ParentHome() {
       <div className="pf">
       <main className="pf-wrap wide">
         <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
-        <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span style={{ color: "rgba(255,255,255,.75)", fontWeight: 400 }}>for {selected.name}</span></h1></div>
+        <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span style={{ color: "rgba(255,255,255,.75)", fontWeight: 400 }}>for {selected.name}</span></h1>
+        <Link to="/DataRequests" className="text-sm underline underline-offset-4" style={{ color: "rgba(255,255,255,.88)" }}>Privacy &amp; data requests</Link></div>
         {activeTab === "today" && !activeSection && <button type="button" className="pf-help-cta" onClick={() => setSupportRequest((request) => request + 1)} data-testid="button-dashboard-help-now"><span className="ico"><AlertTriangle size={20} /></span><span><strong>I Need Help Right Now</strong><small>Get guidance from your saved support plans</small></span></button>}
         <Body key={selected.id} child={selected} />
       </main>

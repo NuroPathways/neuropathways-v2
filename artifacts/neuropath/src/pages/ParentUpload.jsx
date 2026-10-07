@@ -43,6 +43,7 @@ export default function ParentUpload() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ complete: 0, total: 0 });
   const [uploadedCount, setUploadedCount] = useState(0);
+  const [authorizedUploader, setAuthorizedUploader] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
 
@@ -53,6 +54,7 @@ export default function ParentUpload() {
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length === 0) return;
     setFiles(selectedFiles);
+    setAuthorizedUploader(false);
     setError("");
     // Auto-select child if only one
     if (children.length === 1 && !childId) {
@@ -62,6 +64,7 @@ export default function ParentUpload() {
 
   const clearFile = () => {
     setFiles([]);
+    setAuthorizedUploader(false);
     setError("");
     setUploadProgress({ complete: 0, total: 0 });
   };
@@ -73,6 +76,10 @@ export default function ParentUpload() {
 
   const handleUpload = async () => {
     if (files.length === 0 || !inviteToken) return;
+    if (!authorizedUploader) {
+      setError("Confirm that you are authorized to upload and share these documents before continuing.");
+      return;
+    }
     const targetChildId = childId || (children.length === 1 ? children[0].id : null);
     if (!targetChildId) {
       setError("Please select which child these documents are for.");
@@ -93,6 +100,7 @@ export default function ParentUpload() {
       formData.append("file", file);
       formData.append("invite_token", inviteToken);
       formData.append("child_id", targetChildId);
+      formData.append("authorized_uploader", "true");
 
       const uploadRes = await fetch("/api/client-upload", {
         method: "POST",
@@ -121,6 +129,7 @@ export default function ParentUpload() {
           file_name,
           title,
           category,
+          authorizedUploader: "true",
         }),
       });
       if (!docRes.ok) {
@@ -326,6 +335,17 @@ export default function ParentUpload() {
                   ))}
                 </div>
               </div>
+
+              <label className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={authorizedUploader}
+                  onChange={(event) => setAuthorizedUploader(event.target.checked)}
+                  aria-describedby="upload-authority-help"
+                  disabled={uploading}
+                />
+                <span id="upload-authority-help">I confirm that I am authorized to possess and share these documents with the selected child’s care team.</span>
+              </label>
 
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">

@@ -10,11 +10,16 @@ import {
   clientProfilesTable, userProfilesTable, usersTable, auditLogsTable, invitationsTable,
   clientSessionsTable, mobileTokensTable, clientAccessCodeResetsTable, consentEventsTable,
 } from "@workspace/db";
-import { eq, and, inArray, or, isNull, gt, ne, sql } from "drizzle-orm";
+import { eq, and, inArray, or, isNull, gt, ne, sql, desc } from "drizzle-orm";
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
 import { decryptBuffer } from "./upload";
 import { legacyVisibleDocuments, isParentOwnedChild, isParentOwnedDocument, familyHasParentOwnedChildren } from "../lib/documentVisibility";
 import { isParentDocument, readParentDocumentBytes, extractParentDocumentText } from "../lib/parentDocuments";
+import {
+  accountAuthorityEvent,
+  validateAccountAuthority,
+  accountAuthorityInvalidStatus,
+} from "../lib/accountAuthority";
 
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
@@ -108,6 +113,76 @@ function requireAuth(req: any, res: any, next: any) {
   if (!req.user) return res.status(401).json({ error: "Authentication required" });
   next();
 }
+
+const ACCOUNT_DATA_REQUEST_TYPES = new Set([
+  "data_export",
+  "account_deletion",
+  "child_profile_deletion",
+  "document_deletion",
+  "behavior_log_deletion",
+]);
+
+router.get("/data-requests", requireAuth, async (req: any, res) => {
+  try {
+    const rows = await db.select({ id: auditLogsTable.id, createdDate: auditLogsTable.createdDate, metadata: auditLogsTable.metadata })
+      .from(auditLogsTable)
+      .where(and(
+        eq(auditLogsTable.userId, req.user.id),
+        eq(auditLogsTable.targetType, "account_data_request"),
+      ))
+      .orderBy(desc(auditLogsTable.createdDate))
+      .limit(20);
+    return res.json({ requests: rows.map((row) => ({
+      request_id: row.id,
+      requested_at: row.createdDate,
+      ...(typeof row.metadata === "object" && row.metadata !== null ? row.metadata : {}),
+    })) });
+  } catch {
+    return res.status(500).json({ error: "Unable to load your data requests." });
+  }
+});
+
+router.post("/data-requests", requireAuth, async (req: any, res) => {
+  const requestType = req.body?.requestType;
+  if (typeof requestType !== "string" || !ACCOUNT_DATA_REQUEST_TYPES.has(requestType)) {
+    return res.status(400).json({ error: "Choose a valid data request type." });
+  }
+  const requestId = crypto.randomUUID();
+  const requestedAt = new Date();
+  try {
+    await db.insert(auditLogsTable).values({
+      id: requestId,
+      userId: req.user.id,
+      userRole: req.user.appRole || req.user.app_role || "authenticated",
+      tenantId: req.user.tenantId || req.user.tenant_id || null,
+      action: "account_data_request_received",
+      targetType: "account_data_request",
+      targetId: requestId,
+      success: true,
+      reason: "Authenticated account holder submitted a data request.",
+      metadata: {
+        request_id: requestId,
+        account_type: req.user.accountType || req.user.account_type || req.user.appRole || "authenticated",
+        request_type: requestType,
+        requested_at: requestedAt.toISOString(),
+        status: "received",
+        verification_status: "pending",
+        admin_notes: null,
+        completed_at: null,
+      },
+    });
+    return res.status(201).json({
+      request_id: requestId,
+      requested_at: requestedAt.toISOString(),
+      status: "received",
+      verification_status: "pending",
+      message: "Your request has been received. Some records may need review before deletion is completed.",
+      clinicNotice: "Some records may need to be retained by your clinician or clinic according to their policies.",
+    });
+  } catch {
+    return res.status(500).json({ error: "Your request could not be recorded. Please try again or email the public support address." });
+  }
+});
 
 // ──────────────────────────────────────────────
 // Access code hashing (scrypt, same pattern as clinician passwords)
@@ -456,9 +531,9 @@ router.get("/users/me", requireAuth, async (req: any, res) => {
   try {
     const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
     const [authUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
-    res.json(serialize({ ...authUser, ...profile }));
+    return res.json(serialize({ ...authUser, ...profile }));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -469,14 +544,45 @@ router.patch("/users/me", requireAuth, async (req: any, res) => {
     const updateData: Record<string, any> = {};
     for (const k of allowed) if (body[k] !== undefined) updateData[k] = body[k];
 
-    await db.insert(userProfilesTable).values({ id: req.user.id, ...updateData })
-      .onConflictDoUpdate({ target: userProfilesTable.id, set: updateData });
+    const [currentProfile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
+    const roleChange = updateData.appRole === "parent" || updateData.appRole === "clinician"
+      ? updateData.appRole
+      : null;
+    const needsNewAuthority = roleChange !== null && roleChange !== currentProfile?.appRole;
+    let authorityEvent: ReturnType<typeof accountAuthorityEvent> | null = null;
+    if (needsNewAuthority) {
+      const authority = validateAccountAuthority(
+        body,
+        roleChange === "parent" ? "parent_guardian" : "clinician",
+        roleChange === "parent",
+      );
+      if (!authority.ok) {
+        return res.status(accountAuthorityInvalidStatus(authority.error)).json({ error: authority.error });
+      }
+      authorityEvent = accountAuthorityEvent(
+        roleChange === "parent" ? "parent_guardian" : "clinician",
+        authority.ageGroup,
+        roleChange === "parent",
+        false,
+      );
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.insert(userProfilesTable).values({ id: req.user.id, ...updateData })
+        .onConflictDoUpdate({ target: userProfilesTable.id, set: updateData });
+      if (authorityEvent) {
+        await tx.insert(consentEventsTable).values({
+          subjectId: req.user.id,
+          ...authorityEvent,
+        });
+      }
+    });
 
     const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
     const [authUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
-    res.json(serialize({ ...authUser, ...profile }));
+    return res.json(serialize({ ...authUser, ...profile }));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -1631,6 +1737,9 @@ router.post("/client-session/login", async (req, res) => {
 router.post("/client-upload-document", async (req: any, res) => {
   const invite_token = req.body?.invite_token ?? req.body?.inviteToken;
   if (!invite_token) return res.status(401).json({ error: "invite_token required" });
+  if (req.body?.authorizedUploader !== "true") {
+    return res.status(400).json({ error: 'authorizedUploader must be "true"' });
+  }
   try {
     const csession = await validateClientSession(invite_token);
     if (!csession) return res.status(401).json({ error: "Invalid or expired session" });
@@ -1648,18 +1757,35 @@ router.post("/client-upload-document", async (req: any, res) => {
     const title = req.body.title || "Uploaded document";
     const category = req.body.category || "other";
 
-    const [doc] = await db.insert(documentsTable).values({
-      childId: child_id,
-      clinicianId: child.clinicianId,
-      tenantId: child.clinicianId,
-      title,
-      category,
-      fileName: req.body.file_name || req.body.fileName || title,
-      fileUrl: req.body.file_url || req.body.fileUrl || null,
-      notes: req.body.notes || null,
-      scanStatus: "pending",
-      uploadedBy: `client:${csession.childId}`,
-    }).returning();
+    const [doc] = await db.transaction(async (tx) => {
+      const [createdDocument] = await tx.insert(documentsTable).values({
+        childId: child_id,
+        clinicianId: child.clinicianId,
+        tenantId: child.clinicianId,
+        title,
+        category,
+        fileName: req.body.file_name || req.body.fileName || title,
+        fileUrl: req.body.file_url || req.body.fileUrl || null,
+        notes: req.body.notes || null,
+        scanStatus: "pending",
+        uploadedBy: `client:${csession.childId}`,
+      }).returning();
+      await tx.insert(consentEventsTable).values({
+        subjectId: csession.childId,
+        familyId: child.familyId ?? null,
+        eventType: "CLIENT_DOCUMENT_UPLOAD_AUTHORIZED",
+        policyType: "document_upload_authority",
+        version: "1.0",
+        acceptanceMethod: "upload_checkbox",
+        source: "client_document_upload",
+        actorType: "client",
+        metadata: {
+          document_id: createdDocument.id,
+          authorized_uploader_confirmed: true,
+        },
+      });
+      return [createdDocument];
+    });
 
     await auditLog({
       userId: csession.childId,
@@ -1789,6 +1915,10 @@ router.post("/parent-signup", async (req, res) => {
   }
 
   const { parent_name, child_name, child_age, diagnosis, username, access_code, consent } = req.body;
+  const authority = validateAccountAuthority(req.body, "parent_guardian", true);
+  if (!authority.ok) {
+    return res.status(accountAuthorityInvalidStatus(authority.error)).json({ error: authority.error });
+  }
   if (!parent_name?.trim() || !child_name?.trim() || !username?.trim() || !access_code?.trim()) {
     return res.status(400).json({ error: "Parent name, child name, username, and access code are required." });
   }
@@ -1875,6 +2005,11 @@ router.post("/parent-signup", async (req, res) => {
           source: "signup",
           actorType: "user",
           metadata: { concernsAnotherPerson: true },
+        },
+        {
+          subjectId: createdChild.id,
+          familyId: createdFamily.id,
+          ...accountAuthorityEvent("parent_guardian", authority.ageGroup, true, true),
         },
       ]);
 

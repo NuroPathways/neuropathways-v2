@@ -1,5 +1,4 @@
-// Informational copy only. These notices do not add consent requirements,
-// authorize new processing, or change existing account and document workflows.
+// Supplemental notices describe current technical behavior without changing the versioned policy or prior consent records.
 export const publicLegalContact = {
   businessName: "NeuroPathways",
   email: "NuroPathways@gmail.com",
@@ -19,7 +18,7 @@ export const legalContent = {
       ]],
       ["Adult-controlled accounts and child profiles", [
         "The service is intended for authorized adults managing their own information or information they are permitted to provide. Children under 13 should not create independent accounts. Any teen access should involve a parent, guardian, or authorized clinician as appropriate.",
-        "Create a child profile only when you are authorized to do so. A first name or nickname can be used; avoid adding unnecessary identifying information. These usage statements do not mean that the current signup flow verifies an account holder's age or legal authority.",
+        "Create a child profile only when you are authorized to do so. A first name or nickname can be used; avoid adding unnecessary identifying information. Signup asks the account holder to self-report an age group and confirm the required authority statements; it does not independently verify age, identity, or guardianship.",
         "Keep account credentials and access codes private. Account access does not establish permission to view or share every record about a child or another person.",
       ]],
       ["Support sources and AI", [
@@ -50,7 +49,7 @@ export const legalContent = {
     sections: [
       ["Accounts and child profiles", [
         "Account features use information such as a name, email address or username, authentication credentials, and session information. Parent-created profiles use a child name or nickname and may include age, notes, selected behaviors, and goals. Clinician-managed records can contain additional care information.",
-        "Child age, when entered, is profile information; it is not verification of the account holder's age. Only provide information you are authorized to share and that is needed for your use of the service.",
+        "New account flows ask for a broad account-holder age group and self-attested adult/guardian permission; parent signups also ask the account holder to confirm authority over child profiles. These are self-attestations, not age or identity verification. Children under 13 cannot self-register, and the client account flow remains invitation-based.",
       ]],
       ["Documents, behavior records, and communications", [
         "Uploads can contain sensitive health, developmental, school, family, or behavioral information. The app stores document files and metadata and may extract text and generate summaries or support cards. Behavior logs, check-ins, goals, rewards, and messages can also contain sensitive information.",
@@ -58,17 +57,17 @@ export const legalContent = {
       ]],
       ["AI processing and providers", [
         "When you use AI chat or document scanning, the server may send your question, relevant care context, and document text or images to an AI service. The current implementation uses an Anthropic-compatible service through Replit AI Integrations.",
-        "Database hosting and file storage also use service-provider infrastructure. Parent document storage uses Replit-managed App Storage accessed through a Google Cloud Storage client. This is different from displaying documents publicly or loading Google Fonts.",
+         "Database hosting and file storage also use service-provider infrastructure. Parent document storage uses Replit-managed App Storage accessed through a Google Cloud Storage client. The application uses authenticated document-content routes; this does not certify provider security or retention commitments.",
         "Information is not confined to your browser during these features. Provider retention, model-training restrictions, processing locations, and applicable agreements must be confirmed by the operator; this notice does not certify them.",
       ]],
-      ["Sessions, engagement records, and external fonts", [
-        "Authentication uses session cookies or stored access tokens depending on the account and device. Some account types also create first-party engagement records about support use, check-ins, rewards, or topics for clinician-facing views. The existing client AI chat can use the first 80 characters of a question as an engagement topic, so these records can contain an excerpt of sensitive chat text. They can be linked to a client or child and are not necessarily anonymous.",
+      ["Sessions, engagement records, and web fonts", [
+        "Authentication uses session cookies or stored access tokens depending on the account and device. Some account types also create first-party engagement records about support use, check-ins, rewards, or topics for clinician-facing views. New client AI engagement records use fixed event and topic labels instead of copying the question text. Older engagement records may still contain a chat excerpt; this change did not erase historical records.",
         "No third-party advertising pixel or session-replay SDK was identified in the reviewed application source. This is a source-code finding, not a guarantee about hosting-layer scripts or future releases.",
-        "The web styles currently request Inter fonts from Google Fonts. Those requests disclose connection information such as an IP address to the font provider. This review has not changed font loading or added analytics preferences.",
+        "The web styles use system font stacks and do not request Google Fonts. Authentication cookies and storage remain necessary for account features; removing remote web-font requests does not remove those account sessions.",
       ]],
       ["Care limitations, retention, and requests", [
         "Starter support is general guidance, not a clinician-approved plan. Uploaded-plan support is based on uploaded documents; review labels apply only where review has occurred. NeuroPathways is not emergency care. If there is immediate danger, call 911 or your local emergency services.",
-        "The current implementation does not provide a complete self-service account deletion or data export workflow. See Data requests and Contact for the public email channel and current processing limitations. Do not assume signing out deletes your records.",
+        "Signed-in parent and clinician accounts can submit a tracked data export or deletion request. A submitted request is recorded as received and pending review; it does not run an export or delete data automatically, and no completion deadline or self-service deletion workflow is currently provided. A clinician or clinic may have separate record-retention duties. Do not assume signing out deletes your records.",
         "Retention periods, backup deletion, incident-response arrangements, and the applicability of HIPAA or other health privacy laws require operator and legal review. No compliance certification is made.",
       ]],
     ],
