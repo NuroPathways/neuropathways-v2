@@ -1,0 +1,641 @@
+# Replit Prompt: Legal / Privacy / Compliance Readiness Audit for NeuroPathways
+
+Perform a full legal, privacy, and compliance-readiness audit of the NeuroPathways app before public launch.
+
+This is not asking you to provide legal advice. The goal is to make the app technically safer, reduce avoidable compliance risks, and flag anything that needs attorney review.
+
+NeuroPathways is a parent-facing and clinician-facing behavioral health support app. It may include parent accounts, child profiles, uploaded behavior plans, treatment plans, school support plans, behavior logs, goals, AI chat, AI scanning, email notifications, analytics, and future subscriptions.
+
+Audit the full app and fix all obvious technical compliance issues.
+
+Do not remove core product features. Make the app safer.
+
+---
+
+## 1. Age Gate / COPPA Readiness
+
+The app must not allow children under 13 to create their own accounts.
+
+Parent-created child profiles are allowed, but the account holder must be the parent, guardian, clinician, or authorized adult.
+
+Add an age / account-type gate during signup.
+
+Signup should ask:
+
+**Who is creating this account?**
+
+Options:
+
+- Parent / Guardian
+- Clinician
+- Adult client
+- Teen client with parent/guardian permission
+
+Add a required confirmation:
+
+**I confirm I am 18 or older, or I have parent/guardian permission to use this account.**
+
+For parent accounts, also add:
+
+**I am the parent, guardian, or authorized caregiver for the child profile I create.**
+
+Rules:
+
+- Do not let a child under 13 create their own account.
+- Do not create a child-directed signup flow.
+- Do not collect personal information directly from children under 13.
+- If a user indicates they are under 13, block account creation and show a parent/guardian message.
+- If teen individual-client accounts are supported, require parent/guardian involvement or clinician-created access.
+- Do not ask children to upload documents, photos, or sensitive information.
+
+Add a clear internal flag:
+
+- account_holder_type
+- account_holder_age_group
+- parent_guardian_confirmed
+- child_profile_created_by_adult
+
+Do not use playful child-directed wording that makes the service appear designed for kids to use independently.
+
+---
+
+## 2. Child Profile Safety
+
+Parents may create child profiles, but the app should treat child data as sensitive.
+
+Child profile fields should be minimal during onboarding:
+
+- first name or nickname
+- age optional
+- notes optional
+
+Do not require:
+
+- full legal name
+- date of birth unless necessary
+- school name
+- address
+- insurance
+- medical record numbers
+- unnecessary diagnosis fields
+
+If diagnosis is included, make it optional.
+
+Add a privacy note near child profile creation:
+
+**Use a nickname if you prefer. Only add information you are comfortable storing in your private account.**
+
+---
+
+## 3. Privacy Policy and Terms Pages
+
+Create or update these public pages:
+
+- Privacy Policy
+- Terms of Use
+- Contact
+- DMCA / Copyright Policy if user uploads are allowed
+- Subscription Terms if paid plans exist
+- Data Deletion Request page or instructions
+
+The Privacy Policy should explain:
+
+- what data is collected
+- parent account data
+- child profile data
+- uploaded documents
+- behavior logs
+- AI chat data
+- AI document scanning
+- analytics
+- emails/notifications
+- how users can request deletion
+- that starter support is general guidance
+- that uploaded-plan support is based on uploaded documents
+- that the app is not emergency care
+
+The Terms should include:
+
+- not a substitute for clinical care
+- not an emergency service
+- if immediate danger, call 911 or emergency services
+- user responsibility for uploaded documents
+- acceptable use
+- copyright/user content policy
+- account termination
+- limitations and disclaimers
+- subscription terms if applicable
+
+Do not claim HIPAA compliance unless the app is actually operating in a HIPAA-compliant environment with required agreements and controls.
+
+Remove vague claims like:
+
+- HIPAA conscious
+- HIPAA ready
+- medical-grade secure
+- crisis-certified
+- emergency response app
+
+Use safer language:
+
+**Your notes stay inside your private account. Starter support is general guidance until you upload a plan or connect with a clinician.**
+
+---
+
+## 4. Google Fonts / External Font Loading
+
+Audit all fonts.
+
+Do not load fonts directly from Google Fonts or any third-party font server on page load.
+
+Self-host all fonts locally inside the app bundle or use system fonts.
+
+Check and remove:
+
+- fonts.googleapis.com
+- fonts.gstatic.com
+- external CSS font imports
+- CDN-loaded fonts
+
+Goal:
+
+No visitor IP address should be sent to Google or another font provider simply because the page loaded.
+
+Use local font files or system font stack.
+
+---
+
+## 5. Analytics, Session Replay, Pixels, and Tracking
+
+Audit all analytics and tracking scripts.
+
+Identify and list:
+
+- Google Analytics
+- Meta Pixel
+- TikTok Pixel
+- Hotjar
+- FullStory
+- Microsoft Clarity
+- LogRocket
+- PostHog
+- session replay tools
+- chat widgets
+- ad pixels
+- error tracking tools
+- form analytics
+- heatmaps
+
+Disable session replay by default.
+
+Do not record:
+
+- keystrokes
+- form inputs
+- uploaded document names
+- document contents
+- AI chat text
+- behavior notes
+- child names
+- health-related fields
+- passwords
+- payment information
+
+If analytics are used, configure them to:
+
+- mask all input fields
+- mask all textareas
+- mask child names
+- mask uploaded document names
+- disable session replay
+- disable keystroke capture
+- disable form capture
+- disable cross-site ad tracking unless consent is collected
+- avoid collecting sensitive health/behavior data
+
+Before loading non-essential analytics, show cookie/consent controls where legally required.
+
+Provide a simple privacy setting:
+
+**Analytics Preferences**
+
+Options:
+
+- Essential only
+- Allow product analytics
+
+Default should be privacy-protective.
+
+---
+
+## 6. Email Compliance / CAN-SPAM Readiness
+
+Audit all outbound emails.
+
+Types of emails:
+
+- account verification
+- password reset
+- invite emails
+- document scan completed
+- behavior support updates
+- marketing emails
+- waitlist emails
+- launch announcements
+- newsletters
+
+Transactional emails may be treated differently than marketing emails, but commercial/marketing emails must include:
+
+- truthful subject line
+- accurate sender/from information
+- physical mailing address or valid business mailing address
+- clear unsubscribe link
+- one-click or easy unsubscribe process
+- suppression list so unsubscribed users are not emailed again
+
+Add unsubscribe handling for:
+
+- waitlist
+- newsletter
+- marketing
+- launch announcements
+- promotional clinic emails
+
+Do not include an unsubscribe link in password reset emails if that would interfere with account security, but make sure transactional emails are not promotional.
+
+Add an email footer for marketing emails:
+
+**NeuroPathways**
+**[Business mailing address]**
+**Unsubscribe**
+
+If no business mailing address is configured yet, do not send marketing emails until it is added.
+
+---
+
+## 7. Subscription / Stripe / Auto-Renewal Readiness
+
+If subscriptions exist now or will exist soon, audit the entire subscription flow.
+
+Before the user clicks subscribe, clearly show:
+
+- price
+- billing frequency
+- renewal terms
+- trial terms if any
+- when the user will be charged
+- cancellation instructions
+- refund policy if applicable
+
+The subscribe button should be near clear renewal language.
+
+Example:
+
+**$19/month. Renews automatically each month until canceled. Cancel anytime in Settings.**
+
+Require affirmative consent:
+
+Checkbox:
+
+**I understand this subscription renews automatically until I cancel.**
+
+After purchase, send confirmation email with:
+
+- plan name
+- price
+- renewal terms
+- cancellation instructions
+- support contact
+
+Add in-app cancellation:
+
+Settings → Billing → Cancel Subscription
+
+Do not make users email support to cancel if the law requires online cancellation.
+
+If subscriptions are not launched yet, create the structure but hide paid plan checkout until ready.
+
+---
+
+## 8. DMCA / User-Uploaded Content / Copyright Agent
+
+Because users may upload documents, images, profile pictures, or other files, add copyright safeguards.
+
+Options:
+
+1. Disable profile picture uploads until needed.
+2. Restrict uploads to support documents only.
+3. Add a DMCA / Copyright Policy page.
+4. Add a copyright complaint contact.
+5. If the business qualifies and wants DMCA safe harbor protection, register a DMCA designated agent with the U.S. Copyright Office and publish the agent contact on the website.
+
+Add upload terms:
+
+**Only upload documents or files you have permission to use.**
+
+For uploads, store:
+
+- uploaded_by_user_id
+- file_owner_attestation
+- upload_timestamp
+- file_type
+- source
+- related_child_id / client_id
+
+Add checkbox before upload:
+
+**I confirm I have permission to upload this file.**
+
+Add takedown workflow:
+
+- receive copyright complaint
+- identify file
+- disable access
+- notify uploader if appropriate
+- log action
+- allow review/counter-notice if applicable
+
+---
+
+## 9. Health / Behavioral Data Disclaimers
+
+Because NeuroPathways handles behavior support and sensitive information, add clear safety language.
+
+Across Support Now, starter behavior cards, AI chat, and document-based support, include:
+
+**If there is immediate danger, call 911 or emergency services.**
+
+Starter support should say:
+
+**Starter support is general guidance based on common behavior patterns. It is not a clinician-approved treatment plan.**
+
+Parent-uploaded document support should say:
+
+**Based on your uploaded plan. Not yet reviewed by a clinician.**
+
+Clinician-reviewed support should say:
+
+**Reviewed by your clinician.**
+
+AI chat should not claim to diagnose, treat, or replace a clinician.
+
+If AI cannot find document-supported guidance, it should say:
+
+**I could not find clinician-approved information about that in the uploaded documents. Please contact your clinician.**
+
+---
+
+## 10. Data Deletion and Account Deletion
+
+Add user-accessible deletion options.
+
+Settings should include:
+
+- Delete account
+- Delete child profile
+- Delete uploaded document
+- Delete behavior log
+- Request data export
+- Request full deletion
+
+Before deletion, show confirmation and explain what will be deleted.
+
+If legal retention is needed for clinician/clinic accounts, show:
+
+**Some records may need to be retained by your clinician or clinic according to their policies.**
+
+For parent-created free accounts, allow deletion of:
+
+- parent account
+- child profiles
+- uploaded documents
+- behavior logs
+- AI chat history
+- generated support cards
+
+---
+
+## 11. File Upload Security
+
+Audit upload security.
+
+Allowed file types:
+
+- PDF
+- DOC
+- DOCX
+- TXT if supported
+- image files only if intentionally supported
+
+Block dangerous files:
+
+- EXE
+- JS
+- HTML
+- PHP
+- ZIP unless explicitly needed
+- unknown binary files
+
+Add:
+
+- file size limits
+- virus/malware scanning if available
+- safe file storage paths
+- private access controls
+- no public document URLs
+- signed access only
+- upload permission checks
+
+Documents should be scoped to:
+
+- parent_user_id or clinician_user_id
+- child_id/client_id
+- workspace_id/tenant_id
+- uploaded_by
+
+---
+
+## 12. Cookie / Consent Banner
+
+If the app uses non-essential cookies, analytics, pixels, or tracking scripts, add a cookie/consent banner.
+
+Banner should allow:
+
+- Accept all
+- Reject non-essential
+- Manage preferences
+
+Do not load non-essential trackers until consent is given where required.
+
+Essential authentication/session cookies can remain active.
+
+Add privacy preferences in Settings.
+
+---
+
+## 13. Security Headers and Basic Web Hardening
+
+Audit and add security headers where possible:
+
+- Content-Security-Policy
+- X-Frame-Options or frame-ancestors
+- X-Content-Type-Options
+- Referrer-Policy
+- Permissions-Policy
+- Strict-Transport-Security when HTTPS is enabled
+
+CSP should restrict:
+
+- script sources
+- style sources
+- image sources
+- font sources
+- connect sources
+
+Remove unnecessary third-party scripts.
+
+---
+
+## 14. App Store / Android Readiness
+
+For Android/PWA app readiness, make sure:
+
+- privacy policy URL exists
+- terms URL exists
+- account deletion instructions exist
+- data safety answers match actual app behavior
+- app does not claim medical emergency services
+- app explains data collection accurately
+- package/app naming is consistent
+- app uses production domain instead of Replit preview domain when ready
+
+---
+
+## 15. Logging and Audit Trail
+
+Log sensitive actions:
+
+- account created
+- login
+- failed login
+- child profile created
+- document uploaded
+- document scanned
+- document deleted
+- AI answer generated
+- behavior log created
+- behavior log deleted
+- subscription started
+- subscription canceled
+- marketing email opt-in
+- marketing email opt-out
+- consent preferences changed
+- account deletion requested
+- DMCA complaint received
+
+Logs should not expose sensitive document contents unnecessarily.
+
+---
+
+## 16. Remove Risky Claims and Placeholder Language
+
+Search the full app for risky wording.
+
+Remove or replace:
+
+- HIPAA conscious
+- HIPAA ready
+- guaranteed compliance
+- medical-grade
+- crisis-certified
+- emergency app
+- therapy replacement
+- diagnosis tool
+- treatment provider
+- powered by Replit
+- beta placeholder text
+- fake compliance badges
+- fake security badges
+
+Use safer wording:
+
+- private account
+- support steps
+- starter guidance
+- uploaded-plan support
+- clinician-reviewed when actually reviewed
+- not for emergencies
+- call 911 if immediate danger
+
+---
+
+## 17. Required Compliance Tests
+
+After implementation, test:
+
+1. Under-13 user cannot create their own account.
+2. Parent can create account as adult.
+3. Parent can create child profile.
+4. Parent can upload document after account creation.
+5. Marketing email includes unsubscribe and mailing address.
+6. Unsubscribe link works.
+7. Session replay is disabled or fully masked.
+8. Analytics does not capture form inputs.
+9. Google Fonts are not loaded from Google servers.
+10. No third-party font requests occur on page load.
+11. Subscription page shows renewal terms next to purchase button.
+12. Subscription cancellation works in-app.
+13. Privacy Policy page exists.
+14. Terms page exists.
+15. Account deletion instructions exist.
+16. Upload requires permission confirmation.
+17. Unsupported files are blocked.
+18. Uploaded documents are private.
+19. AI chat includes proper source/disclaimer labels.
+20. App does not claim HIPAA compliance unless actually verified.
+21. Cookie banner blocks non-essential trackers before consent.
+22. Android/app store privacy links work.
+23. Profile image upload is either disabled or covered by upload/copyright rules.
+24. DMCA/copyright policy exists if user uploads remain enabled.
+
+---
+
+## 18. Final Report
+
+After the audit and fixes, provide a report showing:
+
+- age gate changes
+- COPPA-related protections
+- email compliance changes
+- analytics/session replay changes
+- font hosting changes
+- subscription/auto-renewal changes
+- DMCA/upload changes
+- privacy policy/terms pages created
+- cookie/consent changes
+- risky claims removed
+- tests passed
+- remaining attorney-review items
+
+---
+
+## Final Goal
+
+Make NeuroPathways safer for public testing and early launch by reducing avoidable legal, privacy, and compliance risks.
+
+The app should still work the same way, but it should now include:
+
+- adult/parent-first signup
+- under-13 self-signup block
+- parent-owned child profiles
+- safer document uploads
+- privacy and terms pages
+- no Google-hosted fonts
+- no unsafe session replay
+- CAN-SPAM-ready email templates
+- clear subscription renewal terms if subscriptions exist
+- DMCA/copyright safeguards for uploads
+- no fake HIPAA/security claims
+- clear emergency disclaimers
+
+Do not claim this makes the app legally compliant. Instead, make the technical changes and flag anything that requires attorney review.
