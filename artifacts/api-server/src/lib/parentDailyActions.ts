@@ -125,7 +125,7 @@ function cardDraft(
     sourceDocumentId: card.sourceDocumentIds?.[0] || null,
     title,
     description,
-    whyItMayHelp: "A brief, predictable step gives you a chance to notice what works without making the whole day feel like a task.",
+    whyItMayHelp: `This step uses saved guidance for ${card.behaviorName}. Notice whether it fits your child and the situation; it may not help every time.`,
     steps,
     estimatedMinutes,
     status,
@@ -147,16 +147,16 @@ function cardTask(card: SupportCard, date: string, slot: string, step?: string):
     );
   }
 
-  const chosen = step || cleanSteps([...card.prevention, ...(card.rightNow || []).slice(1), card.replacementSkill], 1)[0];
-  const detail = chosen || "Choose one small, safe step that fits your family's routine.";
+  const chosen = step || cleanSteps([...card.prevention, card.replacementSkill], 1)[0];
+  const detail = chosen || `Open the saved support steps for ${card.behaviorName} and choose one that fits today.`;
   return cardDraft(
     card,
     date,
     "task",
     slot,
     shortTitle(detail, `One small step for ${card.behaviorName}`),
-    detail,
-    [detail],
+    `Try this saved support for ${card.behaviorName} only when it fits today's situation.`,
+    cleanSteps([detail, card.reinforcementIdea]),
     5,
   );
 }
@@ -176,16 +176,14 @@ function cardActivity(card: SupportCard, date: string, slot: string, activityTex
     );
   }
 
-  const skill = card.replacementSkill?.trim();
-  const step = activityText || skill || cleanSteps(card.prevention, 1)[0] || "Practice a familiar way to ask for help or a break.";
-  const title = activityText
-    ? shortTitle(activityText, `Try a short activity for ${card.behaviorName}`)
-    : skill
-    ? `Practice: ${shortTitle(skill, card.behaviorName)}`
-    : shortTitle(step, `Try a short activity for ${card.behaviorName}`);
+  const step = activityText || cleanSteps(card.prevention, 1)[0];
+  const reinforcement = card.reinforcementIdea?.trim();
+  const title = step
+    ? `Try: ${shortTitle(step, `an activity for ${card.behaviorName}`)}`
+    : `Review support for ${card.behaviorName}`;
   const steps = cleanSteps([
     step,
-    "Try this during a calm moment; use communication supports already familiar to your child.",
+    reinforcement ? `Notice and support this response: ${reinforcement}` : null,
   ]);
   return cardDraft(
     card,
@@ -193,7 +191,9 @@ function cardActivity(card: SupportCard, date: string, slot: string, activityTex
     "activity",
     slot,
     title,
-    "Keep this brief and low-pressure. Pause if either of you needs a break.",
+    step
+      ? `Try this saved ${card.behaviorName} guidance in an ordinary routine. Do not create or provoke a difficult situation to practice it.`
+      : `This support card does not include a specific activity step. Open the card to review its guidance for ${card.behaviorName}.`,
     steps,
     5,
   );
@@ -213,14 +213,27 @@ function cardPractice(card: SupportCard, date: string): DailyActionDraft {
       "needs_review",
     );
   }
-  const skill = card.replacementSkill?.trim() || "Practice asking for help or a break during a calm moment.";
+  const skill = card.replacementSkill?.trim();
+  if (!skill) {
+    return cardDraft(
+      card,
+      date,
+      "practice",
+      "practice-skill",
+      `Review a skill for ${card.behaviorName}`,
+      `This support card does not include a specific replacement skill for ${card.behaviorName}.`,
+      [],
+      2,
+      "needs_review",
+    );
+  }
   return cardDraft(
     card,
     date,
     "practice",
     "practice-skill",
     `Practice: ${shortTitle(skill, card.behaviorName)}`,
-    "Try this during a calm moment, using communication supports already familiar to your child.",
+    `Practice this skill for ${card.behaviorName} during a calm moment, using only communication supports already familiar to your child.`,
     cleanSteps([skill], 1),
     3,
   );
@@ -245,8 +258,10 @@ function selectedBehaviorDraft(
     sourceType: "selected_behavior",
     sourceDocumentId: null,
     title,
-    description: detail,
-    whyItMayHelp: "Keep the step small and notice what feels manageable for your family.",
+    description: behavior.goal
+      ? `Based on your family-selected goal for ${behavior.behaviorName}.`
+      : `No support card is saved for ${behavior.behaviorName}; use this as a simple observation or review of familiar support.`,
+    whyItMayHelp: `This is tied to your selected focus, ${behavior.behaviorName}. Use it to notice what fits your family, not as a measure of clinical progress.`,
     steps: [detail],
     estimatedMinutes: kind === "practice" ? 3 : 5,
     status: "not_started",
@@ -345,39 +360,38 @@ export function buildParentDailyActionDrafts(input: {
   for (const [index, behavior] of selectedWithoutCards.entries()) {
     if (tasks.length >= 4) break;
     const detail = behavior.goal
-      ? `Choose one small, safe step toward this family-selected goal: ${behavior.goal}`
-      : "Choose one small, safe step that fits your family's routine.";
+      ? `Notice one ordinary moment related to your family-selected goal: ${behavior.goal}. Note what happened; do not create a difficult situation to test it.`
+      : `Notice one situation connected to ${behavior.behaviorName}. If it occurs, note what happened just before it and what helped; do not try to trigger it.`;
     tasks.push(selectedBehaviorDraft(
       behavior,
       input.date,
       "task",
       `selected-behavior-${index + 1}`,
-      "Choose one small step",
+      behavior.goal ? "Notice a moment related to your family goal" : `Notice a moment related to ${behavior.behaviorName}`,
       detail,
     ));
   }
   if (tasks.length < 2) {
     const card = cards[0];
     const secondStep = card && !card.conflict
-      ? cleanSteps([
-          ...card.prevention.slice(1),
-          ...card.rightNow.slice(1),
-          card.replacementSkill,
-        ], 4).find((step) => step.toLocaleLowerCase() !== tasks[0]?.description.toLocaleLowerCase())
+      ? cleanSteps([...card.prevention.slice(1), card.replacementSkill], 4)
+          .find((step) => step.toLocaleLowerCase() !== tasks[0]?.steps[0]?.toLocaleLowerCase())
       : undefined;
     if (card && secondStep) tasks.push(cardTask(card, input.date, "second", secondStep));
     const fallbackBehavior = input.selectedBehaviors[0];
     while (fallbackBehavior && tasks.length < 2) {
       const slot = `selected-fallback-${tasks.length + 1}`;
       const detail = fallbackBehavior.goal
-        ? `Choose one small, safe step toward this family-selected goal: ${fallbackBehavior.goal}`
-        : "Choose one small, safe step that fits your family's routine.";
+        ? `Notice one ordinary moment related to your family-selected goal: ${fallbackBehavior.goal}. Note what happened; do not create a difficult situation to test it.`
+        : `Notice one situation connected to ${fallbackBehavior.behaviorName}. If it occurs, note what happened just before it and what helped; do not try to trigger it.`;
       tasks.push(selectedBehaviorDraft(
         fallbackBehavior,
         input.date,
         "task",
         slot,
-        tasks.length === 0 ? "Choose one small step" : "Notice what feels manageable",
+        tasks.length === 0
+          ? (fallbackBehavior.goal ? "Notice a moment related to your family goal" : `Notice a moment related to ${fallbackBehavior.behaviorName}`)
+          : "Notice what feels manageable",
         detail,
       ));
     }
@@ -386,11 +400,7 @@ export function buildParentDailyActionDrafts(input: {
   const activityCandidates = cards
     .slice(0, 3)
     .map((card, index) => {
-      const activityStep = cleanSteps([
-        ...card.prevention.slice(1),
-        ...card.rightNow.slice(1),
-        ...card.prevention,
-      ], 1)[0];
+      const activityStep = cleanSteps(card.prevention.slice(2), 1)[0];
       return cardActivity(card, input.date, `primary-${index}`, activityStep);
     });
   for (const [index, behavior] of selectedWithoutCards.entries()) {
@@ -400,26 +410,26 @@ export function buildParentDailyActionDrafts(input: {
       input.date,
       "activity",
       `selected-behavior-${index + 1}`,
-      "Try a short, familiar activity",
-      "Practice one familiar way to ask for help or a break during a calm moment.",
+      "Review a familiar support",
+      `During a calm moment, review one support your family already uses for ${behavior.behaviorName}.${behavior.goal ? ` Consider whether it fits your family goal: ${behavior.goal}.` : ""} Do not reenact the behavior or add a new technique.`,
     ));
   }
   const fallbackBehavior = input.selectedBehaviors[0];
   if (activityCandidates.length < 2 && cards[0] && !cards[0].conflict) {
-    const extra = cleanSteps([
-      ...cards[0].prevention.slice(2),
-      ...cards[0].rightNow.slice(1),
-    ], 6).find((step) => step.toLocaleLowerCase() !== activityCandidates[0]?.steps[0]?.toLocaleLowerCase());
+    const extra = cleanSteps(cards[0].prevention.slice(3), 6)
+      .find((step) => step.toLocaleLowerCase() !== activityCandidates[0]?.steps[0]?.toLocaleLowerCase());
     if (extra) activityCandidates.push(cardActivity(cards[0], input.date, "second", extra));
   }
   while (fallbackBehavior && activityCandidates.length < 2) {
-    const detail = "Practice one familiar way to ask for help or a break during a calm moment.";
+    const detail = fallbackBehavior.goal
+      ? `During a calm moment, review one support your family already uses for ${fallbackBehavior.behaviorName}. Consider whether it fits your family goal: ${fallbackBehavior.goal}. Do not reenact the behavior or add a new technique.`
+      : `During a calm moment, review one support your family already uses for ${fallbackBehavior.behaviorName}. Do not reenact the behavior or add a new technique.`;
     activityCandidates.push(selectedBehaviorDraft(
       fallbackBehavior,
       input.date,
       "activity",
       `selected-fallback-${activityCandidates.length + 1}`,
-      activityCandidates.length === 0 ? "Practice a helpful phrase" : "Try a short, familiar activity",
+      "Review a familiar support",
       detail,
     ));
   }
@@ -428,16 +438,7 @@ export function buildParentDailyActionDrafts(input: {
   const skillCard = cards.find((card) => !card.conflict);
   const skillAction: DailyActionDraft | null = skillCard
     ? cardPractice(skillCard, input.date)
-    : fallbackBehavior
-      ? selectedBehaviorDraft(
-          fallbackBehavior,
-          input.date,
-          "practice",
-          "selected-behavior",
-          "Practice asking for help",
-          "Model one familiar way to ask for help, then give your child time to respond.",
-        )
-      : null;
+    : null;
 
   return [...tasks, ...activities, ...(skillAction ? [{ ...skillAction, kind: "practice" as const }] : [])];
 }
