@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { BookOpen, ClipboardList, FileUp, MessageCircle, Plus, Target, UserRound } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -36,10 +36,9 @@ const RATINGS = [
 ];
 
 const OUTCOMES = [
-  ["used_skill", "Yes, they used it"],
-  ["partially", "Partly"],
-  ["not_yet", "Not yet"],
-  ["not_sure", "Not sure"],
+  ["used_skill", "Done"],
+  ["not_yet", "Didn't get a chance"],
+  ["partially", "We struggled with this"],
 ];
 
 function sourceText(action) {
@@ -52,7 +51,7 @@ function statusTone(status) {
   return "";
 }
 
-function ActionCard({ action, documents, childName, onComplete, onStatus }) {
+function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
   const [error, setError] = useState("");
   const document = action.sourceDocumentId
     ? documents.find((item) => item.id === action.sourceDocumentId)
@@ -60,7 +59,7 @@ function ActionCard({ action, documents, childName, onComplete, onStatus }) {
   const hasActions = action.status === "not_started" || action.status === "saved_for_later";
   const feedback = action.logs?.[0];
   const busy = onStatus.isPending && onStatus.variables?.actionId === action.id;
-  const saving = onComplete.isPending && onComplete.variables?.action.id === action.id;
+  const saving = onOutcome.isPending && onOutcome.variables?.actionId === action.id;
 
   const updateStatus = (status) => {
     setError("");
@@ -74,13 +73,13 @@ function ActionCard({ action, documents, childName, onComplete, onStatus }) {
     <article className={`pf-card pf-daily-action ${action.status === "needs_review" ? "needs-review" : ""}`} data-testid={`card-daily-action-${action.id}`}>
       <div className="pf-daily-action-top">
         <div>
-          <p className="pf-eyebrow">{action.behaviorName} · {action.estimatedMinutes} min</p>
+          <p className="pf-eyebrow">Practice this today · {action.behaviorName} · {action.estimatedMinutes} min</p>
           <h3>{action.title}</h3>
         </div>
         <span className={`pf-tag ${statusTone(action.status)}`}>{STATUS_LABELS[action.status] || "Ready when you are"}</span>
       </div>
       <p className="pf-daily-description">{action.description}</p>
-      {action.whyItMayHelp && <p className="pf-daily-why"><strong>Why it may help:</strong> {action.whyItMayHelp}</p>}
+      {action.whyItMayHelp && <p className="pf-daily-why"><strong>Why this supports {childName}'s goal:</strong> {action.whyItMayHelp}</p>}
       {action.steps?.length > 0 && (
         <ol className="pf-daily-steps">
           {action.steps.map((step, index) => <li key={`${action.id}-${index}`}>{step}</li>)}
@@ -105,19 +104,41 @@ function ActionCard({ action, documents, childName, onComplete, onStatus }) {
       )}
       <ErrorBox error={error} />
       {hasActions && action.status !== "needs_review" && (
-        <div className="pf-daily-action-buttons">
-        <button type="button" className="pf-btn primary" onClick={() => onComplete.open(action)} disabled={saving || busy}>
-          {saving ? "Saving..." : "How did it go?"}
-          </button>
+        <>
+          <div className="pf-daily-outcomes" role="group" aria-label={`Activity outcome for ${childName}`}>
+            {OUTCOMES.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`pf-daily-outcome ${value === "used_skill" ? "done" : ""}`}
+                data-testid={`button-outcome-${action.id}-${value}`}
+                onClick={() => {
+                  setError("");
+                  onOutcome.mutate(
+                    {
+                      childId: action.childId,
+                      actionId: action.id,
+                      data: { eventType: "outcome", outcome: value },
+                    },
+                    { onError: (mutationError) => setError(errMsg(mutationError)) },
+                  );
+                }}
+                disabled={saving || busy}
+              >
+                {saving ? "Saving..." : label}
+              </button>
+            ))}
+          </div>
           {action.status === "not_started" ? (
-            <>
-              <button type="button" className="pf-btn ghost" onClick={() => updateStatus("saved_for_later")} disabled={busy}>Save for Later</button>
-              <button type="button" className="pf-btn ghost" onClick={() => updateStatus("skipped")} disabled={busy}>Skip Today</button>
-            </>
+            <div className="pf-daily-action-buttons">
+              <button type="button" className="pf-btn ghost" onClick={() => updateStatus("saved_for_later")} disabled={busy || saving}>Save for Later</button>
+            </div>
           ) : (
-            <button type="button" className="pf-btn ghost" onClick={() => updateStatus("not_started")} disabled={busy}>Move to Today</button>
+            <div className="pf-daily-action-buttons">
+              <button type="button" className="pf-btn ghost" onClick={() => updateStatus("not_started")} disabled={busy || saving}>Move to Today</button>
+            </div>
           )}
-        </div>
+        </>
       )}
       {!hasActions && action.status !== "needs_review" && (
         <p className="pf-hint pf-action-closed" aria-live="polite">
@@ -125,78 +146,6 @@ function ActionCard({ action, documents, childName, onComplete, onStatus }) {
         </p>
       )}
     </article>
-  );
-}
-
-function FeedbackDialog({ action, childName, onClose, onSaved }) {
-  const queryClient = useQueryClient();
-  const [choice, setChoice] = useState("");
-  const [note, setNote] = useState("");
-  const [error, setError] = useState("");
-  const log = useLogParentDailyAction({ request: parentRequest() });
-  const choices = RATINGS;
-
-  useEffect(() => {
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape" && !log.isPending) onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [log.isPending, onClose]);
-
-  const submit = (event) => {
-    event.preventDefault();
-    if (!choice) {
-      setError("Choose an option before saving.");
-      return;
-    }
-    setError("");
-    const data = {
-      eventType: "completion",
-      rating: choice,
-      ...(note.trim() ? { note: note.trim() } : {}),
-    };
-    log.mutate(
-      { childId: action.childId, actionId: action.id, data },
-      {
-        onSuccess: async () => {
-          await queryClient.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(action.childId) });
-          onSaved();
-        },
-        onError: (mutationError) => setError(errMsg(mutationError)),
-      },
-    );
-  };
-
-  if (!action) return null;
-  return (
-    <div className="pf-overlay pf-action-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !log.isPending) onClose(); }}>
-      <form className="pf-card pf-action-dialog" role="dialog" aria-modal="true" aria-labelledby="daily-feedback-title" onSubmit={submit}>
-        <div className="pf-daily-action-top">
-          <div>
-            <p className="pf-eyebrow">{action.behaviorName}</p>
-            <h2 id="daily-feedback-title">How did it go?</h2>
-          </div>
-          <button type="button" className="pf-btn small" onClick={onClose} disabled={log.isPending} aria-label="Close feedback form">Close</button>
-        </div>
-        <p className="pf-hint"><strong>{action.title}</strong> · for {childName}</p>
-        <div className="pf-feedback-options" role="radiogroup" aria-label="How did the activity go?">
-          {choices.map(([value, label]) => (
-            <button key={value} type="button" role="radio" aria-checked={choice === value} className="pf-chip" onClick={() => setChoice(value)}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <label className="pf-label" htmlFor="daily-action-note">Optional note for the clinician</label>
-        <textarea id="daily-action-note" className="pf-area" maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context about the activity..." />
-        <p className="pf-hint">This feedback is saved with this action and shared with your child’s care team.</p>
-        <ErrorBox error={error} />
-        <div className="pf-daily-action-buttons">
-          <button type="submit" className="pf-btn primary" disabled={log.isPending}>{log.isPending ? "Saving..." : "Save feedback"}</button>
-          <button type="button" className="pf-btn" onClick={onClose} disabled={log.isPending}>Cancel</button>
-        </div>
-      </form>
-    </div>
   );
 }
 
@@ -219,7 +168,7 @@ export default function DailySupportHome({
   progress,
 }) {
   const queryClient = useQueryClient();
-  const [dialog, setDialog] = useState(null);
+  const log = useLogParentDailyAction({ request: parentRequest() });
   const update = useUpdateParentDailyAction({ request: parentRequest() });
   const status = {
     ...update,
@@ -231,9 +180,15 @@ export default function DailySupportHome({
       },
     }),
   };
-  const complete = {
-    isPending: Boolean(dialog?.mode === "completion"),
-    open: (action) => setDialog({ mode: "completion", action }),
+  const outcome = {
+    ...log,
+    mutate: (variables, options) => log.mutate(variables, {
+      ...options,
+      onSuccess: async (...args) => {
+        await queryClient.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(childId) });
+        options?.onSuccess?.(...args);
+      },
+    }),
   };
   const tasks = actions.filter((action) => action.kind === "task");
 
@@ -245,7 +200,7 @@ export default function DailySupportHome({
           action={action}
           documents={documents}
           childName={childName}
-          onComplete={complete}
+          onOutcome={outcome}
           onStatus={status}
         />
       ))}
@@ -333,14 +288,6 @@ export default function DailySupportHome({
 
       {progress && <section className="pf-daily-section pf-progress-secondary" aria-label="Recent progress">{progress}</section>}
 
-      {dialog && (
-        <FeedbackDialog
-          action={dialog.action}
-          childName={childName}
-          onClose={() => setDialog(null)}
-          onSaved={() => setDialog(null)}
-        />
-      )}
     </div>
   );
 }

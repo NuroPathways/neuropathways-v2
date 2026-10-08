@@ -9,6 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
 
+const isDocumentGoal = (goal) => ["document", "parent_document"].includes(goal.source);
+
+const milestoneLines = (value) => String(value || "")
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter((line) => line && !line.toLowerCase().startsWith("plan milestones"))
+  .map((line) => line.replace(/^[•\-\d.)\s]+/, "").trim())
+  .filter(Boolean);
+
 export default function GoalsMilestones() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -209,8 +218,10 @@ export default function GoalsMilestones() {
           <div className="space-y-4">
             {goals.map((rawGoal, i) => {
               const g = normalizeGoal(rawGoal);
-              const pct = Math.min(100, Math.round((g.progress / (g.target || 1)) * 100));
-              const achieved = g.progress >= g.target;
+              const documentGoal = isDocumentGoal(rawGoal);
+              const milestones = milestoneLines(rawGoal.milestone_notes);
+              const pct = documentGoal ? 0 : Math.min(100, Math.round((g.progress / (g.target || 1)) * 100));
+              const achieved = !documentGoal && g.progress >= g.target;
               return (
                 <motion.div key={g.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                   className={`bg-card border-2 rounded-2xl p-5 transition-all ${achieved ? "border-green-400 bg-green-50/20" : "border-border"}`}>
@@ -218,18 +229,20 @@ export default function GoalsMilestones() {
                     <div className="flex-1 min-w-0 pr-3">
                       <div className="flex items-center gap-2 mb-0.5">
                         {achieved ? <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" /> : <Circle className="w-5 h-5 text-primary flex-shrink-0" />}
-                        <p className="font-bold text-foreground truncate">{g.goal_title}</p>
+                        <p className="font-bold text-foreground break-words">{g.goal_title}</p>
                       </div>
                       {g.goal_description && <p className="text-xs text-muted-foreground ml-7 line-clamp-2">{g.goal_description}</p>}
-                      <p className="text-xs text-muted-foreground ml-7 mt-0.5">{g.progress} of {g.target} steps completed</p>
-                      {rawGoal.source === "document" && (
-                        <span className="ml-7 mt-1 inline-block text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">From documents</span>
+                      {!documentGoal && <p className="text-xs text-muted-foreground ml-7 mt-0.5">{g.progress} of {g.target} steps completed</p>}
+                      {documentGoal && (
+                        <span className="ml-7 mt-1 inline-block text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                          {rawGoal.source === "parent_document" ? "From a scanned plan" : "From documents"}
+                        </span>
                       )}
                       {rawGoal.created_by_clinician && (
                         <span className="ml-1 mt-1 inline-block text-xs bg-accent/20 text-accent-foreground px-2 py-0.5 rounded-full">Clinician goal</span>
                       )}
                     </div>
-                    {!achieved && (
+                    {!documentGoal && !achieved && (
                       <button onClick={() => incrementProgress(rawGoal)}
                         className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors shadow-md shadow-primary/20 flex-shrink-0">
                         <Plus className="w-4 h-4" />
@@ -237,21 +250,36 @@ export default function GoalsMilestones() {
                     )}
                   </div>
 
-                  {/* Progress bar */}
-                  <div className="mb-2">
-                    <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                      <span>{pct}% complete</span>
-                      <span>{achieved ? "✓ Milestone reached!" : `${g.target - g.progress} to go`}</span>
+                  {!documentGoal && (
+                    <div className="mb-2">
+                      <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+                        <span>{pct}% complete</span>
+                        <span>{achieved ? "✓ Milestone reached!" : `${g.target - g.progress} to go`}</span>
+                      </div>
+                      <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${achieved ? "bg-green-500" : "bg-primary"}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${achieved ? "bg-green-500" : "bg-primary"}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
+                  )}
 
-                  {g.milestone_notes && (
+                  {documentGoal ? (
+                    <div className="mt-3 ml-7">
+                      <p className="text-xs font-semibold text-muted-foreground mb-1">Milestones from the plan</p>
+                      {milestones.length ? (
+                        <ul className="list-disc pl-4 space-y-1 text-xs text-muted-foreground">
+                          {milestones.map((milestone, index) => <li key={`${g.id}-milestone-${index}`}>{milestone}</li>)}
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {g.milestone_notes || "No explicit milestones were listed in the source document."}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-2">Report practice outcomes in Today; these are caregiver reports, not a measure of treatment progress.</p>
+                    </div>
+                  ) : g.milestone_notes && (
                     <p className="text-xs text-muted-foreground mt-2 italic">{g.milestone_notes}</p>
                   )}
                 </motion.div>

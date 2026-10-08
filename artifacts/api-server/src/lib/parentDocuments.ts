@@ -12,6 +12,7 @@ import {
   parentChildSettingsTable,
   parentLogsTable,
   parentDocumentsTable,
+  rewardTokensTable,
   userProfilesTable,
   type ParentDocumentMetadata,
 } from "@workspace/db";
@@ -61,6 +62,12 @@ import {
   saveEncryptedParentDocument,
 } from "./parentFileStorage";
 import { batchProcessParentSupport } from "./parentSupportBatch";
+import {
+  hasMatchingParentScan,
+  parentScanFingerprint,
+  ParentDocumentTextCache,
+  savedParentDocumentCards,
+} from "./parentDocumentScanCache";
 import { getOrCreateParentDailyActions, normalizeParentActionDate } from "./parentDailyActions";
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
@@ -72,6 +79,7 @@ const REVIEW_RECOMMENDATION = "Conflict detected. Clinician review recommended."
 const SUPPORT_DISCLAIMER = PARENT_CHAT_DISCLAIMER;
 const MAX_PARENT_CHAT_DOCUMENTS = 5;
 const MAX_PARENT_CHAT_DOCUMENT_TEXT = 24_000;
+const documentTextCache = new ParentDocumentTextCache();
 
 export type ParentDocumentWire = {
   id: string;
@@ -580,9 +588,13 @@ async function extractDocumentContent(
     throw new Error("The document type or file signature is invalid.");
   }
   const prefix = `[Source document id=${document.id}; title=${(document.title || name).slice(0, 160)}; type=${metadata ? "parent upload (not clinician-reviewed)" : "current clinician document"}]`;
+  const text = () => documentTextCache.read(
+    `${document.id}:${metadata?.sha256 || crypto.createHash("sha256").update(bytes).digest("hex")}`,
+    () => extractParentDocumentText(name, bytes),
+  );
   if (extension === ".pdf") {
     if (bytes.subarray(0, 5).toString("ascii") !== "%PDF-") throw new Error("The PDF appears to be corrupt or invalid.");
-    const extractedText = await extractParentDocumentText(name, bytes);
+    const extractedText = await text();
     const originalPdf: ParentDocumentGenerationPart = {
       type: "document",
       source: { type: "base64", media_type: "application/pdf", data: bytes.toString("base64") },
@@ -602,13 +614,13 @@ async function extractDocumentContent(
     return [{ type: "image", source: { type: "base64", media_type: imageMime, data: bytes.toString("base64") } }];
   }
   if (extension === ".docx") {
-    return [{ type: "text", text: `${prefix}\n${await extractParentDocumentText(name, bytes)}` }];
+    return [{ type: "text", text: `${prefix}\n${await text()}` }];
   }
   if (extension === ".doc") {
-    return [{ type: "text", text: `${prefix}\n${await extractParentDocumentText(name, bytes)}` }];
+    return [{ type: "text", text: `${prefix}\n${await text()}` }];
   }
   if (extension === ".txt") {
-    return [{ type: "text", text: `${prefix}\n${await extractParentDocumentText(name, bytes)}` }];
+    return [{ type: "text", text: `${prefix}\n${await text()}` }];
   }
   throw new Error("Unsupported document type for scanning.");
 }
@@ -619,11 +631,33 @@ function sourceReferences(documents: Array<{ id: string; title: string }>, reque
   return ids.map((documentId) => ({ documentId, title: byId.get(documentId)!.title, excerpt: null }));
 }
 
+type ParentScanResult = { ok: true; supportCards: SupportCard[]; message: string };
+const activeDocumentScans = new Map<string, Promise<ParentScanResult>>();
+
 export async function scanParentDocument(
   parentId: string,
   childId: string,
   documentId: string,
-): Promise<{ ok: true; supportCards: SupportCard[]; message: string }> {
+): Promise<ParentScanResult> {
+  // Same-account duplicate requests (including another device) wait for the
+  // existing read rather than sending the same plan to the model twice.
+  const key = JSON.stringify([parentId, childId, documentId]);
+  const existing = activeDocumentScans.get(key);
+  if (existing) return existing;
+  const reading = readParentDocument(parentId, childId, documentId);
+  activeDocumentScans.set(key, reading);
+  try {
+    return await reading;
+  } finally {
+    if (activeDocumentScans.get(key) === reading) activeDocumentScans.delete(key);
+  }
+}
+
+async function readParentDocument(
+  parentId: string,
+  childId: string,
+  documentId: string,
+): Promise<ParentScanResult> {
   const child = await ownedChild(parentId, childId);
   const [metadata] = await db.select().from(parentDocumentsTable).where(and(
     eq(parentDocumentsTable.documentId, documentId),
@@ -633,20 +667,50 @@ export async function scanParentDocument(
   if (!metadata) throw new Error("Parent document not found");
   const document = await findDocument(documentId);
   if (!document || document.parentId !== parentId || document.childId !== childId) throw new Error("Parent document not found");
+  const [[settings], clinicianDocs] = await Promise.all([
+    db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId)),
+    child.clinicianId
+      ? db.select().from(documentsTable).where(and(
+          eq(documentsTable.childId, childId),
+          eq(documentsTable.clinicianId, child.clinicianId),
+          eq(documentsTable.tenantId, child.clinicianId),
+          eq(documentsTable.uploadedBy, child.clinicianId),
+          eq(documentsTable.scanStatus, "done"),
+        )).orderBy(desc(documentsTable.createdDate))
+      : Promise.resolve([]),
+  ]);
+  const selectedBehaviors = parentBehaviorsFromSettings(settings);
+  const fingerprint = parentScanFingerprint({
+    documentId, hash: metadata.sha256, clinicianId: child.clinicianId,
+    selectedBehaviors: selectedBehaviors.map((behavior) => ({
+      behaviorKey: behavior.behaviorKey,
+      customBehavior: behavior.customBehavior,
+      behaviorName: behavior.behaviorName,
+      goal: behavior.goal,
+    })),
+    fallback: [settings?.behaviorKey, settings?.customBehavior, settings?.goal],
+    clinicianDocuments: clinicianDocs.slice(0, 2).map((source) => ({
+      id: source.id, fileUrl: source.fileUrl, fileName: source.fileName,
+      scannedAt: source.scannedAt, title: source.title,
+    })),
+  });
+  if (document.scanStatus === "done" &&
+      hasMatchingParentScan(metadata.extractedSupport, fingerprint) &&
+      savedParentDocumentCards(metadata.extractedSupport).every((card) => validCard(card) && isSafeParentGuidance(card))) {
+    return {
+      ok: true,
+      supportCards: await getParentSupportCards(parentId, childId),
+      message: document.scanError || "This unchanged plan has already been read. Your saved plan guidance is ready.",
+    };
+  }
   await setScanStatus(documentId, "processing", null);
 
   try {
+    let completeSourceContext = true;
     const sources: Array<{ document: typeof documentsTable.$inferSelect; metadata: ParentDocumentMetadata | null; bytes: Buffer }> = [
       { document, metadata, bytes: await readParentDocumentBytes(documentId) },
     ];
     if (child.clinicianId) {
-      const clinicianDocs = await db.select().from(documentsTable).where(and(
-        eq(documentsTable.childId, childId),
-        eq(documentsTable.clinicianId, child.clinicianId),
-        eq(documentsTable.tenantId, child.clinicianId),
-        eq(documentsTable.uploadedBy, child.clinicianId),
-        eq(documentsTable.scanStatus, "done"),
-      )).orderBy(desc(documentsTable.createdDate));
       let includedByteCount = sources[0].bytes.length;
       for (const candidate of clinicianDocs.slice(0, 2)) {
         if (candidate.id === documentId || includedByteCount >= 12 * 1024 * 1024) continue;
@@ -662,6 +726,7 @@ export async function scanParentDocument(
           sources.push({ document: candidate, metadata: candidateMetadata, bytes });
           includedByteCount += bytes.length;
         } catch {
+          completeSourceContext = false;
           // A clinician upload that cannot be read safely is omitted, never read around its access controls.
         }
       }
@@ -692,11 +757,9 @@ export async function scanParentDocument(
         .map((part) => part.text)
         .join("\n"),
     ]));
-    const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
     const currentCards = Array.isArray(settings?.supportCards)
       ? settings.supportCards.filter(validCard).filter(isSafeParentGuidance)
       : [];
-    const selectedBehaviors = parentBehaviorsFromSettings(settings);
     const baseScanBehaviors = selectedBehaviors.length
       ? selectedBehaviors
       : [{
@@ -891,11 +954,70 @@ export async function scanParentDocument(
         updatedAt: new Date(),
       }).where(eq(parentChildSettingsTable.childId, childId));
       await tx.update(parentDocumentsTable).set({
-        extractedSupport: incomingCards as any,
+        extractedSupport: {
+          fingerprint,
+          complete: failedTargetCount === 0 && completeSourceContext,
+          cards: incomingCards,
+        } as any,
         updatedAt: new Date(),
       }).where(eq(parentDocumentsTable.documentId, documentId));
       await tx.update(documentsTable).set({ scanStatus: "done", scanError: safetyNotice, scannedAt: new Date() })
         .where(eq(documentsTable.id, documentId));
+
+      // Add explicit plan goals to the same goals collection used by Goals & Milestones.
+      // This is additive: manual goals and goals from other documents are never removed or replaced.
+      const existingGoals = await tx.select().from(rewardTokensTable)
+        .where(eq(rewardTokensTable.childId, childId));
+      const normalizeGoalTitle = (value: string) =>
+        value.normalize("NFKC").toLowerCase().trim().replace(/\s+/g, " ");
+      const insertedGoalTitles = new Set<string>();
+      for (const target of discoveredTargets) {
+        const goalTitle = target.goal?.trim();
+        if (!goalTitle) continue;
+        const key = normalizeGoalTitle(goalTitle);
+        if (insertedGoalTitles.has(key)) continue;
+        const matchingParentPlanGoal = existingGoals.find((row) =>
+          row.source === "parent_document" && normalizeGoalTitle(row.goalTitle || "") === key,
+        );
+        const matching = matchingParentPlanGoal || existingGoals.find((row) =>
+          normalizeGoalTitle(row.goalTitle || "") === key,
+        );
+        const card = incomingCards.find((item) =>
+          supportBehaviorIdentity(item) === supportBehaviorIdentity(target),
+        );
+        const milestones = (card?.dailyActivities || []).map((activity) =>
+          `${activity.title} — ${activity.routineContext}`,
+        );
+        const milestoneNotes = milestones.length
+          ? `Plan milestones (practice activities, not a measure of treatment progress):\n${milestones.map((item) => `• ${item}`).join("\n")}`
+          : "No plan-supported daily practice activity was identified for this goal.";
+
+        if (matching) {
+          if (matching.source === "parent_document") {
+            await tx.update(rewardTokensTable).set({
+              goalDescription: `Explicit plan goal for ${target.behaviorName}.`,
+              target: Math.max(1, milestones.length),
+              milestoneNotes,
+            }).where(eq(rewardTokensTable.id, matching.id));
+          }
+          continue;
+        }
+
+        await tx.insert(rewardTokensTable).values({
+          childId,
+          parentId: child.parentId ?? parentId,
+          clinicianId: child.clinicianId ?? null,
+          tenantId: child.tenantId ?? null,
+          goalTitle,
+          goalDescription: `Explicit plan goal for ${target.behaviorName}.`,
+          progress: 0,
+          target: Math.max(1, milestones.length),
+          source: "parent_document",
+          milestoneNotes,
+          createdByClinician: false,
+        });
+        insertedGoalTitles.add(key);
+      }
     });
     return {
       ok: true,
@@ -1296,8 +1418,7 @@ type ParentChatDocument = {
 };
 
 function textFromSavedDocumentFindings(value: unknown, documentId: string): string {
-  if (!Array.isArray(value)) return "";
-  return value
+  return savedParentDocumentCards(value)
     .filter((card: any) =>
       card &&
       typeof card === "object" &&
@@ -1364,8 +1485,13 @@ async function loadParentChatDocuments(
 
     let content = "";
     try {
-      const bytes = await readParentDocumentBytes(document.id);
-      content = await extractParentDocumentText(document.fileName || "document", bytes);
+      const imageUpload = /^image\//.test(metadata.mimeType);
+      if (!imageUpload) {
+        content = await documentTextCache.read(`${document.id}:${metadata.sha256}`, async () => {
+          const bytes = await readParentDocumentBytes(document.id);
+          return extractParentDocumentText(document.fileName || "document", bytes);
+        });
+      }
     } catch {
       // Image uploads and scanned plans can rely on findings saved during the successful scan.
     }
@@ -1421,6 +1547,7 @@ export async function parentChat(
         parentId,
         parentUserId: parentId,
         childId,
+        childName: child.childName || child.firstName || "your child",
         workspaceId: settings.workspaceId,
         date: actionDate,
         selectedBehaviors,

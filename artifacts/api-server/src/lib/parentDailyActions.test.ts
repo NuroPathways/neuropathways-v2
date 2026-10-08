@@ -58,6 +58,7 @@ test("daily actions turn plan activities into concrete steps and keep their prov
   });
   const actions = buildParentDailyActionDrafts({
     date: "2026-10-07",
+    childName: "Maya",
     selectedBehaviors: [selectedBehavior("task_refusal", "Task refusal")],
     supportCards: [card],
     logs: [],
@@ -74,7 +75,9 @@ test("daily actions turn plan activities into concrete steps and keep their prov
     "Notice this skill: Requests a break using the card",
     "Plan-listed reinforcement: Provide the planned break after the request",
   ]);
+  assert.match(actions[0].whyItMayHelp, /Maya/);
   assert.match(actions[0].whyItMayHelp, /Independently requests a break during homework/);
+  assert.match(actions[0].whyItMayHelp, /Requests a break using the card/);
 });
 
 test("daily actions spread across selected behaviors and cap the list at four plan activities", () => {

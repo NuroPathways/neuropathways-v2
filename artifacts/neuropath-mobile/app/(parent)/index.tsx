@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { Modal, Pressable, TextInput, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useFocusEffect, router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -39,22 +39,38 @@ const DAILY_FEEDBACK = [
   ["behavior_escalated", "Behavior escalated"],
 ] as const;
 
-function DailyActivityCard({ action, documents, onFeedback }: {
+const DAILY_OUTCOMES = [
+  ["used_skill", "Done", "check-circle"],
+  ["not_yet", "Didn't get a chance", "clock"],
+  ["partially", "We struggled with this", "alert-triangle"],
+] as const;
+
+function DailyActivityCard({ action, documents, childName, onOutcome, isSaving, error }: {
   action: ParentDailyAction;
   documents: ParentDocument[];
-  onFeedback: (action: ParentDailyAction) => void;
+  childName: string;
+  onOutcome: (action: ParentDailyAction, outcome: "used_skill" | "not_yet" | "partially") => void;
+  isSaving: boolean;
+  error?: string;
 }) {
   const c = useColors();
   const document = action.sourceDocumentId
     ? documents.find((item) => item.id === action.sourceDocumentId)
     : null;
   const feedback = action.logs?.[0];
-  const feedbackLabel = DAILY_FEEDBACK.find(([value]) => value === feedback?.rating)?.[1];
+  const outcomeLabel = DAILY_OUTCOMES.find(([value]) => value === feedback?.outcome)?.[1];
+  const ratingLabel = DAILY_FEEDBACK.find(([value]) => value === feedback?.rating)?.[1];
   return (
     <Card>
-      <T size={12} weight="semi" color={c.secondary}>{action.behaviorName} · {action.estimatedMinutes} min</T>
+      <T size={12} weight="semi" color={c.secondary}>Practice this today · {action.behaviorName} · {action.estimatedMinutes} min</T>
       <T size={18} weight="bold">{action.title}</T>
       <T size={14}>{action.description}</T>
+      {action.whyItMayHelp ? (
+        <View style={{ backgroundColor: c.muted, borderLeftWidth: 4, borderLeftColor: c.accent, borderRadius: 12, padding: 12, gap: 4 }}>
+          <T size={13} weight="bold">Why this supports {childName}'s goal</T>
+          <T size={13}>{action.whyItMayHelp}</T>
+        </View>
+      ) : null}
       {action.steps.map((step, index) => (
         <View key={`${action.id}-${index}`} style={{ flexDirection: "row", gap: 9, alignItems: "flex-start" }}>
           <T size={13} weight="bold" color={c.primary}>{index + 1}.</T>
@@ -66,8 +82,44 @@ function DailyActivityCard({ action, documents, onFeedback }: {
       {action.status === "needs_review"
         ? <T size={13} weight="semi" color={c.destructive}>Ask your clinician which plan step to use before trying this.</T>
         : action.status === "done" || action.status === "logged"
-          ? <T size={13} color={c.secondary}>{feedbackLabel ? `Your feedback: ${feedbackLabel}` : "Your update is saved for today."}{feedback?.note ? ` · ${feedback.note}` : ""}</T>
-          : <Btn label="How did it go?" onPress={() => onFeedback(action)} />}
+          ? <T size={13} color={c.secondary}>{outcomeLabel ? `Your update: ${outcomeLabel}` : ratingLabel ? `Your feedback: ${ratingLabel}` : "Your update is saved for today."}{feedback?.note ? ` · ${feedback.note}` : ""}</T>
+          : action.status === "skipped"
+            ? <T size={13} color={c.secondary}>You can revisit this support step from the library.</T>
+            : (
+              <View style={{ gap: 8 }}>
+                <T size={13} weight="semi">Did you work on it today?</T>
+                {DAILY_OUTCOMES.map(([value, label, icon]) => {
+                  const primary = value === "used_skill";
+                  return (
+                    <Pressable
+                      key={value}
+                      testID={`activity-outcome-${action.id}-${value}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`For ${childName}: ${label}`}
+                      disabled={isSaving}
+                      onPress={() => onOutcome(action, value)}
+                      style={({ pressed }) => ({
+                        minHeight: 50,
+                        paddingHorizontal: 14,
+                        paddingVertical: 11,
+                        borderRadius: 14,
+                        borderWidth: 1.5,
+                        borderColor: primary ? c.primary : c.border,
+                        backgroundColor: primary ? c.primary : c.card,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 10,
+                        opacity: isSaving ? 0.55 : pressed ? 0.86 : 1,
+                      })}
+                    >
+                      <Feather name={icon} size={18} color={primary ? c.primaryForeground : c.primary} />
+                      <T weight="semi" color={primary ? c.primaryForeground : c.foreground}>{isSaving ? "Saving..." : label}</T>
+                    </Pressable>
+                  );
+                })}
+                {error ? <T size={13} color={c.destructive}>{error}</T> : null}
+              </View>
+            )}
     </Card>
   );
 }
@@ -114,10 +166,7 @@ export default function SupportNow() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showHelpBlocks, setShowHelpBlocks] = useState(false);
-  const [feedbackAction, setFeedbackAction] = useState<ParentDailyAction | null>(null);
-  const [feedbackChoice, setFeedbackChoice] = useState("");
-  const [feedbackNote, setFeedbackNote] = useState("");
-  const [feedbackError, setFeedbackError] = useState("");
+  const [dailyActionError, setDailyActionError] = useState<{ actionId: string; message: string } | null>(null);
   const logAction = useLogParentDailyAction({ request: opts });
   const q = useQuery({ queryKey: ["parent-dashboard", child?.id], queryFn: () => getParentDashboard(child!.id, opts), enabled: !!child });
   const refetch = q.refetch;
@@ -135,25 +184,21 @@ export default function SupportNow() {
   const activeGoal = selectedBehavior?.goal ?? null;
   const childName = q.data?.child.name ?? child?.name ?? "your child";
 
-  const saveFeedback = () => {
-    if (!child || !feedbackAction || !feedbackChoice || logAction.isPending) return;
-    setFeedbackError("");
+  const saveOutcome = (action: ParentDailyAction, outcome: "used_skill" | "not_yet" | "partially") => {
+    if (!child || logAction.isPending) return;
+    setDailyActionError(null);
     logAction.mutate({
-      childId: feedbackAction.childId,
-      actionId: feedbackAction.id,
+      childId: action.childId,
+      actionId: action.id,
       data: {
-        eventType: "completion",
-        rating: feedbackChoice as "helped" | "somewhat_helped" | "not_helped" | "not_sure" | "behavior_escalated",
-        ...(feedbackNote.trim() ? { note: feedbackNote.trim() } : {}),
+        eventType: "outcome",
+        outcome,
       },
     }, {
       onSuccess: async () => {
         await queryClient.invalidateQueries({ queryKey: ["parent-dashboard", child.id] });
-        setFeedbackAction(null);
-        setFeedbackChoice("");
-        setFeedbackNote("");
       },
-      onError: (error) => setFeedbackError(msg(error, "Feedback could not be saved.")),
+      onError: (error) => setDailyActionError({ actionId: action.id, message: msg(error, "Your update could not be saved.") }),
     });
   };
 
@@ -180,12 +225,10 @@ export default function SupportNow() {
                 key={action.id}
                 action={action}
                 documents={q.data?.documents ?? []}
-                onFeedback={(item) => {
-                  setFeedbackAction(item);
-                  setFeedbackChoice("");
-                  setFeedbackNote("");
-                  setFeedbackError("");
-                }}
+                childName={childName}
+                onOutcome={saveOutcome}
+                isSaving={logAction.isPending && logAction.variables?.actionId === action.id}
+                error={dailyActionError?.actionId === action.id ? dailyActionError.message : undefined}
               />
             ))
           ) : (
@@ -316,46 +359,6 @@ export default function SupportNow() {
           </Card>
         </>
       )}
-      <Modal
-        visible={!!feedbackAction}
-        transparent
-        animationType="fade"
-        onRequestClose={() => { if (!logAction.isPending) setFeedbackAction(null); }}
-      >
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 20 }}>
-          <Card>
-            <T weight="bold" size={20}>How did this activity go?</T>
-            <T size={14} color={c.secondary}>{feedbackAction?.title} · for {childName}</T>
-            {DAILY_FEEDBACK.map(([value, label]) => (
-              <Pressable
-                key={value}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: feedbackChoice === value }}
-                onPress={() => setFeedbackChoice(value)}
-                style={{ borderWidth: 1.5, borderColor: feedbackChoice === value ? c.primary : c.border, backgroundColor: feedbackChoice === value ? c.muted : c.card, borderRadius: 12, padding: 12 }}
-              >
-                <T weight={feedbackChoice === value ? "bold" : "regular"}>{label}</T>
-              </Pressable>
-            ))}
-            <TextInput
-              value={feedbackNote}
-              onChangeText={setFeedbackNote}
-              placeholder="Optional note for the clinician"
-              placeholderTextColor={c.mutedForeground}
-              multiline
-              maxLength={2000}
-              accessibilityLabel="Optional note for the clinician"
-              style={{ color: c.text, borderColor: c.border, borderWidth: 1, borderRadius: 12, minHeight: 84, padding: 12, textAlignVertical: "top" }}
-            />
-            {feedbackError ? <T size={13} color={c.destructive}>{feedbackError}</T> : null}
-            <Row wrap>
-              <Btn label={logAction.isPending ? "Saving..." : "Save feedback"} disabled={!feedbackChoice || logAction.isPending} onPress={saveFeedback} />
-              <Btn kind="ghost" label="Cancel" disabled={logAction.isPending} onPress={() => setFeedbackAction(null)} />
-            </Row>
-            <T size={12} color={c.secondary}>Feedback is saved with this activity and shared with the care team.</T>
-          </Card>
-        </View>
-      </Modal>
     </Screen>
   );
 }

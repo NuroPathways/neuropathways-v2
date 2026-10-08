@@ -166,6 +166,7 @@ function planActivityDraft(
   card: SupportCard,
   activity: ParentPlanActivity,
   date: string,
+  childName: string,
 ): DailyActionDraft {
   const activityKey = crypto.createHash("sha256")
     .update([
@@ -198,8 +199,8 @@ function planActivityDraft(
     title: activity.title,
     description: `Try this only in the routine described and when it fits ${card.behaviorName}'s written support plan. Do not create a difficult situation to practice it.`,
     whyItMayHelp: card.planGoal
-      ? `This gives ${card.behaviorName} a chance to practice the plan goal: ${card.planGoal}`
-      : `This gives ${card.behaviorName} a chance to practice a skill described in the linked plan.`,
+      ? `This gives ${childName} a chance to practice ${activity.skill} during ${activity.routineContext}, supporting the plan goal: ${card.planGoal}`
+      : `This gives ${childName} a chance to practice ${activity.skill} during ${activity.routineContext}, as described in the linked plan.`,
     steps,
     estimatedMinutes: 5,
     status: "not_started",
@@ -382,6 +383,7 @@ function recentHelpfulPattern(
 
 export function buildParentDailyActionDrafts(input: {
   date: string;
+  childName?: string;
   selectedBehaviors: ParentBehavior[];
   supportCards: SupportCard[];
   logs: ParentLogInput[];
@@ -398,7 +400,7 @@ export function buildParentDailyActionDrafts(input: {
       return [cardTask(card, input.date, `plan-review-${index}`)];
     }
     return (card.dailyActivities || []).map((activity) =>
-      planActivityDraft(card, activity, input.date),
+      planActivityDraft(card, activity, input.date, input.childName?.trim() || "your child"),
     );
   });
 
@@ -462,6 +464,7 @@ export async function getOrCreateParentDailyActions(input: {
   parentId: string;
   parentUserId: string;
   childId: string;
+  childName?: string;
   workspaceId: string;
   date: string;
   selectedBehaviors: ParentBehavior[];

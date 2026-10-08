@@ -2,6 +2,7 @@ import { Brain, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import LegalLinks from "./LegalLinks";
 import useLegalMetadata from "./useLegalMetadata";
+import BackButton from "@/components/navigation/BackButton";
 
 export default function LegalDocument({ document: content }) {
   useLegalMetadata(content.title, content.description);
@@ -16,6 +17,7 @@ export default function LegalDocument({ document: content }) {
         </div>
       </header>
       <main className="max-w-3xl mx-auto px-5 py-8">
+        {content.title === "Data Requests and Deletion" && <BackButton />}
         <div className="flex items-start gap-4 mb-6">
           <FileText className="w-8 h-8 text-primary flex-shrink-0" aria-hidden="true" />
           <div>

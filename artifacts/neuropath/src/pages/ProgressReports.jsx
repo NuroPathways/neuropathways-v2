@@ -39,8 +39,8 @@ function normaliseOutcome(feedback) {
     if (rating <= 2) return "escalated";
     return "other";
   }
-  if (["worked_well", "yes", "resolved", "better", "improved", "helpful", "helped", "used_skill"].includes(f)) return "worked_well";
-  if (["helped_somewhat", "somewhat_helped", "partially"].includes(f)) return "helped_somewhat";
+  if (["worked_well", "yes", "resolved", "better", "improved", "helpful", "helped"].includes(f)) return "worked_well";
+  if (["helped_somewhat", "somewhat_helped"].includes(f)) return "helped_somewhat";
   if (["didnt_work", "not_helped", "no"].includes(f)) return "didnt_work";
   if (["behavior_escalated", "escalated", "worse", "escalation"].includes(f)) return "behavior_escalated";
   return "other";
@@ -48,6 +48,14 @@ function normaliseOutcome(feedback) {
 
 function isSupportPracticeLog(log) {
   return (log.event_category || log.eventCategory) === "support_practice";
+}
+
+function supportPracticeOutcome(feedback) {
+  const value = String(feedback || "").toLowerCase().trim();
+  if (value === "used_skill") return "done";
+  if (value === "not_yet") return "not_yet";
+  if (value === "partially") return "struggled";
+  return null;
 }
 
 function within30Days(dateStr) {
@@ -111,8 +119,23 @@ function StrategyEffectivenessTable({ logs }) {
   const relevant = logs.filter(l => (l.strategy_used || l.strategyUsed) && (l.parent_feedback ?? l.parentFeedback));
   if (relevant.length === 0) return <EmptyState message="No parent support feedback yet — it will appear here when caregivers rate a daily activity or log an outcome." />;
 
-  const table = {};
+  const activityTable = {};
+  const ratingLogs = [];
   relevant.forEach(l => {
+    const rawFeedback = l.parent_feedback ?? l.parentFeedback;
+    const practiceOutcome = isSupportPracticeLog(l) ? supportPracticeOutcome(rawFeedback) : null;
+    if (practiceOutcome) {
+      const strategy = l.strategy_used || l.strategyUsed;
+      if (!activityTable[strategy]) activityTable[strategy] = { done: 0, not_yet: 0, struggled: 0, total: 0 };
+      activityTable[strategy][practiceOutcome]++;
+      activityTable[strategy].total++;
+      return;
+    }
+    ratingLogs.push(l);
+  });
+
+  const table = {};
+  ratingLogs.forEach(l => {
     const s = l.strategy_used || l.strategyUsed;
     if (!table[s]) table[s] = { worked_well: 0, helped_somewhat: 0, didnt_work: 0, behavior_escalated: 0, other: 0, total: 0 };
     table[s][normaliseOutcome(l.parent_feedback ?? l.parentFeedback)]++;
@@ -120,35 +143,68 @@ function StrategyEffectivenessTable({ logs }) {
   });
 
   const rows = Object.entries(table).sort((a, b) => b[1].total - a[1].total).slice(0, 8);
+  const activityRows = Object.entries(activityTable).sort((a, b) => b[1].total - a[1].total).slice(0, 8);
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left">
-            <th className="pb-2 text-xs font-semibold text-muted-foreground">Strategy</th>
-            <th className="pb-2 text-xs font-semibold text-green-600 text-center">Worked well</th>
-            <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Helped somewhat</th>
-            <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Didn't work</th>
-            <th className="pb-2 text-xs font-semibold text-red-500 text-center">Escalated</th>
-            <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Other / unsure</th>
-            <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Total</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {rows.map(([strategy, counts]) => (
-            <tr key={strategy}>
-              <td className="py-2 pr-3 text-foreground text-xs max-w-[180px] truncate">{strategy}</td>
-              <td className="py-2 text-center font-medium text-green-600">{counts.worked_well || 0}</td>
-              <td className="py-2 text-center text-muted-foreground">{counts.helped_somewhat || 0}</td>
-              <td className="py-2 text-center text-muted-foreground">{counts.didnt_work || 0}</td>
-              <td className="py-2 text-center font-medium text-red-500">{counts.behavior_escalated || 0}</td>
-              <td className="py-2 text-center text-muted-foreground">{counts.other || 0}</td>
-              <td className="py-2 text-center text-muted-foreground">{counts.total}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-6">
+      {activityRows.length > 0 && (
+        <div className="overflow-x-auto">
+          <h4 className="text-xs font-semibold text-muted-foreground mb-2">Daily activity outcomes · caregiver reported</h4>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="pb-2 text-xs font-semibold text-muted-foreground">Activity</th>
+                <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Done</th>
+                <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Didn't get a chance</th>
+                <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">We struggled with this</th>
+                <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {activityRows.map(([activity, counts]) => (
+                <tr key={`activity-${activity}`}>
+                  <td className="py-2 pr-3 text-foreground text-xs max-w-[180px] truncate">{activity}</td>
+                  <td className="py-2 text-center text-muted-foreground">{counts.done}</td>
+                  <td className="py-2 text-center text-muted-foreground">{counts.not_yet}</td>
+                  <td className="py-2 text-center text-muted-foreground">{counts.struggled}</td>
+                  <td className="py-2 text-center text-muted-foreground">{counts.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {rows.length > 0 && (
+        <div className="overflow-x-auto">
+          <h4 className="text-xs font-semibold text-muted-foreground mb-2">Caregiver ratings</h4>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="pb-2 text-xs font-semibold text-muted-foreground">Strategy</th>
+                <th className="pb-2 text-xs font-semibold text-green-600 text-center">Worked well</th>
+                <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Helped somewhat</th>
+                <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Didn't work</th>
+                <th className="pb-2 text-xs font-semibold text-red-500 text-center">Escalated</th>
+                <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Other / unsure</th>
+                <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {rows.map(([strategy, counts]) => (
+                <tr key={`rating-${strategy}`}>
+                  <td className="py-2 pr-3 text-foreground text-xs max-w-[180px] truncate">{strategy}</td>
+                  <td className="py-2 text-center font-medium text-green-600">{counts.worked_well || 0}</td>
+                  <td className="py-2 text-center text-muted-foreground">{counts.helped_somewhat || 0}</td>
+                  <td className="py-2 text-center text-muted-foreground">{counts.didnt_work || 0}</td>
+                  <td className="py-2 text-center font-medium text-red-500">{counts.behavior_escalated || 0}</td>
+                  <td className="py-2 text-center text-muted-foreground">{counts.other || 0}</td>
+                  <td className="py-2 text-center text-muted-foreground">{counts.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

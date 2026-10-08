@@ -1209,6 +1209,7 @@ Write all parent- and client-facing guidance in plain language that a sixth-grad
 - Give specific examples instead of repeating an abstract treatment phrase.
 - Break a multi-stage skill into ordered steps when the document supports that approach.
 - Preserve the document's frequency, duration, percentage, and completion criteria.
+- For each goal, return explicit document-defined objectives or practice checkpoints as milestones. Do not invent intermediate targets; return an empty milestone list when none are stated.
 - Do not invent a new treatment or requirement. You may provide ordinary examples that clarify a treatment already prescribed.
 - Keep formal clinical labels only in diagnoses and clinical_interventions; explain their practical meaning in the other fields.
 
@@ -1257,6 +1258,12 @@ Example: do not write only "${childName} will complete a graduated exposure hier
               properties: {
                 title: { type: "string", description: "A short, action-focused title without unexplained clinical jargon." },
                 description: { type: "string", description: "Specific actions the client will practice, including an ordered example when the source describes a gradual or multi-stage skill." },
+                milestones: {
+                  type: "array",
+                  maxItems: 8,
+                  items: { type: "string", maxLength: 400 },
+                  description: "Explicit objectives, steps, or checkpoints stated for this goal in the source documents. Do not create new thresholds or progression steps.",
+                },
               },
               required: ["title"],
             },
@@ -1341,24 +1348,32 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     // goals whose title still appears (preserving any progress), add newly found
     // ones, and remove document-sourced goals no longer present in the documents.
     try {
-      const extractedGoals: { title: string; description: string }[] = (Array.isArray(extracted.goals) ? extracted.goals : [])
+      const extractedGoals: { title: string; description: string; milestones: string[] }[] = (Array.isArray(extracted.goals) ? extracted.goals : [])
         .filter((g: any) => g && typeof g.title === "string" && g.title.trim())
-        .map((g: any) => ({ title: g.title.trim(), description: typeof g.description === "string" ? g.description.trim() : "" }));
+        .map((g: any) => ({
+          title: g.title.trim(),
+          description: typeof g.description === "string" ? g.description.trim() : "",
+          milestones: Array.isArray(g.milestones)
+            ? g.milestones.filter((item: unknown): item is string => typeof item === "string")
+              .map((item: string) => item.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 400))
+              .filter(Boolean).slice(0, 8)
+            : [],
+        }));
 
       const existingDocGoals = await db.select().from(rewardTokensTable)
         .where(and(eq(rewardTokensTable.childId, child_id), eq(rewardTokensTable.source, "document")));
 
-      const extractedTitles = new Set(extractedGoals.map(g => g.title));
-      const existingTitles = new Set(existingDocGoals.map(g => (g.goalTitle || "").trim()).filter(Boolean));
+      const goalKey = (title: string) => title.normalize("NFKC").toLowerCase().trim().replace(/\s+/g, " ");
+      const extractedTitles = new Set(extractedGoals.map(g => goalKey(g.title)));
 
       for (const g of existingDocGoals) {
-        if (!extractedTitles.has((g.goalTitle || "").trim())) {
+        if (!extractedTitles.has(goalKey(g.goalTitle || ""))) {
           await db.delete(rewardTokensTable).where(eq(rewardTokensTable.id, g.id)).catch(() => {});
         }
       }
 
       const toInsert = extractedGoals
-        .filter(g => !existingTitles.has(g.title))
+        .filter(g => !existingDocGoals.some(existing => goalKey(existing.goalTitle || "") === goalKey(g.title)))
         .map(g => ({
           childId: child_id,
           parentId: (child as any).parentId ?? null,
@@ -1367,12 +1382,26 @@ Example: do not write only "${childName} will complete a graduated exposure hier
           goalTitle: g.title,
           goalDescription: g.description,
           progress: 0,
-          target: 10,
+          target: Math.max(1, g.milestones.length),
           source: "document",
+          milestoneNotes: g.milestones.length
+            ? `Plan milestones:\n${g.milestones.map((milestone) => `• ${milestone}`).join("\n")}`
+            : "No explicit milestones were listed in the scanned documents.",
           createdByClinician: true,
         }));
       if (toInsert.length > 0) {
         await db.insert(rewardTokensTable).values(toInsert);
+      }
+      for (const g of extractedGoals) {
+        const existing = existingDocGoals.find((row) => goalKey(row.goalTitle || "") === goalKey(g.title));
+        if (!existing) continue;
+        await db.update(rewardTokensTable).set({
+          goalDescription: g.description,
+          target: Math.max(1, g.milestones.length),
+          milestoneNotes: g.milestones.length
+            ? `Plan milestones:\n${g.milestones.map((milestone) => `• ${milestone}`).join("\n")}`
+            : "No explicit milestones were listed in the scanned documents.",
+        }).where(eq(rewardTokensTable.id, existing.id));
       }
     } catch (syncErr: any) {
       console.error(`[NeuroPath] buildClientProfile: goal sync failed child=${child_id}:`, syncErr?.message);

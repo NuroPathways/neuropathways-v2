@@ -331,9 +331,9 @@ export default function ClientDetail() {
                   not_sure: "Not sure",
                 }[feedback];
                 const outcomeLabel = {
-                  used_skill: "Yes, the skill was used",
-                  partially: "Partly",
-                  not_yet: "Not yet",
+                  used_skill: "Done",
+                  partially: "We struggled with this",
+                  not_yet: "Didn't get a chance",
                   not_sure: "Not sure",
                 }[feedback];
                 const rating = ratingLabel ? `Parent rating: ${ratingLabel}` : "";

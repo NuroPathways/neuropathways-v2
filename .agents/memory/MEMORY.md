@@ -10,3 +10,4 @@
 - [Replit production database pause](replit-production-db-pause.md) — a disabled production endpoint can break auth and document flows; unpause it in the Database pane before changing app code.
 - [Support availability](support-availability.md) — optional tracking failures must never interrupt guidance; verify selection of an actual behavior, not just the choice screen.
 - [Legal-notice provenance](legal-notice-provenance.md) — keep accepted policy text distinct from supplemental explanations; never silently change what a recorded consent means.
+- [Document reading optimization](document-reading-optimization.md) — reuse unchanged complete readings; preserve PDF visuals and keep raw-text caches temporary.

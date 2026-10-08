@@ -424,6 +424,7 @@ export async function getParentDashboardData(parentId: string, childId: string, 
     parentId,
     parentUserId: parentId,
     childId,
+    childName: owned.childName || owned.firstName || "your child",
     workspaceId: owned.settings.workspaceId,
     date: actionDate,
     selectedBehaviors,
@@ -1135,7 +1136,8 @@ router.post("/parent/children/:childId/daily-actions/:actionId/logs", requirePar
     const logId = crypto.randomUUID();
     const taskId = action.kind === "task" ? action.id : null;
     const activityId = action.kind === "task" ? null : action.id;
-    const nextStatus = body.eventType === "completion" ? "done" : "logged";
+    const markedDone = body.eventType === "completion" || body.outcome === "used_skill";
+    const nextStatus = markedDone ? "done" : "logged";
     const [updatedAction, savedLog] = await db.transaction(async (tx) => {
       const [log] = await tx.insert(parentDailyActionLogsTable).values({
         id: logId,
@@ -1155,8 +1157,8 @@ router.post("/parent/children/:childId/daily-actions/:actionId/logs", requirePar
       const [updated] = await tx.update(parentDailyActionsTable)
         .set({
           status: nextStatus,
-          completedAt: body.eventType === "completion" ? createdAt : null,
-          loggedAt: body.eventType === "outcome" ? createdAt : null,
+          completedAt: markedDone ? createdAt : null,
+          loggedAt: body.eventType === "outcome" && !markedDone ? createdAt : null,
           updatedAt: createdAt,
         })
         .where(and(

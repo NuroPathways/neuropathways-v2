@@ -3,6 +3,7 @@ import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import LegalLinks from "@/components/legal/LegalLinks";
+import BackButton from "@/components/navigation/BackButton";
 
 const options = [
   ["data_export", "Request a copy/export of my data"],
@@ -81,6 +82,7 @@ export default function DataRequests() {
     <main className="min-h-screen bg-background px-5 py-8">
       <div className="mx-auto max-w-2xl space-y-6">
         <header>
+          <BackButton fallback={isClinician ? "/ClinicianDashboard" : isParent ? "/ParentHome" : "/ClientHome"} />
           <p className="text-sm text-muted-foreground">NeuroPathways · Account privacy</p>
           <h1 className="mt-2 text-2xl font-bold text-foreground">Data requests</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">

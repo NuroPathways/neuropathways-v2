@@ -97,10 +97,11 @@ export function deriveSupportProvenance(
   return { sourceDocumentIds, source };
 }
 
-export type ParentDocumentGenerationPart =
+export type ParentDocumentGenerationPart = (
   | { type: "text"; text: string }
   | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png"; data: string } }
-  | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } };
+  | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } }
+) & { cache_control?: { type: "ephemeral" } };
 
 export type ParentDocumentContent = ParentDocumentGenerationPart | ParentDocumentGenerationPart[];
 
@@ -116,6 +117,11 @@ export function buildParentDocumentGenerationContent(
       { type: "text", text: `[Document: ${document.title}; id=${document.id}]` },
       ...(Array.isArray(document.content) ? document.content : [document.content]),
     );
+  }
+  // The source prefix is identical for every target. Keep the changing behavior
+  // instruction outside the cache breakpoint, without dropping original pages.
+  if (content.length) {
+    content[content.length - 1] = { ...content[content.length - 1], cache_control: { type: "ephemeral" } };
   }
   content.push({
     type: "text",
