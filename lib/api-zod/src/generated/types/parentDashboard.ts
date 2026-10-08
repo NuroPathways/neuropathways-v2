@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ParentChild } from './parentChild';
+import type { ParentDailyAction } from './parentDailyAction';
 import type { ParentDocument } from './parentDocument';
 import type { ParentLog } from './parentLog';
 import type { SupportCard } from './supportCard';
@@ -15,4 +16,5 @@ export interface ParentDashboard {
   supportCards: SupportCard[];
   documents: ParentDocument[];
   logs: ParentLog[];
+  dailyActions: ParentDailyAction[];
 }

@@ -314,11 +314,182 @@ export interface ParentLog {
   createdAt: string;
 }
 
+export type ParentDailyActionKind = typeof ParentDailyActionKind[keyof typeof ParentDailyActionKind];
+
+
+export const ParentDailyActionKind = {
+  task: 'task',
+  activity: 'activity',
+  practice: 'practice',
+} as const;
+
+export type ParentDailyActionSourceType = typeof ParentDailyActionSourceType[keyof typeof ParentDailyActionSourceType];
+
+
+export const ParentDailyActionSourceType = {
+  clinician_reviewed: 'clinician_reviewed',
+  clinician_uploaded_plan: 'clinician_uploaded_plan',
+  parent_uploaded_plan: 'parent_uploaded_plan',
+  starter_template: 'starter_template',
+  recent_log_pattern: 'recent_log_pattern',
+  selected_behavior: 'selected_behavior',
+} as const;
+
+export type ParentDailyActionStatus = typeof ParentDailyActionStatus[keyof typeof ParentDailyActionStatus];
+
+
+export const ParentDailyActionStatus = {
+  not_started: 'not_started',
+  done: 'done',
+  logged: 'logged',
+  skipped: 'skipped',
+  saved_for_later: 'saved_for_later',
+  needs_review: 'needs_review',
+} as const;
+
+export type ParentDailyActionLogEventType = typeof ParentDailyActionLogEventType[keyof typeof ParentDailyActionLogEventType];
+
+
+export const ParentDailyActionLogEventType = {
+  completion: 'completion',
+  outcome: 'outcome',
+} as const;
+
+/**
+ * @nullable
+ */
+export type ParentDailyActionLogRating = typeof ParentDailyActionLogRating[keyof typeof ParentDailyActionLogRating] | null;
+
+
+export const ParentDailyActionLogRating = {
+  helped: 'helped',
+  somewhat_helped: 'somewhat_helped',
+  not_helped: 'not_helped',
+  not_sure: 'not_sure',
+} as const;
+
+/**
+ * @nullable
+ */
+export type ParentDailyActionLogOutcome = typeof ParentDailyActionLogOutcome[keyof typeof ParentDailyActionLogOutcome] | null;
+
+
+export const ParentDailyActionLogOutcome = {
+  used_skill: 'used_skill',
+  partially: 'partially',
+  not_yet: 'not_yet',
+  not_sure: 'not_sure',
+} as const;
+
+export interface ParentDailyActionLog {
+  id: string;
+  actionId: string;
+  /** @nullable */
+  taskId: string | null;
+  /** @nullable */
+  activityId: string | null;
+  childId: string;
+  eventType: ParentDailyActionLogEventType;
+  /** @nullable */
+  rating: ParentDailyActionLogRating;
+  /** @nullable */
+  outcome: ParentDailyActionLogOutcome;
+  /** @nullable */
+  note: string | null;
+  createdAt: string;
+}
+
+export interface ParentDailyAction {
+  id: string;
+  childId: string;
+  actionDate: string;
+  actionKey: string;
+  kind: ParentDailyActionKind;
+  /** @nullable */
+  behaviorKey: string | null;
+  behaviorName: string;
+  /** @nullable */
+  supportCardId: string | null;
+  sourceType: ParentDailyActionSourceType;
+  /** @nullable */
+  sourceDocumentId: string | null;
+  title: string;
+  description: string;
+  whyItMayHelp: string;
+  steps: string[];
+  /**
+     * @minimum 1
+     * @maximum 60
+     */
+  estimatedMinutes: number;
+  status: ParentDailyActionStatus;
+  /** @nullable */
+  completedAt: string | null;
+  /** @nullable */
+  loggedAt: string | null;
+  createdAt: string;
+  logs: ParentDailyActionLog[];
+}
+
 export interface ParentDashboard {
   child: ParentChild;
   supportCards: SupportCard[];
   documents: ParentDocument[];
   logs: ParentLog[];
+  dailyActions: ParentDailyAction[];
+}
+
+export interface ParentDailyActionLogResponse {
+  action: ParentDailyAction;
+  log: ParentDailyActionLog;
+}
+
+export type ParentDailyActionStatusInputStatus = typeof ParentDailyActionStatusInputStatus[keyof typeof ParentDailyActionStatusInputStatus];
+
+
+export const ParentDailyActionStatusInputStatus = {
+  skipped: 'skipped',
+  saved_for_later: 'saved_for_later',
+} as const;
+
+export interface ParentDailyActionStatusInput {
+  status: ParentDailyActionStatusInputStatus;
+}
+
+export type ParentDailyActionLogInputEventType = typeof ParentDailyActionLogInputEventType[keyof typeof ParentDailyActionLogInputEventType];
+
+
+export const ParentDailyActionLogInputEventType = {
+  completion: 'completion',
+  outcome: 'outcome',
+} as const;
+
+export type ParentDailyActionLogInputRating = typeof ParentDailyActionLogInputRating[keyof typeof ParentDailyActionLogInputRating];
+
+
+export const ParentDailyActionLogInputRating = {
+  helped: 'helped',
+  somewhat_helped: 'somewhat_helped',
+  not_helped: 'not_helped',
+  not_sure: 'not_sure',
+} as const;
+
+export type ParentDailyActionLogInputOutcome = typeof ParentDailyActionLogInputOutcome[keyof typeof ParentDailyActionLogInputOutcome];
+
+
+export const ParentDailyActionLogInputOutcome = {
+  used_skill: 'used_skill',
+  partially: 'partially',
+  not_yet: 'not_yet',
+  not_sure: 'not_sure',
+} as const;
+
+export interface ParentDailyActionLogInput {
+  eventType: ParentDailyActionLogInputEventType;
+  rating?: ParentDailyActionLogInputRating;
+  outcome?: ParentDailyActionLogInputOutcome;
+  /** @maxLength 2000 */
+  note?: string;
 }
 
 export interface ParentSharedSupport {

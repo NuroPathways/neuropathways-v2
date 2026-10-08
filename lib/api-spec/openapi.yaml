@@ -224,6 +224,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ParentDashboard"
+  /parent/children/{childId}/daily-actions/{actionId}:
+    patch:
+      operationId: updateParentDailyAction
+      tags: [parent]
+      summary: Update a daily support action's status
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: actionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentDailyActionStatusInput"
+      responses:
+        "200":
+          description: Updated daily support action
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentDailyAction"
+  /parent/children/{childId}/daily-actions/{actionId}/logs:
+    post:
+      operationId: logParentDailyAction
+      tags: [parent]
+      summary: Record how a daily support action went
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: actionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentDailyActionLogInput"
+      responses:
+        "201":
+          description: Saved action feedback and updated action
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentDailyActionLogResponse"
   /parent/children/{childId}/logs:
     post:
       operationId: addParentLog
@@ -1069,7 +1135,127 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ParentLog"
-      required: [child, supportCards, documents, logs]
+        dailyActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDailyAction"
+      required: [child, supportCards, documents, logs, dailyActions]
+    ParentDailyAction:
+      type: object
+      properties:
+        id:
+          type: string
+        childId:
+          type: string
+        actionDate:
+          type: string
+          format: date
+        actionKey:
+          type: string
+        kind:
+          type: string
+          enum: [task, activity, practice]
+        behaviorKey:
+          type: [string, "null"]
+        behaviorName:
+          type: string
+        supportCardId:
+          type: [string, "null"]
+        sourceType:
+          type: string
+          enum: [clinician_reviewed, clinician_uploaded_plan, parent_uploaded_plan, starter_template, recent_log_pattern, selected_behavior]
+        sourceDocumentId:
+          type: [string, "null"]
+        title:
+          type: string
+        description:
+          type: string
+        whyItMayHelp:
+          type: string
+        steps:
+          type: array
+          items:
+            type: string
+        estimatedMinutes:
+          type: integer
+          minimum: 1
+          maximum: 60
+        status:
+          type: string
+          enum: [not_started, done, logged, skipped, saved_for_later, needs_review]
+        completedAt:
+          type: [string, "null"]
+          format: date-time
+        loggedAt:
+          type: [string, "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDailyActionLog"
+      required: [id, childId, actionDate, actionKey, kind, behaviorKey, behaviorName, supportCardId, sourceType, sourceDocumentId, title, description, whyItMayHelp, steps, estimatedMinutes, status, completedAt, loggedAt, createdAt, logs]
+    ParentDailyActionLog:
+      type: object
+      properties:
+        id:
+          type: string
+        actionId:
+          type: string
+        taskId:
+          type: [string, "null"]
+        activityId:
+          type: [string, "null"]
+        childId:
+          type: string
+        eventType:
+          type: string
+          enum: [completion, outcome]
+        rating:
+          type: [string, "null"]
+          enum: [helped, somewhat_helped, not_helped, not_sure, null]
+        outcome:
+          type: [string, "null"]
+          enum: [used_skill, partially, not_yet, not_sure, null]
+        note:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, actionId, taskId, activityId, childId, eventType, rating, outcome, note, createdAt]
+    ParentDailyActionLogResponse:
+      type: object
+      properties:
+        action:
+          $ref: "#/components/schemas/ParentDailyAction"
+        log:
+          $ref: "#/components/schemas/ParentDailyActionLog"
+      required: [action, log]
+    ParentDailyActionStatusInput:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [skipped, saved_for_later]
+      required: [status]
+    ParentDailyActionLogInput:
+      type: object
+      properties:
+        eventType:
+          type: string
+          enum: [completion, outcome]
+        rating:
+          type: string
+          enum: [helped, somewhat_helped, not_helped, not_sure]
+        outcome:
+          type: string
+          enum: [used_skill, partially, not_yet, not_sure]
+        note:
+          type: string
+          maxLength: 2000
+      required: [eventType]
     ParentSharedSupport:
       type: object
       properties:

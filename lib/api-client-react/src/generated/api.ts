@@ -41,6 +41,10 @@ import type {
   ParentClinicInviteInput,
   ParentClinicInvitePreview,
   ParentClinicInviteTokenInput,
+  ParentDailyAction,
+  ParentDailyActionLogInput,
+  ParentDailyActionLogResponse,
+  ParentDailyActionStatusInput,
   ParentDashboard,
   ParentDocument,
   ParentDocumentScanResult,
@@ -1106,6 +1110,188 @@ export function useGetParentDashboard<TData = Awaited<ReturnType<typeof getParen
 
 
 
+
+export const getUpdateParentDailyActionUrl = (childId: string,
+    actionId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/daily-actions/${actionId}`
+}
+
+/**
+ * @summary Update a daily support action's status
+ */
+export const updateParentDailyAction = async (childId: string,
+    actionId: string,
+    parentDailyActionStatusInput: ParentDailyActionStatusInput, options?: Parameters<typeof customFetch>[1]): Promise<ParentDailyAction> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ParentDailyAction>(getUpdateParentDailyActionUrl(childId,actionId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(parentDailyActionStatusInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateParentDailyActionMutationKey = () => ['updateParentDailyAction'] as const;
+
+export const getUpdateParentDailyActionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateParentDailyAction>>, TError,UpdateParentDailyActionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateParentDailyAction>>, TError,UpdateParentDailyActionMutationVariables, TContext> => {
+
+const mutationKey = getUpdateParentDailyActionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateParentDailyAction>>, UpdateParentDailyActionMutationVariables> = (props) => {
+          const {childId,actionId,data} = props ?? {};
+
+          return  updateParentDailyAction(childId,actionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateParentDailyActionMutationResult = NonNullable<Awaited<ReturnType<typeof updateParentDailyAction>>>
+    export type UpdateParentDailyActionMutationBody = BodyType<ParentDailyActionStatusInput>
+    export type UpdateParentDailyActionMutationError = ErrorType<unknown>
+    export type UpdateParentDailyActionMutationVariables = {childId: string;actionId: string;data: BodyType<ParentDailyActionStatusInput>}
+
+    /**
+ * @summary Update a daily support action's status
+ */
+export const useUpdateParentDailyAction = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateParentDailyAction>>, TError,UpdateParentDailyActionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateParentDailyAction>>,
+        TError,
+        UpdateParentDailyActionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateParentDailyActionMutationOptions(options), queryClient);
+    }
+
+export const getLogParentDailyActionUrl = (childId: string,
+    actionId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/daily-actions/${actionId}/logs`
+}
+
+/**
+ * @summary Record how a daily support action went
+ */
+export const logParentDailyAction = async (childId: string,
+    actionId: string,
+    parentDailyActionLogInput: ParentDailyActionLogInput, options?: Parameters<typeof customFetch>[1]): Promise<ParentDailyActionLogResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ParentDailyActionLogResponse>(getLogParentDailyActionUrl(childId,actionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(parentDailyActionLogInput)
+  }
+);}
+
+
+
+
+
+export const getLogParentDailyActionMutationKey = () => ['logParentDailyAction'] as const;
+
+export const getLogParentDailyActionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logParentDailyAction>>, TError,LogParentDailyActionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logParentDailyAction>>, TError,LogParentDailyActionMutationVariables, TContext> => {
+
+const mutationKey = getLogParentDailyActionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logParentDailyAction>>, LogParentDailyActionMutationVariables> = (props) => {
+          const {childId,actionId,data} = props ?? {};
+
+          return  logParentDailyAction(childId,actionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogParentDailyActionMutationResult = NonNullable<Awaited<ReturnType<typeof logParentDailyAction>>>
+    export type LogParentDailyActionMutationBody = BodyType<ParentDailyActionLogInput>
+    export type LogParentDailyActionMutationError = ErrorType<unknown>
+    export type LogParentDailyActionMutationVariables = {childId: string;actionId: string;data: BodyType<ParentDailyActionLogInput>}
+
+    /**
+ * @summary Record how a daily support action went
+ */
+export const useLogParentDailyAction = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logParentDailyAction>>, TError,LogParentDailyActionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof logParentDailyAction>>,
+        TError,
+        LogParentDailyActionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLogParentDailyActionMutationOptions(options), queryClient);
+    }
 
 export const getAddParentLogUrl = (childId: string,) => {
 

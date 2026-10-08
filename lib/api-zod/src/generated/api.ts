@@ -358,6 +358,8 @@ export const getParentDashboardResponseChildBehaviorsItemBehaviorKeyMax = 100;
 
 export const getParentDashboardResponseSupportCardsItemPlanGoalMax = 500;
 
+export const getParentDashboardResponseDailyActionsItemEstimatedMinutesMax = 60;
+
 
 
 export const GetParentDashboardResponse = zod.object({
@@ -441,7 +443,163 @@ export const GetParentDashboardResponse = zod.object({
   "whatHelped": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "createdAt": zod.coerce.date()
+})),
+  "dailyActions": zod.array(zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "actionDate": zod.coerce.date(),
+  "actionKey": zod.string(),
+  "kind": zod.enum(['task', 'activity', 'practice']),
+  "behaviorKey": zod.string().nullable(),
+  "behaviorName": zod.string(),
+  "supportCardId": zod.string().nullable(),
+  "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan', 'starter_template', 'recent_log_pattern', 'selected_behavior']),
+  "sourceDocumentId": zod.string().nullable(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "whyItMayHelp": zod.string(),
+  "steps": zod.array(zod.string()),
+  "estimatedMinutes": zod.number().int().min(1).max(getParentDashboardResponseDailyActionsItemEstimatedMinutesMax),
+  "status": zod.enum(['not_started', 'done', 'logged', 'skipped', 'saved_for_later', 'needs_review']),
+  "completedAt": zod.coerce.date().nullable(),
+  "loggedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "logs": zod.array(zod.object({
+  "id": zod.string(),
+  "actionId": zod.string(),
+  "taskId": zod.string().nullable(),
+  "activityId": zod.string().nullable(),
+  "childId": zod.string(),
+  "eventType": zod.enum(['completion', 'outcome']),
+  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "outcome": zod.union([zod.literal('used_skill'),zod.literal('partially'),zod.literal('not_yet'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
 }))
+}))
+})
+
+
+/**
+ * @summary Update a daily support action's status
+ */
+export const UpdateParentDailyActionParams = zod.object({
+  "childId": zod.coerce.string(),
+  "actionId": zod.coerce.string()
+})
+
+export const UpdateParentDailyActionBody = zod.object({
+  "status": zod.enum(['skipped', 'saved_for_later'])
+})
+
+export const updateParentDailyActionResponseEstimatedMinutesMax = 60;
+
+
+
+export const UpdateParentDailyActionResponse = zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "actionDate": zod.coerce.date(),
+  "actionKey": zod.string(),
+  "kind": zod.enum(['task', 'activity', 'practice']),
+  "behaviorKey": zod.string().nullable(),
+  "behaviorName": zod.string(),
+  "supportCardId": zod.string().nullable(),
+  "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan', 'starter_template', 'recent_log_pattern', 'selected_behavior']),
+  "sourceDocumentId": zod.string().nullable(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "whyItMayHelp": zod.string(),
+  "steps": zod.array(zod.string()),
+  "estimatedMinutes": zod.number().int().min(1).max(updateParentDailyActionResponseEstimatedMinutesMax),
+  "status": zod.enum(['not_started', 'done', 'logged', 'skipped', 'saved_for_later', 'needs_review']),
+  "completedAt": zod.coerce.date().nullable(),
+  "loggedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "logs": zod.array(zod.object({
+  "id": zod.string(),
+  "actionId": zod.string(),
+  "taskId": zod.string().nullable(),
+  "activityId": zod.string().nullable(),
+  "childId": zod.string(),
+  "eventType": zod.enum(['completion', 'outcome']),
+  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "outcome": zod.union([zod.literal('used_skill'),zod.literal('partially'),zod.literal('not_yet'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Record how a daily support action went
+ */
+export const LogParentDailyActionParams = zod.object({
+  "childId": zod.coerce.string(),
+  "actionId": zod.coerce.string()
+})
+
+export const logParentDailyActionBodyNoteMax = 2000;
+
+
+
+export const LogParentDailyActionBody = zod.object({
+  "eventType": zod.enum(['completion', 'outcome']),
+  "rating": zod.enum(['helped', 'somewhat_helped', 'not_helped', 'not_sure']).optional(),
+  "outcome": zod.enum(['used_skill', 'partially', 'not_yet', 'not_sure']).optional(),
+  "note": zod.string().max(logParentDailyActionBodyNoteMax).optional()
+})
+
+export const logParentDailyActionResponseActionEstimatedMinutesMax = 60;
+
+
+
+export const LogParentDailyActionResponse = zod.object({
+  "action": zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "actionDate": zod.coerce.date(),
+  "actionKey": zod.string(),
+  "kind": zod.enum(['task', 'activity', 'practice']),
+  "behaviorKey": zod.string().nullable(),
+  "behaviorName": zod.string(),
+  "supportCardId": zod.string().nullable(),
+  "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan', 'starter_template', 'recent_log_pattern', 'selected_behavior']),
+  "sourceDocumentId": zod.string().nullable(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "whyItMayHelp": zod.string(),
+  "steps": zod.array(zod.string()),
+  "estimatedMinutes": zod.number().int().min(1).max(logParentDailyActionResponseActionEstimatedMinutesMax),
+  "status": zod.enum(['not_started', 'done', 'logged', 'skipped', 'saved_for_later', 'needs_review']),
+  "completedAt": zod.coerce.date().nullable(),
+  "loggedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "logs": zod.array(zod.object({
+  "id": zod.string(),
+  "actionId": zod.string(),
+  "taskId": zod.string().nullable(),
+  "activityId": zod.string().nullable(),
+  "childId": zod.string(),
+  "eventType": zod.enum(['completion', 'outcome']),
+  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "outcome": zod.union([zod.literal('used_skill'),zod.literal('partially'),zod.literal('not_yet'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}))
+}),
+  "log": zod.object({
+  "id": zod.string(),
+  "actionId": zod.string(),
+  "taskId": zod.string().nullable(),
+  "activityId": zod.string().nullable(),
+  "childId": zod.string(),
+  "eventType": zod.enum(['completion', 'outcome']),
+  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "outcome": zod.union([zod.literal('used_skill'),zod.literal('partially'),zod.literal('not_yet'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "note": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
 })
 
 
