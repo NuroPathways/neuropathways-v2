@@ -324,9 +324,10 @@ export default function ClientDetail() {
                 const supportPractice = (log.event_category || log.eventCategory) === "support_practice";
                 const feedback = String(log.parent_feedback ?? log.parentFeedback ?? "");
                 const ratingLabel = {
-                  helped: "It helped",
-                  somewhat_helped: "A little",
-                  not_helped: "It did not help",
+                  helped: "Worked well",
+                  somewhat_helped: "Helped somewhat",
+                  not_helped: "Didn't work",
+                  behavior_escalated: "Behavior escalated",
                   not_sure: "Not sure",
                 }[feedback];
                 const outcomeLabel = {

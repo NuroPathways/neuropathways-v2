@@ -79,8 +79,8 @@ Show parent behavior blocks only a concise origin label: "Source: Pre-programmed
 
 ## Daily-first parent home and practice feedback
 
-Make persistent daily tasks, activities, and one skill practice the main parent-home content, while keeping urgent help separate and preserving multi-behavior goals, progress, the support library, and other parent tools. Keep every source type explicit; never call an uploaded or starter suggestion clinician-reviewed without evidence. Completion ratings and activity outcomes are caregiver reports, not clinical findings.
+Make child-specific daily activities the main parent-home content while keeping urgent help separate and preserving multi-behavior goals, progress, the support library, and other parent tools. An activity must be supported by the plan’s routine, caregiver opportunity, and skill; include reinforcement only when the plan specifies it. Do not turn generic prevention advice, starter guidance, selected goals, or repeated parent notes into daily activities. If the source does not support a concrete activity, say so instead of filling the list. Keep source and review labels explicit. Completion ratings and activity outcomes are caregiver reports, not clinical findings.
 
-**Why:** The user requested a daily-first NeuroPathways home while retaining established family features and clear source provenance.
+**Why:** The user requested concrete child-specific practice from treatment plans and rejected generic prevention-plus-reinforcement guidance as a substitute. Families should not be shown invented routines, prompts, or reinforcement.
 
-**How to apply:** Scope daily actions to all of the parent's active behaviors, persist them by the parent's local day, and keep their original source references and review state. Show caregiver practice feedback in clinician views without counting it as a behavior occurrence or intensity measurement.
+**How to apply:** Scope daily actions to parent-selected support areas without adding plan discoveries on the parent's behalf. Preserve each activity's source and review state, keep immediate/crisis support in “I Need Help Now,” and show caregiver practice feedback in clinician views without counting it as a behavior occurrence or intensity measurement.

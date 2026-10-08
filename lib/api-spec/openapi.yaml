@@ -1010,6 +1010,30 @@ components:
           type: array
           items:
             type: string
+        dailyActivities:
+          type: array
+          description: Plan-grounded caregiver practice activities, with the source document and review status for each.
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              routineContext:
+                type: string
+              opportunity:
+                type: string
+              skill:
+                type: string
+              reinforcement:
+                type: [string, "null"]
+              sourceDocumentId:
+                type: string
+              sourceExcerpt:
+                type: string
+              sourceType:
+                type: string
+                enum: [clinician_reviewed, clinician_uploaded_plan, parent_uploaded_plan]
+            required: [title, routineContext, opportunity, skill, reinforcement, sourceDocumentId, sourceExcerpt, sourceType]
         reviewedBy:
           type: [string, "null"]
         reviewedAt:
@@ -1215,7 +1239,7 @@ components:
           enum: [completion, outcome]
         rating:
           type: [string, "null"]
-          enum: [helped, somewhat_helped, not_helped, not_sure, null]
+          enum: [helped, somewhat_helped, not_helped, not_sure, behavior_escalated, null]
         outcome:
           type: [string, "null"]
           enum: [used_skill, partially, not_yet, not_sure, null]
@@ -1248,7 +1272,7 @@ components:
           enum: [completion, outcome]
         rating:
           type: string
-          enum: [helped, somewhat_helped, not_helped, not_sure]
+          enum: [helped, somewhat_helped, not_helped, not_sure, behavior_escalated]
         outcome:
           type: string
           enum: [used_skill, partially, not_yet, not_sure]

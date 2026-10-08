@@ -29,10 +29,10 @@ const STATUS_LABELS = {
 };
 
 const RATINGS = [
-  ["helped", "It helped"],
-  ["somewhat_helped", "A little"],
-  ["not_helped", "It did not help"],
-  ["not_sure", "Not sure"],
+  ["helped", "Worked well"],
+  ["somewhat_helped", "Helped somewhat"],
+  ["not_helped", "Didn't work"],
+  ["behavior_escalated", "Behavior escalated"],
 ];
 
 const OUTCOMES = [
@@ -52,7 +52,7 @@ function statusTone(status) {
   return "";
 }
 
-function ActionCard({ action, documents, childName, onComplete, onOutcome, onStatus }) {
+function ActionCard({ action, documents, childName, onComplete, onStatus }) {
   const [error, setError] = useState("");
   const document = action.sourceDocumentId
     ? documents.find((item) => item.id === action.sourceDocumentId)
@@ -61,7 +61,6 @@ function ActionCard({ action, documents, childName, onComplete, onOutcome, onSta
   const feedback = action.logs?.[0];
   const busy = onStatus.isPending && onStatus.variables?.actionId === action.id;
   const saving = onComplete.isPending && onComplete.variables?.action.id === action.id;
-  const logging = onOutcome.isPending && onOutcome.variables?.action.id === action.id;
 
   const updateStatus = (status) => {
     setError("");
@@ -107,11 +106,8 @@ function ActionCard({ action, documents, childName, onComplete, onOutcome, onSta
       <ErrorBox error={error} />
       {hasActions && action.status !== "needs_review" && (
         <div className="pf-daily-action-buttons">
-          <button type="button" className="pf-btn primary" onClick={() => onComplete.open(action)} disabled={saving || logging || busy}>
-            {saving ? "Saving..." : "Mark Done"}
-          </button>
-          <button type="button" className="pf-btn" onClick={() => onOutcome.open(action)} disabled={saving || logging || busy}>
-            {logging ? "Saving..." : action.kind === "task" ? "Log What Happened" : "Log Practice"}
+        <button type="button" className="pf-btn primary" onClick={() => onComplete.open(action)} disabled={saving || busy}>
+          {saving ? "Saving..." : "How did it go?"}
           </button>
           {action.status === "not_started" ? (
             <>
@@ -132,14 +128,13 @@ function ActionCard({ action, documents, childName, onComplete, onOutcome, onSta
   );
 }
 
-function FeedbackDialog({ mode, action, childName, onClose, onSaved }) {
+function FeedbackDialog({ action, childName, onClose, onSaved }) {
   const queryClient = useQueryClient();
   const [choice, setChoice] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const log = useLogParentDailyAction({ request: parentRequest() });
-  const complete = mode === "completion";
-  const choices = complete ? RATINGS : OUTCOMES;
+  const choices = RATINGS;
 
   useEffect(() => {
     const closeOnEscape = (event) => {
@@ -157,8 +152,8 @@ function FeedbackDialog({ mode, action, childName, onClose, onSaved }) {
     }
     setError("");
     const data = {
-      eventType: complete ? "completion" : "outcome",
-      ...(complete ? { rating: choice } : { outcome: choice }),
+      eventType: "completion",
+      rating: choice,
       ...(note.trim() ? { note: note.trim() } : {}),
     };
     log.mutate(
@@ -180,20 +175,20 @@ function FeedbackDialog({ mode, action, childName, onClose, onSaved }) {
         <div className="pf-daily-action-top">
           <div>
             <p className="pf-eyebrow">{action.behaviorName}</p>
-            <h2 id="daily-feedback-title">{complete ? "How did it go?" : "What happened when you tried this?"}</h2>
+            <h2 id="daily-feedback-title">How did it go?</h2>
           </div>
           <button type="button" className="pf-btn small" onClick={onClose} disabled={log.isPending} aria-label="Close feedback form">Close</button>
         </div>
         <p className="pf-hint"><strong>{action.title}</strong> · for {childName}</p>
-        <div className="pf-feedback-options" role="radiogroup" aria-label={complete ? "How helpful was this action?" : "What happened?"}>
+        <div className="pf-feedback-options" role="radiogroup" aria-label="How did the activity go?">
           {choices.map(([value, label]) => (
             <button key={value} type="button" role="radio" aria-checked={choice === value} className="pf-chip" onClick={() => setChoice(value)}>
               {label}
             </button>
           ))}
         </div>
-        <label className="pf-label" htmlFor="daily-action-note">Anything else? (optional)</label>
-        <textarea id="daily-action-note" className="pf-area" maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a short note..." />
+        <label className="pf-label" htmlFor="daily-action-note">Optional note for the clinician</label>
+        <textarea id="daily-action-note" className="pf-area" maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context about the activity..." />
         <p className="pf-hint">This feedback is saved with this action and shared with your child’s care team.</p>
         <ErrorBox error={error} />
         <div className="pf-daily-action-buttons">
@@ -240,13 +235,7 @@ export default function DailySupportHome({
     isPending: Boolean(dialog?.mode === "completion"),
     open: (action) => setDialog({ mode: "completion", action }),
   };
-  const outcome = {
-    isPending: Boolean(dialog?.mode === "outcome"),
-    open: (action) => setDialog({ mode: "outcome", action }),
-  };
   const tasks = actions.filter((action) => action.kind === "task");
-  const activities = actions.filter((action) => action.kind === "activity");
-  const skill = actions.find((action) => action.kind === "practice");
 
   const actionGrid = (items) => (
     <div className="pf-daily-grid">
@@ -257,7 +246,6 @@ export default function DailySupportHome({
           documents={documents}
           childName={childName}
           onComplete={complete}
-          onOutcome={outcome}
           onStatus={status}
         />
       ))}
@@ -266,44 +254,22 @@ export default function DailySupportHome({
 
   return (
     <div className="pf-daily-home" data-testid="panel-today">
-      <header className="pf-daily-intro">
-        <p className="pf-eyebrow">A few helpful things for today</p>
-        <h2>Small steps count</h2>
-        <p>Choose what fits your day. You can skip anything that does not feel right.</p>
-      </header>
-
       <section className="pf-daily-section" aria-labelledby="daily-tasks-heading">
         <div className="pf-daily-section-heading">
           <div>
-            <p className="pf-eyebrow">Start here</p>
-            <h2 id="daily-tasks-heading">Today's Tasks</h2>
+            <p className="pf-eyebrow">Based on the support available for {childName}</p>
+            <h2 id="daily-tasks-heading">Today for {childName}</h2>
           </div>
-          <span className="pf-daily-count">{tasks.filter((task) => task.status === "not_started").length} to try</span>
+          <span className="pf-daily-count">{tasks.filter((task) => task.status === "not_started").length} ready</span>
         </div>
-        {tasks.length ? actionGrid(tasks) : <p className="pf-card">No daily tasks are available yet. Open the support library or upload a plan to get started.</p>}
-      </section>
-
-      <section className="pf-daily-section" aria-labelledby="daily-activities-heading">
-        <div className="pf-daily-section-heading">
-          <div>
-            <p className="pf-eyebrow">Keep it low-pressure</p>
-            <h2 id="daily-activities-heading">Activities</h2>
+        <p className="pf-hint">Try only what fits the written plan. Skip anything that does not fit today.</p>
+        {tasks.length ? actionGrid(tasks) : (
+          <div className="pf-card">
+            <p>No plan-specific daily activity is ready for {childName}. Upload a treatment or behavior plan, or ask the clinician to identify a routine, practice opportunity, and skill to notice.</p>
+            <button type="button" className="pf-btn primary" onClick={onUpload}>Upload a Plan</button>
           </div>
-        </div>
-        {activities.length ? actionGrid(activities) : <p className="pf-card">No activities are available yet. Try one of the tasks above or open the support library.</p>}
+        )}
       </section>
-
-      {skill && (
-        <section className="pf-daily-section" aria-labelledby="daily-skill-heading">
-          <div className="pf-daily-section-heading">
-            <div>
-              <p className="pf-eyebrow">Practice together</p>
-              <h2 id="daily-skill-heading">Skill of the Day</h2>
-            </div>
-          </div>
-          {actionGrid([skill])}
-        </section>
-      )}
 
       <section className="pf-card pf-quick-actions">
         <div className="pf-daily-section-heading">
@@ -369,7 +335,6 @@ export default function DailySupportHome({
 
       {dialog && (
         <FeedbackDialog
-          mode={dialog.mode}
           action={dialog.action}
           childName={childName}
           onClose={() => setDialog(null)}

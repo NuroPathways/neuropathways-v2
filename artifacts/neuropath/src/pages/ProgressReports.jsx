@@ -39,8 +39,10 @@ function normaliseOutcome(feedback) {
     if (rating <= 2) return "escalated";
     return "other";
   }
-  if (["yes", "resolved", "better", "improved", "helpful", "helped", "used_skill"].includes(f)) return "resolved";
-  if (["no", "escalated", "worse", "escalation", "not_helped"].includes(f)) return "escalated";
+  if (["worked_well", "yes", "resolved", "better", "improved", "helpful", "helped", "used_skill"].includes(f)) return "worked_well";
+  if (["helped_somewhat", "somewhat_helped", "partially"].includes(f)) return "helped_somewhat";
+  if (["didnt_work", "not_helped", "no"].includes(f)) return "didnt_work";
+  if (["behavior_escalated", "escalated", "worse", "escalation"].includes(f)) return "behavior_escalated";
   return "other";
 }
 
@@ -112,7 +114,7 @@ function StrategyEffectivenessTable({ logs }) {
   const table = {};
   relevant.forEach(l => {
     const s = l.strategy_used || l.strategyUsed;
-    if (!table[s]) table[s] = { resolved: 0, escalated: 0, other: 0, total: 0 };
+    if (!table[s]) table[s] = { worked_well: 0, helped_somewhat: 0, didnt_work: 0, behavior_escalated: 0, other: 0, total: 0 };
     table[s][normaliseOutcome(l.parent_feedback ?? l.parentFeedback)]++;
     table[s].total++;
   });
@@ -125,9 +127,11 @@ function StrategyEffectivenessTable({ logs }) {
         <thead>
           <tr className="border-b border-border text-left">
             <th className="pb-2 text-xs font-semibold text-muted-foreground">Strategy</th>
-            <th className="pb-2 text-xs font-semibold text-green-600 text-center">Helpful</th>
-            <th className="pb-2 text-xs font-semibold text-red-500 text-center">Not helpful</th>
-            <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Mixed/unsure</th>
+            <th className="pb-2 text-xs font-semibold text-green-600 text-center">Worked well</th>
+            <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Helped somewhat</th>
+            <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Didn't work</th>
+            <th className="pb-2 text-xs font-semibold text-red-500 text-center">Escalated</th>
+            <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Other / unsure</th>
             <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Total</th>
           </tr>
         </thead>
@@ -135,8 +139,10 @@ function StrategyEffectivenessTable({ logs }) {
           {rows.map(([strategy, counts]) => (
             <tr key={strategy}>
               <td className="py-2 pr-3 text-foreground text-xs max-w-[180px] truncate">{strategy}</td>
-              <td className="py-2 text-center font-medium text-green-600">{counts.resolved || 0}</td>
-              <td className="py-2 text-center font-medium text-red-500">{counts.escalated || 0}</td>
+              <td className="py-2 text-center font-medium text-green-600">{counts.worked_well || 0}</td>
+              <td className="py-2 text-center text-muted-foreground">{counts.helped_somewhat || 0}</td>
+              <td className="py-2 text-center text-muted-foreground">{counts.didnt_work || 0}</td>
+              <td className="py-2 text-center font-medium text-red-500">{counts.behavior_escalated || 0}</td>
               <td className="py-2 text-center text-muted-foreground">{counts.other || 0}</td>
               <td className="py-2 text-center text-muted-foreground">{counts.total}</td>
             </tr>

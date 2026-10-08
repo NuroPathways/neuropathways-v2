@@ -14,4 +14,5 @@ export const ParentDailyActionLogInputRating = {
   somewhat_helped: 'somewhat_helped',
   not_helped: 'not_helped',
   not_sure: 'not_sure',
+  behavior_escalated: 'behavior_escalated',
 } as const;

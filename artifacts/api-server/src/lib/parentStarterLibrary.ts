@@ -14,6 +14,17 @@ export type StarterTemplate = {
 };
 
 export type SourceReference = { documentId: string; title: string; excerpt: string | null };
+export type ParentPlanActivitySource = "clinician_reviewed" | "clinician_uploaded_plan" | "parent_uploaded_plan";
+export type ParentPlanActivity = {
+  title: string;
+  routineContext: string;
+  opportunity: string;
+  skill: string;
+  reinforcement: string | null;
+  sourceDocumentId: string;
+  sourceExcerpt: string;
+  sourceType: ParentPlanActivitySource;
+};
 export type SupportCard = {
   id: string;
   behaviorKey: string;
@@ -36,6 +47,7 @@ export type SupportCard = {
   seekHelp: string;
   track: string[];
   relatedGoals: string[];
+  dailyActivities?: ParentPlanActivity[];
   reviewedBy: string | null;
   reviewedAt: string | null;
 };

@@ -226,6 +226,27 @@ export const SupportCardSource = {
   clinician_reviewed: 'clinician_reviewed',
 } as const;
 
+export type SupportCardDailyActivitiesItemSourceType = typeof SupportCardDailyActivitiesItemSourceType[keyof typeof SupportCardDailyActivitiesItemSourceType];
+
+
+export const SupportCardDailyActivitiesItemSourceType = {
+  clinician_reviewed: 'clinician_reviewed',
+  clinician_uploaded_plan: 'clinician_uploaded_plan',
+  parent_uploaded_plan: 'parent_uploaded_plan',
+} as const;
+
+export type SupportCardDailyActivitiesItem = {
+  title: string;
+  routineContext: string;
+  opportunity: string;
+  skill: string;
+  /** @nullable */
+  reinforcement: string | null;
+  sourceDocumentId: string;
+  sourceExcerpt: string;
+  sourceType: SupportCardDailyActivitiesItemSourceType;
+};
+
 export interface SupportCard {
   id: string;
   behaviorKey: string;
@@ -255,6 +276,8 @@ export interface SupportCard {
   seekHelp: string;
   track: string[];
   relatedGoals: string[];
+  /** Plan-grounded caregiver practice activities, with the source document and review status for each. */
+  dailyActivities?: SupportCardDailyActivitiesItem[];
   /** @nullable */
   reviewedBy: string | null;
   /** @nullable */
@@ -366,6 +389,7 @@ export const ParentDailyActionLogRating = {
   somewhat_helped: 'somewhat_helped',
   not_helped: 'not_helped',
   not_sure: 'not_sure',
+  behavior_escalated: 'behavior_escalated',
 } as const;
 
 /**
@@ -473,6 +497,7 @@ export const ParentDailyActionLogInputRating = {
   somewhat_helped: 'somewhat_helped',
   not_helped: 'not_helped',
   not_sure: 'not_sure',
+  behavior_escalated: 'behavior_escalated',
 } as const;
 
 export type ParentDailyActionLogInputOutcome = typeof ParentDailyActionLogInputOutcome[keyof typeof ParentDailyActionLogInputOutcome];

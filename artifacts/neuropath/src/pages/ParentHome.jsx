@@ -101,7 +101,7 @@ function Body({ child }) {
           <BehaviorLibrary child={d.child || child} allCards={allCards} requestAdd={addFromHelp} onAddHandled={() => setAddFromHelp(null)} onUpload={() => go("docs")} onEdit={(sec) => go("edit", sec)} />
         </div>
       )}
-      {d && tab === "today" && section !== "library" && card && (
+      {d && tab === "today" && section !== "library" && (
         <DailySupportHome
           childId={child.id}
           childName={child.name}
@@ -120,13 +120,6 @@ function Body({ child }) {
           onEditProfile={() => go("edit", "profile")}
           progress={<ProgressView cards={cards} logs={d.logs} selectedId={curId} onLog={() => go("log")} />}
         />
-      )}
-      {d && tab === "today" && section !== "library" && !card && (
-        <div className="pf-card" data-testid="empty-support">
-          <h2>Choose a behavior and goal to get support</h2>
-          <p style={{ margin: "8px 0 14px" }}>Choose one or more support areas for {child.name} to see daily tasks and activities.</p>
-          <Link className="pf-btn primary" to="/ParentQuickStart" data-testid="link-finish-setup">Finish setup</Link>
-        </div>
       )}
       {d && tab === "steps" && (
         <div style={{ display: "grid", gap: 16 }} data-testid="panel-support-steps">

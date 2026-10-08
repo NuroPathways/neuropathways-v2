@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SourceReference } from './sourceReference';
+import type { SupportCardDailyActivitiesItem } from './supportCardDailyActivitiesItem';
 import type { SupportCardSource } from './supportCardSource';
 
 export interface SupportCard {
@@ -37,6 +38,8 @@ export interface SupportCard {
   seekHelp: string;
   track: string[];
   relatedGoals: string[];
+  /** Plan-grounded caregiver practice activities, with the source document and review status for each. */
+  dailyActivities?: SupportCardDailyActivitiesItem[];
   /** @nullable */
   reviewedBy: string | null;
   /** @nullable */

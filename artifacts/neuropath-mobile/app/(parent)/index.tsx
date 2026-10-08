@@ -1,10 +1,10 @@
 import React, { useCallback, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Modal, Pressable, TextInput, View } from "react-native";
 import { useFocusEffect, router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
-import { getParentBehaviors, getParentDashboard, parentBehaviorIdentity } from "@workspace/api-client-react";
-import type { SupportCard } from "@workspace/api-client-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getParentBehaviors, getParentDashboard, parentBehaviorIdentity, useLogParentDailyAction } from "@workspace/api-client-react";
+import type { ParentDailyAction, ParentDocument, SupportCard } from "@workspace/api-client-react";
 import { BehaviorLibrary } from "@/components/BehaviorLibrary";
 import { ChildSwitch } from "@/components/ChildSwitch";
 import { Btn, Card, Chip, ErrorBox, H, Row, Screen, Skeleton, T, msg } from "@/components/ParentUi";
@@ -24,6 +24,53 @@ const SOURCE: Record<SupportCard["source"], string> = {
 const planGoal = (card: SupportCard) => card.planGoal;
 const hasPlanGoal = (card: SupportCard) =>
   typeof card.planGoal === "string" && card.planGoal.trim().length > 0;
+
+const DAILY_ACTION_SOURCE: Record<string, string> = {
+  clinician_reviewed: "Source: Reviewed by your clinician",
+  clinician_uploaded_plan: "Source: Clinician-uploaded document",
+  parent_uploaded_plan: "Source: Uploaded plan · not yet reviewed by a clinician",
+  starter_template: "Source: General starter support",
+};
+
+const DAILY_FEEDBACK = [
+  ["helped", "Worked well"],
+  ["somewhat_helped", "Helped somewhat"],
+  ["not_helped", "Didn't work"],
+  ["behavior_escalated", "Behavior escalated"],
+] as const;
+
+function DailyActivityCard({ action, documents, onFeedback }: {
+  action: ParentDailyAction;
+  documents: ParentDocument[];
+  onFeedback: (action: ParentDailyAction) => void;
+}) {
+  const c = useColors();
+  const document = action.sourceDocumentId
+    ? documents.find((item) => item.id === action.sourceDocumentId)
+    : null;
+  const feedback = action.logs?.[0];
+  const feedbackLabel = DAILY_FEEDBACK.find(([value]) => value === feedback?.rating)?.[1];
+  return (
+    <Card>
+      <T size={12} weight="semi" color={c.secondary}>{action.behaviorName} · {action.estimatedMinutes} min</T>
+      <T size={18} weight="bold">{action.title}</T>
+      <T size={14}>{action.description}</T>
+      {action.steps.map((step, index) => (
+        <View key={`${action.id}-${index}`} style={{ flexDirection: "row", gap: 9, alignItems: "flex-start" }}>
+          <T size={13} weight="bold" color={c.primary}>{index + 1}.</T>
+          <View style={{ flex: 1 }}><T size={14}>{step}</T></View>
+        </View>
+      ))}
+      <T size={12} weight="semi" color={c.secondary}>{DAILY_ACTION_SOURCE[action.sourceType] || "Source: Not available"}</T>
+      {document ? <T size={12} color={c.secondary}>Plan: {document.title || document.fileName}</T> : null}
+      {action.status === "needs_review"
+        ? <T size={13} weight="semi" color={c.destructive}>Ask your clinician which plan step to use before trying this.</T>
+        : action.status === "done" || action.status === "logged"
+          ? <T size={13} color={c.secondary}>{feedbackLabel ? `Your feedback: ${feedbackLabel}` : "Your update is saved for today."}{feedback?.note ? ` · ${feedback.note}` : ""}</T>
+          : <Btn label="How did it go?" onPress={() => onFeedback(action)} />}
+    </Card>
+  );
+}
 
 type SupportTone = "now" | "avoid" | "context" | "prevention" | "skill" | "track" | "help";
 
@@ -64,8 +111,14 @@ function SupportSection({ title, items, body, detail, tone }: {
 export default function SupportNow() {
   const c = useColors();
   const { child, opts } = useParent();
+  const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showHelpBlocks, setShowHelpBlocks] = useState(false);
+  const [feedbackAction, setFeedbackAction] = useState<ParentDailyAction | null>(null);
+  const [feedbackChoice, setFeedbackChoice] = useState("");
+  const [feedbackNote, setFeedbackNote] = useState("");
+  const [feedbackError, setFeedbackError] = useState("");
+  const logAction = useLogParentDailyAction({ request: opts });
   const q = useQuery({ queryKey: ["parent-dashboard", child?.id], queryFn: () => getParentDashboard(child!.id, opts), enabled: !!child });
   const refetch = q.refetch;
   // Re-sync behavior, goal and source text from the server whenever this tab regains focus (e.g. after a scan).
@@ -80,10 +133,33 @@ export default function SupportNow() {
   const card = selectedId ? cardFor(selectedId) : undefined;
   const isFoundCard = !!card && !activeIds.has(parentBehaviorIdentity(card));
   const activeGoal = selectedBehavior?.goal ?? null;
+  const childName = q.data?.child.name ?? child?.name ?? "your child";
+
+  const saveFeedback = () => {
+    if (!child || !feedbackAction || !feedbackChoice || logAction.isPending) return;
+    setFeedbackError("");
+    logAction.mutate({
+      childId: feedbackAction.childId,
+      actionId: feedbackAction.id,
+      data: {
+        eventType: "completion",
+        rating: feedbackChoice as "helped" | "somewhat_helped" | "not_helped" | "not_sure" | "behavior_escalated",
+        ...(feedbackNote.trim() ? { note: feedbackNote.trim() } : {}),
+      },
+    }, {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: ["parent-dashboard", child.id] });
+        setFeedbackAction(null);
+        setFeedbackChoice("");
+        setFeedbackNote("");
+      },
+      onError: (error) => setFeedbackError(msg(error, "Feedback could not be saved.")),
+    });
+  };
 
   return (
     <Screen>
-      <H sub={`For ${q.data?.child.name ?? child?.name ?? ""}`}>Today's Support</H>
+      <H>{`Support for ${childName}`}</H>
       <ChildSwitch />
       <T weight="bold" size={17}>Need help right now?</T>
       <Pressable testID="help-now" accessibilityRole="button" onPress={() => setShowHelpBlocks(true)} style={({ pressed }) => ({ backgroundColor: c.destructive, borderRadius: 20, padding: 22, flexDirection: "row", alignItems: "center", gap: 14, opacity: pressed ? 0.9 : 1 })}>
@@ -96,6 +172,29 @@ export default function SupportNow() {
 
       {q.isLoading ? <Skeleton lines={4} /> : q.isError ? <ErrorBox message={msg(q.error, "Your support could not load.")} onRetry={() => q.refetch()} /> : (
         <>
+          <T weight="bold" size={19}>{`Today for ${childName}`}</T>
+          <T size={14} color={c.secondary}>Daily practice activities are based on the routines and skills described in the available plan.</T>
+          {(q.data?.dailyActions ?? []).length ? (
+            (q.data?.dailyActions ?? []).map((action) => (
+              <DailyActivityCard
+                key={action.id}
+                action={action}
+                documents={q.data?.documents ?? []}
+                onFeedback={(item) => {
+                  setFeedbackAction(item);
+                  setFeedbackChoice("");
+                  setFeedbackNote("");
+                  setFeedbackError("");
+                }}
+              />
+            ))
+          ) : (
+            <Card>
+              <T weight="semi">No plan-specific daily activity is ready for {childName}.</T>
+              <T size={14}>Upload a treatment or behavior plan, or ask the clinician to identify a routine, practice opportunity, and skill to notice. We will not fill in activities that are not supported by the plan.</T>
+              <Btn kind="ghost" icon="upload" label="Upload a Plan" onPress={() => router.push("/(parent)/documents" as never)} />
+            </Card>
+          )}
           {showHelpBlocks ? (
             <Card>
               <T weight="bold" size={18}>What do you need help with right now?</T>
@@ -217,6 +316,46 @@ export default function SupportNow() {
           </Card>
         </>
       )}
+      <Modal
+        visible={!!feedbackAction}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { if (!logAction.isPending) setFeedbackAction(null); }}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 20 }}>
+          <Card>
+            <T weight="bold" size={20}>How did this activity go?</T>
+            <T size={14} color={c.secondary}>{feedbackAction?.title} · for {childName}</T>
+            {DAILY_FEEDBACK.map(([value, label]) => (
+              <Pressable
+                key={value}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: feedbackChoice === value }}
+                onPress={() => setFeedbackChoice(value)}
+                style={{ borderWidth: 1.5, borderColor: feedbackChoice === value ? c.primary : c.border, backgroundColor: feedbackChoice === value ? c.muted : c.card, borderRadius: 12, padding: 12 }}
+              >
+                <T weight={feedbackChoice === value ? "bold" : "regular"}>{label}</T>
+              </Pressable>
+            ))}
+            <TextInput
+              value={feedbackNote}
+              onChangeText={setFeedbackNote}
+              placeholder="Optional note for the clinician"
+              placeholderTextColor={c.mutedForeground}
+              multiline
+              maxLength={2000}
+              accessibilityLabel="Optional note for the clinician"
+              style={{ color: c.text, borderColor: c.border, borderWidth: 1, borderRadius: 12, minHeight: 84, padding: 12, textAlignVertical: "top" }}
+            />
+            {feedbackError ? <T size={13} color={c.destructive}>{feedbackError}</T> : null}
+            <Row wrap>
+              <Btn label={logAction.isPending ? "Saving..." : "Save feedback"} disabled={!feedbackChoice || logAction.isPending} onPress={saveFeedback} />
+              <Btn kind="ghost" label="Cancel" disabled={logAction.isPending} onPress={() => setFeedbackAction(null)} />
+            </Row>
+            <T size={12} color={c.secondary}>Feedback is saved with this activity and shared with the care team.</T>
+          </Card>
+        </View>
+      </Modal>
     </Screen>
   );
 }

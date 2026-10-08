@@ -27,7 +27,7 @@ export type ParentDailyActionStatus =
   | "saved_for_later"
   | "needs_review";
 export type ParentDailyActionLogType = "completion" | "outcome";
-export type ParentDailyActionRating = "helped" | "somewhat_helped" | "not_helped" | "not_sure";
+export type ParentDailyActionRating = "helped" | "somewhat_helped" | "not_helped" | "not_sure" | "behavior_escalated";
 export type ParentDailyActionOutcome = "used_skill" | "partially" | "not_yet" | "not_sure";
 
 export const parentDailyActionsTable = pgTable(

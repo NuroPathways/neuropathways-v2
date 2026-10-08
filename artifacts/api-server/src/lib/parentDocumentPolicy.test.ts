@@ -13,6 +13,7 @@ import {
   hasDuplicateParentDocumentHash,
   isSafeParentGuidance,
   normalizeDiscoveredParentTargets,
+  normalizeParentPlanActivities,
   orderSupportCardsForSelectedFocus,
   partitionParentGuidanceBySafety,
   reconcileSupportCards,
@@ -117,6 +118,56 @@ test("document generation asks for brief, one-action caregiver steps without dro
   assert.match(serializedPrompt, /one or two short lines per item/);
   assert.match(serializedPrompt, /no more than four items/);
   assert.match(serializedPrompt, /Do not drop a safety condition or escalation instruction/);
+  assert.match(serializedPrompt, /Create daily_activities only when a source gives enough detail/);
+  assert.match(serializedPrompt, /never fill gaps with a typical routine, assumed prompt, invented reinforcement/);
+});
+
+test("daily plan activities require a routine, caregiver opportunity, skill, evidence, and an allowed source", () => {
+  const activities = normalizeParentPlanActivities([
+    {
+      title: "Practice requesting a break",
+      routine_context: "During homework at the kitchen table",
+      opportunity: "Before a short assignment, offer the familiar break card and wait",
+      skill: "Requests a break using the card",
+      reinforcement: "Provide the planned break after the request",
+      source_document_id: "plan-1",
+      source_excerpt: "During homework, practice requesting a break with the break card.",
+    },
+    {
+      title: "Assumed bedtime activity",
+      routine_context: "At bedtime",
+      opportunity: "Offer a visual schedule",
+      skill: "Follows a bedtime routine",
+      reinforcement: "",
+      source_document_id: "plan-1",
+      source_excerpt: "An unrelated source excerpt.",
+    },
+    {
+      title: "Unsupported activity",
+      routine_context: "During dinner",
+      opportunity: "Offer a prompt",
+      skill: "Uses a communication card",
+      reinforcement: "",
+      source_document_id: "not-allowed",
+      source_excerpt: "An unapproved document.",
+    },
+    {
+      title: "Unsafe activity",
+      routine_context: "During homework",
+      opportunity: "Hold the child still",
+      skill: "Requests a break",
+      reinforcement: "",
+      source_document_id: "plan-1",
+      source_excerpt: "An unsafe procedure.",
+    },
+  ], ["plan-1"], () => "parent_uploaded_plan", new Map([
+    ["plan-1", "During homework, practice requesting a break with the break card."],
+  ]));
+
+  assert.equal(activities.length, 1);
+  assert.equal(activities[0].sourceType, "parent_uploaded_plan");
+  assert.equal(activities[0].sourceDocumentId, "plan-1");
+  assert.equal(activities[0].routineContext, "During homework at the kitchen table");
 });
 
 test("discovery prompt uses only fetched documents and never receives prior document-derived cards", () => {

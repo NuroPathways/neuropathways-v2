@@ -1,5 +1,12 @@
 import path from "node:path";
-import { getStarterTemplate, starterLibrary, type SupportCard, type SourceReference } from "./parentStarterLibrary";
+import {
+  getStarterTemplate,
+  starterLibrary,
+  type ParentPlanActivity,
+  type ParentPlanActivitySource,
+  type SupportCard,
+  type SourceReference,
+} from "./parentStarterLibrary";
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 export const PARENT_DOCUMENT_MIME_BY_EXTENSION: Record<string, string> = {
@@ -118,9 +125,85 @@ Allowed source document IDs: ${JSON.stringify(allowedSourceIds)}
 
 Write for a caregiver who needs quick steps: use everyday words, short direct sentences, and one clear action per list item. Aim for one or two short lines per item and keep each list item under 90 characters. Return no more than four items in right_now, avoid, prevention, and track. Keep what_may_be_happening to one short sentence and each other text field to one short sentence. Do not drop a safety condition or escalation instruction to make the text shorter; if it cannot be summarized safely, tell the caregiver to follow the individualized plan and contact the child’s clinician.
 
-Use only source document IDs provided above. Choose IDs that directly support the guidance. If the documents explicitly state a goal for this selected behavior, return its exact wording in selected_goal; otherwise return an empty string. Never invent a goal. For safety or medical uncertainty, say to follow an existing individualized plan and contact the child’s clinician. If immediate danger is described, recommend emergency services. Do not invent that a clinician reviewed or approved anything.`,
+Use only source document IDs provided above. Choose IDs that directly support the guidance. If the documents explicitly state a goal for this selected behavior, return its exact wording in selected_goal; otherwise return an empty string. Never invent a goal.
+
+Create daily_activities only when a source gives enough detail for a caregiver to do a real, low-risk practice activity in an ordinary routine. Each activity must have an explicitly supported routine_context, an opportunity the caregiver can provide without provoking distress or unsafe behavior, a skill to notice, and one source_document_id that directly supports the activity. Include reinforcement only when the source specifies it. Include a short exact source_excerpt supporting the routine and skill. The server checks that this excerpt appears in searchable source text; if a document has no searchable text, do not create an activity from it. If any of these pieces is missing, return no activity for that idea; never fill gaps with a typical routine, assumed prompt, invented reinforcement, or general behavior advice. Return at most three activities. Do not turn crisis response, restraint, punishment, extinction, or other emergency/safety procedures into daily activities. Immediate help remains separate from daily practice.
+
+For safety or medical uncertainty, say to follow an existing individualized plan and contact the child’s clinician. If immediate danger is described, recommend emergency services. Do not invent that a clinician reviewed or approved anything.`,
   });
   return content;
+}
+
+const PLAN_ACTIVITY_UNSAFE = /\b(restraint|seclusion|pin(?:ning)?|hold(?:ing)? (?:down|still)|physical block(?:ing)?|punish(?:ment)?|extinction|force them|ignore (?:all|the) safety)\b/i;
+
+function boundedActivityText(value: unknown, maxLength: number): string {
+  return typeof value === "string"
+    ? value.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, maxLength)
+    : "";
+}
+
+export function normalizeParentPlanActivities(
+  value: unknown,
+  allowedSourceIds: string[],
+  sourceTypeForDocument: (documentId: string) => ParentPlanActivitySource,
+  sourceTextByDocumentId: Map<string, string>,
+): ParentPlanActivity[] {
+  if (!Array.isArray(value)) return [];
+  const allowedIds = new Set(allowedSourceIds);
+  const seen = new Set<string>();
+  const activities: ParentPlanActivity[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const candidate = item as Record<string, unknown>;
+    const sourceDocumentId = boundedActivityText(candidate.source_document_id, 160);
+    const title = boundedActivityText(candidate.title, 100);
+    const routineContext = boundedActivityText(candidate.routine_context, 180);
+    const opportunity = boundedActivityText(candidate.opportunity, 320);
+    const skill = boundedActivityText(candidate.skill, 240);
+    const reinforcement = boundedActivityText(candidate.reinforcement, 320) || null;
+    const sourceExcerpt = boundedActivityText(candidate.source_excerpt, 420);
+    const searchableSource = sourceTextByDocumentId.get(sourceDocumentId) || "";
+    const normalizedExcerpt = normalizedParentText(sourceExcerpt);
+    if (
+      !allowedIds.has(sourceDocumentId) ||
+      !title ||
+      !routineContext ||
+      !opportunity ||
+      !skill ||
+      normalizedExcerpt.length < 24 ||
+      !normalizedParentText(searchableSource).includes(normalizedExcerpt)
+    ) continue;
+    const fullText = [title, routineContext, opportunity, skill, reinforcement || ""].join(" ");
+    if (PLAN_ACTIVITY_UNSAFE.test(fullText)) continue;
+    const identity = `${sourceDocumentId}:${normalizedParentText(`${title} ${routineContext} ${opportunity}`)}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    activities.push({
+      title,
+      routineContext,
+      opportunity,
+      skill,
+      reinforcement,
+      sourceDocumentId,
+      sourceExcerpt,
+      sourceType: sourceTypeForDocument(sourceDocumentId),
+    });
+    if (activities.length >= 3) break;
+  }
+  return activities;
+}
+
+export function isValidParentPlanActivity(value: unknown): value is ParentPlanActivity {
+  if (!value || typeof value !== "object") return false;
+  const activity = value as Partial<ParentPlanActivity>;
+  return typeof activity.title === "string" &&
+    typeof activity.routineContext === "string" &&
+    typeof activity.opportunity === "string" &&
+    typeof activity.skill === "string" &&
+    (typeof activity.reinforcement === "string" || activity.reinforcement === null) &&
+    typeof activity.sourceDocumentId === "string" &&
+    typeof activity.sourceExcerpt === "string" &&
+    ["clinician_reviewed", "clinician_uploaded_plan", "parent_uploaded_plan"].includes(activity.sourceType || "");
 }
 
 export type DiscoveredParentTarget = {
@@ -225,6 +308,13 @@ export function guidanceFingerprint(card: SupportCard): string {
     card.replacementSkill,
     card.reinforcementIdea,
     card.seekHelp,
+    ...(Array.isArray(card.dailyActivities) ? card.dailyActivities : []).flatMap((activity) => [
+      activity.title,
+      activity.routineContext,
+      activity.opportunity,
+      activity.skill,
+      activity.reinforcement || "",
+    ]),
   ].map(normalizedParentText).filter(Boolean).sort().join("|");
 }
 
@@ -307,7 +397,9 @@ function validCard(value: unknown): value is SupportCard {
     ["starter", "parent_document", "clinician_document", "clinician_reviewed"].includes(card.source || "") &&
     Array.isArray(card.rightNow) &&
     Array.isArray(card.avoid) &&
-    Array.isArray(card.prevention);
+    Array.isArray(card.prevention) &&
+    (card.dailyActivities === undefined ||
+      (Array.isArray(card.dailyActivities) && card.dailyActivities.every(isValidParentPlanActivity)));
 }
 
 /** Highest-priority guidance wins; reviewed instructions are retained and conflicts are surfaced. */
@@ -351,6 +443,16 @@ export function reconcileSupportCards(existingCards: unknown[], incomingCards: S
       guidanceFingerprint(card) !== guidanceFingerprint(winner),
     );
     const conflict = ordered.some((card) => card.conflict) || hasDifferentGuidance;
+    const activitySources = hasDifferentGuidance ? [winner] : ordered;
+    const activitySeen = new Set<string>();
+    winner.dailyActivities = activitySources.flatMap((card) => card.dailyActivities || [])
+      .filter((activity) => {
+        const key = `${activity.sourceDocumentId}:${normalizedParentText(`${activity.title} ${activity.routineContext} ${activity.opportunity}`)}`;
+        if (activitySeen.has(key)) return false;
+        activitySeen.add(key);
+        return true;
+      })
+      .slice(0, 8);
     if (!hasDifferentGuidance) {
       winner.sourceDocumentIds = [...new Set(ordered.flatMap((card) => card.sourceDocumentIds || []))];
       winner.sourceReferences = mergeReferences(...ordered.map((card) => card.sourceReferences || []));

@@ -43,9 +43,11 @@ import {
   guidanceFingerprint,
   hasDuplicateParentDocumentHash,
   isSafeParentGuidance,
+  isValidParentPlanActivity,
   partitionParentGuidanceBySafety,
   normalizedParentText,
   normalizeDiscoveredParentTargets,
+  normalizeParentPlanActivities,
   orderSupportCardsForSelectedFocus,
   PARENT_DOCUMENT_MIME_BY_EXTENSION,
   type ParentDocumentGenerationPart,
@@ -129,7 +131,9 @@ function validCard(value: unknown): value is SupportCard {
     ["starter", "parent_document", "clinician_document", "clinician_reviewed"].includes(card.source || "") &&
     Array.isArray(card.rightNow) &&
     Array.isArray(card.avoid) &&
-    Array.isArray(card.prevention);
+    Array.isArray(card.prevention) &&
+    (card.dailyActivities === undefined ||
+      (Array.isArray(card.dailyActivities) && card.dailyActivities.every(isValidParentPlanActivity)));
 }
 
 async function ownedChild(parentId: string, childId: string) {
@@ -407,6 +411,35 @@ function toolSchema() {
           description: "A specific goal explicitly stated in the supplied source documents for this behavior, or an empty string if none is explicit.",
         },
         track: { type: "array", maxItems: 4, items: shortStep },
+        daily_activities: {
+          type: "array",
+          maxItems: 3,
+          description: "Caregiver-ready activities only when the supplied plan explicitly supports the routine, opportunity, and skill.",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", maxLength: 100 },
+              routine_context: { type: "string", maxLength: 180 },
+              opportunity: { type: "string", maxLength: 320 },
+              skill: { type: "string", maxLength: 240 },
+              reinforcement: {
+                type: "string",
+                maxLength: 320,
+                description: "Plan-specified reinforcement only; use an empty string when none is specified.",
+              },
+              source_document_id: { type: "string", maxLength: 160 },
+              source_excerpt: {
+                type: "string",
+                maxLength: 420,
+                description: "A short exact excerpt that supports the routine and skill.",
+              },
+            },
+            required: [
+              "title", "routine_context", "opportunity", "skill", "reinforcement",
+              "source_document_id", "source_excerpt",
+            ],
+          },
+        },
         related_goals: { type: "array", items: { type: "string" } },
         source_document_ids: { type: "array", items: { type: "string" } },
         conflict: { type: "boolean" },
@@ -415,7 +448,7 @@ function toolSchema() {
       required: [
         "behavior_name", "what_may_be_happening", "right_now", "avoid", "prevention",
         "replacement_skill", "reinforcement_idea", "seek_help", "track", "related_goals",
-        "selected_goal", "source_document_ids", "conflict",
+        "selected_goal", "source_document_ids", "daily_activities", "conflict",
       ],
     },
   };
@@ -652,6 +685,13 @@ export async function scanParentDocument(
         content: part,
       });
     }
+    const searchableSourceTextById = new Map(generationDocuments.map((source) => [
+      source.id,
+      source.content
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join("\n"),
+    ]));
     const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
     const currentCards = Array.isArray(settings?.supportCards)
       ? settings.supportCards.filter(validCard).filter(isSafeParentGuidance)
@@ -762,6 +802,16 @@ export async function scanParentDocument(
         seekHelp: typeof value.seek_help === "string" ? value.seek_help.slice(0, 1200) : "",
         track: asStrings(value.track, 4),
         relatedGoals: uniqueStrings([extractedGoal, behavior.goal || "", ...asStrings(value.related_goals)]),
+        dailyActivities: normalizeParentPlanActivities(
+          value.daily_activities,
+          allowedIds,
+          (sourceId) => {
+            const source = sources.find((item) => item.document.id === sourceId);
+            if (source?.metadata?.reviewedBy && source.metadata.reviewedAt) return "clinician_reviewed";
+            return source?.metadata ? "parent_uploaded_plan" : "clinician_uploaded_plan";
+          },
+          searchableSourceTextById,
+        ),
         reviewedBy: null,
         reviewedAt: null,
       };
@@ -947,6 +997,22 @@ export async function getParentSharedSupport(
       ...card,
       sourceDocumentIds: sourceIds,
       sourceReferences,
+      dailyActivities: (card.dailyActivities || []).flatMap((activity) => {
+        const source = visibleDocuments.get(activity.sourceDocumentId);
+        if (!source) return [];
+        const sourceReviewed = source.metadata
+          ? source.metadata.sharedClinicianId === clinicianId &&
+            Boolean(source.metadata.reviewedBy && source.metadata.reviewedAt)
+          : card.source === "clinician_reviewed" && Boolean(card.reviewedBy && card.reviewedAt);
+        return [{
+          ...activity,
+          sourceType: sourceReviewed
+            ? "clinician_reviewed" as const
+            : source.metadata
+              ? "parent_uploaded_plan" as const
+              : "clinician_uploaded_plan" as const,
+        }];
+      }),
       planGoalSourceReferences: (card.planGoalSourceReferences || []).flatMap((reference) => {
         const source = visibleDocuments.get(reference.documentId);
         if (!source) return [];
@@ -1034,6 +1100,22 @@ export async function getParentSupportCards(parentId: string, childId: string): 
     );
     currentCards.push({
       ...card,
+      dailyActivities: (card.dailyActivities || []).flatMap((activity) => {
+        const source = sourceRows.find((row) => row.id === activity.sourceDocumentId);
+        if (!source || !isVisibleSource(source)) return [];
+        const sourceReviewed = source.metadata
+          ? source.metadata.sharedClinicianId === child.clinicianId &&
+            Boolean(source.metadata.reviewedBy && source.metadata.reviewedAt)
+          : card.source === "clinician_reviewed" && Boolean(card.reviewedBy && card.reviewedAt);
+        return [{
+          ...activity,
+          sourceType: sourceReviewed
+            ? "clinician_reviewed" as const
+            : source.metadata
+              ? "parent_uploaded_plan" as const
+              : "clinician_uploaded_plan" as const,
+        }];
+      }),
       planGoal: card.planGoal || null,
       planGoalSourceDocumentIds: card.planGoalSourceDocumentIds || [],
       planGoalSourceReferences: card.planGoalSourceReferences || [],

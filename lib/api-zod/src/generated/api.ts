@@ -414,6 +414,16 @@ export const GetParentDashboardResponse = zod.object({
   "seekHelp": zod.string(),
   "track": zod.array(zod.string()),
   "relatedGoals": zod.array(zod.string()),
+  "dailyActivities": zod.array(zod.object({
+  "title": zod.string(),
+  "routineContext": zod.string(),
+  "opportunity": zod.string(),
+  "skill": zod.string(),
+  "reinforcement": zod.string().nullable(),
+  "sourceDocumentId": zod.string(),
+  "sourceExcerpt": zod.string(),
+  "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan'])
+})).optional().describe('Plan-grounded caregiver practice activities, with the source document and review status for each.'),
   "reviewedBy": zod.string().nullable(),
   "reviewedAt": zod.string().nullable()
 })),
@@ -471,7 +481,7 @@ export const GetParentDashboardResponse = zod.object({
   "activityId": zod.string().nullable(),
   "childId": zod.string(),
   "eventType": zod.enum(['completion', 'outcome']),
-  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal('behavior_escalated'),zod.literal(null)]).nullable(),
   "outcome": zod.union([zod.literal('used_skill'),zod.literal('partially'),zod.literal('not_yet'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
   "note": zod.string().nullable(),
   "createdAt": zod.coerce.date()
@@ -523,7 +533,7 @@ export const UpdateParentDailyActionResponse = zod.object({
   "activityId": zod.string().nullable(),
   "childId": zod.string(),
   "eventType": zod.enum(['completion', 'outcome']),
-  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal('behavior_escalated'),zod.literal(null)]).nullable(),
   "outcome": zod.union([zod.literal('used_skill'),zod.literal('partially'),zod.literal('not_yet'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
   "note": zod.string().nullable(),
   "createdAt": zod.coerce.date()
@@ -545,7 +555,7 @@ export const logParentDailyActionBodyNoteMax = 2000;
 
 export const LogParentDailyActionBody = zod.object({
   "eventType": zod.enum(['completion', 'outcome']),
-  "rating": zod.enum(['helped', 'somewhat_helped', 'not_helped', 'not_sure']).optional(),
+  "rating": zod.enum(['helped', 'somewhat_helped', 'not_helped', 'not_sure', 'behavior_escalated']).optional(),
   "outcome": zod.enum(['used_skill', 'partially', 'not_yet', 'not_sure']).optional(),
   "note": zod.string().max(logParentDailyActionBodyNoteMax).optional()
 })
@@ -582,7 +592,7 @@ export const LogParentDailyActionResponse = zod.object({
   "activityId": zod.string().nullable(),
   "childId": zod.string(),
   "eventType": zod.enum(['completion', 'outcome']),
-  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal('behavior_escalated'),zod.literal(null)]).nullable(),
   "outcome": zod.union([zod.literal('used_skill'),zod.literal('partially'),zod.literal('not_yet'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
   "note": zod.string().nullable(),
   "createdAt": zod.coerce.date()
@@ -595,7 +605,7 @@ export const LogParentDailyActionResponse = zod.object({
   "activityId": zod.string().nullable(),
   "childId": zod.string(),
   "eventType": zod.enum(['completion', 'outcome']),
-  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
+  "rating": zod.union([zod.literal('helped'),zod.literal('somewhat_helped'),zod.literal('not_helped'),zod.literal('not_sure'),zod.literal('behavior_escalated'),zod.literal(null)]).nullable(),
   "outcome": zod.union([zod.literal('used_skill'),zod.literal('partially'),zod.literal('not_yet'),zod.literal('not_sure'),zod.literal(null)]).nullable(),
   "note": zod.string().nullable(),
   "createdAt": zod.coerce.date()
@@ -744,6 +754,16 @@ export const ScanParentDocumentResponse = zod.object({
   "seekHelp": zod.string(),
   "track": zod.array(zod.string()),
   "relatedGoals": zod.array(zod.string()),
+  "dailyActivities": zod.array(zod.object({
+  "title": zod.string(),
+  "routineContext": zod.string(),
+  "opportunity": zod.string(),
+  "skill": zod.string(),
+  "reinforcement": zod.string().nullable(),
+  "sourceDocumentId": zod.string(),
+  "sourceExcerpt": zod.string(),
+  "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan'])
+})).optional().describe('Plan-grounded caregiver practice activities, with the source document and review status for each.'),
   "reviewedBy": zod.string().nullable(),
   "reviewedAt": zod.string().nullable()
 })),
@@ -933,6 +953,16 @@ export const ReviewParentSupportResponse = zod.object({
   "seekHelp": zod.string(),
   "track": zod.array(zod.string()),
   "relatedGoals": zod.array(zod.string()),
+  "dailyActivities": zod.array(zod.object({
+  "title": zod.string(),
+  "routineContext": zod.string(),
+  "opportunity": zod.string(),
+  "skill": zod.string(),
+  "reinforcement": zod.string().nullable(),
+  "sourceDocumentId": zod.string(),
+  "sourceExcerpt": zod.string(),
+  "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan'])
+})).optional().describe('Plan-grounded caregiver practice activities, with the source document and review status for each.'),
   "reviewedBy": zod.string().nullable(),
   "reviewedAt": zod.string().nullable()
 }))
@@ -982,6 +1012,16 @@ export const GetParentSharedSupportResponse = zod.object({
   "seekHelp": zod.string(),
   "track": zod.array(zod.string()),
   "relatedGoals": zod.array(zod.string()),
+  "dailyActivities": zod.array(zod.object({
+  "title": zod.string(),
+  "routineContext": zod.string(),
+  "opportunity": zod.string(),
+  "skill": zod.string(),
+  "reinforcement": zod.string().nullable(),
+  "sourceDocumentId": zod.string(),
+  "sourceExcerpt": zod.string(),
+  "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan'])
+})).optional().describe('Plan-grounded caregiver practice activities, with the source document and review status for each.'),
   "reviewedBy": zod.string().nullable(),
   "reviewedAt": zod.string().nullable()
 })),

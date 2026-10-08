@@ -5,7 +5,7 @@ import {
   normalizeParentActionDate,
 } from "./parentDailyActions";
 import type { ParentBehavior } from "./parentAuth";
-import { makeStarterCard, type SupportCard } from "./parentStarterLibrary";
+import { makeStarterCard, type ParentPlanActivity, type SupportCard } from "./parentStarterLibrary";
 
 function selectedBehavior(behaviorKey: string, behaviorName: string): ParentBehavior {
   return {
@@ -40,67 +40,21 @@ function supportCard(
   } as SupportCard;
 }
 
-test("daily action drafts prioritize reviewed sources and preserve every selected behavior", () => {
-  const selected = [
-    selectedBehavior("task_refusal", "Task refusal"),
-    selectedBehavior("sleep_problems", "Sleep problems"),
-  ];
-  const actions = buildParentDailyActionDrafts({
-    date: "2026-10-07",
-    selectedBehaviors: selected,
-    supportCards: [
-      supportCard("sleep_problems", "Sleep problems", "parent_document"),
-      supportCard("task_refusal", "Task refusal", "clinician_reviewed"),
-      supportCard("elopement", "Elopement", "starter"),
-    ],
-    logs: [],
-  });
+const breakRequestActivity: ParentPlanActivity = {
+  title: "Practice requesting a break",
+  routineContext: "During homework at the kitchen table",
+  opportunity: "Before a short assignment, offer the familiar break card and wait",
+  skill: "Requests a break using the card",
+  reinforcement: "Provide the planned break after the request",
+  sourceDocumentId: "parent-plan-1",
+  sourceExcerpt: "During homework, practice requesting a break with the break card.",
+  sourceType: "parent_uploaded_plan",
+};
 
-  const tasks = actions.filter((action) => action.kind === "task");
-  const activities = actions.filter((action) => action.kind === "activity");
-  const practice = actions.filter((action) => action.kind === "practice");
-  assert.equal(tasks.length, 2);
-  assert.equal(activities.length, 2);
-  assert.equal(practice.length, 1);
-  assert.equal(tasks[0].sourceType, "clinician_reviewed");
-  assert.equal(tasks[1].sourceType, "parent_uploaded_plan");
-  assert.deepEqual(
-    new Set(actions.map((action) => action.behaviorName)),
-    new Set(["Task refusal", "Sleep problems"]),
-  );
-  assert.equal(tasks[1].sourceDocumentId, "parent-plan-1");
-});
-
-test("meltdown actions use distinct prevention, reinforcement, and replacement-skill guidance", () => {
-  const card = makeStarterCard("meltdowns", null, "Communicate feelings");
-  const actions = buildParentDailyActionDrafts({
-    date: "2026-10-07",
-    selectedBehaviors: [selectedBehavior("meltdowns", "Meltdowns")],
-    supportCards: [card],
-    logs: [],
-  });
-  const task = actions.find((action) => action.kind === "task");
-  const activity = actions.find((action) => action.kind === "activity");
-  const practice = actions.find((action) => action.kind === "practice");
-
-  assert.equal(task?.steps[0], "Watch for early signs that your child is becoming overwhelmed.");
-  assert.equal(task?.steps[1], card.reinforcementIdea);
-  assert.equal(activity?.steps[0], "Offer breaks and reduce sensory demands when possible.");
-  assert.equal(activity?.steps[1], `Notice and support this response: ${card.reinforcementIdea}`);
-  assert.match(activity?.description || "", /Meltdowns/);
-  assert.match(activity?.description || "", /Do not create or provoke/);
-  assert.equal(practice?.steps[0], card.replacementSkill);
-  assert.ok(!activity?.steps.some((step) => step.includes("emergency services")));
-});
-
-test("uploaded-plan activities preserve provenance and use the card's own guidance", () => {
+test("daily actions turn plan activities into concrete steps and keep their provenance", () => {
   const card = supportCard("task_refusal", "Task refusal", "parent_document", {
-    prevention: [
-      "Make the first step clear and manageable.",
-      "Use a visual checklist or timer if your child finds it helpful.",
-      "Offer choices and start with an easier step.",
-    ],
-    reinforcementIdea: "Praise getting started, trying one small part, or asking for help appropriately.",
+    planGoal: "Independently requests a break during homework.",
+    dailyActivities: [breakRequestActivity],
   });
   const actions = buildParentDailyActionDrafts({
     date: "2026-10-07",
@@ -108,66 +62,64 @@ test("uploaded-plan activities preserve provenance and use the card's own guidan
     supportCards: [card],
     logs: [],
   });
-  const activity = actions.find((action) => action.kind === "activity");
 
-  assert.equal(activity?.sourceType, "parent_uploaded_plan");
-  assert.equal(activity?.sourceDocumentId, "parent-plan-1");
-  assert.deepEqual(activity?.steps, [
-    "Offer choices and start with an easier step.",
-    "Notice and support this response: Praise getting started, trying one small part, or asking for help appropriately.",
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].kind, "task");
+  assert.equal(actions[0].sourceType, "parent_uploaded_plan");
+  assert.equal(actions[0].sourceDocumentId, "parent-plan-1");
+  assert.equal(actions[0].title, "Practice requesting a break");
+  assert.deepEqual(actions[0].steps, [
+    "In this routine: During homework at the kitchen table",
+    "Offer this opportunity: Before a short assignment, offer the familiar break card and wait",
+    "Notice this skill: Requests a break using the card",
+    "Plan-listed reinforcement: Provide the planned break after the request",
   ]);
+  assert.match(actions[0].whyItMayHelp, /Independently requests a break during homework/);
 });
 
-test("fallback daily actions still cover multiple parent-selected behaviors without support cards", () => {
-  const selected = [
-    selectedBehavior("task_refusal", "Task refusal"),
-    { ...selectedBehavior("sleep_problems", "Sleep problems"), goal: null },
-  ];
+test("daily actions spread across selected behaviors and cap the list at four plan activities", () => {
+  const firstBehavior = selectedBehavior("task_refusal", "Task refusal");
+  const secondBehavior = selectedBehavior("sleep_problems", "Sleep problems");
+  const anotherActivity: ParentPlanActivity = {
+    ...breakRequestActivity,
+    title: "Use a visual first-then card",
+    routineContext: "During the evening routine",
+    sourceDocumentId: "clinician-plan-1",
+    sourceType: "clinician_reviewed",
+    reinforcement: null,
+  };
   const actions = buildParentDailyActionDrafts({
     date: "2026-10-07",
-    selectedBehaviors: selected,
-    supportCards: [],
+    selectedBehaviors: [firstBehavior, secondBehavior],
+    supportCards: [
+      supportCard("task_refusal", "Task refusal", "parent_document", {
+        dailyActivities: [breakRequestActivity, anotherActivity, anotherActivity],
+      }),
+      supportCard("sleep_problems", "Sleep problems", "clinician_reviewed", {
+        sourceDocumentIds: ["clinician-plan-1"],
+        dailyActivities: [anotherActivity, anotherActivity, anotherActivity],
+      }),
+    ],
     logs: [],
   });
 
-  assert.deepEqual(
-    new Set(actions.filter((action) => action.kind === "task").map((action) => action.behaviorName)),
-    new Set(["Task refusal", "Sleep problems"]),
-  );
-  assert.deepEqual(
-    new Set(actions.filter((action) => action.kind === "activity").map((action) => action.behaviorName)),
-    new Set(["Task refusal", "Sleep problems"]),
-  );
-  assert.ok(actions.some((action) =>
-    action.kind === "task" &&
-    action.behaviorName === "Task refusal" &&
-    action.steps[0].includes("family-selected goal: Ask for a break"),
-  ));
-  assert.ok(actions.some((action) =>
-    action.kind === "task" &&
-    action.behaviorName === "Sleep problems" &&
-    action.steps[0].includes("what happened just before it"),
-  ));
+  assert.equal(actions.length, 4);
+  assert.deepEqual(actions.slice(0, 2).map((action) => action.behaviorName), ["Sleep problems", "Task refusal"]);
+  assert.ok(actions.some((action) => action.sourceType === "clinician_reviewed"));
 });
 
-test("repeated helpful parent notes can add a clearly labeled task without replacing plan guidance", () => {
-  const behavior = selectedBehavior("task_refusal", "Task refusal");
+test("starter cards, selected goals, and repeated notes do not become invented daily activities", () => {
   const repeatedNote = "Offer a visual break card.";
   const actions = buildParentDailyActionDrafts({
     date: "2026-10-07",
-    selectedBehaviors: [behavior],
-    supportCards: [supportCard("task_refusal", "Task refusal", "starter")],
+    selectedBehaviors: [selectedBehavior("task_refusal", "Task refusal")],
+    supportCards: [makeStarterCard("task_refusal", null, "Ask for a break")],
     logs: [
       { behaviorKey: "task_refusal", customBehavior: null, whatHelped: repeatedNote, createdAt: new Date() },
       { behaviorKey: "task_refusal", customBehavior: null, whatHelped: repeatedNote, createdAt: new Date() },
     ],
   });
-
-  const pattern = actions.find((action) => action.sourceType === "recent_log_pattern");
-  assert.ok(pattern);
-  assert.equal(pattern?.title, "Try what helped before");
-  assert.equal(pattern?.description, repeatedNote);
-  assert.ok(actions.some((action) => action.sourceType === "starter_template"));
+  assert.deepEqual(actions, []);
 });
 
 test("conflicting plan guidance is marked for review rather than presented as a ready activity", () => {
@@ -182,10 +134,9 @@ test("conflicting plan guidance is marked for review rather than presented as a 
     ],
     logs: [],
   });
-  const planActions = actions.filter((action) => action.sourceType === "parent_uploaded_plan");
-  assert.ok(planActions.length > 0);
-  assert.ok(planActions.every((action) => action.status === "needs_review"));
-  assert.ok(planActions.every((action) => action.steps.length === 0));
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].status, "needs_review");
+  assert.deepEqual(actions[0].steps, []);
 });
 
 test("parent action dates accept real calendar days and reject malformed dates", () => {
