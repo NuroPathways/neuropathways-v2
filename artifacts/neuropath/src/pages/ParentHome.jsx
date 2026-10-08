@@ -15,7 +15,6 @@ import ChatPanel from "@/components/parentfree/ChatPanel";
 import ClinicPanel from "@/components/parentfree/ClinicPanel";
 import BehaviorCards from "@/components/parentfree/BehaviorCards";
 import ParentGoalsTab from "@/components/parentfree/ParentGoalsTab";
-import ProgressView from "@/components/parentfree/ProgressView";
 import { cardIdentity } from "@/components/parentfree/progress";
 import BehaviorLibrary from "@/components/parentfree/BehaviorLibrary";
 import ChildEditor from "@/components/parentfree/ChildEditor";
@@ -118,7 +117,6 @@ function Body({ child }) {
           onAddBehavior={() => go("edit", "behaviors")}
           onGoals={() => go("edit", "goals")}
           onEditProfile={() => go("edit", "profile")}
-          progress={<ProgressView cards={cards} logs={d.logs} selectedId={curId} onLog={() => go("log")} />}
         />
       )}
       {d && tab === "steps" && (
@@ -179,6 +177,8 @@ function Body({ child }) {
           behaviors={mine}
           cards={cards}
           allCards={allCards}
+          dailyActions={d?.dailyActions || []}
+          planGoals={d?.planGoals || []}
           onUpload={() => go("docs")}
           onEdit={(targetSection) => go("edit", targetSection === "goals" ? "goal-editor" : targetSection)}
         />

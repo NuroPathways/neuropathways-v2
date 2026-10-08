@@ -37,7 +37,7 @@ Surface newly discovered plan behaviors automatically in Help Now and the librar
 
 **Why:** A plan upload should personalize support without undoing the parent's choices or sending a completed account back through setup because a new target has no chosen goal.
 
-**How to apply:** Let the parent use discovered support without adding it first. Require parent confirmation before adding it to active behaviors for logging. Keep source provenance and distinguish plan guidance from the parent's current goal.
+**How to apply:** Let the parent use discovered support and goal-based daily practice without adding it first. Require parent confirmation before adding it to active behaviors for logging. Keep source provenance, do not write activity feedback as clinical progress, and distinguish plan guidance from the parent's current goal.
 
 ## Help Now blocks and separate plan goals
 

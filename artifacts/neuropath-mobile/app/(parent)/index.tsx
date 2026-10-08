@@ -40,9 +40,9 @@ const DAILY_FEEDBACK = [
 ] as const;
 
 const DAILY_OUTCOMES = [
-  ["used_skill", "Done", "check-circle"],
+  ["used_skill", "Completed", "check-circle"],
   ["not_yet", "Didn't get a chance", "clock"],
-  ["partially", "We struggled with this", "alert-triangle"],
+  ["partially", "This was difficult", "alert-triangle"],
 ] as const;
 
 function DailyActivityCard({ action, documents, childName, onOutcome, isSaving, error }: {
@@ -67,7 +67,7 @@ function DailyActivityCard({ action, documents, childName, onOutcome, isSaving, 
       <T size={14}>{action.description}</T>
       {action.whyItMayHelp ? (
         <View style={{ backgroundColor: c.muted, borderLeftWidth: 4, borderLeftColor: c.accent, borderRadius: 12, padding: 12, gap: 4 }}>
-          <T size={13} weight="bold">Why this supports {childName}'s goal</T>
+          <T size={13} weight="bold">Why you're doing this</T>
           <T size={13}>{action.whyItMayHelp}</T>
         </View>
       ) : null}
@@ -233,11 +233,34 @@ export default function SupportNow() {
             ))
           ) : (
             <Card>
-              <T weight="semi">No plan-specific daily activity is ready for {childName}.</T>
-              <T size={14}>Upload a treatment or behavior plan, or ask the clinician to identify a routine, practice opportunity, and skill to notice. We will not fill in activities that are not supported by the plan.</T>
+              <T weight="semi">Build today's practice list</T>
+              <T size={14}>Choose a goal or upload a plan. Activities will be based on the goals and support guidance available for {childName}.</T>
+              <Btn kind="ghost" icon="target" label="Choose a Goal" onPress={() => router.push({ pathname: "/parent-edit", params: { add: "pick" } } as never)} />
               <Btn kind="ghost" icon="upload" label="Upload a Plan" onPress={() => router.push("/(parent)/documents" as never)} />
             </Card>
           )}
+          {(q.data?.planGoals ?? []).length > 0 ? (
+            <Card>
+              <T weight="bold" size={17}>Goals and milestones from plans and reports</T>
+              <T size={13} color={c.secondary}>These were added from uploaded documents and do not replace your saved goals.</T>
+              {(q.data?.planGoals ?? []).map((goal) => (
+                <View key={goal.id} style={{ borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12, gap: 6 }}>
+                  <T weight="semi" size={15}>{goal.title}</T>
+                  {goal.sourceType === "clinician_uploaded_plan"
+                    ? <T size={12} color={c.secondary}>From a clinician-uploaded document</T>
+                    : <T size={12} color={c.secondary}>From an uploaded plan</T>}
+                  {goal.description ? <T size={13}>{goal.description}</T> : null}
+                  {goal.milestones.map((milestone, index) => (
+                    <View key={`${goal.id}-milestone-${index}`} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+                      <T size={13} weight="bold" color={c.primary}>{index + 1}.</T>
+                      <View style={{ flex: 1 }}><T size={13}>{milestone}</T></View>
+                    </View>
+                  ))}
+                  {!goal.milestones.length ? <T size={13} color={c.secondary}>Practice activities based on this goal appear in Today.</T> : null}
+                </View>
+              ))}
+            </Card>
+          ) : null}
           {showHelpBlocks ? (
             <Card>
               <T weight="bold" size={18}>What do you need help with right now?</T>

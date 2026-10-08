@@ -486,6 +486,13 @@ export const GetParentDashboardResponse = zod.object({
   "note": zod.string().nullable(),
   "createdAt": zod.coerce.date()
 }))
+})),
+  "planGoals": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "milestones": zod.array(zod.string()),
+  "sourceType": zod.enum(['clinician_uploaded_plan', 'parent_uploaded_plan'])
 }))
 })
 

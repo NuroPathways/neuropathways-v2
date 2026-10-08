@@ -25,11 +25,89 @@ function lastCheckInLabel(value) {
   return `Last checked in ${parsed.toLocaleDateString()}`;
 }
 
+function PlanMilestones({ card, dailyActions = [] }) {
+  const planActivities = Array.isArray(card.dailyActivities) ? card.dailyActivities : [];
+  const todayActions = dailyActions.filter((action) =>
+    action.kind === "task" && action.supportCardId === card.id,
+  );
+
+  return (
+    <section className="pf-card sage" style={{ marginTop: 14 }} data-testid={`plan-milestones-${card.id}`}>
+      <h4>Plan milestones and practice</h4>
+      {planActivities.length > 0 ? (
+        <ul className="pf-list" style={{ marginTop: 8 }}>
+          {planActivities.map((activity, index) => (
+            <li key={`${card.id}-plan-activity-${index}`} style={{ display: "block" }}>
+              <strong>{activity.title}</strong>
+              <span className="pf-hint" style={{ display: "block", marginTop: 3 }}>
+                {activity.routineContext} · Practice: {activity.skill}
+                {activity.reinforcement ? ` · Reinforce: ${activity.reinforcement}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : todayActions.length > 0 ? (
+        <ul className="pf-list" style={{ marginTop: 8 }}>
+          {todayActions.map((action) => (
+            <li key={action.id} style={{ display: "block" }}>
+              <strong>{action.title}</strong>
+              <span className="pf-hint" style={{ display: "block", marginTop: 3 }}>{action.description}</span>
+            </li>
+          ))}
+        </ul>
+      ) : card.conflict ? (
+        <p className="pf-hint" style={{ marginTop: 6 }}>
+          The plan has conflicting steps. Ask the clinician to review it before using plan-specific activities.
+        </p>
+      ) : (
+        <p className="pf-hint" style={{ marginTop: 6 }}>
+          This goal is saved. Re-read the plan from Upload Plan to refresh its practice activities.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function PlanGoalMilestones({ goal, dailyActions }) {
+  const goalKey = goal.title.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+  const activities = dailyActions.filter((action) =>
+    action.kind === "task" &&
+    !action.supportCardId &&
+    action.sourceType === goal.sourceType &&
+    action.behaviorName.trim().toLocaleLowerCase().replace(/\s+/g, " ") === goalKey,
+  );
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <h5 style={{ margin: 0 }}>Plan milestones and practice</h5>
+      {goal.milestones.length > 0 && (
+        <ul className="pf-list" style={{ marginTop: 6 }}>
+          {goal.milestones.map((milestone, index) => <li key={`${goal.id}-milestone-${index}`}>{milestone}</li>)}
+        </ul>
+      )}
+      {activities.length > 0 ? (
+        <ul className="pf-list" style={{ marginTop: 6 }}>
+          {activities.map((activity) => (
+            <li key={activity.id} style={{ display: "block" }}>
+              <strong>{activity.title}</strong>
+              <span className="pf-hint" style={{ display: "block", marginTop: 3 }}>{activity.description}</span>
+            </li>
+          ))}
+        </ul>
+      ) : goal.milestones.length === 0 ? (
+        <p className="pf-hint" style={{ marginTop: 5 }}>Activities based on this goal will appear in Today.</p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function ParentGoalsTab({
   child,
   behaviors,
   cards,
   allCards,
+  dailyActions = [],
+  planGoals = [],
   onUpload,
   onEdit,
 }) {
@@ -39,6 +117,23 @@ export default function ParentGoalsTab({
   const [showLibrary, setShowLibrary] = useState(false);
   const [error, setError] = useState("");
   const activeBehaviors = Array.isArray(behaviors) ? behaviors : [];
+  const activeIdentities = new Set(activeBehaviors.map(parentBehaviorIdentity));
+  const discoveredPlanGoals = (Array.isArray(allCards) ? allCards : [])
+    .filter((card) => card.planGoal?.trim() && !activeIdentities.has(parentBehaviorIdentity(card)))
+    .filter((card, index, cardsWithGoals) =>
+      cardsWithGoals.findIndex((candidate) =>
+        parentBehaviorIdentity(candidate) === parentBehaviorIdentity(card) &&
+        candidate.planGoal?.trim() === card.planGoal?.trim(),
+      ) === index,
+    );
+  const cardPlanGoalTitles = new Set((Array.isArray(allCards) ? allCards : [])
+    .map((card) => card.planGoal?.trim())
+    .filter(Boolean)
+    .map((title) => title.normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ")));
+  const storedPlanGoals = (Array.isArray(planGoals) ? planGoals : [])
+    .filter((goal) =>
+      !cardPlanGoalTitles.has(goal.title.trim().normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ")),
+    );
 
   const saveRating = (behavior, rating) => {
     if (!behavior.goal) return;
@@ -106,6 +201,7 @@ export default function ParentGoalsTab({
             <div style={{ marginTop: 12 }}>
               <GoalLines card={goalCard} active />
             </div>
+          {linkedCard?.planGoal && <PlanMilestones card={linkedCard} dailyActions={dailyActions} />}
 
             {behavior.goal ? (
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--pf-line)" }}>
@@ -142,6 +238,40 @@ export default function ParentGoalsTab({
           </article>
         );
       })}
+
+      {(discoveredPlanGoals.length > 0 || storedPlanGoals.length > 0) && (
+        <section className="pf-card" aria-labelledby="plan-goals-heading" data-testid="goals-found-in-plan">
+          <p className="pf-eyebrow">Added from read documents</p>
+          <h3 id="plan-goals-heading" style={{ marginTop: 5 }}>Goals and milestones from plans and reports</h3>
+          <p className="pf-hint" style={{ marginTop: 6 }}>
+            These goals were found in {child.name}'s documents and added automatically. They do not replace your saved goals.
+          </p>
+          <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+            {discoveredPlanGoals.map((card) => (
+              <article className="pf-card sage" key={`${parentBehaviorIdentity(card)}:${card.planGoal}`}>
+                <h4>{card.behaviorName}</h4>
+                <p style={{ marginTop: 6 }}><strong>Plan goal:</strong> {card.planGoal}</p>
+                {card.planGoalSourceReferences?.length > 0 && (
+                  <p className="pf-hint" style={{ marginTop: 5 }}>
+                    From: {card.planGoalSourceReferences.map((reference) => reference.title).join(", ")}
+                  </p>
+                )}
+                <PlanMilestones card={card} dailyActions={dailyActions} />
+              </article>
+            ))}
+            {storedPlanGoals.map((goal) => (
+              <article className="pf-card sage" key={goal.id} data-testid={`plan-goal-${goal.id}`}>
+                <p className="pf-eyebrow">
+                  {goal.sourceType === "clinician_uploaded_plan" ? "From a clinician-uploaded document" : "From an uploaded plan"}
+                </p>
+                <h4 style={{ marginTop: 5 }}>{goal.title}</h4>
+                {goal.description && <p style={{ marginTop: 6 }}>{goal.description}</p>}
+                <PlanGoalMilestones goal={goal} dailyActions={dailyActions} />
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="pf-card sun" data-testid="add-goal-action">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>

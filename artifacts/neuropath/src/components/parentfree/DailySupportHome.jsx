@@ -36,9 +36,9 @@ const RATINGS = [
 ];
 
 const OUTCOMES = [
-  ["used_skill", "Done"],
-  ["not_yet", "Didn't get a chance"],
-  ["partially", "We struggled with this"],
+  ["used_skill", "✓ Completed"],
+  ["not_yet", "○ Didn't get a chance"],
+  ["partially", "○ We struggled with this"],
 ];
 
 function sourceText(action) {
@@ -79,7 +79,7 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
         <span className={`pf-tag ${statusTone(action.status)}`}>{STATUS_LABELS[action.status] || "Ready when you are"}</span>
       </div>
       <p className="pf-daily-description">{action.description}</p>
-      {action.whyItMayHelp && <p className="pf-daily-why"><strong>Why this supports {childName}'s goal:</strong> {action.whyItMayHelp}</p>}
+      {action.whyItMayHelp && <p className="pf-daily-why"><strong>Why you're doing this:</strong> {action.whyItMayHelp}</p>}
       {action.steps?.length > 0 && (
         <ol className="pf-daily-steps">
           {action.steps.map((step, index) => <li key={`${action.id}-${index}`}>{step}</li>)}
@@ -165,7 +165,6 @@ export default function DailySupportHome({
   onGoals,
   onEditProfile,
   onAsk,
-  progress,
 }) {
   const queryClient = useQueryClient();
   const log = useLogParentDailyAction({ request: parentRequest() });
@@ -212,16 +211,20 @@ export default function DailySupportHome({
       <section className="pf-daily-section" aria-labelledby="daily-tasks-heading">
         <div className="pf-daily-section-heading">
           <div>
-            <p className="pf-eyebrow">Based on the support available for {childName}</p>
+            <p className="pf-eyebrow">Goal- and plan-based practice</p>
             <h2 id="daily-tasks-heading">Today for {childName}</h2>
           </div>
           <span className="pf-daily-count">{tasks.filter((task) => task.status === "not_started").length} ready</span>
         </div>
-        <p className="pf-hint">Try only what fits the written plan. Skip anything that does not fit today.</p>
+        <p className="pf-hint">Each activity comes from a saved goal, an uploaded plan, or clearly labeled starter support. Only try what feels safe and fits today.</p>
         {tasks.length ? actionGrid(tasks) : (
-          <div className="pf-card">
-            <p>No plan-specific daily activity is ready for {childName}. Upload a treatment or behavior plan, or ask the clinician to identify a routine, practice opportunity, and skill to notice.</p>
-            <button type="button" className="pf-btn primary" onClick={onUpload}>Upload a Plan</button>
+          <div className="pf-card" data-testid="empty-daily-plan">
+            <h3>Build today's practice list</h3>
+            <p>Choose a goal or read an uploaded plan, and activities will be built around what {childName} is working on.</p>
+            <div className="pf-daily-action-buttons">
+              <button type="button" className="pf-btn primary" onClick={onGoals}>Choose a Goal</button>
+              <button type="button" className="pf-btn" onClick={onUpload}>Read a Plan</button>
+            </div>
           </div>
         )}
       </section>
@@ -285,9 +288,6 @@ export default function DailySupportHome({
         )}
         {cards.length > 3 && <button type="button" className="pf-btn small" onClick={onOpenLibrary}>See all {cards.length} support areas</button>}
       </section>
-
-      {progress && <section className="pf-daily-section pf-progress-secondary" aria-label="Recent progress">{progress}</section>}
-
     </div>
   );
 }

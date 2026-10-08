@@ -1142,6 +1142,23 @@ components:
         - whatHelped
         - notes
         - createdAt
+    ParentPlanGoal:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        milestones:
+          type: array
+          items:
+            type: string
+        sourceType:
+          type: string
+          enum: [clinician_uploaded_plan, parent_uploaded_plan]
+      required: [id, title, description, milestones, sourceType]
     ParentDashboard:
       type: object
       properties:
@@ -1163,7 +1180,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ParentDailyAction"
-      required: [child, supportCards, documents, logs, dailyActions]
+        planGoals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentPlanGoal"
+      required: [child, supportCards, documents, logs, dailyActions, planGoals]
     ParentDailyAction:
       type: object
       properties:

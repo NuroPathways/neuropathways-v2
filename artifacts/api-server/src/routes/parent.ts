@@ -26,6 +26,7 @@ import {
 } from "@workspace/api-zod";
 import { makeStarterCard, starterLibrary } from "../lib/parentStarterLibrary";
 import {
+  getParentPlanGoals,
   getOrCreateParentDailyActions,
   normalizeParentActionDate,
   serializeParentDailyAction,
@@ -410,7 +411,7 @@ function serializeParentLog(log: typeof parentLogsTable.$inferSelect) {
 export async function getParentDashboardData(parentId: string, childId: string, actionDate = new Date().toISOString().slice(0, 10)) {
   const owned = await ownedParentChild(parentId, childId);
   if (!owned) return null;
-  const [supportCards, documents, storedLogs] = await Promise.all([
+  const [supportCards, documents, storedLogs, planGoals] = await Promise.all([
     getParentSupportCards(parentId, childId),
     listParentDocuments(parentId, childId),
     db
@@ -418,6 +419,7 @@ export async function getParentDashboardData(parentId: string, childId: string, 
       .from(parentLogsTable)
       .where(and(eq(parentLogsTable.parentId, parentId), eq(parentLogsTable.childId, childId)))
       .orderBy(desc(parentLogsTable.createdAt)),
+    getParentPlanGoals(childId),
   ]);
   const selectedBehaviors = parentBehaviorsFromSettings(owned.settings);
   const dailyActions = await getOrCreateParentDailyActions({
@@ -429,6 +431,7 @@ export async function getParentDashboardData(parentId: string, childId: string, 
     date: actionDate,
     selectedBehaviors,
     supportCards,
+    planGoals,
     logs: storedLogs.slice(0, 100).map((log) => ({
       behaviorKey: log.behaviorKey,
       customBehavior: log.customBehavior,
@@ -442,6 +445,7 @@ export async function getParentDashboardData(parentId: string, childId: string, 
     documents,
     logs: storedLogs.map(serializeParentLog),
     dailyActions,
+    planGoals,
   };
 }
 

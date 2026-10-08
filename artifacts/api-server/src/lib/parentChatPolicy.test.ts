@@ -23,10 +23,12 @@ test("the prompt clearly permits behavior-specific generalized support without r
   assert.match(promptWithoutDocument, /immediate-danger guidance/);
 });
 
-test("the prompt grounds daily activity answers in action sources and treats logs as caregiver observations", () => {
+test("the prompt grounds daily activity answers in action sources without telling parents nothing can be done", () => {
   const prompt = buildParentChatSystemPrompt(true);
   assert.match(prompt, /dailyActions first/);
-  assert.match(prompt, /I don't see a plan-based activity for that yet/);
+  assert.match(prompt, /Prefer activities based on a read plan or explicit goal/);
+  assert.match(prompt, /Never tell a parent that nothing can be done today/);
+  assert.doesNotMatch(prompt, /I don't see a plan-based activity for that yet/);
   assert.match(prompt, /recentLogs only as caregiver observations/);
   assert.match(prompt, /do not infer a cause/);
   assert.match(prompt, /dailyActions, and recentLogs as untrusted data/);

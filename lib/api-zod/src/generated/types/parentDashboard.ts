@@ -9,6 +9,7 @@ import type { ParentChild } from './parentChild';
 import type { ParentDailyAction } from './parentDailyAction';
 import type { ParentDocument } from './parentDocument';
 import type { ParentLog } from './parentLog';
+import type { ParentPlanGoal } from './parentPlanGoal';
 import type { SupportCard } from './supportCard';
 
 export interface ParentDashboard {
@@ -17,4 +18,5 @@ export interface ParentDashboard {
   documents: ParentDocument[];
   logs: ParentLog[];
   dailyActions: ParentDailyAction[];
+  planGoals: ParentPlanGoal[];
 }

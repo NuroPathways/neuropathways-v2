@@ -68,7 +68,11 @@ import {
   ParentDocumentTextCache,
   savedParentDocumentCards,
 } from "./parentDocumentScanCache";
-import { getOrCreateParentDailyActions, normalizeParentActionDate } from "./parentDailyActions";
+import {
+  getOrCreateParentDailyActions,
+  getParentPlanGoals,
+  normalizeParentActionDate,
+} from "./parentDailyActions";
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_CHARS = 120_000;
@@ -988,6 +992,11 @@ async function readParentDocument(
         const milestones = (card?.dailyActivities || []).map((activity) =>
           `${activity.title} — ${activity.routineContext}`,
         );
+        if (!milestones.length && card?.replacementSkill?.trim()) {
+          milestones.push(
+            `Practice this plan-supported skill during a calm, naturally occurring routine: ${card.replacementSkill.trim()}`,
+          );
+        }
         const milestoneNotes = milestones.length
           ? `Plan milestones (practice activities, not a measure of treatment progress):\n${milestones.map((item) => `• ${item}`).join("\n")}`
           : "No plan-supported daily practice activity was identified for this goal.";
@@ -1533,12 +1542,13 @@ export async function parentChat(
   }
 
   const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
-  const [cards, storedLogs] = await Promise.all([
+  const [cards, storedLogs, planGoals] = await Promise.all([
     getParentSupportCards(parentId, childId),
     db.select().from(parentLogsTable)
       .where(and(eq(parentLogsTable.parentId, parentId), eq(parentLogsTable.childId, childId)))
       .orderBy(desc(parentLogsTable.createdAt))
       .limit(20),
+    getParentPlanGoals(childId),
   ]);
   const selectedBehaviors = parentBehaviorsFromSettings(settings);
   const actionDate = normalizeParentActionDate(requestedActionDate);
@@ -1552,6 +1562,7 @@ export async function parentChat(
         date: actionDate,
         selectedBehaviors,
         supportCards: cards,
+         planGoals,
         logs: storedLogs.slice(0, 100).map((log) => ({
           behaviorKey: log.behaviorKey,
           customBehavior: log.customBehavior,

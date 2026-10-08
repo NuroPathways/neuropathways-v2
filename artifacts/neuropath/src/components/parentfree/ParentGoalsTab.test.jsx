@@ -75,4 +75,71 @@ describe("ParentGoalsTab", () => {
       },
     });
   });
+
+  it("shows goals and practice milestones discovered in plans even before a parent selects them", () => {
+    render(
+      <ParentGoalsTab
+        child={{ id: "child-1", name: "John" }}
+        behaviors={[]}
+        cards={[]}
+        allCards={[{
+          id: "plan-break-goal",
+          behaviorKey: "custom",
+          behaviorName: "Requesting breaks",
+          source: "parent_document",
+          planGoal: "John will request a break independently during homework.",
+          planGoalSourceReferences: [{ documentId: "plan-1", title: "Behavior plan" }],
+          dailyActivities: [{
+            title: "Practice requesting a break",
+            routineContext: "During homework",
+            skill: "Ask for a break before prompting",
+            reinforcement: "Provide the planned break",
+          }],
+        }]}
+        dailyActions={[]}
+      />,
+    );
+
+    expect(screen.getByTestId("goals-found-in-plan")).toBeTruthy();
+    expect(screen.getByText("John will request a break independently during homework.")).toBeTruthy();
+    expect(screen.getByText("Practice requesting a break")).toBeTruthy();
+    expect(screen.getByText(/Provide the planned break/)).toBeTruthy();
+    expect(screen.getByText(/Behavior plan/)).toBeTruthy();
+  });
+
+  it("shows clinician-report goals and their extracted milestones without treating them as progress", () => {
+    render(
+      <ParentGoalsTab
+        child={{ id: "child-1", name: "John" }}
+        behaviors={[]}
+        cards={[]}
+        allCards={[]}
+        planGoals={[{
+          id: "report-goal-1",
+          title: "Request a break during homework",
+          description: "Ask to pause before leaving the work area.",
+          milestones: [
+            "Use the break card before the first homework task.",
+            "Return to the next task after the planned break.",
+          ],
+          sourceType: "clinician_uploaded_plan",
+        }]}
+        dailyActions={[{
+          id: "daily-report-goal-1",
+          kind: "task",
+          supportCardId: null,
+          sourceType: "clinician_uploaded_plan",
+          behaviorName: "Request a break during homework",
+          title: "Practice: Use the break card",
+          description: "This is a milestone read from the plan.",
+        }]}
+      />,
+    );
+
+    expect(screen.getByTestId("plan-goal-report-goal-1")).toBeTruthy();
+    expect(screen.getByText("From a clinician-uploaded document")).toBeTruthy();
+    expect(screen.getByText("Use the break card before the first homework task.")).toBeTruthy();
+    expect(screen.getByText("Return to the next task after the planned break.")).toBeTruthy();
+    expect(screen.getByText("Practice: Use the break card")).toBeTruthy();
+  });
 });

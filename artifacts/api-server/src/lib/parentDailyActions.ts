@@ -4,6 +4,7 @@ import {
   db,
   parentDailyActionLogsTable,
   parentDailyActionsTable,
+  rewardTokensTable,
   type ParentDailyAction,
   type ParentDailyActionKind,
   type ParentDailyActionLog,
@@ -36,6 +37,50 @@ type DailyActionDraft = {
   estimatedMinutes: number;
   status: "not_started" | "needs_review";
 };
+
+export type ParentPlanGoal = {
+  id: string;
+  title: string;
+  description: string;
+  milestones: string[];
+  sourceType: "clinician_uploaded_plan" | "parent_uploaded_plan";
+};
+
+const UNSAFE_PLAN_PRACTICE =
+  /\b(restraint|seclusion|pin(?:ning)?|hold(?:ing)?\s+(?:down|still)|physical block(?:ing)?|punish(?:ment)?|extinction|force them)\b/i;
+
+function parseGoalMilestones(notes: string | null | undefined): string[] {
+  if (typeof notes !== "string") return [];
+  return notes.split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(?:[-*•]\s*)/, "").trim())
+    .filter((line) => line && !/^(?:plan milestones\b|no (?:explicit )?milestones\b)/i.test(line))
+    .filter((line) => !UNSAFE_PLAN_PRACTICE.test(line))
+    .map((line) => line.slice(0, 400))
+    .slice(0, 8);
+}
+
+export async function getParentPlanGoals(childId: string): Promise<ParentPlanGoal[]> {
+  const rows = await db.select().from(rewardTokensTable).where(and(
+    eq(rewardTokensTable.childId, childId),
+    inArray(rewardTokensTable.source, ["document", "parent_document"]),
+  )).orderBy(desc(rewardTokensTable.createdDate));
+  const seen = new Set<string>();
+  return rows.flatMap((row) => {
+    const title = row.goalTitle?.trim().slice(0, 500) || "";
+    const key = title.normalize("NFKC").toLowerCase().replace(/\s+/g, " ");
+    if (!title || seen.has(key)) return [];
+    seen.add(key);
+    return [{
+      id: row.id,
+      title,
+      description: UNSAFE_PLAN_PRACTICE.test(`${title} ${row.goalDescription || ""}`)
+        ? ""
+        : row.goalDescription?.trim().slice(0, 3000) || "",
+      milestones: parseGoalMilestones(row.milestoneNotes),
+      sourceType: row.source === "document" ? "clinician_uploaded_plan" as const : "parent_uploaded_plan" as const,
+    }];
+  });
+}
 
 const SOURCE_PRIORITY: Record<ParentDailyActionSource, number> = {
   clinician_reviewed: 0,
@@ -314,6 +359,112 @@ function selectedBehaviorDraft(
   };
 }
 
+function planGuidedPracticeDraft(
+  card: SupportCard,
+  selectedBehavior: ParentBehavior | undefined,
+  date: string,
+  childName: string,
+): DailyActionDraft | null {
+  const sourceDocumentId =
+    card.planGoalSourceDocumentIds?.[0] || card.sourceDocumentIds?.[0] || null;
+  const skill = cleanSteps([card.replacementSkill, ...card.prevention], 1)[0];
+  if (!sourceDocumentId || !skill) return null;
+
+  const goal = card.planGoal?.trim() || selectedBehavior?.goal?.trim() || "";
+  const supportSource = card.sourceReferences?.[0]?.title || "the uploaded plan";
+  const fingerprint = crypto.createHash("sha256")
+    .update(`${sourceDocumentId}|${goal}|${skill}`)
+    .digest("hex")
+    .slice(0, 20);
+  return {
+    actionDate: date,
+    actionKey: actionKey("task", identityForCard(card), `plan-practice-${fingerprint}`),
+    kind: "task",
+    behaviorKey: card.behaviorKey || null,
+    behaviorName: card.behaviorName,
+    supportCardId: card.id || null,
+    sourceType: sourceTypeFor(card),
+    sourceDocumentId,
+    title: `Practice: ${shortTitle(skill, card.behaviorName)}`,
+    description: `During a routine that comes up naturally today, offer ${childName} a calm, low-pressure chance to practice this skill. Use only familiar supports from the plan; do not create a difficult situation to practice.`,
+    whyItMayHelp: goal
+      ? `Supports ${childName}'s ${card.planGoal?.trim() ? "plan goal" : "saved goal"}: ${goal}`
+      : `This practice uses support steps read from ${supportSource} for ${card.behaviorName}.`,
+    steps: cleanSteps([
+      `Practice this skill: ${skill}`,
+      card.prevention?.[0] ? `Plan support: ${card.prevention[0]}` : null,
+      card.reinforcementIdea ? `Plan-supported reinforcement: ${card.reinforcementIdea}` : null,
+    ]),
+    estimatedMinutes: 5,
+    status: "not_started",
+  };
+}
+
+function selectedGoalPracticeDraft(
+  behavior: ParentBehavior,
+  card: SupportCard,
+  date: string,
+  childName: string,
+): DailyActionDraft | null {
+  const savedGoal = behavior.goal?.trim() || "";
+  const safeGoal = savedGoal && !UNSAFE_PLAN_PRACTICE.test(savedGoal) ? savedGoal : "";
+  const skill = cleanSteps([safeGoal, card.replacementSkill, ...card.prevention], 1)[0];
+  if (!skill) return null;
+  const draft = selectedBehaviorDraft(
+    behavior,
+    date,
+    "task",
+    "goal-practice",
+    `Practice: ${shortTitle(skill, behavior.behaviorName)}`,
+    `During a routine that already comes up today, look for a calm, natural chance to practice: ${skill}`,
+  );
+  draft.supportCardId = card.id || null;
+  draft.sourceDocumentId = null;
+  draft.description = `Try one small, low-pressure practice opportunity for ${behavior.behaviorName}. Use supports already familiar to ${childName}; do not create a difficult situation just to practice.`;
+  draft.whyItMayHelp = safeGoal
+    ? `Supports ${childName}'s saved goal: ${safeGoal}`
+    : `A small practice opportunity for the selected support area: ${behavior.behaviorName}.`;
+  draft.steps = cleanSteps([
+    `Practice this skill: ${skill}`,
+    card.prevention?.[0] ? `General starter support: ${card.prevention[0]}` : null,
+    card.reinforcementIdea ? `General starter reinforcement: ${card.reinforcementIdea}` : null,
+  ]);
+  return draft;
+}
+
+function documentGoalDrafts(goal: ParentPlanGoal, date: string, childName: string): DailyActionDraft[] {
+  const goalText = goal.title.trim();
+  const steps = goal.milestones.length
+    ? goal.milestones
+    : [goal.description.trim() || goalText];
+  return steps.flatMap((step, index) => {
+    const cleanStep = step.trim().slice(0, 400);
+    if (!cleanStep || UNSAFE_PLAN_PRACTICE.test(`${goalText} ${cleanStep}`)) return [];
+    const fingerprint = crypto.createHash("sha256")
+      .update(`${goal.id}|${goalText}|${cleanStep}`)
+      .digest("hex")
+      .slice(0, 20);
+    return [{
+      actionDate: date,
+      actionKey: actionKey("task", `plan-goal:${goal.id}`, `milestone-${index}-${fingerprint}`),
+      kind: "task",
+      behaviorKey: null,
+      behaviorName: goalText,
+      supportCardId: null,
+      sourceType: goal.sourceType,
+      sourceDocumentId: null,
+      title: `Practice: ${shortTitle(cleanStep, goalText)}`,
+      description: goal.milestones.length
+        ? `This is a milestone read from the plan. Try it only in a calm, naturally occurring opportunity; do not create a difficult situation to practice.`
+        : `Use a calm, naturally occurring opportunity to work toward this goal. Follow any specific steps in the uploaded plan; do not create a difficult situation to practice.`,
+      whyItMayHelp: `Supports ${childName}'s plan goal: ${goalText}`,
+      steps: cleanSteps([cleanStep]),
+      estimatedMinutes: 5,
+      status: "not_started",
+    }];
+  });
+}
+
 function recentHelpfulPattern(
   selected: ParentBehavior[],
   cards: SupportCard[],
@@ -386,11 +537,12 @@ export function buildParentDailyActionDrafts(input: {
   childName?: string;
   selectedBehaviors: ParentBehavior[];
   supportCards: SupportCard[];
+  planGoals?: ParentPlanGoal[];
   logs: ParentLogInput[];
 }): DailyActionDraft[] {
   const activeIdentities = new Set(input.selectedBehaviors.map(parentBehaviorIdentity));
   const cards = input.supportCards
-    .filter((card) => activeIdentities.has(identityForCard(card)))
+    .filter((card) => activeIdentities.has(identityForCard(card)) || card.source !== "starter")
     .sort((a, b) => SOURCE_PRIORITY[sourceTypeFor(a)] - SOURCE_PRIORITY[sourceTypeFor(b)])
     .filter((card, index, sorted) =>
       sorted.findIndex((candidate) => identityForCard(candidate) === identityForCard(card)) === index,
@@ -399,21 +551,53 @@ export function buildParentDailyActionDrafts(input: {
     if (card.conflict) {
       return [cardTask(card, input.date, `plan-review-${index}`)];
     }
-    return (card.dailyActivities || []).map((activity) =>
+    const planActivities = (card.dailyActivities || []).map((activity) =>
       planActivityDraft(card, activity, input.date, input.childName?.trim() || "your child"),
     );
+    if (planActivities.length) return planActivities;
+
+    const selectedBehavior = input.selectedBehaviors.find(
+      (behavior) => parentBehaviorIdentity(behavior) === identityForCard(card),
+    );
+    if (card.source !== "starter") {
+      const practice = planGuidedPracticeDraft(
+        card,
+        selectedBehavior,
+        input.date,
+        input.childName?.trim() || "your child",
+      );
+      if (practice) return [practice];
+    }
+    return selectedBehavior
+      ? [selectedGoalPracticeDraft(
+          selectedBehavior,
+          card,
+          input.date,
+          input.childName?.trim() || "your child",
+        )].filter((item): item is DailyActionDraft => Boolean(item))
+      : [];
   });
+  const cardGoalKeys = new Set(cards
+    .map((card) => card.planGoal?.trim())
+    .filter((goal): goal is string => Boolean(goal))
+    .map((goal) => goal.normalize("NFKC").toLowerCase().replace(/\s+/g, " ")));
+  const documentGoalGroups = (input.planGoals || [])
+    .filter((goal) => !cardGoalKeys.has(goal.title.normalize("NFKC").toLowerCase().replace(/\s+/g, " ")))
+    .map((goal) => documentGoalDrafts(goal, input.date, input.childName?.trim() || "your child"))
+    .filter((group) => group.length > 0);
 
   // Round-robin across selected support areas so one child goal cannot crowd out the rest.
   const actions: DailyActionDraft[] = [];
-  for (let activityIndex = 0; actions.length < 4; activityIndex += 1) {
+  const seenActionKeys = new Set<string>();
+  for (let activityIndex = 0; actions.length < 5; activityIndex += 1) {
     let added = false;
-    for (const activities of activitiesByCard) {
+    for (const activities of [...documentGoalGroups, ...activitiesByCard]) {
       const action = activities[activityIndex];
-      if (!action) continue;
+      if (!action || seenActionKeys.has(action.actionKey)) continue;
+      seenActionKeys.add(action.actionKey);
       actions.push(action);
       added = true;
-      if (actions.length === 4) break;
+      if (actions.length === 5) break;
     }
     if (!added) break;
   }
@@ -469,6 +653,7 @@ export async function getOrCreateParentDailyActions(input: {
   date: string;
   selectedBehaviors: ParentBehavior[];
   supportCards: SupportCard[];
+  planGoals?: ParentPlanGoal[];
   logs: ParentLogInput[];
 }) {
   const drafts = buildParentDailyActionDrafts(input);

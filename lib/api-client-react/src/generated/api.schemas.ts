@@ -337,6 +337,22 @@ export interface ParentLog {
   createdAt: string;
 }
 
+export type ParentPlanGoalSourceType = typeof ParentPlanGoalSourceType[keyof typeof ParentPlanGoalSourceType];
+
+
+export const ParentPlanGoalSourceType = {
+  clinician_uploaded_plan: 'clinician_uploaded_plan',
+  parent_uploaded_plan: 'parent_uploaded_plan',
+} as const;
+
+export interface ParentPlanGoal {
+  id: string;
+  title: string;
+  description: string;
+  milestones: string[];
+  sourceType: ParentPlanGoalSourceType;
+}
+
 export type ParentDailyActionKind = typeof ParentDailyActionKind[keyof typeof ParentDailyActionKind];
 
 
@@ -461,6 +477,7 @@ export interface ParentDashboard {
   documents: ParentDocument[];
   logs: ParentLog[];
   dailyActions: ParentDailyAction[];
+  planGoals: ParentPlanGoal[];
 }
 
 export interface ParentDailyActionLogResponse {
