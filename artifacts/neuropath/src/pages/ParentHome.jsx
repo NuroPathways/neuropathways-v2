@@ -7,7 +7,7 @@ import { ErrorBox, Skeleton } from "@/components/parentfree/common";
 import RoleAwareShell from "@/components/navigation/RoleAwareShell";
 import { createFreeCaregiverNavigation, mobilePrimaryKeysForRole } from "@/components/navigation/navigationModels";
 import { isSetupComplete, useSelectedChild } from "@/components/parentfree/useParent";
-import SupportCardView, { sourceLabel } from "@/components/parentfree/SupportView";
+import SupportCardView from "@/components/parentfree/SupportView";
 import GoalLines from "@/components/parentfree/GoalLines";
 import LogPanel from "@/components/parentfree/LogPanel";
 import DocsPanel from "@/components/parentfree/DocsPanel";
@@ -19,6 +19,7 @@ import ProgressView from "@/components/parentfree/ProgressView";
 import { cardIdentity } from "@/components/parentfree/progress";
 import BehaviorLibrary from "@/components/parentfree/BehaviorLibrary";
 import ChildEditor from "@/components/parentfree/ChildEditor";
+import DailySupportHome from "@/components/parentfree/DailySupportHome";
 import SupportNowOverlay, { clearSupportPopupSession } from "@/components/support/SupportNowOverlay";
 import { AlertTriangle } from "lucide-react";
 import { behaviorEmoji } from "@/lib/behaviorEmoji";
@@ -36,6 +37,11 @@ function clearFocus(userId) {
   } catch { /* Storage may be unavailable in a restricted browser. */ }
 }
 
+function currentLocalDay() {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+}
+
 function Body({ child }) {
   const { user } = useAuth();
   const [sp, setSp] = useSearchParams();
@@ -45,7 +51,10 @@ function Body({ child }) {
   const [addFromHelp, setAddFromHelp] = useState(null);
   const [supportStepId, setSupportStepId] = useState(null);
   const libraryRef = useRef(null);
-  const q = useGetParentDashboard(child.id, { query: { queryKey: getGetParentDashboardQueryKey(child.id), staleTime: 0, refetchOnMount: "always" }, request: parentRequest() });
+  const dashboardRequest = parentRequest();
+  const dashboardHeaders = new Headers(dashboardRequest.headers);
+  dashboardHeaders.set("X-Parent-Local-Date", currentLocalDay());
+  const q = useGetParentDashboard(child.id, { query: { queryKey: getGetParentDashboardQueryKey(child.id), staleTime: 0, refetchOnMount: "always" }, request: { ...dashboardRequest, headers: dashboardHeaders } });
   useEffect(() => { setSection(sp.get("section")); }, [sp]);
   useEffect(() => { if (tab !== "steps") setSupportStepId(null); }, [tab]);
   useEffect(() => {
@@ -82,50 +91,42 @@ function Body({ child }) {
       <section style={{ minWidth: 0 }}>
       {q.isLoading && <div style={{ display: "grid", gap: 14 }}><Skeleton h={160} /><Skeleton h={220} /></div>}
       {q.isError && <ErrorBox error={q.error} onRetry={() => q.refetch()} />}
-      {d && tab === "today" && (
-        card ? (
-          <div style={{ display: "grid", gap: 16 }} data-testid="panel-today">
-            <div className="pf-card sage">
-              <p className="pf-eyebrow">Current Focus</p>
-              <p style={{ marginTop: 8 }}><strong>Current Behavior:</strong> <span data-testid="text-current-behavior">{card.behaviorName}</span></p>
-              <p><strong>Current Goal:</strong> <span data-testid="text-current-goal">{card.goal || "No goal set yet"}</span></p>
-              {card.planGoal && <p data-testid="text-current-plan-goal"><strong>Plan goal:</strong> {card.planGoal}</p>}
-              <span className={`pf-tag ${sourceLabel(card).kind}`} style={{ marginTop: 10 }}>{sourceLabel(card).text}</span>
-              <div style={{ marginTop: 12 }}><button className="pf-btn small" onClick={() => go("steps")} data-testid="button-open-steps">Open support steps</button></div>
-            </div>
-            <BehaviorCards cards={cards} selectedId={curId} onSelect={setSelId} />
-            <ProgressView cards={cards} logs={d.logs} selectedId={curId} onLog={() => go("log")} />
-             {archivedCards.some((c) => c.planGoal) && <div className="pf-card" data-testid="goals-found-in-plan">
-               <h3>More goals found in your plan</h3>
-               <p className="pf-hint">Available in Help Now without changing your saved behaviors or goals.</p>
-               {archivedCards.filter((c) => c.planGoal).map((c) => <div key={c.id} style={{ marginTop: 12 }}><strong>{c.behaviorName}</strong><GoalLines card={c} active={false} /></div>)}
-             </div>}
-              <div id="parent-behavior-library" ref={libraryRef} style={{ scrollMarginTop: 84 }}>
-                <BehaviorLibrary child={d.child || child} allCards={allCards} requestAdd={addFromHelp} onAddHandled={() => setAddFromHelp(null)} onUpload={() => go("docs")} onEdit={(sec) => go("edit", sec)} />
-              </div>
-            <div className="pf-card">
-              <h3 style={{ marginBottom: 12 }}>Quick Actions</h3>
-              <div className="pf-actions">
-                <button className="pf-btn small" onClick={() => go("log")} data-testid="button-quick-log">Log What Happened</button>
-                <button className="pf-btn small" onClick={() => go("docs")} data-testid="button-quick-upload">Upload a Plan</button>
-                <button className="pf-btn small" onClick={() => go("edit", "behaviors")} data-testid="button-quick-add-behavior">Add Behavior</button>
-                <button className="pf-btn small" onClick={() => go("edit", "goals")} data-testid="button-quick-add-goal">Add Goal</button>
-                <button className="pf-btn small" onClick={() => go("edit", "profile")} data-testid="button-quick-edit">Edit Child Profile</button>
-              </div>
-            </div>
-            <div className="pf-card sun" data-testid="card-upload-plan">
-              <h3>Make this more personalized</h3>
-              <p style={{ margin: "6px 0 14px" }}>Upload a behavior plan, school support plan, or treatment plan when you are ready.</p>
-              <button className="pf-btn ink" onClick={() => go("docs")} data-testid="button-upload-plan">Upload a Plan</button>
-            </div>
-          </div>
-        ) : (
-          <div className="pf-card" data-testid="empty-support">
-            <h2>Pick a behavior and goal to get support steps</h2>
-            <p style={{ margin: "8px 0 14px" }}>Choose one or more behaviors and a goal for each, for {child.name}.</p>
-            <Link className="pf-btn primary" to="/ParentQuickStart" data-testid="link-finish-setup">Finish setup</Link>
-          </div>
-        )
+      {d && tab === "today" && section === "library" && (
+        <div id="parent-behavior-library" ref={libraryRef} style={{ display: "grid", gap: 16, scrollMarginTop: 84 }}>
+          {archivedCards.some((c) => c.planGoal) && <div className="pf-card" data-testid="goals-found-in-plan">
+            <h3>More goals found in your plan</h3>
+            <p className="pf-hint">These plan discoveries do not change your saved behaviors or goals.</p>
+            {archivedCards.filter((c) => c.planGoal).map((c) => <div key={c.id} style={{ marginTop: 12 }}><strong>{c.behaviorName}</strong><GoalLines card={c} active={false} /></div>)}
+          </div>}
+          <BehaviorLibrary child={d.child || child} allCards={allCards} requestAdd={addFromHelp} onAddHandled={() => setAddFromHelp(null)} onUpload={() => go("docs")} onEdit={(sec) => go("edit", sec)} />
+        </div>
+      )}
+      {d && tab === "today" && section !== "library" && card && (
+        <DailySupportHome
+          childId={child.id}
+          childName={child.name}
+          actions={d.dailyActions || []}
+          documents={d.documents || []}
+          cards={cards}
+          selectedId={curId}
+          onSelectBehavior={setSelId}
+          onOpenSteps={(supportCard) => { setSupportStepId(cardIdentity(supportCard)); go("steps"); }}
+          onOpenLibrary={() => go("today", "library")}
+          onLog={() => go("log")}
+          onUpload={() => go("docs")}
+          onAsk={() => go("ask")}
+          onAddBehavior={() => go("edit", "behaviors")}
+          onGoals={() => go("edit", "goals")}
+          onEditProfile={() => go("edit", "profile")}
+          progress={<ProgressView cards={cards} logs={d.logs} selectedId={curId} onLog={() => go("log")} />}
+        />
+      )}
+      {d && tab === "today" && section !== "library" && !card && (
+        <div className="pf-card" data-testid="empty-support">
+          <h2>Choose a behavior and goal to get support</h2>
+          <p style={{ margin: "8px 0 14px" }}>Choose one or more support areas for {child.name} to see daily tasks and activities.</p>
+          <Link className="pf-btn primary" to="/ParentQuickStart" data-testid="link-finish-setup">Finish setup</Link>
+        </div>
       )}
       {d && tab === "steps" && (
         <div style={{ display: "grid", gap: 16 }} data-testid="panel-support-steps">
@@ -218,7 +219,10 @@ export default function ParentHome() {
     nav(`/ParentHome${params.size ? `?${params.toString()}` : ""}`);
   };
   const loadPopupProfile = useCallback(async (childId) => {
-    const dashboard = await getParentDashboard(childId, parentRequest());
+    const request = parentRequest();
+    const headers = new Headers(request.headers);
+    headers.set("X-Parent-Local-Date", currentLocalDay());
+    const dashboard = await getParentDashboard(childId, { ...request, headers });
     if (!Array.isArray(dashboard.supportCards)) {
       throw new Error("Support cards could not be loaded.");
     }
@@ -275,7 +279,7 @@ export default function ParentHome() {
         <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
         <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span style={{ color: "rgba(255,255,255,.75)", fontWeight: 400 }}>for {selected.name}</span></h1>
         <Link to="/DataRequests" className="text-sm underline underline-offset-4" style={{ color: "rgba(255,255,255,.88)" }}>Privacy &amp; data requests</Link></div>
-        {activeTab === "today" && !activeSection && <button type="button" className="pf-help-cta" onClick={() => setSupportRequest((request) => request + 1)} data-testid="button-dashboard-help-now"><span className="ico"><AlertTriangle size={20} /></span><span><strong>I Need Help Right Now</strong><small>Get guidance from your saved support plans</small></span></button>}
+        {activeTab === "today" && !activeSection && <button type="button" className="pf-help-cta" onClick={() => setSupportRequest((request) => request + 1)} data-testid="button-dashboard-help-now"><span className="ico"><AlertTriangle size={20} /></span><span><strong>I Need Help Right Now</strong><small>Open support steps for a stressful moment</small></span></button>}
         <Body key={selected.id} child={selected} />
       </main>
       </div>

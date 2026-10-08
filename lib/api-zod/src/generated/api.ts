@@ -489,7 +489,7 @@ export const UpdateParentDailyActionParams = zod.object({
 })
 
 export const UpdateParentDailyActionBody = zod.object({
-  "status": zod.enum(['skipped', 'saved_for_later'])
+  "status": zod.enum(['not_started', 'skipped', 'saved_for_later'])
 })
 
 export const updateParentDailyActionResponseEstimatedMinutesMax = 60;

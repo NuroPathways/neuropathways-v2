@@ -308,7 +308,7 @@ export default function ClientDetail() {
         {/* Behavior Logs */}
         <div>
           <div className="flex items-center justify-between mb-3 px-1">
-            <h2 className="font-semibold text-foreground text-sm">Behavior Logs ({behaviorLogs.length})</h2>
+            <h2 className="font-semibold text-foreground text-sm">Behavior Logs & Support Practice Feedback ({behaviorLogs.length})</h2>
             <Button size="sm" variant="outline" className="rounded-xl gap-1.5 text-xs h-8" onClick={() => navigate(`/LogBehavior?child_id=${childId}`)}>
               <ClipboardList className="w-3.5 h-3.5" /> Log Behavior
             </Button>
@@ -320,18 +320,38 @@ export default function ClientDetail() {
             </div>
           ) : (
             <div className="space-y-2">
-              {behaviorLogs.slice(0, 10).map((log, i) => (
-                <motion.div key={log.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }} className="bg-card border border-border rounded-xl p-3 flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-foreground text-sm">{log.behavior_type || "Behavior"}</p>
-                      {log.intensity && <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${log.intensity === "high" || log.intensity === "severe" ? "bg-red-100 text-red-700" : log.intensity === "moderate" ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>{log.intensity}</span>}
+              {behaviorLogs.slice(0, 10).map((log, i) => {
+                const supportPractice = (log.event_category || log.eventCategory) === "support_practice";
+                const feedback = String(log.parent_feedback ?? log.parentFeedback ?? "");
+                const ratingLabel = {
+                  helped: "It helped",
+                  somewhat_helped: "A little",
+                  not_helped: "It did not help",
+                  not_sure: "Not sure",
+                }[feedback];
+                const outcomeLabel = {
+                  used_skill: "Yes, the skill was used",
+                  partially: "Partly",
+                  not_yet: "Not yet",
+                  not_sure: "Not sure",
+                }[feedback];
+                const rating = ratingLabel ? `Parent rating: ${ratingLabel}` : "";
+                const outcome = feedback && !rating ? `Parent outcome: ${outcomeLabel || feedback.replaceAll("_", " ")}` : "";
+                return (
+                  <motion.div key={log.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }} className="bg-card border border-border rounded-xl p-3 flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        {supportPractice && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-semibold">Support practice</span>}
+                        <p className="font-medium text-foreground text-sm">{supportPractice ? (log.strategy_used || log.strategyUsed || log.behavior_type || "Daily support activity") : (log.behavior_type || log.behaviorType || "Behavior")}</p>
+                        {!supportPractice && log.intensity && <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${log.intensity === "high" || log.intensity === "severe" ? "bg-red-100 text-red-700" : log.intensity === "moderate" ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>{log.intensity}</span>}
+                      </div>
+                      {supportPractice && (rating || outcome) && <p className="text-xs text-foreground mt-1">{rating || outcome}</p>}
+                      {log.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{log.notes}</p>}
                     </div>
-                    {log.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{log.notes}</p>}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground flex-shrink-0">{log.created_at ? new Date(log.created_at).toLocaleDateString() : ""}</span>
-                </motion.div>
-              ))}
+                    <span className="text-[10px] text-muted-foreground flex-shrink-0">{log.created_at ? new Date(log.created_at).toLocaleDateString() : ""}</span>
+                  </motion.div>
+                );
+              })}
               {behaviorLogs.length > 10 && <p className="text-xs text-muted-foreground text-center py-1">+ {behaviorLogs.length - 10} more</p>}
             </div>
           )}

@@ -128,3 +128,59 @@
 .pf-modal-card { max-width: 720px; margin: 0 auto; }
 .pf-bubble.me { background: #496fa4; color: #fff; border-radius: 18px 18px 4px 18px; }
 .pf-bubble.ai { background: #fff; border: 1px solid #dfe3ea; border-radius: 18px 18px 18px 4px; }
+
+.pf-daily-home { display: grid; gap: 28px; margin-top: 10px; padding-bottom: 40px; }
+.pf-daily-intro { padding: 8px 2px 0; }
+.pf-daily-intro h2 { margin: 5px 0 7px; }
+.pf-daily-intro p:last-child { max-width: 760px; margin: 0; color: var(--pf-ink-soft); }
+.pf-daily-section { display: grid; gap: 14px; }
+.pf-daily-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+.pf-daily-section-heading h2 { margin: 4px 0 0; }
+.pf-daily-count { padding: 7px 12px; border-radius: 999px; background: #dcecf5; color: #1f5675; font-size: .82rem; font-weight: 700; }
+.pf-daily-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 14px; }
+.pf-daily-action { display: grid; align-content: start; gap: 12px; padding: 20px; }
+.pf-daily-action.needs-review { border-color: #e7c1a9; background: #fffaf6; }
+.pf-daily-action-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pf-daily-action-top > div { min-width: 0; }
+.pf-daily-action-top h2, .pf-daily-action-top h3 { margin: 5px 0 0; overflow-wrap: anywhere; }
+.pf-daily-action-top .pf-eyebrow { margin: 0; }
+.pf-daily-description { margin: 0; color: #294550; }
+.pf-daily-why { margin: 0; padding: 11px 13px; border-left: 3px solid #7da6be; border-radius: 0 10px 10px 0; background: #f2f7fa; font-size: .9rem; line-height: 1.5; }
+.pf-daily-steps { display: grid; gap: 7px; padding-left: 21px; margin: 0; color: #294550; font-size: .92rem; line-height: 1.48; }
+.pf-daily-source { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.pf-daily-review-note { margin: 0; padding: 10px 12px; border-radius: 10px; background: #fff1e8; color: #7a3d20; }
+.pf-daily-feedback { margin: 0; padding: 10px 12px; border-radius: 10px; background: #f1f7f2; color: #365a43; }
+.pf-daily-action-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.pf-daily-action-buttons .pf-btn { min-height: 42px; padding: 0 15px; }
+.pf-action-closed { margin: 0; }
+.pf-quick-actions { display: grid; gap: 16px; padding: 22px; }
+.pf-quick-action-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pf-quick-action { display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 14px 16px; border: 1px solid #cfdee7; border-radius: 14px; background: #f6fafc; color: #1f5675; font: inherit; font-weight: 700; text-align: left; cursor: pointer; transition: background .15s, transform .15s, border-color .15s; }
+.pf-quick-action:hover { border-color: #91b5ca; background: #eaf3f9; transform: translateY(-1px); }
+.pf-quick-action svg { flex: 0 0 auto; }
+.pf-library-preview { padding-top: 2px; }
+.pf-library-preview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr)); gap: 12px; }
+.pf-library-preview-card { display: grid; gap: 14px; padding: 18px; box-shadow: none; }
+.pf-library-preview-card h3 { margin: 0; }
+.pf-library-preview-card.is-selected { border-color: #6d9bb7; box-shadow: 0 0 0 2px rgba(43,111,147,.12); }
+.pf-library-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pf-progress-secondary { margin-top: 3px; }
+.pf-action-overlay { display: grid; place-items: center; padding: 20px; background: rgba(16, 39, 56, .56); }
+.pf-action-dialog { display: grid; gap: 16px; width: min(100%, 660px); max-height: min(90vh, 820px); overflow-y: auto; padding: 24px; box-shadow: 0 18px 55px rgba(5, 26, 39, .25); }
+.pf-action-dialog h2 { font-size: clamp(1.45rem, 4vw, 1.9rem); }
+.pf-feedback-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.pf-feedback-options .pf-chip[aria-checked="true"] { background: #1f5675; color: white; border-color: #1f5675; }
+@media (max-width: 760px) {
+  .pf-daily-home { gap: 23px; padding-bottom: 110px; }
+  .pf-quick-action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pf-quick-action { min-height: 64px; padding: 12px; font-size: .9rem; }
+}
+@media (max-width: 520px) {
+  .pf-daily-action { padding: 17px; }
+  .pf-daily-action-top { flex-direction: column; align-items: flex-start; }
+  .pf-daily-section-heading { align-items: flex-start; }
+  .pf-daily-section-heading > .pf-btn { flex: 0 0 auto; }
+  .pf-quick-action-grid { grid-template-columns: 1fr; }
+  .pf-action-overlay { padding: 10px; }
+  .pf-action-dialog { padding: 19px; }
+}

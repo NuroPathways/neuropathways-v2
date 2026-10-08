@@ -187,7 +187,7 @@ router.post("/parent/children/:childId/chat", requireParent, async (req: any, re
     return res.status(400).json({ error: "message must be a non-empty string of at most 4000 characters" });
   }
   try {
-    return res.json(await parentChat(parentId(req), req.params.childId, req.body.message));
+    return res.json(await parentChat(parentId(req), req.params.childId, req.body.message, req.get("x-parent-local-date")));
   } catch (error) {
     const message = error instanceof Error ? error.message : "The support assistant could not answer";
     return res.status(message === "Child not found" ? 404 : 502).json({ error: message });

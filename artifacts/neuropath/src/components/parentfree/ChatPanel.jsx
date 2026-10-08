@@ -10,11 +10,19 @@ function allRefsReviewed(refs, cards) {
   return (refs || []).every((r) => reviewedIds.has(r.documentId));
 }
 
+function parentLocalDay() {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+}
+
 export default function ChatPanel({ childId, childName, cards = [] }) {
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
-  const chat = useParentChat({ request: parentRequest() });
+  const chatRequest = parentRequest();
+  const chatHeaders = new Headers(chatRequest.headers);
+  chatHeaders.set("X-Parent-Local-Date", parentLocalDay());
+  const chat = useParentChat({ request: { ...chatRequest, headers: chatHeaders } });
   const end = useRef(null);
   useEffect(() => { setMsgs([]); setError(""); }, [childId]);
   useEffect(() => { end.current?.scrollIntoView({ block: "nearest" }); }, [msgs, chat.isPending]);

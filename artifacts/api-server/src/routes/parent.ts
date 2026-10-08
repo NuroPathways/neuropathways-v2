@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   behaviorLogsTable,
   auditLogsTable,
@@ -9,6 +9,8 @@ import {
   consentEventsTable,
   db,
   familiesTable,
+  parentDailyActionLogsTable,
+  parentDailyActionsTable,
   parentAccountsTable,
   parentChildSettingsTable,
   parentLogsTable,
@@ -17,10 +19,18 @@ import {
   usersTable,
 } from "@workspace/db";
 import {
+  LogParentDailyActionBody,
   RecordParentGoalFeedbackBody,
   RecordParentGoalFeedbackResponse,
+  UpdateParentDailyActionBody,
 } from "@workspace/api-zod";
 import { makeStarterCard, starterLibrary } from "../lib/parentStarterLibrary";
+import {
+  getOrCreateParentDailyActions,
+  normalizeParentActionDate,
+  serializeParentDailyAction,
+  serializeParentDailyActionLog,
+} from "../lib/parentDailyActions";
 import {
   ACCOUNT_AUTHORITY_CONSENT_VERSION,
   accountAuthorityEvent,
@@ -79,6 +89,10 @@ function cleanText(value: unknown, maximum: number, allowEmpty = false): string 
 
 function hasOwn(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function parentLocalDate(req: Request): string {
+  return normalizeParentActionDate(req.get("x-parent-local-date"));
 }
 
 function getParentToken(req: Request): string | null {
@@ -393,7 +407,7 @@ function serializeParentLog(log: typeof parentLogsTable.$inferSelect) {
   };
 }
 
-export async function getParentDashboardData(parentId: string, childId: string) {
+export async function getParentDashboardData(parentId: string, childId: string, actionDate = new Date().toISOString().slice(0, 10)) {
   const owned = await ownedParentChild(parentId, childId);
   if (!owned) return null;
   const [supportCards, documents, storedLogs] = await Promise.all([
@@ -405,11 +419,28 @@ export async function getParentDashboardData(parentId: string, childId: string) 
       .where(and(eq(parentLogsTable.parentId, parentId), eq(parentLogsTable.childId, childId)))
       .orderBy(desc(parentLogsTable.createdAt)),
   ]);
+  const selectedBehaviors = parentBehaviorsFromSettings(owned.settings);
+  const dailyActions = await getOrCreateParentDailyActions({
+    parentId,
+    parentUserId: parentId,
+    childId,
+    workspaceId: owned.settings.workspaceId,
+    date: actionDate,
+    selectedBehaviors,
+    supportCards,
+    logs: storedLogs.slice(0, 100).map((log) => ({
+      behaviorKey: log.behaviorKey,
+      customBehavior: log.customBehavior,
+      whatHelped: log.whatHelped,
+      createdAt: log.createdAt,
+    })),
+  });
   return {
     child: serializeParentChild(owned, owned.settings),
     supportCards,
     documents,
     logs: storedLogs.map(serializeParentLog),
+    dailyActions,
   };
 }
 
@@ -1002,7 +1033,7 @@ router.get("/parent/children/:childId/dashboard", requireParent, async (req: Req
     return;
   }
   try {
-    const dashboard = await getParentDashboardData(req.parentAccount!.id, childId);
+    const dashboard = await getParentDashboardData(req.parentAccount!.id, childId, parentLocalDate(req));
     if (!dashboard) {
       res.status(404).json({ error: "Child not found" });
       return;
@@ -1010,6 +1041,160 @@ router.get("/parent/children/:childId/dashboard", requireParent, async (req: Req
     res.json(dashboard);
   } catch {
     res.status(500).json({ error: "Unable to load child dashboard" });
+  }
+});
+
+router.patch("/parent/children/:childId/daily-actions/:actionId", requireParent, async (req: Request, res: Response) => {
+  const childId = getRouteChildId(req);
+  const actionId = typeof req.params.actionId === "string" ? req.params.actionId : "";
+  const parsed = UpdateParentDailyActionBody.safeParse(req.body);
+  if (!childId || !actionId || !parsed.success) {
+    res.status(400).json({ error: "Invalid daily action status request" });
+    return;
+  }
+  try {
+    const parentId = req.parentAccount!.id;
+    const owned = await ownedParentChild(parentId, childId);
+    if (!owned) {
+      res.status(404).json({ error: "Child not found" });
+      return;
+    }
+    const [action] = await db.select().from(parentDailyActionsTable).where(and(
+      eq(parentDailyActionsTable.id, actionId),
+      eq(parentDailyActionsTable.parentId, parentId),
+      eq(parentDailyActionsTable.childId, childId),
+    )).limit(1);
+    if (!action) {
+      res.status(404).json({ error: "Daily action not found" });
+      return;
+    }
+    if (action.status === "done" || action.status === "logged" || action.status === "needs_review" || action.status === "skipped") {
+      res.status(409).json({ error: "This action can no longer be changed" });
+      return;
+    }
+    if (parsed.data.status === "not_started" && action.status !== "saved_for_later") {
+      res.status(409).json({ error: "Only an action saved for later can be moved back to today's list" });
+      return;
+    }
+    const [updated] = await db.update(parentDailyActionsTable)
+      .set({ status: parsed.data.status, updatedAt: new Date() })
+      .where(and(
+        eq(parentDailyActionsTable.id, actionId),
+        eq(parentDailyActionsTable.parentId, parentId),
+        eq(parentDailyActionsTable.childId, childId),
+      ))
+      .returning();
+    res.json(serializeParentDailyAction(updated, []));
+  } catch {
+    res.status(500).json({ error: "Unable to update daily action" });
+  }
+});
+
+router.post("/parent/children/:childId/daily-actions/:actionId/logs", requireParent, async (req: Request, res: Response) => {
+  const childId = getRouteChildId(req);
+  const actionId = typeof req.params.actionId === "string" ? req.params.actionId : "";
+  const parsed = LogParentDailyActionBody.safeParse(req.body);
+  if (!childId || !actionId || !parsed.success) {
+    res.status(400).json({ error: "Invalid daily action feedback" });
+    return;
+  }
+  const body = parsed.data;
+  if (
+    (body.eventType === "completion" && (!body.rating || body.outcome !== undefined)) ||
+    (body.eventType === "outcome" && (!body.outcome || body.rating !== undefined))
+  ) {
+    res.status(400).json({ error: "Choose a completion rating or an outcome, not both" });
+    return;
+  }
+  const note = body.note === undefined ? null : cleanText(body.note, 2000, true);
+  if (body.note !== undefined && note === null) {
+    res.status(400).json({ error: "Note must be at most 2000 characters" });
+    return;
+  }
+  try {
+    const parent = req.parentAccount!;
+    const owned = await ownedParentChild(parent.id, childId);
+    if (!owned) {
+      res.status(404).json({ error: "Child not found" });
+      return;
+    }
+    const [action] = await db.select().from(parentDailyActionsTable).where(and(
+      eq(parentDailyActionsTable.id, actionId),
+      eq(parentDailyActionsTable.parentId, parent.id),
+      eq(parentDailyActionsTable.childId, childId),
+    )).limit(1);
+    if (!action) {
+      res.status(404).json({ error: "Daily action not found" });
+      return;
+    }
+    if (action.status === "done" || action.status === "logged" || action.status === "skipped" || action.status === "needs_review") {
+      res.status(409).json({ error: "This action has already been completed or closed" });
+      return;
+    }
+    const createdAt = new Date();
+    const logId = crypto.randomUUID();
+    const taskId = action.kind === "task" ? action.id : null;
+    const activityId = action.kind === "task" ? null : action.id;
+    const nextStatus = body.eventType === "completion" ? "done" : "logged";
+    const [updatedAction, savedLog] = await db.transaction(async (tx) => {
+      const [log] = await tx.insert(parentDailyActionLogsTable).values({
+        id: logId,
+        actionId: action.id,
+        taskId,
+        activityId,
+        parentId: parent.id,
+        parentUserId: parent.id,
+        childId: owned.id,
+        workspaceId: owned.settings.workspaceId,
+        eventType: body.eventType,
+        rating: body.eventType === "completion" ? body.rating! : null,
+        outcome: body.eventType === "outcome" ? body.outcome! : null,
+        note,
+        createdAt,
+      }).returning();
+      const [updated] = await tx.update(parentDailyActionsTable)
+        .set({
+          status: nextStatus,
+          completedAt: body.eventType === "completion" ? createdAt : null,
+          loggedAt: body.eventType === "outcome" ? createdAt : null,
+          updatedAt: createdAt,
+        })
+        .where(and(
+          eq(parentDailyActionsTable.id, action.id),
+          eq(parentDailyActionsTable.parentId, parent.id),
+          eq(parentDailyActionsTable.childId, childId),
+          inArray(parentDailyActionsTable.status, ["not_started", "saved_for_later"]),
+        ))
+        .returning();
+      if (!updated) throw new Error("DAILY_ACTION_ALREADY_CLOSED");
+
+      await tx.insert(behaviorLogsTable).values({
+        id: crypto.randomUUID(),
+        tenantId: owned.clinicianId ?? owned.settings.workspaceId,
+        childId: owned.id,
+        parentId: parent.id,
+        clinicianId: owned.clinicianId,
+        eventCategory: "support_practice",
+        behaviorType: action.behaviorKey || action.kind,
+        intensity: null,
+        context: `${action.kind}: ${action.title}`,
+        parentFeedback: body.eventType === "completion" ? String(body.rating!) : body.outcome!,
+        strategyUsed: action.title,
+        notes: note,
+        createdDate: createdAt,
+      });
+      return [updated, log];
+    });
+    res.status(201).json({
+      action: serializeParentDailyAction(updatedAction, [savedLog]),
+      log: serializeParentDailyActionLog(savedLog),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "DAILY_ACTION_ALREADY_CLOSED") {
+      res.status(409).json({ error: "This action has already been completed or closed" });
+      return;
+    }
+    res.status(500).json({ error: "Unable to save daily action feedback" });
   }
 });
 

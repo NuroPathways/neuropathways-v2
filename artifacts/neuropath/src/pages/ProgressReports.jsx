@@ -33,9 +33,19 @@ function moodIcon(m) {
 
 function normaliseOutcome(feedback) {
   const f = String(feedback || "").toLowerCase().trim();
-  if (["yes", "resolved", "better", "improved", "helpful"].includes(f)) return "resolved";
-  if (["no", "escalated", "worse", "escalation"].includes(f)) return "escalated";
+  if (/^[1-5]$/.test(f)) {
+    const rating = Number(f);
+    if (rating >= 4) return "resolved";
+    if (rating <= 2) return "escalated";
+    return "other";
+  }
+  if (["yes", "resolved", "better", "improved", "helpful", "helped", "used_skill"].includes(f)) return "resolved";
+  if (["no", "escalated", "worse", "escalation", "not_helped"].includes(f)) return "escalated";
   return "other";
+}
+
+function isSupportPracticeLog(log) {
+  return (log.event_category || log.eventCategory) === "support_practice";
 }
 
 function within30Days(dateStr) {
@@ -72,7 +82,7 @@ function EmptyState({ message }) {
 
 function BehaviorFrequencyChart({ logs }) {
   const cutoff = subDays(new Date(), 30);
-  const recent = logs.filter(l => l.created_date && isAfter(new Date(l.created_date), cutoff));
+  const recent = logs.filter(l => !isSupportPracticeLog(l) && l.created_date && isAfter(new Date(l.created_date), cutoff));
   const counts = recent.reduce((acc, l) => {
     const t = l.behavior_type || "Unspecified";
     acc[t] = (acc[t] || 0) + 1;
@@ -96,14 +106,14 @@ function BehaviorFrequencyChart({ logs }) {
 }
 
 function StrategyEffectivenessTable({ logs }) {
-  const relevant = logs.filter(l => l.strategy_used && l.parent_feedback);
-  if (relevant.length === 0) return <EmptyState message="No strategy outcome data yet — results will appear as behavior logs include feedback." />;
+  const relevant = logs.filter(l => (l.strategy_used || l.strategyUsed) && (l.parent_feedback ?? l.parentFeedback));
+  if (relevant.length === 0) return <EmptyState message="No parent support feedback yet — it will appear here when caregivers rate a daily activity or log an outcome." />;
 
   const table = {};
   relevant.forEach(l => {
-    const s = l.strategy_used;
+    const s = l.strategy_used || l.strategyUsed;
     if (!table[s]) table[s] = { resolved: 0, escalated: 0, other: 0, total: 0 };
-    table[s][normaliseOutcome(l.parent_feedback)]++;
+    table[s][normaliseOutcome(l.parent_feedback ?? l.parentFeedback)]++;
     table[s].total++;
   });
 
@@ -115,9 +125,9 @@ function StrategyEffectivenessTable({ logs }) {
         <thead>
           <tr className="border-b border-border text-left">
             <th className="pb-2 text-xs font-semibold text-muted-foreground">Strategy</th>
-            <th className="pb-2 text-xs font-semibold text-green-600 text-center">Resolved</th>
-            <th className="pb-2 text-xs font-semibold text-red-500 text-center">Escalated</th>
-            <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Partial/Other</th>
+            <th className="pb-2 text-xs font-semibold text-green-600 text-center">Helpful</th>
+            <th className="pb-2 text-xs font-semibold text-red-500 text-center">Not helpful</th>
+            <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Mixed/unsure</th>
             <th className="pb-2 text-xs font-semibold text-muted-foreground text-center">Total</th>
           </tr>
         </thead>
@@ -404,9 +414,10 @@ export default function ProgressReports() {
   }, [selectedChildId, isClientSession, clientInviteToken]);
 
   const childLogs = logs.filter(l => l.child_id === selectedChildId);
+  const behaviorLogs = childLogs.filter(l => !isSupportPracticeLog(l));
 
-  const avgIntensity = childLogs.length
-    ? (childLogs.reduce((a, b) => a + intensityToNum(b.intensity), 0) / childLogs.length).toFixed(1)
+  const avgIntensity = behaviorLogs.length
+    ? (behaviorLogs.reduce((a, b) => a + intensityToNum(b.intensity), 0) / behaviorLogs.length).toFixed(1)
     : 0;
 
   const strategyBreakdown = childLogs.reduce((acc, log) => {
@@ -414,13 +425,13 @@ export default function ProgressReports() {
     return acc;
   }, {});
 
-  const intensityChartData = childLogs.slice(-14).map((log, i) => ({
+  const intensityChartData = behaviorLogs.slice(-14).map((log, i) => ({
     day: log.created_date ? format(new Date(log.created_date), "MMM d") : `Day ${i + 1}`,
     intensity: intensityToNum(log.intensity),
   }));
 
   // Derived metrics for summary cards (clinician view only)
-  const logs30d = childLogs.filter(l => within30Days(l.created_date)).length;
+  const logs30d = behaviorLogs.filter(l => within30Days(l.created_date)).length;
   const wins30d = wins.filter(w => within30Days(w.created_date)).length;
   const lastMood = [...checkIns]
     .filter(c => c.mood && c.created_date)
@@ -704,7 +715,7 @@ export default function ProgressReports() {
                   </div>
 
                   <div ref={sectionRefs.strategy} className={`bg-card border border-border rounded-2xl p-5 print-section transition-shadow${highlighted === "strategy" ? " section-highlight-active" : ""}`}>
-                    <h3 className="font-semibold text-foreground text-sm mb-4">Strategy Effectiveness</h3>
+                    <h3 className="font-semibold text-foreground text-sm mb-4">Parent Support Feedback</h3>
                     <StrategyEffectivenessTable logs={childLogs} />
                   </div>
 

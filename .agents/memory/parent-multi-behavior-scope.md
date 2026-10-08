@@ -76,3 +76,11 @@ Show parent behavior blocks only a concise origin label: "Source: Pre-programmed
 **Why:** The user explicitly asked to replace repeated parent-facing conflict warnings with the behavior's origin.
 
 **How to apply:** Map starter guidance to the pre-programmed label and uploaded or reviewed plan guidance to the behavior-plan label. Do not surface conflict messages or source excerpts in parent support blocks.
+
+## Daily-first parent home and practice feedback
+
+Make persistent daily tasks, activities, and one skill practice the main parent-home content, while keeping urgent help separate and preserving multi-behavior goals, progress, the support library, and other parent tools. Keep every source type explicit; never call an uploaded or starter suggestion clinician-reviewed without evidence. Completion ratings and activity outcomes are caregiver reports, not clinical findings.
+
+**Why:** The user requested a daily-first NeuroPathways home while retaining established family features and clear source provenance.
+
+**How to apply:** Scope daily actions to all of the parent's active behaviors, persist them by the parent's local day, and keep their original source references and review state. Show caregiver practice feedback in clinician views without counting it as a behavior occurrence or intensity measurement.

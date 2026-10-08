@@ -1238,7 +1238,7 @@ components:
       properties:
         status:
           type: string
-          enum: [skipped, saved_for_later]
+          enum: [not_started, skipped, saved_for_later]
       required: [status]
     ParentDailyActionLogInput:
       type: object

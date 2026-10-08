@@ -10,6 +10,7 @@ import {
   consentEventsTable,
   documentsTable,
   parentChildSettingsTable,
+  parentLogsTable,
   parentDocumentsTable,
   userProfilesTable,
   type ParentDocumentMetadata,
@@ -58,6 +59,7 @@ import {
   saveEncryptedParentDocument,
 } from "./parentFileStorage";
 import { batchProcessParentSupport } from "./parentSupportBatch";
+import { getOrCreateParentDailyActions, normalizeParentActionDate } from "./parentDailyActions";
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_CHARS = 120_000;
@@ -1309,6 +1311,7 @@ export async function parentChat(
   parentId: string,
   childId: string,
   question: string,
+  requestedActionDate?: string | null,
 ): Promise<{ answer: string; sourceReferences: SourceReference[]; disclaimer: string }> {
   const child = await ownedChild(parentId, childId);
   const message = question.trim().slice(0, 4000);
@@ -1322,7 +1325,32 @@ export async function parentChat(
   }
 
   const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
-  const cards = await getParentSupportCards(parentId, childId);
+  const [cards, storedLogs] = await Promise.all([
+    getParentSupportCards(parentId, childId),
+    db.select().from(parentLogsTable)
+      .where(and(eq(parentLogsTable.parentId, parentId), eq(parentLogsTable.childId, childId)))
+      .orderBy(desc(parentLogsTable.createdAt))
+      .limit(20),
+  ]);
+  const selectedBehaviors = parentBehaviorsFromSettings(settings);
+  const actionDate = normalizeParentActionDate(requestedActionDate);
+  const dailyActions = settings
+    ? await getOrCreateParentDailyActions({
+        parentId,
+        parentUserId: parentId,
+        childId,
+        workspaceId: settings.workspaceId,
+        date: actionDate,
+        selectedBehaviors,
+        supportCards: cards,
+        logs: storedLogs.slice(0, 100).map((log) => ({
+          behaviorKey: log.behaviorKey,
+          customBehavior: log.customBehavior,
+          whatHelped: log.whatHelped,
+          createdAt: log.createdAt,
+        })),
+      })
+    : [];
   const visibleIds = new Set(cards.flatMap((card) => card.sourceDocumentIds));
   const cardReferences = mergeReferences(...cards.map((card) => card.sourceReferences))
     .filter((reference) => visibleIds.has(reference.documentId));
@@ -1341,8 +1369,33 @@ export async function parentChat(
   ]);
   const serverContext = {
     childName: child.childName || child.firstName || "your child",
-    selectedBehaviors: parentBehaviorsFromSettings(settings),
+    selectedBehaviors,
     supportCards: cards,
+    dailyActions: dailyActions.map((action) => ({
+      kind: action.kind,
+      title: action.title,
+      description: action.description,
+      steps: action.steps,
+      behaviorName: action.behaviorName,
+      sourceType: action.sourceType,
+      sourceDocumentId: action.sourceDocumentId,
+      status: action.status,
+      estimatedMinutes: action.estimatedMinutes,
+    })),
+    recentLogs: storedLogs.map((log) => ({
+      behaviorKey: log.behaviorKey,
+      behaviorName: log.customBehavior || selectedBehaviors.find((behavior) =>
+        behavior.behaviorKey === log.behaviorKey &&
+        (log.behaviorKey !== "custom" || behavior.customBehavior === log.customBehavior),
+      )?.behaviorName || null,
+      happened: log.happened,
+      intensity: log.intensity,
+      durationMinutes: log.duration,
+      trigger: (log.trigger || "").replace(/\u0000/g, "").slice(0, 400),
+      whatHelped: (log.whatHelped || "").replace(/\u0000/g, "").slice(0, 400),
+      notes: (log.notes || "").replace(/\u0000/g, "").slice(0, 400),
+      createdAt: log.createdAt.toISOString(),
+    })),
     sourceDocuments: [
       ...cardReferences
         .filter((reference) => !directDocuments.some((document) => document.documentId === reference.documentId))

@@ -448,6 +448,7 @@ export type ParentDailyActionStatusInputStatus = typeof ParentDailyActionStatusI
 
 
 export const ParentDailyActionStatusInputStatus = {
+  not_started: 'not_started',
   skipped: 'skipped',
   saved_for_later: 'saved_for_later',
 } as const;
