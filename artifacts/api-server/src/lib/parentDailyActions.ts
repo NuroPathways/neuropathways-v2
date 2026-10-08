@@ -11,7 +11,7 @@ import {
   type ParentDailyActionSource,
 } from "@workspace/db";
 import { parentBehaviorIdentity, type ParentBehavior } from "./parentAuth";
-import type { SupportCard } from "./parentStarterLibrary";
+import { makeStarterCard, type SupportCard } from "./parentStarterLibrary";
 import type { ParentPlanActivity } from "./parentStarterLibrary";
 
 type ParentLogInput = {
@@ -176,35 +176,6 @@ function cardDraft(
     estimatedMinutes,
     status,
   };
-}
-
-function cardTask(card: SupportCard, date: string, slot: string, step?: string): DailyActionDraft {
-  if (card.conflict) {
-    return cardDraft(
-      card,
-      date,
-      "task",
-      slot,
-      "Check these plan steps with your clinician",
-      card.conflictMessage || "The uploaded guidance needs review before you use plan-specific steps.",
-      [],
-      2,
-      "needs_review",
-    );
-  }
-
-  const chosen = step || cleanSteps([...card.prevention, card.replacementSkill], 1)[0];
-  const detail = chosen || `Open the saved support steps for ${card.behaviorName} and choose one that fits today.`;
-  return cardDraft(
-    card,
-    date,
-    "task",
-    slot,
-    shortTitle(detail, `One small step for ${card.behaviorName}`),
-    `Try this saved support for ${card.behaviorName} only when it fits today's situation.`,
-    cleanSteps([detail, card.reinforcementIdea]),
-    5,
-  );
 }
 
 function planActivityDraft(
@@ -420,10 +391,15 @@ function selectedGoalPracticeDraft(
   );
   draft.supportCardId = card.id || null;
   draft.sourceDocumentId = null;
+  draft.sourceType = card.source === "starter" ? "starter_template" : "selected_behavior";
   draft.description = `Try one small, low-pressure practice opportunity for ${behavior.behaviorName}. Use supports already familiar to ${childName}; do not create a difficult situation just to practice.`;
-  draft.whyItMayHelp = safeGoal
-    ? `Supports ${childName}'s saved goal: ${safeGoal}`
-    : `A small practice opportunity for the selected support area: ${behavior.behaviorName}.`;
+  draft.whyItMayHelp = card.source === "starter"
+    ? safeGoal
+      ? `This general suggestion from the Behavior Support Library may support ${childName}'s saved goal: ${safeGoal}.`
+      : `This is general starter guidance from the Behavior Support Library for ${behavior.behaviorName}, not an individualized plan.`
+    : safeGoal
+      ? `Supports ${childName}'s saved goal: ${safeGoal}`
+      : `A small practice opportunity for the selected support area: ${behavior.behaviorName}.`;
   draft.steps = cleanSteps([
     `Practice this skill: ${skill}`,
     card.prevention?.[0] ? `General starter support: ${card.prevention[0]}` : null,
@@ -548,17 +524,28 @@ export function buildParentDailyActionDrafts(input: {
       sorted.findIndex((candidate) => identityForCard(candidate) === identityForCard(card)) === index,
     );
   const activitiesByCard = cards.map((card, index) => {
+    const selectedBehavior = input.selectedBehaviors.find(
+      (behavior) => parentBehaviorIdentity(behavior) === identityForCard(card),
+    );
     if (card.conflict) {
-      return [cardTask(card, input.date, `plan-review-${index}`)];
+      if (!selectedBehavior) return [];
+      const libraryCard = makeStarterCard(
+        selectedBehavior.behaviorKey,
+        selectedBehavior.customBehavior,
+        selectedBehavior.goal,
+      );
+      return [selectedGoalPracticeDraft(
+        selectedBehavior,
+        libraryCard,
+        input.date,
+        input.childName?.trim() || "your child",
+      )].filter((item): item is DailyActionDraft => Boolean(item));
     }
     const planActivities = (card.dailyActivities || []).map((activity) =>
       planActivityDraft(card, activity, input.date, input.childName?.trim() || "your child"),
     );
     if (planActivities.length) return planActivities;
 
-    const selectedBehavior = input.selectedBehaviors.find(
-      (behavior) => parentBehaviorIdentity(behavior) === identityForCard(card),
-    );
     if (card.source !== "starter") {
       const practice = planGuidedPracticeDraft(
         card,

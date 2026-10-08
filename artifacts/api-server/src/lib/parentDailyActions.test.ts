@@ -123,7 +123,7 @@ test("daily actions round-robin across selected behaviors and cap the list at fi
   assert.ok(actions.some((action) => action.sourceType === "clinician_reviewed"));
 });
 
-test("a selected goal creates a low-pressure practice action without copying parent notes into guidance", () => {
+test("a selected goal creates low-pressure Behavior Support Library practice without copying parent notes", () => {
   const repeatedNote = "Offer a visual break card.";
   const actions = buildParentDailyActionDrafts({
     date: "2026-10-07",
@@ -135,10 +135,52 @@ test("a selected goal creates a low-pressure practice action without copying par
     ],
   });
   assert.equal(actions.length, 1);
-  assert.equal(actions[0].sourceType, "selected_behavior");
+  assert.equal(actions[0].sourceType, "starter_template");
   assert.match(actions[0].whyItMayHelp, /saved goal: Ask for a break/);
+  assert.equal(actions[0].sourceDocumentId, null);
+  assert.match(actions[0].whyItMayHelp, /Behavior Support Library/);
   assert.match(actions[0].description, /low-pressure/);
   assert.ok(!actions[0].steps.some((step) => step.includes(repeatedNote)));
+});
+
+test("a conflicted plan uses safe library guidance for an active behavior instead of a review task", () => {
+  const behavior = { ...selectedBehavior("meltdowns", "Meltdowns"), goal: null };
+  const conflictedCard = supportCard("meltdowns", "Meltdowns", "parent_document", {
+    conflict: true,
+    conflictMessage: "Conflict detected. Clinician review recommended.",
+    replacementSkill: "Use restraint when a meltdown begins.",
+    prevention: ["Follow the disputed plan step."],
+  });
+  const actions = buildParentDailyActionDrafts({
+    date: "2026-10-07",
+    selectedBehaviors: [behavior],
+    supportCards: [conflictedCard],
+    logs: [],
+  });
+
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].sourceType, "starter_template");
+  assert.equal(actions[0].sourceDocumentId, null);
+  assert.equal(actions[0].status, "not_started");
+  assert.match(actions[0].whyItMayHelp, /Behavior Support Library/);
+  assert.doesNotMatch(`${actions[0].title} ${actions[0].description}`, /conflict|clinician review|restraint|disputed/i);
+  assert.ok(!actions[0].steps.some((step) => /restraint|disputed plan/i.test(step)));
+});
+
+test("an unselected conflicted plan does not become a family-facing review activity", () => {
+  const actions = buildParentDailyActionDrafts({
+    date: "2026-10-07",
+    selectedBehaviors: [],
+    supportCards: [
+      supportCard("meltdowns", "Meltdowns", "parent_document", {
+        conflict: true,
+        conflictMessage: "Conflict detected. Clinician review recommended.",
+      }),
+    ],
+    logs: [],
+  });
+
+  assert.deepEqual(actions, []);
 });
 
 test("a plan-discovered goal creates a sourced daily activity even when the behavior is not selected", () => {
