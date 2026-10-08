@@ -143,30 +143,6 @@ test("a selected goal creates low-pressure Behavior Support Library practice wit
   assert.ok(!actions[0].steps.some((step) => step.includes(repeatedNote)));
 });
 
-test("a conflicted plan uses safe library guidance for an active behavior instead of a review task", () => {
-  const behavior = { ...selectedBehavior("meltdowns", "Meltdowns"), goal: null };
-  const conflictedCard = supportCard("meltdowns", "Meltdowns", "parent_document", {
-    conflict: true,
-    conflictMessage: "Conflict detected. Clinician review recommended.",
-    replacementSkill: "Use restraint when a meltdown begins.",
-    prevention: ["Follow the disputed plan step."],
-  });
-  const actions = buildParentDailyActionDrafts({
-    date: "2026-10-07",
-    selectedBehaviors: [behavior],
-    supportCards: [conflictedCard],
-    logs: [],
-  });
-
-  assert.equal(actions.length, 1);
-  assert.equal(actions[0].sourceType, "starter_template");
-  assert.equal(actions[0].sourceDocumentId, null);
-  assert.equal(actions[0].status, "not_started");
-  assert.match(actions[0].whyItMayHelp, /Behavior Support Library/);
-  assert.doesNotMatch(`${actions[0].title} ${actions[0].description}`, /conflict|clinician review|restraint|disputed/i);
-  assert.ok(!actions[0].steps.some((step) => /restraint|disputed plan/i.test(step)));
-});
-
 test("an unselected conflicted plan does not become a family-facing review activity", () => {
   const actions = buildParentDailyActionDrafts({
     date: "2026-10-07",
@@ -252,21 +228,29 @@ test("unsafe instructions in a document goal never become a daily activity", () 
   assert.deepEqual(actions, []);
 });
 
-test("conflicting plan guidance is marked for review rather than presented as a ready activity", () => {
+test("conflicted plan guidance falls back to safe library support for an active behavior", () => {
+  const behavior = { ...selectedBehavior("task_refusal", "Task refusal"), goal: null };
   const actions = buildParentDailyActionDrafts({
     date: "2026-10-07",
-    selectedBehaviors: [selectedBehavior("task_refusal", "Task refusal")],
+    selectedBehaviors: [behavior],
     supportCards: [
       supportCard("task_refusal", "Task refusal", "parent_document", {
         conflict: true,
-        conflictMessage: "The uploaded plan has conflicting steps.",
+        conflictMessage: "Conflict detected. Clinician review recommended.",
+        replacementSkill: "Use restraint when the task is refused.",
+        prevention: ["Follow the disputed plan step."],
       }),
     ],
     logs: [],
   });
+
   assert.equal(actions.length, 1);
-  assert.equal(actions[0].status, "needs_review");
-  assert.deepEqual(actions[0].steps, []);
+  assert.equal(actions[0].status, "not_started");
+  assert.equal(actions[0].sourceType, "starter_template");
+  assert.equal(actions[0].sourceDocumentId, null);
+  assert.match(actions[0].whyItMayHelp, /Behavior Support Library/);
+  assert.doesNotMatch(`${actions[0].title} ${actions[0].description}`, /conflict|clinician review|restraint|disputed/i);
+  assert.ok(!actions[0].steps.some((step) => /restraint|disputed plan/i.test(step)));
 });
 
 test("parent action dates accept real calendar days and reject malformed dates", () => {
