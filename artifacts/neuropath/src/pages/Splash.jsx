@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Brain, ShieldCheck, ArrowRight } from "lucide-react";
+import { Brain, ShieldCheck, ArrowRight, LockKeyhole, TimerReset, UserRoundCheck } from "lucide-react";
 import { base44 } from '@/api/entities';
 import "./splash-landing.css";
 
@@ -56,6 +56,15 @@ export default function Splash() {
         <div className="np-pill"><i />Behavior support for parents</div>
         <h1 className="np-rise">What to do in the moment, based on your child’s support needs.</h1>
         <p className="np-rise np-lead" style={{ animationDelay: ".1s" }}>NeuroPathways helps parents access simple behavior support steps, add goals, and upload plans when they are ready.</p>
+        <section className="np-security" aria-labelledby="np-security-title" data-testid="section-security-at-a-glance">
+          <h2 id="np-security-title">How we protect account and care information</h2>
+          <div className="np-security-list">
+            <div className="np-security-item"><LockKeyhole size={18} aria-hidden="true" /><span>Stored passwords are one-way hashed, not kept as readable text.</span></div>
+            <div className="np-security-item"><TimerReset size={18} aria-hidden="true" /><span>Sign-in attempts are rate-limited.</span></div>
+            <div className="np-security-item"><UserRoundCheck size={18} aria-hidden="true" /><span>Private records require an authenticated, role-checked account.</span></div>
+          </div>
+          <Link to="/privacy" className="np-security-link">Read our privacy notice</Link>
+        </section>
         <div className="np-cta np-rise" style={{ animationDelay: ".2s" }}>
           <Link to="/ParentSignup" className="np-btn primary" data-testid="link-start-parent">Start Parent Account</Link>
           <a href="#explore" className="np-btn" data-testid="link-explore">Explore Behavior Support</a>

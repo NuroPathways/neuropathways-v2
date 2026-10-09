@@ -131,6 +131,27 @@ export const LoginParentResponse = zod.object({
 
 
 /**
+ * @summary Change the signed-in parent's password
+ */
+export const changeParentPasswordBodyCurrentPasswordMin = 8;
+export const changeParentPasswordBodyCurrentPasswordMax = 128;
+
+export const changeParentPasswordBodyNewPasswordMin = 8;
+export const changeParentPasswordBodyNewPasswordMax = 128;
+
+
+
+export const ChangeParentPasswordBody = zod.object({
+  "currentPassword": zod.string().min(changeParentPasswordBodyCurrentPasswordMin).max(changeParentPasswordBodyCurrentPasswordMax),
+  "newPassword": zod.string().min(changeParentPasswordBodyNewPasswordMin).max(changeParentPasswordBodyNewPasswordMax)
+})
+
+export const ChangeParentPasswordResponse = zod.object({
+  "ok": zod.literal(true)
+})
+
+
+/**
  * @summary Sign out and revoke the parent session
  */
 export const LogoutParentResponse = zod.object({

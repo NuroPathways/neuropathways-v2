@@ -3,6 +3,7 @@ import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import { getClientSession, saveClientSession, clearClientSession } from "@/lib/clientSession";
+import { useChangeParentPassword } from "@workspace/api-client-react";
 import { Moon, Sun, User, LogOut, Trash2, AlertTriangle, Check, Pencil, Phone, Lock, Eye, EyeOff, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -10,7 +11,8 @@ import { useNavigate } from "react-router-dom";
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { logout, refreshUser } = useAuth();
+  const { logout, user: authenticatedUser } = useAuth();
+  const parentPasswordChange = useChangeParentPassword({ request: parentRequest() });
 
   const clientSession = getClientSession();
   const isClientSession = !!clientSession;
@@ -64,6 +66,11 @@ export default function Settings() {
       });
       setNameInput(child.child_name || clientSession.child_name || "");
       setLoading(false);
+    } else if (authenticatedUser?.account_type === "parent_free") {
+      setUser(authenticatedUser);
+      setNameInput(authenticatedUser.display_name || authenticatedUser.full_name || "");
+      setPhoneInput(authenticatedUser.phone || "");
+      setLoading(false);
     } else {
       base44.auth.me().then(u => {
         setUser(u);
@@ -71,7 +78,7 @@ export default function Settings() {
         setPhoneInput(u?.phone || "");
       }).catch(() => {}).finally(() => setLoading(false));
     }
-  }, []);
+  }, [isClientSession, authenticatedUser?.id, authenticatedUser?.account_type]);
 
   const handleSaveName = async () => {
     if (!nameInput.trim()) return;
@@ -149,20 +156,42 @@ export default function Settings() {
     e.preventDefault();
     setPwMsg({ text: "", ok: false });
     if (!pwForm.current || !pwForm.next) { setPwMsg({ text: "Fill in all fields.", ok: false }); return; }
-    if (pwForm.next.length < 8) { setPwMsg({ text: "New password must be at least 8 characters.", ok: false }); return; }
+    if (pwForm.next.length < 8 || pwForm.next.length > 128) { setPwMsg({ text: "New password must be between 8 and 128 characters.", ok: false }); return; }
     if (pwForm.next !== pwForm.confirm) { setPwMsg({ text: "New passwords don't match.", ok: false }); return; }
     setPwSaving(true);
     try {
-      const res = await fetch("/api/clinician/change-password", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current_password: pwForm.current, new_password: pwForm.next }),
+      if (user?.account_type === "parent_free") {
+        await parentPasswordChange.mutateAsync({
+          data: { currentPassword: pwForm.current, newPassword: pwForm.next },
+        });
+      } else {
+        const res = await fetch("/api/clinician/change-password", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ current_password: pwForm.current, new_password: pwForm.next }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) {
+          const message = res.status === 404
+            ? "This account uses an external sign-in provider. Change its password with that provider."
+            : data.error || "Failed to change password.";
+          setPwMsg({ text: message, ok: false });
+          setPwSaving(false);
+          return;
+        }
+      }
+      setPwMsg({
+        text: user?.account_type === "parent_free"
+          ? "Password updated. Other signed-in devices have been signed out."
+          : "Password updated successfully.",
+        ok: true,
       });
-      const data = await res.json();
-      if (!res.ok || data.error) { setPwMsg({ text: data.error || "Failed to change password.", ok: false }); }
-      else { setPwMsg({ text: "Password updated successfully.", ok: true }); setPwForm({ current: "", next: "", confirm: "" }); }
-    } catch { setPwMsg({ text: "Network error — please try again.", ok: false }); }
+      setPwForm({ current: "", next: "", confirm: "" });
+    } catch (error) {
+      const serverMessage = error?.data?.error;
+      setPwMsg({ text: serverMessage || "Network error — please try again.", ok: false });
+    }
     setPwSaving(false);
   };
 
@@ -195,6 +224,7 @@ export default function Settings() {
   };
 
   const isClinicianRole = !isClientSession && (user?.app_role === "clinician" || user?.app_role === "admin");
+  const isParentFreeAccount = !isClientSession && user?.account_type === "parent_free";
 
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -208,6 +238,11 @@ export default function Settings() {
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
         <a href="/DataRequests" className="mt-2 inline-block text-sm text-primary underline underline-offset-4">Privacy &amp; data requests</a>
         <p className="text-muted-foreground text-sm mt-1">Manage your account and preferences</p>
+        {isParentFreeAccount && (
+          <button type="button" onClick={() => navigate("/ParentHome")} className="mt-3 block text-sm text-primary underline underline-offset-4">
+            Back to your home
+          </button>
+        )}
         {deleteResult && <p role="status" className="mt-3 rounded-lg border border-border bg-muted p-3 text-sm text-foreground">{deleteResult} <a href="/DataRequests" className="ml-1 underline">View request status</a></p>}
       </div>
 
@@ -239,7 +274,7 @@ export default function Settings() {
           </div>
 
           {/* Display Name — only for non-client sessions (clinicians / OIDC users) */}
-          {!isClientSession && (
+          {!isClientSession && !isParentFreeAccount && (
             <div className="mb-4">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">Display Name</label>
               {editingName ? (
@@ -283,7 +318,7 @@ export default function Settings() {
           )}
 
           {/* Phone — only for non-client sessions */}
-          {!isClientSession && (
+          {!isClientSession && !isParentFreeAccount && (
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">Phone Number</label>
               {editingPhone ? (
@@ -313,12 +348,13 @@ export default function Settings() {
         </motion.div>
       )}
 
-      {/* Password change — clinicians only */}
-      {isClinicianRole && (
+      {/* Password change — parent accounts and app-managed clinician accounts */}
+      {(isClinicianRole || isParentFreeAccount) && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }} className="bg-card border border-border rounded-2xl p-6 mb-4">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
             <Lock className="w-3.5 h-3.5" /> Change Password
           </h2>
+          {isParentFreeAccount && <p className="text-xs text-muted-foreground mb-4">Use 8–128 characters. Other signed-in devices will be signed out after the change.</p>}
           <form onSubmit={handleChangePassword} className="space-y-3">
             {[
               { id: "current", label: "Current Password", key: "current" },
@@ -332,6 +368,8 @@ export default function Settings() {
                     type={showPw[key] ? "text" : "password"}
                     value={pwForm[key]}
                     onChange={e => setPwForm(p => ({ ...p, [key]: e.target.value }))}
+                    maxLength={128}
+                    autoComplete={key === "current" ? "current-password" : "new-password"}
                     className="w-full min-h-[44px] border border-border rounded-xl px-4 py-2.5 pr-10 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                     placeholder={key === "current" ? "Your current password" : key === "next" ? "At least 8 characters" : "Repeat new password"}
                   />
@@ -426,9 +464,14 @@ export default function Settings() {
         </Button>
         {!isClientSession && (
           <button onClick={() => setShowDeleteConfirm(true)}
-            className="w-full min-h-[44px] flex items-center justify-center gap-2 text-sm text-destructive/70 hover:text-destructive transition-colors">
-            <Trash2 className="w-4 h-4" /> Delete Account
+             className="w-full min-h-[44px] flex items-center justify-center gap-2 text-sm text-destructive/70 hover:text-destructive transition-colors">
+             <Trash2 className="w-4 h-4" /> Request Account Deletion
           </button>
+        )}
+        {isClientSession && (
+          <p className="rounded-xl border border-border bg-muted p-3 text-xs text-muted-foreground">
+            To request deletion of a username-and-code profile, ask your parent or guardian or your clinician to submit a request from their account. Care records are reviewed before any deletion.
+          </p>
         )}
       </motion.div>
 
@@ -442,13 +485,13 @@ export default function Settings() {
                 <AlertTriangle className="w-5 h-5 text-destructive" />
               </div>
               <div>
-                <h2 className="font-bold text-foreground">Delete Account</h2>
-                <p className="text-xs text-muted-foreground">This cannot be undone</p>
+                <h2 className="font-bold text-foreground">Request Account Deletion</h2>
+                <p className="text-xs text-muted-foreground">A reviewer will assess the request</p>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">Type <strong>DELETE</strong> to submit a tracked request for review. This will not delete your account or its records automatically.</p>
+            <p className="text-sm text-muted-foreground mb-4">Type <strong>DELETE</strong> to submit a tracked request. This does not immediately erase your account or records; linked care information may need review.</p>
             <input type="text" value={deleteInput} onChange={e => setDeleteInput(e.target.value)}
-              placeholder="Type DELETE to confirm"
+                placeholder="Type DELETE to confirm"
               className="w-full border border-border rounded-xl px-4 py-3 text-sm bg-background text-foreground mb-4 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-destructive/40"
             />
             <div className="flex gap-3">

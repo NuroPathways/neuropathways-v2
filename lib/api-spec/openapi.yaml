@@ -78,6 +78,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ParentAuthResult"
+  /parent/auth/change-password:
+    post:
+      operationId: changeParentPassword
+      tags: [parent]
+      summary: Change the signed-in parent's password
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentPasswordChangeInput"
+      responses:
+        "200":
+          description: Parent password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResult"
+        "400":
+          description: Invalid input or incorrect current password
+        "401":
+          description: Parent session is not valid
+        "429":
+          description: Too many password change attempts
   /parent/auth/logout:
     post:
       operationId: logoutParent
@@ -1483,3 +1511,15 @@ components:
           items:
             $ref: "#/components/schemas/SupportCard"
       required: [ok, supportCards]
+    ParentPasswordChangeInput:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+          minLength: 8
+          maxLength: 128
+        newPassword:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required: [currentPassword, newPassword]

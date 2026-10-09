@@ -57,6 +57,7 @@ export * from './parentLoginInput';
 export * from './parentLogInput';
 export * from './parentLogInputIntensity';
 export * from './parentLogIntensity';
+export * from './parentPasswordChangeInput';
 export * from './parentPlanGoal';
 export * from './parentPlanGoalSourceType';
 export * from './parentRegistrationInput';

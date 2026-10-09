@@ -652,3 +652,16 @@ export interface ParentSupportReviewResult {
   supportCards: SupportCard[];
 }
 
+export interface ParentPasswordChangeInput {
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
+  currentPassword: string;
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
+  newPassword: string;
+}
+

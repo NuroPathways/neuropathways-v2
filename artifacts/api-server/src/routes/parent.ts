@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import {
   behaviorLogsTable,
   auditLogsTable,
@@ -20,6 +20,7 @@ import {
 } from "@workspace/db";
 import {
   LogParentDailyActionBody,
+  ChangeParentPasswordBody,
   RecordParentGoalFeedbackBody,
   RecordParentGoalFeedbackResponse,
   UpdateParentDailyActionBody,
@@ -66,6 +67,14 @@ const authLimiter = rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "Too many parent sign-in attempts. Please try again later." },
+  skip: () => process.env.DISABLE_RATE_LIMIT === "true",
+});
+const passwordChangeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many password change attempts. Please try again later." },
   skip: () => process.env.DISABLE_RATE_LIMIT === "true",
 });
 
@@ -654,6 +663,70 @@ router.post("/parent/auth/logout", async (req: Request, res: Response) => {
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: "Unable to sign out" });
+  }
+});
+
+router.post("/parent/auth/change-password", passwordChangeLimiter, requireParent, async (req: Request, res: Response): Promise<void> => {
+  const parsed = ChangeParentPasswordBody.safeParse(req.body);
+  if (!parsed.success || !hasOnlyKeys(req.body, ["currentPassword", "newPassword"])) {
+    res.status(400).json({ error: "Enter your current password and a new password of 8 to 128 characters." });
+    return;
+  }
+
+  const sessionToken = getParentToken(req);
+  if (!sessionToken) {
+    res.status(401).json({ error: "Your session has expired. Sign in again." });
+    return;
+  }
+
+  try {
+    const parent = req.parentAccount!;
+    const [account] = await db
+      .select({ passwordHash: parentAccountsTable.passwordHash })
+      .from(parentAccountsTable)
+      .where(eq(parentAccountsTable.id, parent.id));
+
+    if (!account || !await verifyParentPassword(parsed.data.currentPassword, account.passwordHash)) {
+      res.status(400).json({ error: "Your current password is incorrect." });
+      return;
+    }
+    if (parsed.data.currentPassword === parsed.data.newPassword) {
+      res.status(400).json({ error: "Choose a new password that is different from your current password." });
+      return;
+    }
+
+    const passwordHash = await hashParentPassword(parsed.data.newPassword);
+    const currentSessionHash = hashParentSessionToken(sessionToken);
+    const updated = await db.transaction(async (tx) => {
+      const [changed] = await tx
+        .update(parentAccountsTable)
+        .set({ passwordHash })
+        .where(and(
+          eq(parentAccountsTable.id, parent.id),
+          eq(parentAccountsTable.passwordHash, account.passwordHash),
+        ))
+        .returning({ id: parentAccountsTable.id });
+
+      if (!changed) return false;
+
+      await tx
+        .delete(parentSessionsTable)
+        .where(and(
+          eq(parentSessionsTable.parentId, parent.id),
+          ne(parentSessionsTable.tokenHash, currentSessionHash),
+        ));
+      return true;
+    });
+
+    if (!updated) {
+      res.status(409).json({ error: "Your password changed in another session. Sign in again before trying once more." });
+      return;
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    req.log.error({ error }, "Unable to change parent account password");
+    res.status(500).json({ error: "Unable to change your password right now." });
   }
 });
 

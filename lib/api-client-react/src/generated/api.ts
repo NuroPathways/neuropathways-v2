@@ -54,6 +54,7 @@ import type {
   ParentLog,
   ParentLogInput,
   ParentLoginInput,
+  ParentPasswordChangeInput,
   ParentRegistrationInput,
   ParentSession,
   ParentSharedSupport,
@@ -466,6 +467,94 @@ export const useLoginParent = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getLoginParentMutationOptions(options), queryClient);
+    }
+
+export const getChangeParentPasswordUrl = () => {
+
+
+
+
+  return `/api/parent/auth/change-password`
+}
+
+/**
+ * @summary Change the signed-in parent's password
+ */
+export const changeParentPassword = async (parentPasswordChangeInput: ParentPasswordChangeInput, options?: Parameters<typeof customFetch>[1]): Promise<OkResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<OkResult>(getChangeParentPasswordUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(parentPasswordChangeInput)
+  }
+);}
+
+
+
+
+
+export const getChangeParentPasswordMutationKey = () => ['changeParentPassword'] as const;
+
+export const getChangeParentPasswordMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeParentPassword>>, TError,ChangeParentPasswordMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeParentPassword>>, TError,ChangeParentPasswordMutationVariables, TContext> => {
+
+const mutationKey = getChangeParentPasswordMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeParentPassword>>, ChangeParentPasswordMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  changeParentPassword(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeParentPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof changeParentPassword>>>
+    export type ChangeParentPasswordMutationBody = BodyType<ParentPasswordChangeInput>
+    export type ChangeParentPasswordMutationError = ErrorType<void>
+    export type ChangeParentPasswordMutationVariables = {data: BodyType<ParentPasswordChangeInput>}
+
+    /**
+ * @summary Change the signed-in parent's password
+ */
+export const useChangeParentPassword = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeParentPassword>>, TError,ChangeParentPasswordMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof changeParentPassword>>,
+        TError,
+        ChangeParentPasswordMutationVariables,
+        TContext
+      > => {
+      return useMutation(getChangeParentPasswordMutationOptions(options), queryClient);
     }
 
 export const getLogoutParentUrl = () => {

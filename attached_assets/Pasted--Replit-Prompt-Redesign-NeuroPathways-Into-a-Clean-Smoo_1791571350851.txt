@@ -1,0 +1,122 @@
+# Replit Prompt: Redesign NeuroPathways Into a Clean, Smooth, Mobile-First App UI
+
+I want you to redesign the NeuroPathways app UI so it looks cleaner, smoother, lighter, and more modern.
+
+The current app works, but the design still feels too blocky. The cards are too large, the borders are too heavy, the source badges are awkward, the pages feel boxy, and the overall visual style does not feel like a polished mobile app yet.
+
+Keep all existing features and functionality.
+
+Do not remove features.
+
+Do not change how the app works.
+
+This is a UI/UX redesign and design-system cleanup.
+
+The goal is to make NeuroPathways feel like a clean, modern, mobile-first support app for parents and caregivers.
+
+---
+
+## 1. Design Direction
+
+Move away from the current bulky dashboard/card style.
+
+The app should feel:
+
+- lighter
+- smoother
+- cleaner
+- softer
+- more mobile-native
+- less boxed-in
+- less clinical-looking
+- less cluttered
+- easier to scan
+- calmer and more premium
+
+Think more like a modern health/wellness app, not an admin dashboard.
+
+Use soft surfaces, clean spacing, rounded sections, subtle dividers, and compact cards.
+
+Avoid huge outlined boxes everywhere.
+
+---
+
+## 2. Keep All Existing Features
+
+Do not remove or break:
+
+- Home
+- Support Now
+- I Need Help Now
+- Support Steps
+- Behavior Support Library
+- Goals
+- Logs
+- Upload Plan
+- AI Chat
+- Documents
+- child selector
+- parent accounts
+- clinician accounts
+- caregiver accounts
+- individual client accounts
+- document upload
+- document scanning
+- AI-generated support cards
+- starter support
+- uploaded-plan support
+- clinician-reviewed labels
+- tasks and activities
+- behavior logs
+- desktop sidebar
+- mobile navigation
+
+Only improve layout, styling, spacing, and presentation.
+
+---
+
+## 3. Use a New Visual System
+
+Create a consistent visual system.
+
+Use design tokens for:
+
+- background
+- surface
+- elevated surface
+- text
+- muted text
+- border
+- primary
+- secondary
+- success
+- warning
+- danger
+- badges
+- shadows
+- spacing
+- border radius
+
+Recommended color direction:
+
+```css
+--bg: #F7FAF9;
+--surface: #FFFFFF;
+--surface-soft: #F1F7F6;
+--surface-blue: #EEF6FA;
+--text-main: #16323A;
+--text-muted: #5F737A;
+--border-soft: #DDEBEA;
+
+--primary: #2F7DA1;
+--primary-dark: #185A75;
+--secondary: #71B7A8;
+--accent: #A9D8D0;
+
+--success: #3C9A6B;
+--warning: #E3A13A;
+--danger: #D93A3A;
+
+--danger-soft: #FDECEC;
+--success-soft: #EAF7F0;
+--blue-soft: #EAF5FA;

@@ -43,7 +43,7 @@ import PublicLegalRoutes from '@/components/legal/PublicLegalRoutes';
 import DataRequests from '@/pages/DataRequests';
 
 // Free email parents only ever use the parent-owned screens, never legacy CRUD pages.
-const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/DataRequests', '/privacy'];
+const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/DataRequests', '/Settings', '/privacy'];
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];

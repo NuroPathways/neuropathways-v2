@@ -246,5 +246,11 @@ export function createFreeCaregiverNavigation({ activeTab, activeSection, goToTa
         { key: "add-child", label: "Add a child", icon: Plus, onSelect: onAddChild },
       ],
     },
+    {
+      label: "Account",
+      items: [
+        { key: "settings", label: "Settings", icon: Settings, to: "/Settings", pages: ["Settings"] },
+      ],
+    },
   ];
 }
