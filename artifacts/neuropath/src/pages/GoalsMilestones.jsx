@@ -127,30 +127,25 @@ export default function GoalsMilestones() {
   });
 
   return (
-    <div className="min-h-screen bg-background font-inter">
-      {/* Hero Header */}
-      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,42%) 0%, hsl(180,29%,50%) 100%)" }}>
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-2 right-8 w-28 h-28 rounded-full bg-white" />
-          <div className="absolute -bottom-4 left-10 w-36 h-36 rounded-full bg-white" />
-        </div>
-        <div className="relative px-5 pt-5 pb-8 max-w-xl mx-auto">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-white/70 hover:text-white text-sm mb-5 transition-colors">
+    <div className="legacy-goals min-h-[100dvh] bg-background font-inter text-foreground">
+      <div className="bg-primary text-primary-foreground">
+        <div className="px-5 pt-5 pb-6 max-w-3xl mx-auto">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-primary-foreground/75 hover:text-primary-foreground text-sm mb-4 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/25 flex items-center justify-center">
-                <Target className="w-5 h-5 text-white" />
+              <div className="w-9 h-9 rounded-xl bg-primary-foreground/15 flex items-center justify-center">
+                <Target className="w-4 h-4 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">Goals & Milestones</h1>
-                <p className="text-white/70 text-xs">{selectedChild ? `${selectedChild.child_name}'s progress` : "Track goals and milestones"}</p>
+                <h1 className="text-xl font-bold text-primary-foreground">Goals & Milestones</h1>
+                <p className="text-primary-foreground/75 text-xs">{selectedChild ? `${selectedChild.child_name}'s progress` : "Track goals and milestones"}</p>
               </div>
             </div>
             <Button
               size="sm"
-              className="bg-white/20 hover:bg-white/30 text-white border-0 rounded-xl gap-1.5"
+              className="bg-primary-foreground/15 hover:bg-primary-foreground/25 text-primary-foreground border border-primary-foreground/20 rounded-lg gap-1.5"
               onClick={() => setShowForm(true)}
             >
               <Plus className="w-3.5 h-3.5" /> Add Goal
@@ -159,19 +154,22 @@ export default function GoalsMilestones() {
         </div>
       </div>
 
-      <div className="px-5 py-5 max-w-xl mx-auto space-y-4">
+      <div className="px-4 py-4 sm:px-5 sm:py-5 max-w-3xl mx-auto space-y-3">
         {children.length > 1 && (
-          <Select value={selectedChildId} onValueChange={setSelectedChildId}>
-            <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select profile" /></SelectTrigger>
-            <SelectContent>{children.map(c => <SelectItem key={c.id} value={c.id}>{c.child_name}</SelectItem>)}</SelectContent>
-          </Select>
+          <div className="legacy-goals-child-select">
+            <span className="text-xs font-semibold text-muted-foreground">Viewing progress for</span>
+            <Select value={selectedChildId} onValueChange={setSelectedChildId}>
+              <SelectTrigger className="rounded-lg bg-card"><SelectValue placeholder="Select profile" /></SelectTrigger>
+              <SelectContent>{children.map(c => <SelectItem key={c.id} value={c.id}>{c.child_name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
         )}
 
         {/* Add Form */}
         <AnimatePresence>
           {showForm && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="bg-card border border-border rounded-2xl p-5 space-y-3">
+              className="legacy-goals-form bg-card border border-border rounded-xl p-4 sm:p-5 space-y-3">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <Target className="w-4 h-4 text-primary" /> New Goal
               </h3>
@@ -206,10 +204,10 @@ export default function GoalsMilestones() {
         </AnimatePresence>
 
         {loading ? (
-          <div className="space-y-3">{[1, 2].map(i => <div key={i} className="h-36 bg-muted rounded-2xl animate-pulse" />)}</div>
+          <div className="space-y-3">{[1, 2].map(i => <div key={i} className="h-32 bg-muted rounded-xl animate-pulse" />)}</div>
         ) : goals.length === 0 ? (
-          <div className="text-center py-14 border-2 border-dashed border-border rounded-2xl">
-            <Target className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+          <div className="text-center py-10 px-5 border border-dashed border-border bg-card rounded-xl">
+            <Target className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
             <p className="font-medium text-foreground mb-1">No goals yet</p>
             <p className="text-sm text-muted-foreground mb-4">No goals yet. Create one below or ask your clinician to set one up.</p>
             <Button className="rounded-xl gap-2" onClick={() => setShowForm(true)}><Plus className="w-4 h-4" /> Add a Goal</Button>
@@ -224,18 +222,23 @@ export default function GoalsMilestones() {
               const achieved = !documentGoal && g.progress >= g.target;
               return (
                 <motion.div key={g.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
-                  className={`bg-card border-2 rounded-2xl p-5 transition-all ${achieved ? "border-green-400 bg-green-50/20" : "border-border"}`}>
+                 className={`legacy-goal-card bg-card border rounded-xl p-4 transition-colors ${achieved ? "border-accent bg-accent/10" : "border-border"}`}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1 min-w-0 pr-3">
                       <div className="flex items-center gap-2 mb-0.5">
-                        {achieved ? <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" /> : <Circle className="w-5 h-5 text-primary flex-shrink-0" />}
+                         {achieved ? <CheckCircle2 className="w-5 h-5 text-accent flex-shrink-0" /> : <Circle className="w-5 h-5 text-primary flex-shrink-0" />}
                         <p className="font-bold text-foreground break-words">{g.goal_title}</p>
                       </div>
-                      {g.goal_description && <p className="text-xs text-muted-foreground ml-7 line-clamp-2">{g.goal_description}</p>}
+                      {g.goal_description && (
+                        <details className="legacy-goal-description ml-7">
+                          <summary className="text-xs text-primary">Read goal description</summary>
+                          <p className="text-xs text-muted-foreground mt-1">{g.goal_description}</p>
+                        </details>
+                      )}
                       {!documentGoal && <p className="text-xs text-muted-foreground ml-7 mt-0.5">{g.progress} of {g.target} steps completed</p>}
                       {documentGoal && (
                         <span className="ml-7 mt-1 inline-block text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                          {rawGoal.source === "parent_document" ? "From a scanned plan" : "From documents"}
+                           {rawGoal.source === "parent_document" ? "Uploaded plan · not clinician-reviewed" : "Clinician-uploaded plan"}
                         </span>
                       )}
                       {rawGoal.created_by_clinician && (
@@ -254,11 +257,11 @@ export default function GoalsMilestones() {
                     <div className="mb-2">
                       <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
                         <span>{pct}% complete</span>
-                        <span>{achieved ? "✓ Milestone reached!" : `${g.target - g.progress} to go`}</span>
+                          <span>{achieved ? "Milestone reached" : `${g.target - g.progress} to go`}</span>
                       </div>
                       <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${achieved ? "bg-green-500" : "bg-primary"}`}
+                           className={`h-full rounded-full transition-all duration-500 ${achieved ? "bg-accent" : "bg-primary"}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -267,20 +270,23 @@ export default function GoalsMilestones() {
 
                   {documentGoal ? (
                     <div className="mt-3 ml-7">
-                      <p className="text-xs font-semibold text-muted-foreground mb-1">Milestones from the plan</p>
-                      {milestones.length ? (
-                        <ul className="list-disc pl-4 space-y-1 text-xs text-muted-foreground">
-                          {milestones.map((milestone, index) => <li key={`${g.id}-milestone-${index}`}>{milestone}</li>)}
-                        </ul>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          {g.milestone_notes || "No explicit milestones were listed in the source document."}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-2">Report practice outcomes in Today; these are caregiver reports, not a measure of treatment progress.</p>
+                      <details className="legacy-goal-description">
+                        <summary className="text-xs text-primary">View milestones from the plan</summary>
+                        <div className="text-xs text-muted-foreground mt-2">
+                          {milestones.length ? (
+                            <ul className="list-disc pl-4 space-y-1">
+                              {milestones.map((milestone, index) => <li key={`${g.id}-milestone-${index}`}>{milestone}</li>)}
+                            </ul>
+                          ) : <p>{g.milestone_notes || "No explicit milestones were listed in the source document."}</p>}
+                          <p className="mt-2">Report practice outcomes in Today; these are caregiver reports, not a measure of treatment progress.</p>
+                        </div>
+                      </details>
                     </div>
                   ) : g.milestone_notes && (
-                    <p className="text-xs text-muted-foreground mt-2 italic">{g.milestone_notes}</p>
+                    <details className="legacy-goal-description ml-7 mt-2">
+                      <summary className="text-xs text-primary">View milestone notes</summary>
+                      <p className="text-xs text-muted-foreground mt-1">{g.milestone_notes}</p>
+                    </details>
                   )}
                 </motion.div>
               );

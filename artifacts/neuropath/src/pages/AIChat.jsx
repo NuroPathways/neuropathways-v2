@@ -471,8 +471,8 @@ export default function AIChat() {
   };
 
   return (
-    <div className="flex flex-col h-screen font-inter" style={{ background: "#f4f5f7" }}>
-      <div className="px-6 py-4 border-b border-border bg-card flex-shrink-0">
+    <div className="np-ai-chat flex flex-col h-[100dvh] min-h-[100dvh] font-inter bg-background text-foreground">
+      <div className="np-ai-chat-header px-4 sm:px-6 py-3 border-b border-border bg-card flex-shrink-0">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
@@ -481,7 +481,7 @@ export default function AIChat() {
             <div>
               <p className="font-semibold text-foreground text-sm">NeuroPath AI</p>
               <p className="text-xs text-muted-foreground">
-                {loadingContext ? "Loading your data..." : contextError ? "Data unavailable" : clinicianContext.hasPlans || clinicianContext.hasDocuments ? "Data loaded ✓" : "Connected"}
+                {loadingContext ? "Loading your data..." : contextError ? "Data unavailable" : clinicianContext.hasPlans || clinicianContext.hasDocuments ? "Plan and document context ready" : "Connected"}
               </p>
             </div>
           </div>
@@ -498,8 +498,8 @@ export default function AIChat() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-2xl mx-auto space-y-5">
+      <div className="np-ai-chat-scroll min-h-0 flex-1 overflow-y-auto px-3 sm:px-4 py-5">
+        <div className="max-w-2xl mx-auto space-y-4">
           {messages.length === 0 && !isLoading && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-8">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
@@ -511,7 +511,7 @@ export default function AIChat() {
                   ? "I'm here to support you directly. Ask me anything about your treatment plan, coping strategies, how to manage a difficult moment, or what to do right now."
                   : "I can summarize your child's treatment plan, build daily schedules, answer questions about specific sessions, and more."}
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="np-ai-chat-suggestions grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(isIndividualClient ? SUGGESTED_INDIVIDUAL : SUGGESTED).map(s => (
                   <button key={s} onClick={() => sendMessage(s)} disabled={loadingContext || isLoading} className="text-left px-4 py-3 rounded-xl bg-card border border-border hover:border-primary/50 hover:bg-muted/50 text-sm text-foreground transition-all disabled:opacity-50">
                     {s}
@@ -523,13 +523,13 @@ export default function AIChat() {
 
           <AnimatePresence>
             {messages.map((m, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`np-ai-chat-turn flex gap-2.5 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 {m.role === "assistant" && (
                   <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Brain className="w-4 h-4 text-primary-foreground" />
                   </div>
                 )}
-                <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-card border border-border rounded-tl-sm text-foreground"}`}>
+                <div className={`np-ai-chat-bubble max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-card border border-border rounded-tl-sm text-foreground"}`}>
                   {m.role === "user" ? (
                     <p>{m.content}</p>
                   ) : (
@@ -579,7 +579,7 @@ export default function AIChat() {
         </div>
       </div>
 
-      <div className="flex-shrink-0 border-t border-border bg-card px-4 py-4">
+      <div className="np-ai-chat-composer flex-shrink-0 border-t border-border bg-card px-3 sm:px-4 py-3">
         <div className="max-w-2xl mx-auto flex gap-3 items-end">
           <Textarea
             value={input}
@@ -594,7 +594,7 @@ export default function AIChat() {
             <Send className="w-4 h-4" />
           </Button>
         </div>
-        <p className="text-center text-xs text-muted-foreground mt-2 max-w-2xl mx-auto">
+        <p className="text-center text-[11px] leading-relaxed text-muted-foreground mt-2 max-w-2xl mx-auto">
           {isIndividualClient
             ? "AI uses your clinician's documents and support plan. It can make mistakes and does not diagnose, provide treatment, or replace your clinician."
             : "AI uses available documents, support plans, and session history. It can make mistakes and does not diagnose, provide treatment, or replace your clinician."}

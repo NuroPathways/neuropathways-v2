@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, ScrollView, type TextInputProps, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -121,6 +121,25 @@ export function Skeleton({ lines = 3 }: { lines?: number }) {
 
 export function Row({ children, wrap }: { children: React.ReactNode; wrap?: boolean }) {
   return <View style={{ flexDirection: "row", flexWrap: wrap ? "wrap" : "nowrap", gap: 8, alignItems: "center" }}>{children}</View>;
+}
+
+export function Disclosure({ label, children, defaultOpen = false }: { label: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const c = useColors();
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <View style={{ borderTopWidth: 1, borderTopColor: c.border, paddingTop: 9, gap: 9 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((value) => !value)}
+        style={{ minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}
+      >
+        <Text style={{ flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 13, color: c.primary }}>{label}</Text>
+        <Feather name={open ? "chevron-up" : "chevron-down"} size={17} color={c.secondary} />
+      </Pressable>
+      {open ? <View style={{ gap: 9 }}>{children}</View> : null}
+    </View>
+  );
 }
 
 export const msg = (e: unknown, fallback = "Something went wrong. Try again.") => (e instanceof Error && e.message ? e.message : fallback);

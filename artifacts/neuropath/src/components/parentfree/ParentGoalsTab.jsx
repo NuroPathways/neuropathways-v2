@@ -8,7 +8,6 @@ import {
 } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
-import { behaviorEmoji } from "@/lib/behaviorEmoji";
 import BehaviorLibrary from "./BehaviorLibrary";
 import GoalLines from "./GoalLines";
 import { ErrorBox, errMsg } from "./common";
@@ -32,8 +31,9 @@ function PlanMilestones({ card, dailyActions = [] }) {
   );
 
   return (
-    <section className="pf-card sage" style={{ marginTop: 14 }} data-testid={`plan-milestones-${card.id}`}>
-      <h4>Plan milestones and practice</h4>
+    <details className="pf-goal-disclosure pf-goal-plan" data-testid={`plan-milestones-${card.id}`}>
+      <summary>Plan milestones and practice</summary>
+      <section className="pf-card sage">
       {planActivities.length > 0 ? (
         <ul className="pf-list" style={{ marginTop: 8 }}>
           {planActivities.map((activity, index) => (
@@ -64,7 +64,8 @@ function PlanMilestones({ card, dailyActions = [] }) {
           This goal is saved. Re-read the plan from Upload Plan to refresh its practice activities.
         </p>
       )}
-    </section>
+      </section>
+    </details>
   );
 }
 
@@ -78,26 +79,28 @@ function PlanGoalMilestones({ goal, dailyActions }) {
   );
 
   return (
-    <div style={{ marginTop: 10 }}>
-      <h5 style={{ margin: 0 }}>Plan milestones and practice</h5>
-      {goal.milestones.length > 0 && (
-        <ul className="pf-list" style={{ marginTop: 6 }}>
-          {goal.milestones.map((milestone, index) => <li key={`${goal.id}-milestone-${index}`}>{milestone}</li>)}
-        </ul>
-      )}
-      {activities.length > 0 ? (
-        <ul className="pf-list" style={{ marginTop: 6 }}>
-          {activities.map((activity) => (
-            <li key={activity.id} style={{ display: "block" }}>
-              <strong>{activity.title}</strong>
-              <span className="pf-hint" style={{ display: "block", marginTop: 3 }}>{activity.description}</span>
-            </li>
-          ))}
-        </ul>
-      ) : goal.milestones.length === 0 ? (
-        <p className="pf-hint" style={{ marginTop: 5 }}>Activities based on this goal will appear in Today.</p>
-      ) : null}
-    </div>
+    <details className="pf-goal-disclosure">
+      <summary>Plan milestones and practice</summary>
+      <div className="pf-goal-disclosure-body">
+        {goal.milestones.length > 0 && (
+          <ul className="pf-list">
+            {goal.milestones.map((milestone, index) => <li key={`${goal.id}-milestone-${index}`}>{milestone}</li>)}
+          </ul>
+        )}
+        {activities.length > 0 ? (
+          <ul className="pf-list">
+            {activities.map((activity) => (
+              <li key={activity.id} style={{ display: "block" }}>
+                <strong>{activity.title}</strong>
+                <span className="pf-hint" style={{ display: "block", marginTop: 3 }}>{activity.description}</span>
+              </li>
+            ))}
+          </ul>
+        ) : goal.milestones.length === 0 ? (
+          <p className="pf-hint">Activities based on this goal will appear in Today.</p>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
@@ -161,8 +164,8 @@ export default function ParentGoalsTab({
   };
 
   return (
-    <div style={{ display: "grid", gap: 16 }} data-testid="panel-goals">
-      <section className="pf-card sage">
+    <div className="pf-goals-tab" data-testid="panel-goals">
+      <section className="pf-card sage pf-goals-intro">
         <p className="pf-eyebrow">Goals</p>
         <h2 style={{ marginTop: 6 }}>How are the current goals going?</h2>
         <p className="pf-hint" style={{ marginTop: 6 }}>
@@ -191,11 +194,8 @@ export default function ParentGoalsTab({
         const ratingId = `${behavior.behaviorKey}-${identity}`;
 
         return (
-          <article className="pf-card" key={identity} data-testid={`goal-card-${behavior.behaviorKey}`}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span aria-hidden="true" style={{ fontSize: "1.6rem" }}>
-                {behaviorEmoji(behavior.behaviorKey, behavior.behaviorName)}
-              </span>
+          <article className="pf-card pf-parent-goal-card" key={identity} data-testid={`goal-card-${behavior.behaviorKey}`}>
+            <div className="pf-parent-goal-heading">
               <h3 style={{ margin: 0 }}>{behavior.behaviorName}</h3>
             </div>
             <div style={{ marginTop: 12 }}>
@@ -246,10 +246,11 @@ export default function ParentGoalsTab({
           <p className="pf-hint" style={{ marginTop: 6 }}>
             These goals were found in {child.name}'s documents and added automatically. They do not replace your saved goals.
           </p>
-          <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+          <div className="pf-plan-goals-grid">
             {discoveredPlanGoals.map((card) => (
-              <article className="pf-card sage" key={`${parentBehaviorIdentity(card)}:${card.planGoal}`}>
+              <article className="pf-card sage pf-plan-goal-card" key={`${parentBehaviorIdentity(card)}:${card.planGoal}`}>
                 <h4>{card.behaviorName}</h4>
+                <span className="pf-tag">{card.source === "clinician_reviewed" ? "Clinician reviewed" : card.source === "clinician_document" ? "Clinician-uploaded plan" : card.source === "parent_document" ? "Uploaded plan · not clinician-reviewed" : "Starter support"}</span>
                 <p style={{ marginTop: 6 }}><strong>Plan goal:</strong> {card.planGoal}</p>
                 {card.planGoalSourceReferences?.length > 0 && (
                   <p className="pf-hint" style={{ marginTop: 5 }}>
@@ -260,10 +261,9 @@ export default function ParentGoalsTab({
               </article>
             ))}
             {storedPlanGoals.map((goal) => (
-              <article className="pf-card sage" key={goal.id} data-testid={`plan-goal-${goal.id}`}>
-                <p className="pf-eyebrow">
-                  {goal.sourceType === "clinician_uploaded_plan" ? "From a clinician-uploaded document" : "From an uploaded plan"}
-                </p>
+              <article className="pf-card sage pf-plan-goal-card" key={goal.id} data-testid={`plan-goal-${goal.id}`}>
+                <span className="pf-tag">{goal.sourceType === "clinician_uploaded_plan" ? "Clinician-uploaded plan" : "Uploaded plan · not clinician-reviewed"}</span>
+                {goal.sourceType === "clinician_uploaded_plan" && <p className="pf-hint">From a clinician-uploaded document</p>}
                 <h4 style={{ marginTop: 5 }}>{goal.title}</h4>
                 {goal.description && <p style={{ marginTop: 6 }}>{goal.description}</p>}
                 <PlanGoalMilestones goal={goal} dailyActions={dailyActions} />

@@ -85,7 +85,7 @@ Keep it concise, practical, and calming.`;
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     heroBlock: {
-      backgroundColor: "#DC2626",
+      backgroundColor: colors.destructive,
       paddingTop: Platform.OS === "web" ? 67 : 0,
       paddingHorizontal: 20,
       paddingBottom: 24,
@@ -137,15 +137,15 @@ Keep it concise, practical, and calming.`;
       borderColor: colors.border,
     },
     behaviorChipSelected: {
-      borderColor: "#DC2626",
-      backgroundColor: "#FEE2E2",
+      borderColor: colors.destructive,
+      backgroundColor: `${colors.destructive}14`,
     },
     behaviorText: {
       fontSize: 14,
       color: colors.foreground,
       fontFamily: "Inter_500Medium",
     },
-    behaviorTextSelected: { color: "#DC2626", fontFamily: "Inter_600SemiBold" },
+    behaviorTextSelected: { color: colors.destructive, fontFamily: "Inter_600SemiBold" },
     guidanceCard: {
       marginHorizontal: 20,
       marginTop: 20,
@@ -204,7 +204,7 @@ Keep it concise, practical, and calming.`;
         </View>
         <Text style={s.heroTitle}>Help Right Now</Text>
         <Text style={s.heroSub}>
-          Select what you're experiencing for immediate, clinician-approved guidance.
+          Select what you're experiencing to see available guidance.
         </Text>
       </View>
 

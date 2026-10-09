@@ -33,12 +33,26 @@ export default function Chat() {
       <Field label="Your question" value={text} onChangeText={setText} multiline placeholder="What should I do if it starts again at bedtime?" testID="chat-input" />
       {error ? <ErrorBox message={error} /> : null}
       <Btn label="Ask" icon="send" onPress={ask} loading={busy} disabled={!text.trim() || !child} />
+      {busy ? (
+        <Card>
+          <T size={13} weight="semi" color={c.secondary}>Preparing a response</T>
+          {[0, 1, 2].map((line) => <View key={line} style={{ height: 10, width: line === 2 ? "58%" : "92%", borderRadius: 6, backgroundColor: c.muted }} />)}
+        </Card>
+      ) : null}
       {turns.map((t, i) => (
-        <View key={i} style={{ gap: 8 }}>
-          <Card style={{ backgroundColor: c.muted }}><T weight="semi">{t.q}</T></Card>
-          <Card>
+        <View key={i} style={{ gap: 7 }}>
+          <Card style={{ backgroundColor: c.muted, borderWidth: 0, borderRadius: 12, padding: 13 }}>
+            <T size={11} weight="semi" color={c.secondary}>Your question</T>
+            <T weight="semi">{t.q}</T>
+          </Card>
+          <Card style={{ borderRadius: 12, padding: 14 }}>
             <T>{t.a?.answer}</T>
-            {t.a?.sourceReferences?.map((r, j) => <T key={j} size={13} color={c.secondary}>Source: {r.title}{r.excerpt ? ` - ${r.excerpt}` : ""}</T>)}
+            {t.a?.sourceReferences?.length ? (
+              <View style={{ borderTopWidth: 1, borderTopColor: c.border, paddingTop: 8, gap: 5 }}>
+                <T size={11} weight="semi" color={c.secondary}>References</T>
+                {t.a.sourceReferences.map((r, j) => <T key={j} size={12} color={c.secondary}>{r.title}{r.excerpt ? ` · ${r.excerpt}` : ""}</T>)}
+              </View>
+            ) : null}
             <T size={12} color={c.mutedForeground}>{t.a?.disclaimer}</T>
           </Card>
         </View>

@@ -7,7 +7,7 @@ import { getParentBehaviors, getParentDashboard, parentBehaviorIdentity, useLogP
 import type { ParentDailyAction, ParentDocument, SupportCard } from "@workspace/api-client-react";
 import { BehaviorLibrary } from "@/components/BehaviorLibrary";
 import { ChildSwitch } from "@/components/ChildSwitch";
-import { Btn, Card, Chip, ErrorBox, H, Row, Screen, Skeleton, T, msg } from "@/components/ParentUi";
+import { Btn, Card, Chip, Disclosure, ErrorBox, H, Row, Screen, Skeleton, T, msg } from "@/components/ParentUi";
 import { useParent } from "@/context/ParentContext";
 import { useColors } from "@/hooks/useColors";
 import { progressFor } from "@/lib/parentProgress";
@@ -65,18 +65,22 @@ function DailyActivityCard({ action, documents, childName, onOutcome, isSaving, 
       <T size={12} weight="semi" color={c.secondary}>Practice this today · {action.behaviorName} · {action.estimatedMinutes} min</T>
       <T size={18} weight="bold">{action.title}</T>
       <T size={14}>{action.description}</T>
-      {action.whyItMayHelp ? (
-        <View style={{ backgroundColor: c.muted, borderLeftWidth: 4, borderLeftColor: c.accent, borderRadius: 12, padding: 12, gap: 4 }}>
-          <T size={13} weight="bold">Why you're doing this</T>
-          <T size={13}>{action.whyItMayHelp}</T>
-        </View>
+      {(action.whyItMayHelp || action.steps.length > 0) ? (
+        <Disclosure label="Why this may help · View steps">
+          {action.whyItMayHelp ? (
+            <View style={{ backgroundColor: c.muted, borderLeftWidth: 3, borderLeftColor: c.accent, borderRadius: 8, padding: 11, gap: 4 }}>
+              <T size={13} weight="semi">Why you're doing this</T>
+              <T size={13}>{action.whyItMayHelp}</T>
+            </View>
+          ) : null}
+          {action.steps.map((step, index) => (
+            <View key={`${action.id}-${index}`} style={{ flexDirection: "row", gap: 9, alignItems: "flex-start" }}>
+              <T size={13} weight="bold" color={c.primary}>{index + 1}.</T>
+              <View style={{ flex: 1 }}><T size={14}>{step}</T></View>
+            </View>
+          ))}
+        </Disclosure>
       ) : null}
-      {action.steps.map((step, index) => (
-        <View key={`${action.id}-${index}`} style={{ flexDirection: "row", gap: 9, alignItems: "flex-start" }}>
-          <T size={13} weight="bold" color={c.primary}>{index + 1}.</T>
-          <View style={{ flex: 1 }}><T size={14}>{step}</T></View>
-        </View>
-      ))}
       <T size={12} weight="semi" color={c.secondary}>{DAILY_ACTION_SOURCE[action.sourceType] || "Source not available"}</T>
       {document ? <T size={12} color={c.secondary}>Plan: {document.title || document.fileName}</T> : null}
       {action.status === "needs_review"
@@ -126,12 +130,13 @@ function DailyActivityCard({ action, documents, childName, onOutcome, isSaving, 
 
 type SupportTone = "now" | "avoid" | "context" | "prevention" | "skill" | "track" | "help";
 
-function SupportSection({ title, items, body, detail, tone }: {
+function SupportSection({ title, items, body, detail, tone, collapsible = false }: {
   title: string;
   items?: string[];
   body?: string;
   detail?: string;
   tone: SupportTone;
+  collapsible?: boolean;
 }) {
   const c = useColors();
   const accent = tone === "avoid" || tone === "help"
@@ -143,8 +148,8 @@ function SupportSection({ title, items, body, detail, tone }: {
         : c.primary;
   const readableAccent = tone === "prevention" ? c.secondary : accent;
   if (!items?.length && !body) return null;
-  return (
-    <View style={{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderLeftWidth: 5, borderLeftColor: accent, borderRadius: 16, padding: 16, gap: 10 }}>
+  const content = (
+    <>
       <T weight="bold" size={16} color={readableAccent}>{title}</T>
       {body ? <T>{body}</T> : null}
       {detail ? <T size={14} color={c.secondary}>{detail}</T> : null}
@@ -156,6 +161,18 @@ function SupportSection({ title, items, body, detail, tone }: {
           <View style={{ flex: 1 }}><T size={14} style={{ lineHeight: 21 }}>{it}</T></View>
         </View>
       ))}
+    </>
+  );
+  if (collapsible) {
+    return (
+      <View style={{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderLeftWidth: 4, borderLeftColor: accent, borderRadius: 12, paddingHorizontal: 13 }}>
+        <Disclosure label={title}>{content}</Disclosure>
+      </View>
+    );
+  }
+  return (
+    <View style={{ backgroundColor: c.card, borderColor: c.border, borderWidth: 1, borderLeftWidth: 4, borderLeftColor: accent, borderRadius: 12, padding: 14, gap: 9 }}>
+      {content}
     </View>
   );
 }
@@ -207,10 +224,10 @@ export default function SupportNow() {
       <H>{`Support for ${childName}`}</H>
       <ChildSwitch />
       <T weight="bold" size={17}>Need help right now?</T>
-      <Pressable testID="help-now" accessibilityRole="button" onPress={() => setShowHelpBlocks(true)} style={({ pressed }) => ({ backgroundColor: c.destructive, borderRadius: 20, padding: 22, flexDirection: "row", alignItems: "center", gap: 14, opacity: pressed ? 0.9 : 1 })}>
-        <Feather name="life-buoy" size={30} color={c.destructiveForeground} />
+      <Pressable testID="help-now" accessibilityRole="button" onPress={() => setShowHelpBlocks(true)} style={({ pressed }) => ({ backgroundColor: c.destructive, borderRadius: 12, padding: 16, flexDirection: "row", alignItems: "center", gap: 12, opacity: pressed ? 0.9 : 1 })}>
+        <Feather name="life-buoy" size={25} color={c.destructiveForeground} />
         <View style={{ flex: 1 }}>
-          <T weight="bold" size={22} color={c.destructiveForeground}>I Need Help Now</T>
+          <T weight="bold" size={19} color={c.destructiveForeground}>I Need Help Now</T>
           <T size={13} color={c.destructiveForeground}>Tap to choose a behavior and see support steps</T>
         </View>
       </Pressable>
@@ -244,19 +261,21 @@ export default function SupportNow() {
               <T weight="bold" size={17}>Goals and milestones from plans and reports</T>
               <T size={13} color={c.secondary}>These were added from uploaded documents and do not replace your saved goals.</T>
               {(q.data?.planGoals ?? []).map((goal) => (
-                <View key={goal.id} style={{ borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12, gap: 6 }}>
+                <View key={goal.id} style={{ borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10, gap: 5 }}>
                   <T weight="semi" size={15}>{goal.title}</T>
                   {goal.sourceType === "clinician_uploaded_plan"
-                    ? <T size={12} color={c.secondary}>From a clinician-uploaded document</T>
-                    : <T size={12} color={c.secondary}>From an uploaded plan</T>}
-                  {goal.description ? <T size={13}>{goal.description}</T> : null}
-                  {goal.milestones.map((milestone, index) => (
-                    <View key={`${goal.id}-milestone-${index}`} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-                      <T size={13} weight="bold" color={c.primary}>{index + 1}.</T>
-                      <View style={{ flex: 1 }}><T size={13}>{milestone}</T></View>
-                    </View>
-                  ))}
-                  {!goal.milestones.length ? <T size={13} color={c.secondary}>Practice activities based on this goal appear in Today.</T> : null}
+                    ? <T size={12} color={c.secondary}>Clinician-uploaded plan</T>
+                    : <T size={12} color={c.secondary}>Uploaded plan · not clinician-reviewed</T>}
+                  <Disclosure label="View plan description and milestones">
+                    {goal.description ? <T size={13}>{goal.description}</T> : null}
+                    {goal.milestones.map((milestone, index) => (
+                      <View key={`${goal.id}-milestone-${index}`} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+                        <T size={13} weight="bold" color={c.primary}>{index + 1}.</T>
+                        <View style={{ flex: 1 }}><T size={13}>{milestone}</T></View>
+                      </View>
+                    ))}
+                    {!goal.milestones.length ? <T size={13} color={c.secondary}>Practice activities based on this goal appear in Today.</T> : null}
+                  </Disclosure>
                 </View>
               ))}
             </Card>
@@ -303,12 +322,12 @@ export default function SupportNow() {
                 {activeGoal && hasPlanGoal(card) && activeGoal !== planGoal(card) ? <Card tone="warn"><T size={14}>The plan goal is different from the saved goal. Saved goal: {activeGoal}. Plan goal: {planGoal(card)}.</T></Card> : null}
                 <SupportSection title="Try these steps first" items={card.rightNow} tone="now" />
                 <SupportSection title="What to avoid" items={card.avoid} tone="avoid" />
-                <SupportSection title="Prevent it next time" items={card.prevention} tone="prevention" />
-                <SupportSection title="Why this may be happening" body={card.whatMayBeHappening} tone="context" />
-                <SupportSection title="Practice a helpful skill" body={card.replacementSkill} detail={`Reinforce: ${card.reinforcementIdea}`} tone="skill" />
+                <SupportSection title="Prevent it next time" items={card.prevention} tone="prevention" collapsible />
+                <SupportSection title="Why this may be happening" body={card.whatMayBeHappening} tone="context" collapsible />
+                <SupportSection title="Practice a helpful skill" body={card.replacementSkill} detail={`Reinforce: ${card.reinforcementIdea}`} tone="skill" collapsible />
                 {selectedBehavior ? <Card><T weight="bold" size={16}>Current focus</T><T>{activeGoal ?? "No goal chosen yet"}</T></Card> : null}
                 <SupportSection title="When to get help" body={card.seekHelp} tone="help" />
-                <SupportSection title="What to notice" items={card.track} tone="track" />
+                <SupportSection title="What to notice" items={card.track} tone="track" collapsible />
                 {isFoundCard ? <Btn kind="ghost" icon="plus" label="Add Behavior to your setup" onPress={() => router.push({ pathname: "/parent-edit", params: { card: card.id } } as never)} /> : <Btn icon="edit-3" label="Log what happened" onPress={() => router.push({ pathname: "/(parent)/log", params: { b: parentBehaviorIdentity(card) } } as never)} />}
                 {card.source === "starter" ? <T size={13} weight="semi" color={c.secondary}>This is starter support. Upload your child's plan for personalized guidance.</T> : null}
               </>

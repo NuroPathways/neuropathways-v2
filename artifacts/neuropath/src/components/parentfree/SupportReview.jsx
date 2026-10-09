@@ -3,9 +3,9 @@ import { getParentSharedSupport, reviewParentSupport } from "@workspace/api-clie
 import { Button } from "@/components/ui/button";
 
 const LABEL = {
-  starter: "Starter support (not from a document)",
-  parent_document: "Parent-uploaded plan",
-  clinician_document: "Clinician document",
+  starter: "Starter support",
+  parent_document: "Uploaded plan · not clinician-reviewed",
+  clinician_document: "Clinician-uploaded plan",
   clinician_reviewed: "Clinician reviewed",
 };
 

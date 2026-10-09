@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
-  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -41,14 +40,14 @@ export default function GoalsScreen() {
     container: { flex: 1, backgroundColor: colors.background },
     header: {
       paddingTop: Platform.OS === "web" ? 67 : 0,
-      paddingHorizontal: 20,
-      paddingBottom: 16,
+      paddingHorizontal: 18,
+      paddingBottom: 14,
       backgroundColor: colors.card,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
     headerTitle: {
-      fontSize: 22,
+      fontSize: 20,
       fontWeight: "700" as const,
       color: colors.foreground,
       fontFamily: "Inter_700Bold",
@@ -60,11 +59,12 @@ export default function GoalsScreen() {
       marginTop: 2,
     },
     scroll: { flex: 1 },
+    scrollContent: { paddingBottom: 12 },
     statsRow: {
       flexDirection: "row",
-      gap: 14,
-      marginHorizontal: 20,
-      marginTop: 20,
+      gap: 10,
+      marginHorizontal: 18,
+      marginTop: 15,
     },
     statCard: {
       flex: 1,
@@ -72,11 +72,11 @@ export default function GoalsScreen() {
       borderRadius: colors.radius,
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 16,
+      padding: 13,
       alignItems: "center",
     },
     statValue: {
-      fontSize: 32,
+      fontSize: 27,
       fontWeight: "700" as const,
       color: colors.primary,
       fontFamily: "Inter_700Bold",
@@ -88,7 +88,7 @@ export default function GoalsScreen() {
       marginTop: 4,
       textAlign: "center",
     },
-    section: { paddingHorizontal: 20, marginTop: 24 },
+    section: { paddingHorizontal: 18, marginTop: 20 },
     sectionLabel: {
       fontSize: 12,
       fontWeight: "600" as const,
@@ -96,26 +96,26 @@ export default function GoalsScreen() {
       fontFamily: "Inter_600SemiBold",
       textTransform: "uppercase",
       letterSpacing: 0.7,
-      marginBottom: 12,
+      marginBottom: 9,
     },
     goalCard: {
       backgroundColor: colors.card,
       borderRadius: colors.radius,
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 16,
-      marginBottom: 10,
+      padding: 14,
+      marginBottom: 8,
     },
     goalHeader: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
-      marginBottom: 10,
+      gap: 9,
+      marginBottom: 8,
     },
     goalIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 10,
+      width: 32,
+      height: 32,
+      borderRadius: 9,
       backgroundColor: `${colors.accent}20`,
       alignItems: "center",
       justifyContent: "center",
@@ -156,7 +156,7 @@ export default function GoalsScreen() {
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: "#FEF3C7",
+      backgroundColor: `${colors.accent}20`,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -177,7 +177,7 @@ export default function GoalsScreen() {
       borderWidth: 1,
       borderColor: colors.border,
       borderStyle: "dashed",
-      padding: 28,
+      padding: 22,
       alignItems: "center",
       gap: 8,
     },
@@ -186,17 +186,27 @@ export default function GoalsScreen() {
       color: colors.mutedForeground,
       fontFamily: "Inter_400Regular",
     },
-    loadingBox: {
-      paddingVertical: 40,
-      alignItems: "center",
-    },
+    loadingBox: { paddingHorizontal: 18, paddingVertical: 20, gap: 10 },
+    skeletonLine: { height: 12, borderRadius: 7, backgroundColor: colors.muted },
     bottomSpace: { height: Platform.OS === "web" ? 84 : 30 },
   });
 
   if (isLoading) {
     return (
-      <View style={[s.container, { alignItems: "center", justifyContent: "center" }]}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={s.container}>
+        <View style={s.header}>
+          <View style={[s.skeletonLine, { width: 160 }]} />
+          <View style={[s.skeletonLine, { width: 115, marginTop: 9 }]} />
+        </View>
+        <View style={s.loadingBox}>
+          {[0, 1].map((item) => (
+            <View key={item} style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: colors.radius, padding: 15, gap: 10 }}>
+              <View style={[s.skeletonLine, { width: "55%" }]} />
+              <View style={[s.skeletonLine, { width: "92%" }]} />
+              <View style={[s.skeletonLine, { width: "72%" }]} />
+            </View>
+          ))}
+        </View>
       </View>
     );
   }
@@ -208,7 +218,7 @@ export default function GoalsScreen() {
         <Text style={s.headerSub}>Track your progress</Text>
       </View>
 
-      <ScrollView style={s.scroll}>
+      <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
         <View style={s.statsRow}>
           <View style={s.statCard}>
             <Text style={s.statValue}>{totalTokens}</Text>

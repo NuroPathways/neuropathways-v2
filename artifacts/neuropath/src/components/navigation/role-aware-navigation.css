@@ -295,6 +295,27 @@
   gap: 17px;
 }
 
+.np-nav-context-control:not(.is-compact) {
+  min-width: 168px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--np-nav-accent) 18%, var(--np-nav-line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--np-nav-accent) 5%, var(--np-nav-panel));
+}
+
+.np-nav-context-control:not(.is-compact) > span:first-child {
+  color: var(--np-nav-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.np-nav-context-control:not(.is-compact) .np-nav-select-wrap select {
+  max-width: 190px;
+  padding-left: 0;
+  color: var(--np-nav-ink);
+  font-size: 12px;
+}
+
 .np-nav-context-control {
   display: grid;
   gap: 3px;
@@ -538,6 +559,29 @@
     margin-top: auto;
     padding-bottom: calc(13px + env(safe-area-inset-bottom));
   }
+}
+
+.np-nav-shell .np-nav-child-link {
+  min-height: 38px;
+  margin-top: 2px;
+  border-left: 2px solid transparent;
+  border-radius: 8px;
+  color: var(--np-nav-muted);
+}
+
+.np-nav-shell .np-nav-child-link svg {
+  color: var(--np-nav-muted);
+}
+
+.np-nav-shell .np-nav-child-link.is-selected {
+  border-left-color: var(--np-nav-accent);
+  color: var(--np-nav-accent);
+  background: color-mix(in srgb, var(--np-nav-accent) 9%, var(--np-nav-panel));
+  font-weight: 700;
+}
+
+.np-nav-shell .np-nav-child-link.is-selected svg {
+  color: var(--np-nav-accent);
 }
 
 @media (prefers-reduced-motion: reduce) {

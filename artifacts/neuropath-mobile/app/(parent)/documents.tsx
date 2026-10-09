@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listParentDocuments, scanParentDocument, setParentDocumentSharing, runParentDocumentScanBatch } from "@workspace/api-client-react";
 import type { ParentDocument } from "@workspace/api-client-react";
 import { UploadPanel } from "@/components/UploadPanel";
-import { Btn, Card, ErrorBox, H, Row, Screen, Skeleton, T, msg } from "@/components/ParentUi";
+import { Btn, Card, Disclosure, ErrorBox, H, Row, Screen, Skeleton, T, msg } from "@/components/ParentUi";
 import { useParent } from "@/context/ParentContext";
 import { openDocument } from "@/lib/parent";
 import { useColors } from "@/hooks/useColors";
@@ -45,13 +45,19 @@ function DocRow({
     <Card>
       <T weight="semi">{doc.title}</T>
       <T size={13} color={c.secondary}>{doc.fileName}  |  {new Date(doc.createdAt).toLocaleDateString()}</T>
-      <T size={13} weight="semi" color={failed || doc.scanError ? c.destructive : c.primary}>
-        Scan: {rowReading ? "Reading now" : doc.scanError && isDone ? "Read with safety note" : doc.scanStatus}
-        {doc.shared ? "  |  Shared with clinician" : "  |  Private"}
-      </T>
-      {doc.scanError ? <T size={13} color={c.destructive}>{doc.scanError}</T> : null}
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <T size={12} weight="semi" color={failed || doc.scanError ? c.destructive : c.primary}>
+          {rowReading ? "Reading now" : doc.scanError && isDone ? "Read with safety note" : doc.scanStatus}
+        </T>
+        <T size={12} color={c.secondary}>{doc.shared ? "Shared with clinician" : "Private"}</T>
+      </View>
       {error ? <ErrorBox message={error} /> : null}
-      <T size={12} color={c.mutedForeground}>{doc.reviewed ? "Reviewed by your clinician." : "Not yet reviewed by a clinician."}</T>
+      <T size={12} weight="semi" color={doc.reviewed ? c.primary : c.secondary}>{doc.reviewed ? "Clinician reviewed" : "Uploaded plan · not clinician-reviewed"}</T>
+      {doc.scanError ? (
+        <Disclosure label="Scan note">
+          <T size={13} color={c.destructive}>{doc.scanError}</T>
+        </Disclosure>
+      ) : null}
       <Row wrap>
         <Btn kind="ghost" icon="eye" label="Open" loading={busy === "open"} disabled={readingPlans} onPress={() => done("open")(() => openDocument(doc, token!))} />
         <Btn kind="ghost" icon="refresh-cw" label={rowReading ? "Reading…" : failed ? "Retry scan" : isDone ? "Read again" : "Read plan"} loading={rowReading} disabled={readingPlans || busy !== null} onPress={() => onScan(doc)} />

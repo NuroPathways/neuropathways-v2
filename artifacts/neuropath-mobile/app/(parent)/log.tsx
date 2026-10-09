@@ -2,13 +2,15 @@ import React, { useEffect, useMemo, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addParentLog, getParentBehaviors, getParentDashboard, parentBehaviorIdentity } from "@workspace/api-client-react";
-import { Btn, Card, Chip, ErrorBox, Field, H, Row, Screen, T, msg } from "@/components/ParentUi";
+import { Btn, Card, Chip, Disclosure, ErrorBox, Field, H, Row, Screen, T, msg } from "@/components/ParentUi";
 import { useParent } from "@/context/ParentContext";
+import { useColors } from "@/hooks/useColors";
 import { logIdentity } from "@/lib/parentProgress";
 
 type Intensity = "low" | "medium" | "high";
 
 export default function LogScreen() {
+  const c = useColors();
   const { child, opts } = useParent();
   const { b } = useLocalSearchParams<{ b?: string }>();
   const qc = useQueryClient();
@@ -91,9 +93,13 @@ export default function LogScreen() {
       {q.data?.logs?.length ? q.data.logs.slice(0, 10).map((l) => (
         <Card key={l.id}>
           <T weight="semi">{names.get(logIdentity(l)) ?? "Behavior"}: {l.happened ? `${l.intensity} intensity, ${l.duration} min` : "Did not happen"}</T>
-          <T size={13}>{new Date(l.createdAt).toLocaleString()}</T>
-          {l.trigger ? <T size={14}>Trigger: {l.trigger}</T> : null}
-          {l.whatHelped ? <T size={14}>Helped: {l.whatHelped}</T> : null}
+          <T size={12} color={c.mutedForeground}>{new Date(l.createdAt).toLocaleString()}</T>
+          {(l.trigger || l.whatHelped) ? (
+            <Disclosure label="View episode notes">
+              {l.trigger ? <T size={14}>Trigger: {l.trigger}</T> : null}
+              {l.whatHelped ? <T size={14}>Helped: {l.whatHelped}</T> : null}
+            </Disclosure>
+          ) : null}
         </Card>
       )) : <Card><T>No logs yet. Your first entry will show up here.</T></Card>}
     </Screen>
