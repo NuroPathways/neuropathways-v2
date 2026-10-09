@@ -1,0 +1,645 @@
+# Replit Prompt: Clean Up NeuroPathways UI Design Without Changing App Functionality
+
+I want you to clean up the NeuroPathways app UI and make it look more polished, organized, and professional.
+
+Do not remove current features.
+
+Do not change how the app works.
+
+Do not rebuild the app from scratch.
+
+This is a design cleanup, spacing cleanup, typography cleanup, card cleanup, and navigation consistency update.
+
+The current app has the right features, but the visual design looks too large, blocky, and inconsistent. Some text is unnecessarily large. Some cards are too tall. Some blue circular/pill labels have too much text inside them. The goals section looks odd. The AI chat looks blocky. The home page should feel cleaner and more useful.
+
+Keep the current features, but make the UI feel like a polished mobile-first healthcare SaaS app.
+
+---
+
+## 1. Overall Design Goal
+
+Make the app feel:
+
+- cleaner
+- calmer
+- more organized
+- less bulky
+- less oversized
+- more professional
+- easier to scan
+- more mobile-friendly
+- more consistent across pages
+
+The app should not feel like huge blocks of text in large cards.
+
+The app should feel like a modern support app for parents and clinicians.
+
+---
+
+## 2. Keep All Existing Features
+
+Do not remove or break:
+
+- Home
+- Support Now
+- I Need Help Now
+- Support Steps
+- Behavior Support Library
+- Goals
+- Logs
+- Upload Plan
+- AI Chat
+- Documents
+- child selector
+- parent/caregiver accounts
+- clinician accounts
+- uploaded-plan support
+- starter support
+- source labels
+- document scanning
+- AI-generated support cards
+- tasks and activities
+- mobile layout
+- desktop sidebar
+
+This is a UI cleanup only.
+
+---
+
+## 3. Create a Consistent Design System
+
+Add or clean up shared design tokens.
+
+Use consistent:
+
+- font sizes
+- card padding
+- border radius
+- shadows
+- badge styles
+- button sizes
+- spacing
+- section headings
+- page widths
+
+Recommended font scale:
+
+- small label: 12px
+- body: 14px–16px
+- card title: 18px–20px
+- section title: 22px–26px
+- page title: 28px–34px max
+
+Avoid oversized text unless it is the main page title.
+
+Recommended spacing:
+
+- card padding: 20px–24px desktop
+- card padding: 16px–20px mobile
+- section spacing: 24px–32px
+- card gap: 16px–20px
+- button height: 44px–52px
+
+Do not use huge empty spacing inside cards.
+
+---
+
+## 4. Fix the Large Blue Circular / Bubble Labels
+
+The current blue bubbles with long text inside look awkward and take up too much space.
+
+Replace large source bubbles with smaller, clean source badges.
+
+Instead of a big blue oval that says:
+
+**Source: Uploaded plan · not yet reviewed by a clinician**
+
+Use a small inline badge:
+
+`Uploaded plan · not clinician-reviewed`
+
+or:
+
+`Starter support`
+
+or:
+
+`Clinician reviewed`
+
+Badge style:
+
+- small pill
+- light background
+- short text
+- max one line
+- no huge circles
+- no giant blue blobs
+- no oversized badge padding
+
+If the full source text is needed, show it in a tooltip, expandable detail, or smaller line under the card.
+
+---
+
+## 5. Clean Up Home Page
+
+The home page should remain focused on daily utility.
+
+Keep:
+
+**Support for John**
+
+or:
+
+**Today’s Support for John**
+
+Keep the red:
+
+**I Need Help Now**
+
+button near the top.
+
+But clean up the rest of the page so it does not feel blocky.
+
+Recommended home page order:
+
+1. Support for John
+2. I Need Help Now
+3. Today’s Tasks
+4. Activities to Try
+5. Practice This Skill
+6. Quick Actions
+7. Behavior Support Library preview
+
+The home page should feel like:
+
+**What can I do with John today?**
+
+Not:
+
+**Here are huge clinical cards with too much text.**
+
+---
+
+## 6. Make Tasks and Activities Cleaner
+
+The task/activity cards currently have too much text visible at once.
+
+Redesign task and activity cards to be easier to scan.
+
+Each task card should show:
+
+- task title
+- related behavior
+- estimated time
+- one short instruction
+- small source badge
+- action buttons
+
+Example card:
+
+**Practice: Complete one small step**  
+Task Refusal · 5 min  
+Try one small, low-pressure practice step before offering a break.  
+Badge: `Starter support`
+
+Buttons:
+
+- Done
+- Didn’t get a chance
+- We struggled
+
+Then add an expandable link:
+
+**Show details**
+
+When expanded, show:
+
+- why this helps
+- practice this skill
+- reinforcement idea
+- source details
+
+Do not show all details by default.
+
+This will make the home page much cleaner.
+
+---
+
+## 7. Clean Up Action Buttons
+
+The action buttons are currently too large and bulky.
+
+Make buttons:
+
+- same height
+- same width where possible
+- clean and rounded
+- not oversized
+- easy to tap on mobile
+- not visually overwhelming on desktop
+
+For task cards, use compact segmented actions:
+
+- Done
+- Didn’t get a chance
+- We struggled
+
+Do not make each button look like a giant block.
+
+On mobile, stack if needed.
+
+On desktop, keep them in a clean row.
+
+---
+
+## 8. Better Goals Page Design
+
+The Goals page currently looks odd and disconnected.
+
+Redesign the Goals page so it feels like a clean goal management page, not a set of oversized empty blocks.
+
+The Goals page should show:
+
+## Active Goals
+
+Each goal card should include:
+
+- goal title
+- related behavior
+- source
+- status
+- last check-in
+- next suggested practice
+- quick check-in buttons
+
+Goal card format:
+
+**Complete one small step**  
+Related behavior: Task Refusal  
+Source: Uploaded plan · not clinician-reviewed  
+Last check-in: Going well · 10/6/2026
+
+Quick check-in:
+
+- Going well
+- Needs support
+- Not sure
+
+Then show:
+
+**Suggested home activity:** Practice one small step before a break.
+
+Button:
+
+**Add to Today’s Tasks**
+
+This connects goals back to the home page.
+
+---
+
+## 9. Goals Should Feed the Home Page
+
+Goals should not dominate the home page as a big goal card.
+
+Instead, goals should power the tasks and activities shown on the home page.
+
+Example:
+
+Goal:
+
+**Complete one small step**
+
+Home page task:
+
+**Start with one small step before offering a break.**
+
+Goal:
+
+**Move to a calm space**
+
+Home page activity:
+
+**Practice moving to a calm space when calm.**
+
+Goal:
+
+**Stay near caregiver**
+
+Home page activity:
+
+**Practice stopping at a boundary.**
+
+So the home page should show practical tasks and activities, while the Goals page manages the goal records.
+
+---
+
+## 10. Clean Up Support Steps Page
+
+The Support Steps page currently has large cards and some text feels too spread out.
+
+Make support step cards more compact and organized.
+
+Each support card should show:
+
+- behavior name
+- saved goal
+- plan goal if available
+- source badge
+- open button
+- status
+
+Do not show long source text in huge blue blobs.
+
+Use clean sections:
+
+- What may be happening
+- Do this now
+- Avoid this
+- Practice skill
+- What to log
+
+Use expand/collapse for long details.
+
+Cards should be easy to scan.
+
+---
+
+## 11. Clean Up AI Chat
+
+The AI Chat page should look like a modern chat interface.
+
+Make it cleaner and less blocky.
+
+AI Chat layout:
+
+- clean chat header
+- short explanation
+- message bubbles
+- sticky input box at bottom
+- small source labels
+- clear disclaimer, but not huge
+- mobile-friendly spacing
+
+Do not use oversized cards for every message.
+
+Do not make source labels huge.
+
+Use small badges like:
+
+- Starter support
+- Uploaded plan
+- Clinician reviewed
+- Not clinician-reviewed
+
+The chat should feel lightweight and easy to use.
+
+---
+
+## 12. Sidebar Cleanup
+
+Keep the left sidebar on desktop.
+
+But clean it up:
+
+- reduce extra vertical space
+- make icons and labels consistent
+- keep active state clean
+- do not over-highlight too many things
+- make the selected child card smaller and cleaner
+- keep logout/profile at bottom
+
+The sidebar should feel professional and not oversized.
+
+---
+
+## 13. Mobile-First Cleanup
+
+The app will mostly be used on phones.
+
+Make sure the mobile version looks especially good.
+
+Mobile requirements:
+
+- no horizontal scrolling
+- cards stack cleanly
+- bottom navigation remains usable
+- Support Now is easy to access
+- task cards are short by default
+- long details are expandable
+- buttons are large enough to tap but not massive
+- text does not feel oversized
+- no giant badges
+- no crowded side-by-side desktop cards on phone
+
+Mobile should feel like the main product, not an afterthought.
+
+---
+
+## 14. Reduce Text Density Everywhere
+
+Across the app, reduce visible text density.
+
+Do not remove important content.
+
+Instead:
+
+- show short summaries first
+- hide details behind “Show details”
+- use badges instead of long labels
+- use bullet points sparingly
+- use short helper text
+- use expandable sections
+- avoid repeating the same source language on every card
+
+For example, do not repeat:
+
+**Read from the uploaded plan, not a new clinical review. Your saved goal is unchanged.**
+
+on every card in large text.
+
+Instead show:
+
+Badge:
+
+`Uploaded plan · not clinician-reviewed`
+
+Expandable detail:
+
+**What this means**
+
+---
+
+## 15. Source Label Rules
+
+Use consistent source labels across the app.
+
+Use these exact labels:
+
+- `Starter support`
+- `Uploaded plan · not clinician-reviewed`
+- `Clinician reviewed`
+- `Clinician-uploaded plan`
+- `Needs review`
+
+Do not use long source paragraphs inside cards unless expanded.
+
+---
+
+## 16. Visual Style Direction
+
+Use this style direction:
+
+- white or very light background
+- soft blue/green accents
+- dark navy text
+- clean rounded cards
+- thin borders
+- subtle shadows
+- smaller badges
+- consistent card heights
+- clear hierarchy
+- less visual clutter
+
+Avoid:
+
+- huge cards
+- giant blue circles
+- oversized badges
+- too many borders
+- too much bold text
+- long paragraphs visible by default
+- inconsistent card sizes
+- giant empty white space
+
+---
+
+## 17. Page-Specific Fixes
+
+### Home Page
+
+Make it clean, task-focused, and useful.
+
+Reduce large text.
+
+Make tasks and activities compact.
+
+Goals should appear through tasks, not as a large goal block.
+
+### Support Steps
+
+Make cards easier to scan.
+
+Use compact badges.
+
+Move long details into expandable sections.
+
+### Behavior Support Library
+
+Show behavior cards in a clean grid.
+
+Each card should show:
+
+- behavior name
+- status
+- related goal if available
+- open support steps
+- add/remove if available
+
+### Goals
+
+Redesign into clean goal cards.
+
+Make goals connect to home page activities.
+
+Remove oversized blank spacing.
+
+### AI Chat
+
+Make it look like a real chat.
+
+Use smaller message bubbles.
+
+Use sticky input.
+
+Use small source labels.
+
+### Logs
+
+Keep logs simple and readable.
+
+Use compact cards, not tables on mobile.
+
+### Documents
+
+Use compact document cards.
+
+Show scan status clearly.
+
+Do not use oversized labels.
+
+---
+
+## 18. Keep Goal Functionality, But Improve Presentation
+
+Do not delete goals from the backend.
+
+Do not break goals.
+
+Do not remove the Goals page.
+
+But change the way goals are shown:
+
+- home page = tasks and activities based on goals
+- goals page = manage/check in on goals
+- support cards = show related goal briefly
+- logs = connect activity/task to goal
+
+This makes goals useful without making the home page feel clinical.
+
+---
+
+## 19. QA Checklist
+
+After cleanup, test these screens:
+
+1. Parent Home
+2. Support Now
+3. Support Steps
+4. Behavior Support Library
+5. Goals
+6. Logs
+7. Upload Plan
+8. AI Chat
+9. Documents
+10. Child selector
+11. Mobile home page
+12. Mobile Support Now
+13. Mobile AI Chat
+14. Mobile Goals
+
+Check that:
+
+- no blue badge is huge
+- no card has unnecessary empty space
+- text sizes are consistent
+- buttons are not oversized
+- home page feels useful
+- goals look clean
+- AI chat looks clean
+- mobile looks polished
+- no feature is removed
+- no route breaks
+
+---
+
+## 20. Final Goal
+
+Make NeuroPathways look clean, organized, and professional.
+
+The app should no longer feel oversized, blocky, or visually awkward.
+
+The product should still communicate:
+
+**NeuroPathways turns behavior plans into practical support steps, tasks, activities, and feedback loops parents can use at home.**
+
+But the UI should present this in a clean, calm, modern way.
