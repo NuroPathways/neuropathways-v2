@@ -1,4 +1,5 @@
 - [Expo dependency override boundaries](expo-dependency-overrides.md) — cap workspace overrides at Expo-compatible major versions so clean publishes cannot resolve breaking majors.
+- [Mobile packaging isolation](mobile-packaging-isolation.md) — packaging must own its bundler and leave sibling previews running; health alone does not establish server ownership.
 - [Workspace-scoped dependency installs](workspace-scoped-dependency-installs.md) — target the intended pnpm workspace when the generic package installer defaults to the monorepo root.
 - [Expo preview readiness](expo-preview-readiness.md) — short browser timeouts can show a blank preview before hydration; check visible DOM before changing layout.
 - [Expo file-picker cancellation](expo-file-picker-cancellation.md) — web dismissal may leave selection pending; lock controls during uploads, not while picking files.
