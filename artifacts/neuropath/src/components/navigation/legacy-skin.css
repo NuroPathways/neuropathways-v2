@@ -111,3 +111,33 @@
   .ch-urgent-banner small { font-size: 11px; }
   .np-legacy .pf-hero { padding: 24px 20px; }
 }
+
+/* Legacy route appearance now follows the same quiet NeuroPathways system. */
+.np-legacy { --np-nav-bg: hsl(var(--background)); --np-nav-panel: hsl(var(--background)); --np-nav-line: hsl(var(--border)); --np-nav-accent: hsl(var(--primary)); --np-nav-muted: hsl(var(--muted-foreground)); font-family: var(--font-sans), sans-serif; }
+.np-legacy .np-nav-sidebar { width: 248px; flex-basis: 248px; }
+.np-legacy .np-nav-brand { min-height: 72px; padding: 14px 20px; }
+.np-legacy .np-nav-brand-mark { background: hsl(var(--primary)); }
+.np-legacy .np-nav-brand strong { font-size: 14px; }
+.np-legacy .np-nav-groups { padding: 16px 12px; }
+.np-legacy .np-nav-item { min-height: 42px; border-radius: 10px; padding: 9px 10px; font-size: 13px; }
+.np-legacy .np-nav-item.is-active { background: hsl(var(--primary) / .1); color: hsl(var(--primary)); }
+.np-legacy .np-nav-topbar,.np-legacy .np-nav-main { background: hsl(var(--background)); }
+.np-legacy .client-home { --ch-teal: hsl(var(--primary)); --ch-teal-deep: hsl(var(--foreground)); --ch-canvas: hsl(var(--background)); --ch-paper: hsl(var(--card)); --ch-ink: hsl(var(--foreground)); --ch-muted: hsl(var(--muted-foreground)); --ch-soft: hsl(var(--accent)); --ch-line: hsl(var(--border)); background: hsl(var(--background)); }
+.np-legacy .client-home .ch-shell { width: min(1100px,100%); padding-inline: clamp(16px,3vw,32px); }
+.np-legacy .client-home .ch-main { padding-top: 28px; }
+.np-legacy .client-home .ch-hero { background: hsl(var(--background)); color: hsl(var(--foreground)); }
+.np-legacy .client-home .ch-hero:before,.np-legacy .client-home .ch-hero:after { display:none; }
+.np-legacy .client-home .ch-hero-inner { padding-block: 24px; }
+.np-legacy .client-home .ch-hero-brand,.np-legacy .client-home .ch-hero-greeting { color: hsl(var(--muted-foreground)); }
+.np-legacy .client-home .ch-hero h1 { color: hsl(var(--foreground)); font-family: var(--font-display); font-size: 32px; font-weight: 700; }
+.np-legacy .client-home .ch-hero-subtitle { color: hsl(var(--muted-foreground)); }
+.np-legacy .client-home .ch-hero-stats .ch-stat { color: hsl(var(--foreground)); border: 0; border-radius: 12px; background: hsl(var(--accent) / .48); }
+.np-legacy .client-home .ch-hero-stats .ch-stat strong { color: hsl(var(--foreground)); font-family: var(--font-display); }
+.np-legacy .client-home .ch-hero-stats .ch-stat-label,.np-legacy .client-home .ch-hero-stats .ch-stat small { color: hsl(var(--muted-foreground)); }
+.np-legacy .client-home .ch-child-card,.np-legacy .client-home .ch-panel,.np-legacy .client-home .ch-plan-card,.np-legacy .client-home .ch-stats .ch-stat { border-color: hsl(var(--border) / .75); border-radius: 14px; box-shadow: 0 2px 8px hsl(var(--foreground) / .035); }
+.np-legacy .client-home .ch-panel h3,.np-legacy .client-home .ch-plan-card h3,.np-legacy .client-home .ch-stat strong { font-family: var(--font-display); }
+.np-legacy .pf-hero { background: transparent; color: hsl(var(--foreground)); border-radius: 0; border-bottom: 1px solid hsl(var(--border)); }
+.np-legacy .pf-hero h1 { color: hsl(var(--foreground)); }
+.np-legacy .pf-hero .pf-eyebrow { color: hsl(var(--primary)); }
+.np-legacy .pf-help-cta { border-radius: 13px; box-shadow: none; }
+@media(max-width:700px) { .np-legacy .client-home .ch-shell { width:100%; padding-inline:16px; } .np-legacy .client-home .ch-hero-inner { padding-block:18px; } .np-legacy .client-home .ch-hero h1 { font-size:27px; } }

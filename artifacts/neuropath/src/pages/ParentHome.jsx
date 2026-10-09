@@ -21,7 +21,6 @@ import ChildEditor from "@/components/parentfree/ChildEditor";
 import DailySupportHome from "@/components/parentfree/DailySupportHome";
 import SupportNowOverlay, { clearSupportPopupSession } from "@/components/support/SupportNowOverlay";
 import { AlertTriangle } from "lucide-react";
-import { behaviorEmoji } from "@/lib/behaviorEmoji";
 
 const TABS = [["today", "Today's Support"], ["steps", "Support Steps"], ["log", "Log What Happened"], ["docs", "Upload Plan"], ["ask", "Ask"], ["clinic", "Clinic"], ["edit", "Edit Child Profile"]];
 
@@ -226,7 +225,6 @@ export default function ParentHome() {
         .map((card) => ({
         id: card.id,
         name: card.behaviorName,
-        emoji: behaviorEmoji(card.behaviorKey, card.behaviorName),
         sourceLabel: card.source === "starter" ? "Starter support" : card.source === "clinician_reviewed" ? "Clinician reviewed" : card.source === "clinician_document" ? "Clinician-uploaded plan" : card.source === "parent_document" ? "Uploaded plan · not clinician-reviewed" : "Needs review",
         what_may_be_happening: card.whatMayBeHappening,
         do_this_right_now: card.rightNow || [],

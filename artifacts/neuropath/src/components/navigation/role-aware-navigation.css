@@ -592,3 +592,24 @@
     transition-duration: .01ms !important;
   }
 }
+
+/* Refined, low-chrome workspace shell */
+.np-nav-shell { --np-nav-bg: hsl(var(--background)); --np-nav-panel: hsl(var(--card)); --np-nav-line: hsl(var(--border)); --np-nav-ink: hsl(var(--foreground)); --np-nav-muted: hsl(var(--muted-foreground)); --np-nav-accent: hsl(var(--primary)); }
+.np-nav-sidebar { flex-basis: 248px; width: 248px; background: hsl(var(--background)); border-right: 1px solid hsl(var(--border) / .75); }
+.np-nav-brand,.np-nav-drawer-heading { min-height: 72px; padding: 14px 20px; border-bottom-color: hsl(var(--border) / .7); }
+.np-nav-brand-mark { border-radius: 12px 12px 12px 4px; }
+.np-nav-brand strong,.np-nav-drawer-heading strong { font-family: var(--font-display); font-size: 14px; letter-spacing: -.03em; }
+.np-nav-sidebar-context { border-color: transparent; background: hsl(var(--accent) / .42); }
+.np-nav-groups { padding: 16px 12px; }
+.np-nav-group + .np-nav-group { margin-top: 19px; }
+.np-nav-item { min-height: 42px; border-radius: 10px; font-size: 13px; }
+.np-nav-item.is-active { color: hsl(var(--primary)); background: hsl(var(--primary) / .1); }
+.np-nav-item-support:not(.is-active) { color: hsl(var(--destructive)); background: transparent; }
+.np-nav-item-support:not(.is-active):hover { background: hsl(var(--destructive) / .07); }
+.np-nav-account { border-top-color: hsl(var(--border) / .75); }
+.np-nav-topbar { background: hsl(var(--background) / .94); border-bottom-color: hsl(var(--border) / .7); }
+.np-nav-context-control:not(.is-compact) { border-color: transparent; background: hsl(var(--muted) / .72); }
+.np-nav-mobile-header { background: hsl(var(--background) / .96); border-bottom-color: hsl(var(--border) / .7); }
+.np-nav-bottom { border-top-color: hsl(var(--border) / .8); background: hsl(var(--background) / .97); backdrop-filter: blur(14px); }
+.np-nav-item-bottom.is-active { color: hsl(var(--primary)); background: hsl(var(--primary) / .08); }
+@media (max-width: 767px) { .np-nav-mobile-header { padding-inline: 10px; } .np-nav-bottom { padding-inline: 8px; } }
