@@ -1,0 +1,440 @@
+# Add-On Prompt: Make Parent-Direct Mode Fully Functional Without a Clinician
+
+Important clarification: this version of NeuroPathways must be able to work without a clinician.
+
+Do not make the parent app dependent on clinician approval, clinician invites, clinician uploads, clinician dashboards, or clinic connection.
+
+The app should support two valid modes:
+
+1. Parent-Direct Mode
+2. Clinic-Connected Mode
+
+Both modes must work.
+
+Parent-Direct Mode is not a broken or limited placeholder. It should be a usable version of the app for parents who create their own account, add their own child, use starter support, upload their own documents, and get plan-based support from those uploads.
+
+---
+
+## 1. Parent-Direct Mode Must Work Independently
+
+Parents should be able to use NeuroPathways without a clinician.
+
+Parent should be able to:
+
+- create their own account
+- add a child profile
+- access starter behavior support
+- add supplemental behaviors
+- use I Need Help Now
+- view Support Now
+- use daily activities
+- use Prepare flow
+- practice skills
+- log what happened
+- upload their own documents
+- scan uploaded documents
+- get tasks and activities from uploaded documents
+- use AI Chat based on starter support and uploaded documents
+- view goals extracted from uploaded documents
+- track progress
+- delete/request deletion of their data if available
+
+Do not require:
+
+- clinician invite
+- clinic code
+- clinician approval
+- clinician-uploaded plan
+- assigned provider
+- clinic account
+- referral ID
+
+---
+
+## 2. Change the Support Source Hierarchy
+
+Use this hierarchy when deciding what content to show:
+
+1. **Clinician reviewed**
+2. **Clinician-uploaded plan**
+3. **Parent-uploaded plan**
+4. **Starter support**
+5. **General safety/emergency guidance**
+
+This means that if no clinician exists, the app still works using:
+
+- starter support
+- parent-uploaded documents
+- parent-created goals
+- parent logs
+- parent-selected behaviors
+
+Do not block the parent experience just because clinician approval is missing.
+
+---
+
+## 3. Label Content Correctly Instead of Blocking It
+
+If content is not clinician-reviewed, do not hide it automatically.
+
+Label it clearly.
+
+Use these labels:
+
+- `Starter support`
+- `Based on your uploaded plan`
+- `Not clinician-reviewed`
+- `Clinician reviewed`
+- `Published by your care team`
+
+For parent-direct mode, use:
+
+**Based on your uploaded plan · not clinician-reviewed**
+
+or:
+
+**Starter support**
+
+Do not use:
+
+**Clinician reviewed**
+
+unless a clinician actually reviewed it.
+
+---
+
+## 4. Parent-Direct Home Page
+
+In Parent-Direct Mode, the Home page should still show:
+
+1. Support for John
+2. I Need Help Now
+3. This Week
+4. Prepare
+5. Today’s Activities
+6. Practice This Skill
+7. Quick Log
+8. Behavior Support Library preview
+
+But the content should come from:
+
+- starter behavior library
+- parent-selected behaviors
+- parent-uploaded documents
+- extracted goals
+- recent logs
+
+If there is no uploaded plan yet, show starter support.
+
+If there is an uploaded plan, upgrade the content to:
+
+**Based on your uploaded plan · not clinician-reviewed**
+
+---
+
+## 5. Parent-Direct “This Week”
+
+If there is no clinician handoff, still show a useful This Week section.
+
+Example:
+
+**This week:** Practice one small support step during calm moments.
+
+Source options:
+
+- starter support
+- parent-uploaded plan
+- parent-selected behavior
+- recent logs
+
+Do not require a clinician session summary.
+
+If no plan is uploaded, say:
+
+**This is starter support based on the behavior you selected. Upload a plan later for more personalized support.**
+
+---
+
+## 6. Parent-Direct Prepare Flow
+
+The Prepare flow should work without a clinician.
+
+If no clinician-approved plan exists, use the best available source.
+
+Example:
+
+Source: Starter support
+
+**Prepare for homework**
+
+1. Make the first step small.
+2. Offer a simple choice.
+3. Plan a short break after effort.
+
+Label:
+
+`Starter support`
+
+If parent uploaded a plan, use that plan.
+
+Label:
+
+`Based on your uploaded plan · not clinician-reviewed`
+
+Do not say:
+
+**Your clinician recommends**
+
+unless the content actually came from a clinician-reviewed source.
+
+Use neutral language:
+
+**Your current support plan says...**
+
+or:
+
+**Your uploaded plan includes...**
+
+or:
+
+**Starter support suggests...**
+
+---
+
+## 7. Parent-Direct Support Now
+
+Support Now must work without a clinician.
+
+If the parent has no uploaded plan, use starter behavior support.
+
+If the parent has uploaded documents, use the uploaded document support.
+
+If the content is safety-critical and no safety plan exists, show:
+
+**No safety plan has been uploaded for this child. If there is immediate danger, call 911 or emergency services.**
+
+Do not invent safety-critical guidance.
+
+But for routine support, the app should still provide starter support.
+
+Example:
+
+**Task Refusal**
+
+Source: `Starter support`
+
+Step 1: Make the task smaller.  
+Step 2: Offer two simple choices.  
+Step 3: Praise the first attempt.  
+Step 4: Log what happened.
+
+---
+
+## 8. Parent-Direct Activities
+
+Activities should work without a clinician.
+
+Activities can be generated from:
+
+- selected behavior
+- selected goal
+- starter behavior library
+- parent-uploaded plan
+- recent logs
+
+Examples:
+
+- First-Then Practice
+- Calm Space Practice
+- Ask for a Break
+- Transition Countdown
+- Safety Stop Game
+- Complete One Small Step
+
+Each activity should show its source:
+
+`Starter support`
+
+or:
+
+`Based on your uploaded plan · not clinician-reviewed`
+
+---
+
+## 9. Parent-Direct AI Chat
+
+AI Chat should work without a clinician.
+
+AI Chat can answer from:
+
+- starter support
+- parent-uploaded documents
+- behavior library
+- goals
+- logs
+
+If no clinician-reviewed content exists, it should say:
+
+**This answer is based on starter support or your uploaded information. It has not been reviewed by a clinician.**
+
+If no source exists, say:
+
+**I don’t see plan-based guidance for that yet. I can suggest a general starter activity, or you can upload a plan for more personalized support.**
+
+Do not say:
+
+**Ask your clinician**
+
+as the only answer unless the question involves safety, diagnosis, medication, crisis, or clinical decision-making.
+
+---
+
+## 10. Parent-Uploaded Documents Should Power the App
+
+When a parent uploads a document, the app should scan it and use it to improve the parent experience.
+
+Extract:
+
+- behaviors
+- goals
+- triggers
+- prevention steps
+- support strategies
+- reinforcement ideas
+- safety instructions if present
+- activities to practice
+- things to log
+
+Then update:
+
+- This Week
+- Prepare
+- Today’s Activities
+- Practice This Skill
+- Support Now
+- Behavior Support Library
+- Goals
+- AI Chat
+
+Label all generated content:
+
+**Based on your uploaded plan · not clinician-reviewed**
+
+---
+
+## 11. Clinician Approval Is Optional in Parent-Direct Mode
+
+Clinician approval should improve trust and unlock clinician-reviewed labels, but it should not be required for the app to function.
+
+Do not create logic that prevents parent-direct users from using:
+
+- Support Now
+- activities
+- tasks
+- goals
+- AI Chat
+- logs
+- document upload
+- plan extraction
+
+just because there is no clinician.
+
+Instead, use clear labeling and safety limits.
+
+---
+
+## 12. Clinic-Connected Mode Still Exists
+
+Do not remove clinician functionality.
+
+Clinic-connected mode should still support:
+
+- clinician uploads
+- clinician review
+- approve/publish
+- event summaries
+- fidelity review
+- clinician dashboard
+- care team labels
+
+But this should be an additional mode, not a requirement for the parent-direct version.
+
+---
+
+## 13. Adjust Language Based on Mode
+
+If Parent-Direct Mode:
+
+Use:
+
+- your uploaded plan
+- starter support
+- support plan
+- not clinician-reviewed
+- upload a plan for more personalized support
+
+Avoid:
+
+- your clinician recommends
+- your care team approved
+- clinician-reviewed
+- published by your provider
+
+unless actually true.
+
+If Clinic-Connected Mode:
+
+Use:
+
+- reviewed by your clinician
+- published by your care team
+- clinician-approved support
+- your care team recommends
+
+only when accurate.
+
+---
+
+## 14. Safety Rules Still Apply
+
+Even in Parent-Direct Mode:
+
+- do not invent crisis instructions
+- do not invent medication guidance
+- do not diagnose
+- do not create a new treatment plan
+- do not claim clinician review
+- do not give unsafe instructions
+
+For immediate danger:
+
+**If there is immediate danger, call 911 or emergency services.**
+
+For missing safety plan:
+
+**No safety plan has been uploaded for this child. Upload a safety plan or contact a qualified professional for individualized guidance.**
+
+---
+
+## 15. Final Requirement
+
+Do not make NeuroPathways dependent on clinicians for this version.
+
+This app must be useful for parents on its own.
+
+The parent-direct version should let a parent:
+
+1. create an account
+2. add a child
+3. select behaviors
+4. access starter support
+5. use I Need Help Now
+6. use tasks and activities
+7. upload documents
+8. generate support from uploaded documents
+9. log what happened
+10. use AI Chat with clear source labels
+
+The clinician-connected version should add review, approval, publishing, fidelity monitoring, and care-team feedback.
+
+But the parent-direct version must be fully usable without a clinician.
