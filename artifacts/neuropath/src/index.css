@@ -25,58 +25,58 @@ nav, button, [role="button"], label {
 
 @layer base {
   :root {
-    --background: 210 20% 96%;
-    --foreground: 220 25% 14%;
+    --background: 210 25% 96%;
+    --foreground: 226 28% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 25% 14%;
+    --card-foreground: 226 28% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 25% 14%;
+    --popover-foreground: 226 28% 15%;
 
-    --primary: 216 38% 47%;
+    --primary: 214 38% 47%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 15% 43%;
+    --secondary: 220 13% 45%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 20% 92%;
-    --muted-foreground: 215 13% 55%;
+    --muted: 210 23% 93%;
+    --muted-foreground: 216 14% 56%;
 
     --accent: 180 29% 61%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 70% 53%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 20% 87%;
-    --input: 210 20% 87%;
-    --ring: 216 38% 47%;
+    --border: 216 24% 87%;
+    --input: 216 24% 87%;
+    --ring: 214 38% 47%;
 
     --radius: 0.75rem;
     --font-inter: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
   .dark {
-    --background: 220 25% 10%;
-    --foreground: 210 20% 96%;
-    --card: 220 20% 14%;
-    --card-foreground: 210 20% 96%;
-    --popover: 220 20% 14%;
-    --popover-foreground: 210 20% 96%;
-    --primary: 216 38% 55%;
+    --background: 220 27% 8%;
+    --foreground: 210 25% 96%;
+    --card: 220 30% 15%;
+    --card-foreground: 210 25% 96%;
+    --popover: 220 30% 15%;
+    --popover-foreground: 210 25% 96%;
+    --primary: 219 39% 55%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 15% 55%;
+    --secondary: 215 16% 65%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 220 20% 20%;
-    --muted-foreground: 215 13% 65%;
-    --accent: 180 29% 65%;
-    --accent-foreground: 220 25% 14%;
-    --destructive: 0 72% 55%;
+    --muted: 222 23% 20%;
+    --muted-foreground: 215 16% 65%;
+    --accent: 180 29% 63%;
+    --accent-foreground: 220 27% 8%;
+    --destructive: 0 68% 61%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 20% 22%;
-    --input: 220 20% 22%;
-    --ring: 216 38% 55%;
+    --border: 218 27% 25%;
+    --input: 218 27% 25%;
+    --ring: 219 39% 55%;
   }
 }
 

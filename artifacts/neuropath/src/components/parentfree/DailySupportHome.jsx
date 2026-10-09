@@ -11,10 +11,10 @@ import { ErrorBox, errMsg } from "./common";
 import { sourceLabel } from "./SupportView";
 
 const SOURCE_LABELS = {
-  clinician_reviewed: "Source: Reviewed by your clinician",
-  clinician_uploaded_plan: "Source: Clinician-uploaded document",
-  parent_uploaded_plan: "Source: Uploaded plan · not yet reviewed by a clinician",
-  starter_template: "Source: General starter support",
+  clinician_reviewed: "Clinician reviewed",
+  clinician_uploaded_plan: "Clinician-uploaded plan",
+  parent_uploaded_plan: "Uploaded plan · not clinician-reviewed",
+  starter_template: "Starter support",
   recent_log_pattern: "Based on recent parent notes",
   selected_behavior: "Based on your selected behavior",
 };
@@ -42,7 +42,7 @@ const OUTCOMES = [
 ];
 
 function sourceText(action) {
-  return SOURCE_LABELS[action.sourceType] || "Source: Not available";
+  return SOURCE_LABELS[action.sourceType] || "Source not available";
 }
 
 function statusTone(status) {
@@ -79,16 +79,21 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
         <span className={`pf-tag ${statusTone(action.status)}`}>{STATUS_LABELS[action.status] || "Ready when you are"}</span>
       </div>
       <p className="pf-daily-description">{action.description}</p>
-      {action.whyItMayHelp && <p className="pf-daily-why"><strong>Why you're doing this:</strong> {action.whyItMayHelp}</p>}
-      {action.steps?.length > 0 && (
-        <ol className="pf-daily-steps">
-          {action.steps.map((step, index) => <li key={`${action.id}-${index}`}>{step}</li>)}
-        </ol>
-      )}
       <div className="pf-daily-source">
         <span className={`pf-tag ${action.sourceType === "starter_template" ? "sun" : ""}`}>{sourceText(action)}</span>
         {document && <span className="pf-hint">Plan: {document.title || document.fileName}</span>}
       </div>
+      {(action.whyItMayHelp || action.steps?.length > 0) && (
+        <details className="pf-daily-details">
+          <summary>Why this may help · View steps</summary>
+          {action.whyItMayHelp && <p className="pf-daily-why"><strong>Why you're doing this:</strong> {action.whyItMayHelp}</p>}
+          {action.steps?.length > 0 && (
+            <ol className="pf-daily-steps">
+              {action.steps.map((step, index) => <li key={`${action.id}-${index}`}>{step}</li>)}
+            </ol>
+          )}
+        </details>
+      )}
       {action.status === "needs_review" && (
         <p className="pf-hint pf-daily-review-note">Ask your clinician which plan step to use before trying plan-specific guidance.</p>
       )}

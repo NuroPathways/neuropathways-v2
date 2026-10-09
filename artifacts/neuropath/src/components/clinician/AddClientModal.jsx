@@ -8,9 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 
 const ACCOUNT_TYPES = [
-  { key: "parent_family", label: "Parent / Family", desc: "A parent or guardian managing care for a child", icon: "👨‍👩‍👧" },
-  { key: "individual", label: "Individual Client", desc: "The client will use the app directly for their own care", icon: "🧑" },
-  { key: "caregiver", label: "Caregiver / Guardian", desc: "A non-parent caregiver managing care for a child", icon: "🤝" },
+  { key: "parent_family", label: "Parent / Family", desc: "A parent or guardian managing care for a child" },
+  { key: "individual", label: "Individual Client", desc: "The client will use the app directly for their own care" },
+  { key: "caregiver", label: "Caregiver / Guardian", desc: "A non-parent caregiver managing care for a child" },
 ];
 
 const emptyChild = () => ({ child_name: "", age: "", diagnosis: "", triggers: "", notes: "", is_patient: true });
@@ -257,7 +257,6 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
                     onClick={() => setAccountType(type.key)}
                     className={`w-full text-left rounded-xl border-2 p-4 flex items-start gap-3 transition-all ${accountType === type.key ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 bg-card"}`}
                   >
-                    <span className="text-2xl mt-0.5">{type.icon}</span>
                     <div>
                       <p className="font-semibold text-sm text-foreground">{type.label}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{type.desc}</p>
@@ -406,7 +405,7 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
 
               {/* Login Credentials Card */}
               <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-3">
-                <p className="text-xs font-semibold text-primary uppercase tracking-wider">🔐 Client Login Info</p>
+                <p className="text-xs font-semibold text-primary uppercase tracking-wider">Client Login Info</p>
                 <CopyField label="Username" value={credentials.username} />
                 <CopyField label="Access Code" value={credentials.accessCode} />
                 <div className="bg-background rounded-xl px-4 py-3 border border-border">

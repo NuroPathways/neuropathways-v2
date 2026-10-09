@@ -3,11 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, X, Wind, CheckCircle2 } from "lucide-react";
 
 const GROUNDING_STEPS = [
-  { num: "5", label: "Things you can SEE", icon: "👁️" },
-  { num: "4", label: "Things you can TOUCH", icon: "✋" },
-  { num: "3", label: "Things you can HEAR", icon: "👂" },
-  { num: "2", label: "Things you can SMELL", icon: "👃" },
-  { num: "1", label: "Thing you can TASTE", icon: "👅" },
+  { num: "5", label: "Things you can SEE" },
+  { num: "4", label: "Things you can TOUCH" },
+  { num: "3", label: "Things you can HEAR" },
+  { num: "2", label: "Things you can SMELL" },
+  { num: "1", label: "Thing you can TASTE" },
 ];
 
 const BREATHING_PHASES = [
@@ -133,7 +133,6 @@ export default function CalmDownTool({ child, profile, onBack, onDismiss, isIndi
                 <p className="text-xs text-blue-600 text-center mb-4">Name these things out loud or in your head</p>
                 {GROUNDING_STEPS.map((step, i) => (
                   <div key={i} className="flex items-center gap-3 py-2.5 border-b border-blue-100 last:border-0">
-                    <span className="text-2xl">{step.icon}</span>
                     <div>
                       <span className="font-bold text-blue-800 text-lg">{step.num}</span>
                       <span className="text-blue-700 text-sm ml-2">{step.label}</span>

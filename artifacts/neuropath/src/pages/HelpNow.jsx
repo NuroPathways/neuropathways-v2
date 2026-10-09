@@ -186,12 +186,6 @@ export default function HelpNow() {
   const profileBehaviors = (profile && profile.behaviors) || [];
   const fallbackBehaviors = behaviorPlans.map(bp => ({
     name: bp.behavior_name,
-    emoji: bp.behavior_name?.toLowerCase().includes('aggress') ? '👊'
-      : bp.behavior_name?.toLowerCase().includes('tantrum') || bp.behavior_name?.toLowerCase().includes('meltdown') ? '😡'
-      : bp.behavior_name?.toLowerCase().includes('anxi') ? '😰'
-      : bp.behavior_name?.toLowerCase().includes('refus') ? '🚫'
-      : bp.behavior_name?.toLowerCase().includes('transition') ? '🔄'
-      : '📋',
     description: bp.behavior_description || '',
     triggers: bp.common_triggers ? bp.common_triggers.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean) : [],
     interventions: bp.strategy_steps ? bp.strategy_steps.split(/\n+/).map(s => s.trim()).filter(Boolean) : [],
@@ -331,7 +325,6 @@ export default function HelpNow() {
                         onClick={() => handleSelectBehavior(behavior)}
                         className={"border-2 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-100 " + BEHAVIOR_COLORS[i % BEHAVIOR_COLORS.length]}
                       >
-                        <div className="text-3xl mb-2">{behavior.emoji || "📋"}</div>
                         <p className="text-sm font-semibold leading-snug">{behavior.name}</p>
                         <ChevronRight className="w-4 h-4 mt-1 opacity-60" />
                       </button>
@@ -362,7 +355,6 @@ export default function HelpNow() {
 
               <div className="bg-card border border-border rounded-2xl p-5 mb-5">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="text-3xl">{selectedBehavior.emoji || "📋"}</span>
                   <div>
                     <h2 className="font-bold text-foreground text-lg">{selectedBehavior.name}</h2>
                     <p className="text-xs text-primary font-medium">Clinician-approved guidance</p>

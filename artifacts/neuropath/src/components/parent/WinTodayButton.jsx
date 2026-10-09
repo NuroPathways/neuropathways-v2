@@ -106,16 +106,10 @@ export default function WinTodayButton({ userId, inviteToken, children = [], def
                       animate={{ opacity: 1, scale: 1 }}
                       className="text-center py-8"
                     >
-                      <div className="text-6xl mb-4">🎉</div>
                       <h2 className="text-2xl font-bold text-foreground mb-2">Amazing!</h2>
                       <p className="text-sm text-muted-foreground leading-relaxed">
                         That win has been shared with your clinician. Every positive moment matters — keep building on it!
                       </p>
-                      <div className="mt-4 flex justify-center gap-2">
-                        <span className="text-2xl">🌟</span>
-                        <span className="text-2xl">💙</span>
-                        <span className="text-2xl">🌟</span>
-                      </div>
                     </motion.div>
                   ) : (
                     <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -124,7 +118,7 @@ export default function WinTodayButton({ userId, inviteToken, children = [], def
                           <Heart className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                          <h2 className="font-bold text-foreground text-base">We had a win today 💙</h2>
+                          <h2 className="font-bold text-foreground text-base">We had a win today</h2>
                           <p className="text-xs text-muted-foreground">Celebrate a positive moment</p>
                         </div>
                       </div>

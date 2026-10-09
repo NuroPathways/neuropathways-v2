@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
 const MOODS = [
-  { key: "great",          emoji: "😊", label: "Great" },
-  { key: "okay",           emoji: "😐", label: "Okay" },
-  { key: "difficult",      emoji: "😔", label: "Difficult" },
-  { key: "very_difficult", emoji: "😫", label: "Very difficult" },
+  { key: "great", label: "Great" },
+  { key: "okay", label: "Okay" },
+  { key: "difficult", label: "Difficult" },
+  { key: "very_difficult", label: "Very difficult" },
 ];
 
 const WINS = [
@@ -138,7 +138,6 @@ export default function DailyCheckInModal({ userId, childId, onComplete }) {
                               : "border-border hover:border-primary/40 hover:bg-muted text-foreground"
                             }`}
                         >
-                          <span className="text-3xl">{m.emoji}</span>
                           <span>{m.label}</span>
                         </button>
                       ))}
@@ -151,12 +150,12 @@ export default function DailyCheckInModal({ userId, childId, onComplete }) {
                     animate={{ opacity: 1, scale: 1 }}
                     className="text-center py-4"
                   >
-                    <div className="text-5xl mb-4">
-                      {MOODS.find(m => m.key === selected)?.emoji}
+                    <div className="inline-flex rounded-full bg-primary/10 text-primary text-sm font-semibold px-4 py-2 mb-4">
+                      {MOODS.find(m => m.key === selected)?.label}
                     </div>
                     {streak > 1 && (
                       <div className="inline-flex items-center gap-1.5 bg-orange-50 text-orange-600 text-xs font-bold px-3 py-1.5 rounded-full mb-3">
-                        🔥 {streak} Day Streak!
+                        {streak} Day Streak
                       </div>
                     )}
                     <p className="text-base font-bold text-foreground mb-1">Thanks for checking in</p>

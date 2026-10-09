@@ -2,7 +2,6 @@ import { useState } from "react";
 import { base44 } from '@/api/entities';
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, X, CheckCircle2, AlertCircle, ShieldAlert, Phone, ChevronRight } from "lucide-react";
-import { behaviorEmoji } from "@/lib/behaviorEmoji";
 
 const BEHAVIOR_COLORS = [
   { bg: "bg-red-50", border: "border-red-200", text: "text-red-800", badge: "bg-red-100 text-red-700" },
@@ -47,14 +46,12 @@ function normalizeBehavior(value, index) {
   const raw = isRecord(value) ? value : { name: typeof value === "string" ? value : "" };
   const behaviorKey = textValue(raw.behaviorKey ?? raw.behavior_key ?? raw.key);
   const name = textValue(raw.name ?? raw.behaviorName ?? raw.behavior_name ?? raw.title) || `Behavior ${index + 1}`;
-  const suppliedEmoji = textValue(raw.emoji);
 
   return {
     ...raw,
     id: textValue(raw.id ?? raw.behaviorId ?? raw.behavior_id) || `${behaviorKey || "behavior"}-${name}`,
     behaviorKey,
     name,
-    emoji: suppliedEmoji && suppliedEmoji !== "📋" ? suppliedEmoji : behaviorEmoji(behaviorKey, name),
     sourceLabel: textValue(raw.sourceLabel ?? raw.source_label),
     what_may_be_happening: textValue(raw.what_may_be_happening ?? raw.whatMayBeHappening ?? raw.context),
     do_this_right_now: listItems(raw.do_this_right_now ?? raw.doThisRightNow ?? raw.rightNow ?? raw.right_now ?? raw.immediate_steps),
@@ -116,7 +113,7 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex-1">
-          <p className="font-bold text-foreground text-sm">{behavior.emoji || "📋"} {behavior.name}</p>
+          <p className="font-bold text-foreground text-sm">{behavior.name}</p>
           <p className="text-xs text-primary font-medium">{behavior.sourceLabel || "Support guidance"}</p>
         </div>
       </div>
@@ -278,7 +275,6 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
                     onClick={() => handleSelectBehavior(behavior)}
                     className={`${colors.bg} border-2 ${colors.border} rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-100`}
                   >
-                    <div className="text-3xl mb-2">{behavior.emoji || "📋"}</div>
                     <p className={`text-sm font-semibold leading-snug ${colors.text}`}>{behavior.name}</p>
                     {behavior.sourceLabel && <span className="text-[11px] font-medium text-muted-foreground">{behavior.sourceLabel}</span>}
                     <ChevronRight className={`w-4 h-4 mt-1 opacity-60 ${colors.text}`} />

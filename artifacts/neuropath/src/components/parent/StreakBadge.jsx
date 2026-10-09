@@ -27,7 +27,7 @@ export default function StreakBadge({ userId }) {
 
   return (
     <div className="inline-flex items-center gap-1 bg-white/20 rounded-full px-2.5 py-1 text-white text-xs font-bold">
-      🔥 {streak} day streak
+      {streak} day streak
     </div>
   );
 }

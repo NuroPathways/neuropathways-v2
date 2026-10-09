@@ -189,3 +189,62 @@
   .pf-action-overlay { padding: 10px; }
   .pf-action-dialog { padding: 19px; }
 }
+
+/* Shared parent experience: quieter surfaces, compact rhythm, and matching app tokens. */
+.pf {
+  --pf-bg: hsl(var(--background));
+  --pf-paper: hsl(var(--card));
+  --pf-ink: hsl(var(--foreground));
+  --pf-ink-soft: hsl(var(--muted-foreground));
+  --pf-line: hsl(var(--border));
+  --pf-accent: hsl(var(--primary));
+  --pf-accent-ink: hsl(var(--primary-foreground));
+  --pf-sage: hsl(var(--muted));
+  --pf-sage-ink: hsl(var(--foreground));
+  --pf-sun: hsl(var(--accent) / .2);
+  background: hsl(var(--background));
+  color: var(--pf-ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+.pf h1 { font-size: clamp(1.8rem, 4vw, 2.25rem); line-height: 1.13; font-weight: 650; }
+.pf h2 { font-size: clamp(1.3rem, 2.4vw, 1.65rem); line-height: 1.22; }
+.pf h3 { font-size: 1.05rem; line-height: 1.35; }
+.pf-wrap { max-width: 1120px; padding-inline: 20px; }
+.pf-card { border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px hsl(var(--foreground) / .04); }
+.pf-tag { max-width: 100%; padding: 5px 9px; border: 1px solid hsl(var(--primary) / .12); font-size: .74rem; line-height: 1.2; white-space: normal; }
+.pf-btn { min-height: 44px; border-radius: 10px; }
+.pf-input, .pf-area, .pf-select { border-radius: 10px; background: var(--pf-paper); }
+.pf-daily-home { gap: 22px; padding-bottom: 30px; }
+.pf-daily-section { gap: 11px; }
+.pf-daily-section-heading h2 { margin-top: 2px; }
+.pf-daily-grid { gap: 11px; }
+.pf-daily-action { gap: 10px; padding: 16px; }
+.pf-daily-description { color: var(--pf-ink); line-height: 1.48; }
+.pf-daily-why { background: var(--pf-sage); border-radius: 0 8px 8px 0; color: var(--pf-ink); }
+.pf-daily-details { border-top: 1px solid var(--pf-line); padding-top: 9px; }
+.pf-daily-details summary { width: fit-content; color: var(--pf-accent); cursor: pointer; font-size: .88rem; font-weight: 650; }
+.pf-daily-details[open] summary { margin-bottom: 10px; }
+.pf-daily-source { gap: 6px; }
+.pf-daily-review-note { background: hsl(var(--destructive) / .08); color: hsl(var(--destructive)); }
+.pf-support-section { border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px hsl(var(--foreground) / .035); }
+.pf-support-section--now { --pf-section-bg: hsl(var(--primary) / .08); --pf-section-border: hsl(var(--primary) / .2); --pf-section-accent: hsl(var(--primary)); }
+.pf-support-section--avoid { --pf-section-bg: hsl(var(--destructive) / .06); --pf-section-border: hsl(var(--destructive) / .18); --pf-section-accent: hsl(var(--destructive)); }
+.pf-support-section--context, .pf-support-section--track { --pf-section-bg: var(--pf-sage); --pf-section-border: var(--pf-line); --pf-section-accent: var(--pf-ink-soft); }
+.pf-support-section--prevention, .pf-support-section--skill { --pf-section-bg: hsl(var(--accent) / .12); --pf-section-border: hsl(var(--accent) / .3); --pf-section-accent: hsl(var(--foreground)); }
+.pf-support-steps li { background: hsl(var(--card) / .8); color: var(--pf-ink); font-size: .94rem; }
+.pf-bubble.me { background: hsl(var(--primary)); }
+.pf-bubble.ai { background: var(--pf-paper); border-color: var(--pf-line); }
+.pf-chat { min-height: min(70dvh, 740px); grid-template-rows: auto auto minmax(160px, 1fr) auto auto; }
+.pf-chat-scroll { min-height: min(38dvh, 400px) !important; max-height: 48dvh !important; }
+.pf-chat-form { position: sticky; bottom: 0; padding-top: 8px; background: var(--pf-paper); }
+.pf-chat-form .pf-input { min-width: 0; }
+.dark .pf {
+  --pf-warn: hsl(var(--destructive) / .12);
+  --pf-sun: hsl(var(--accent) / .14);
+}
+.dark .pf-tag.warn, .dark .pf-error, .dark .pf-daily-review-note { color: hsl(var(--destructive)); }
+@media (max-width: 760px) {
+  .pf-card { padding: 15px; }
+  .pf-daily-home { gap: 19px; }
+  .pf-daily-action { padding: 14px; }
+}

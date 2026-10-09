@@ -185,7 +185,7 @@ export default function RewardTracker() {
                   <div className="mb-3">
                     <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
                       <span>{pct}% complete</span>
-                      <span>{t.tokens_goal - t.tokens_earned > 0 ? `${t.tokens_goal - t.tokens_earned} to go` : "🎉 Done!"}</span>
+                      <span>{t.tokens_goal - t.tokens_earned > 0 ? `${t.tokens_goal - t.tokens_earned} to go` : "Done!"}</span>
                     </div>
                     <div className="h-3 bg-muted rounded-full overflow-hidden">
                       <div
@@ -206,7 +206,7 @@ export default function RewardTracker() {
                   {achieved && (
                     <div className="mt-3 flex items-center gap-2 text-yellow-700 bg-yellow-100 rounded-xl px-3 py-2">
                       <Trophy className="w-4 h-4 text-yellow-500" />
-                      <p className="text-xs font-semibold">Goal achieved! Time to celebrate 🎉</p>
+                      <p className="text-xs font-semibold">Goal achieved. Time to celebrate.</p>
                     </div>
                   )}
                 </motion.div>

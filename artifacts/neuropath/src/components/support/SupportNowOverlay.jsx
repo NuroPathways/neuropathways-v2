@@ -17,7 +17,6 @@ const splitGuidance = (value) => String(value || "")
 
 const behaviorFromPlan = (plan) => ({
   name: plan.behavior_name || plan.behaviorName || "Behavior support",
-  emoji: "📋",
   sourceLabel: "Source: Behavior plan",
   what_may_be_happening: plan.behavior_description || plan.behaviorDescription || plan.behavior_function || plan.behaviorFunction,
   interventions: splitGuidance(plan.strategy_steps || plan.strategySteps),

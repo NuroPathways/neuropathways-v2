@@ -227,7 +227,7 @@ export default function ParentHome() {
         id: card.id,
         name: card.behaviorName,
         emoji: behaviorEmoji(card.behaviorKey, card.behaviorName),
-        sourceLabel: card.source === "starter" ? "Source: Pre-programmed library" : "Source: Behavior plan",
+        sourceLabel: card.source === "starter" ? "Starter support" : card.source === "clinician_reviewed" ? "Clinician reviewed" : card.source === "clinician_document" ? "Clinician-uploaded plan" : card.source === "parent_document" ? "Uploaded plan · not clinician-reviewed" : "Needs review",
         what_may_be_happening: card.whatMayBeHappening,
         do_this_right_now: card.rightNow || [],
         avoid: card.avoid || [],

@@ -8,8 +8,11 @@ import { Field, ErrorBox, errMsg } from "./common";
 import GoalLines from "./GoalLines";
 
 function statusOf(active, card) {
-  if (card?.source === "starter") return { text: "Source: Pre-programmed library", kind: "sun" };
-  if (card?.source) return { text: "Source: Behavior plan", kind: "" };
+  if (card?.source === "starter") return { text: "Starter support", kind: "sun" };
+  if (card?.source === "parent_document") return { text: "Uploaded plan · not clinician-reviewed", kind: "" };
+  if (card?.source === "clinician_reviewed") return { text: "Clinician reviewed", kind: "" };
+  if (card?.source === "clinician_document") return { text: "Clinician-uploaded plan", kind: "" };
+  if (card?.source) return { text: "Needs review", kind: "warn" };
   if (active) return { text: "Active", kind: "" };
   return { text: "Available to Add", kind: "warn" };
 }

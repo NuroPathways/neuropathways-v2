@@ -334,9 +334,9 @@ export default function LogBehavior() {
               <Select value={form.intensity} onValueChange={v => set("intensity", v)}>
                 <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">🟢 Low</SelectItem>
-                  <SelectItem value="moderate">🟡 Moderate</SelectItem>
-                  <SelectItem value="high">🔴 High</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="moderate">Moderate</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
                 </SelectContent>
               </Select>
             </div>

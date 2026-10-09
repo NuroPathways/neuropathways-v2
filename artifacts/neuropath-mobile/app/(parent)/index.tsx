@@ -15,10 +15,10 @@ import { progressFor } from "@/lib/parentProgress";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : "never");
 
 const SOURCE: Record<SupportCard["source"], string> = {
-  starter: "Starter support based on common behavior patterns. Upload your child's plan later for more personalized guidance.",
-  parent_document: "Based on your child's uploaded plan. Not yet reviewed by a clinician.",
-  clinician_document: "Document-Based Support from a plan shared by your clinician.",
-  clinician_reviewed: "Reviewed by your clinician.",
+  starter: "Starter support",
+  parent_document: "Uploaded plan · not clinician-reviewed",
+  clinician_document: "Clinician-uploaded plan",
+  clinician_reviewed: "Clinician reviewed",
 };
 
 const planGoal = (card: SupportCard) => card.planGoal;
@@ -26,10 +26,10 @@ const hasPlanGoal = (card: SupportCard) =>
   typeof card.planGoal === "string" && card.planGoal.trim().length > 0;
 
 const DAILY_ACTION_SOURCE: Record<string, string> = {
-  clinician_reviewed: "Source: Reviewed by your clinician",
-  clinician_uploaded_plan: "Source: Clinician-uploaded document",
-  parent_uploaded_plan: "Source: Uploaded plan · not yet reviewed by a clinician",
-  starter_template: "Source: General starter support",
+  clinician_reviewed: "Clinician reviewed",
+  clinician_uploaded_plan: "Clinician-uploaded plan",
+  parent_uploaded_plan: "Uploaded plan · not clinician-reviewed",
+  starter_template: "Starter support",
 };
 
 const DAILY_FEEDBACK = [
@@ -77,7 +77,7 @@ function DailyActivityCard({ action, documents, childName, onOutcome, isSaving, 
           <View style={{ flex: 1 }}><T size={14}>{step}</T></View>
         </View>
       ))}
-      <T size={12} weight="semi" color={c.secondary}>{DAILY_ACTION_SOURCE[action.sourceType] || "Source: Not available"}</T>
+      <T size={12} weight="semi" color={c.secondary}>{DAILY_ACTION_SOURCE[action.sourceType] || "Source not available"}</T>
       {document ? <T size={12} color={c.secondary}>Plan: {document.title || document.fileName}</T> : null}
       {action.status === "needs_review"
         ? <T size={13} weight="semi" color={c.destructive}>Ask your clinician which plan step to use before trying this.</T>

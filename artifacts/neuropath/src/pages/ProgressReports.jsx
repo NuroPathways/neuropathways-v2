@@ -285,7 +285,7 @@ function PositiveMomentumSection({ wins, checkIns, rewardGoals, winsRef, moodSec
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="day" tick={{ fontSize: 9 }} />
                 <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]}
-                  tickFormatter={v => v === 5 ? "😊" : v === 3 ? "😐" : v === 1 ? "😢" : ""}
+                  tickFormatter={v => v === 5 ? "Great" : v === 3 ? "Okay" : v === 1 ? "Hard" : ""}
                   tick={{ fontSize: 10 }} />
                 <Tooltip
                   contentStyle={{ fontSize: 11 }}

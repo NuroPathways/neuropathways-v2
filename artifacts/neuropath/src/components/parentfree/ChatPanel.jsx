@@ -40,10 +40,10 @@ export default function ChatPanel({ childId, childName, cards = [] }) {
   };
 
   return (
-    <div className="pf-card" style={{ display: "grid", gap: 14 }}>
+    <div className="pf-card pf-chat" style={{ display: "grid", gap: 14 }}>
       <h2>Ask about {childName}</h2>
       <p className="pf-hint">Answers use readable information from your uploaded plans when it is relevant. If a plan does not cover your question, NeuroPath offers general ABA-informed ideas based on the behavior you describe. This is not medical or professional advice and does not replace your clinician. If there is immediate danger, call 911 or your local emergency services.</p>
-      <div style={{ display: "grid", gap: 10, minHeight: 160, maxHeight: "50dvh", overflowY: "auto" }} aria-live="polite">
+      <div className="pf-chat-scroll" style={{ display: "grid", gap: 10, minHeight: 160, maxHeight: "50dvh", overflowY: "auto" }} aria-live="polite">
         {msgs.length === 0 && <p style={{ color: "var(--pf-ink-soft)" }}>Try: "What should I say when the meltdown starts?"</p>}
         {msgs.map((m, i) => (
           <div key={i} className={`pf-bubble ${m.role}`} data-testid={`bubble-${m.role}-${i}`}>
@@ -73,7 +73,7 @@ export default function ChatPanel({ childId, childName, cards = [] }) {
         <div ref={end} />
       </div>
       <ErrorBox error={error} />
-      <form onSubmit={send} style={{ display: "flex", gap: 8 }}>
+      <form className="pf-chat-form" onSubmit={send} style={{ display: "flex", gap: 8 }}>
         <input className="pf-input" value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask a question" data-testid="input-chat" />
         <button className="pf-btn primary" disabled={!text.trim() || chat.isPending} data-testid="button-send-chat">Send</button>
       </form>

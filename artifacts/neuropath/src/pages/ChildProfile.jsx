@@ -13,12 +13,6 @@ const SEVERITY_STYLES = {
   crisis: "bg-red-100 text-red-700",
 };
 
-const CATEGORY_EMOJIS = {
-  tantrum_meltdown: "🌊", aggression: "⚡", anxiety_episode: "😰",
-  task_refusal: "🚫", bedtime_refusal: "🌙", school_refusal: "🏫",
-  transition_difficulty: "🔄", emotional_dysregulation: "💭", other: "📋",
-};
-
 export default function ChildProfile() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -158,7 +152,6 @@ export default function ChildProfile() {
               {interventionPlans.map(ip => (
                 <button key={ip.id} onClick={() => navigate(`/HelpNow?child_id=${childId}`)}
                   className="w-full flex items-center gap-3 p-3 bg-background border border-border rounded-xl hover:border-primary/40 transition-all text-left">
-                  <span className="text-xl flex-shrink-0">{CATEGORY_EMOJIS[ip.behavior_category] || "📋"}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground">{ip.title}</p>
                     <p className="text-xs text-muted-foreground capitalize">{ip.behavior_category?.replace(/_/g, " ")}</p>

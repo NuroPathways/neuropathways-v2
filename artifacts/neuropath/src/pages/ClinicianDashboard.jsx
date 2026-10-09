@@ -96,7 +96,7 @@ export default function ClinicianDashboard() {
                   }
                   if (user?.email) return user.email.split("@")[0].split(/[._-]/)[0].replace(/^(.)/, c => c.toUpperCase());
                   return "there";
-                })()} 👋
+                })()}
               </h1>
               <p className="text-white/60 text-sm">Here's your clinical overview for today</p>
             </div>

@@ -20,7 +20,7 @@ export default function HelpFeedback({ child, topic }) {
   if (sent !== null) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 text-center text-sm text-muted-foreground bg-card border border-border rounded-2xl p-4">
-        {sent ? "💙 Thanks! Your feedback was shared with your clinician." : "Thanks — your clinician will see this and can adjust the plan."}
+        {sent ? "Thanks! Your feedback was shared with your clinician." : "Thanks — your clinician will see this and can adjust the plan."}
       </motion.div>
     );
   }
