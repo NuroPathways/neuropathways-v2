@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 const LABEL = {
   starter: "Starter support",
-  parent_document: "Uploaded plan · not clinician-reviewed",
+  parent_document: "Based on your uploaded plan · not clinician-reviewed",
   clinician_document: "Clinician-uploaded plan",
   clinician_reviewed: "Clinician reviewed",
 };

@@ -6,7 +6,7 @@ import { ErrorBox, errMsg } from "./common";
 
 // A reference counts as reviewed only if a clinician-reviewed card cites that document.
 function allRefsReviewed(refs, cards) {
-  const reviewedIds = new Set(cards.filter((c) => c.source === "clinician_reviewed").flatMap((c) => c.sourceDocumentIds || []));
+  const reviewedIds = new Set(cards.filter((c) => c.source === "clinician_reviewed" && c.reviewedBy).flatMap((c) => c.sourceDocumentIds || []));
   return (refs || []).every((r) => reviewedIds.has(r.documentId));
 }
 
@@ -42,7 +42,7 @@ export default function ChatPanel({ childId, childName, cards = [] }) {
   return (
     <div className="pf-card pf-chat" style={{ display: "grid", gap: 14 }}>
       <h2>Ask about {childName}</h2>
-      <p className="pf-hint">Answers use readable information from your uploaded plans when it is relevant. If a plan does not cover your question, NeuroPath offers general ABA-informed ideas based on the behavior you describe. This is not medical or professional advice and does not replace your clinician. If there is immediate danger, call 911 or your local emergency services.</p>
+      <p className="pf-hint">Answers may use readable information from your uploaded plans or saved support. If they do not cover your question, NeuroPath may offer general information. This is not medical or professional advice. If there is immediate danger, call 911 or your local emergency services.</p>
       <div className="pf-chat-scroll" style={{ display: "grid", gap: 10, minHeight: 160, maxHeight: "50dvh", overflowY: "auto" }} aria-live="polite">
         {msgs.length === 0 && <p style={{ color: "var(--pf-ink-soft)" }}>Try: "What should I say when the meltdown starts?"</p>}
         {msgs.map((m, i) => (
@@ -65,7 +65,7 @@ export default function ChatPanel({ childId, childName, cards = [] }) {
               </ReactMarkdown>
             )}
             {m.refs?.length > 0 && <p className="pf-hint" style={{ marginTop: 8 }}>Sources: {m.refs.map((r) => r.title).join(", ")}</p>}
-            {m.refs?.length > 0 && !allRefsReviewed(m.refs, cards) && <p className="pf-hint" style={{ marginTop: 6 }} data-testid="text-unreviewed">This answer is based on the document you uploaded and has not been reviewed by a clinician.</p>}
+            {(!m.refs?.length || !allRefsReviewed(m.refs, cards)) && <p className="pf-hint" style={{ marginTop: 6 }} data-testid="text-unreviewed">This answer is based on starter support or your uploaded information. It has not been reviewed by a clinician.</p>}
             {m.disclaimer && <p className="pf-hint" style={{ marginTop: 6 }}>{m.disclaimer}</p>}
           </div>
         ))}

@@ -104,6 +104,7 @@ function Body({ child }) {
           childId={child.id}
           childName={child.name}
           actions={d.dailyActions || []}
+          logs={d.logs || []}
           documents={d.documents || []}
           cards={cards}
           selectedId={curId}
@@ -168,7 +169,7 @@ function Body({ child }) {
       )}
       {d && tab === "log" && <LogPanel childId={child.id} childName={child.name} logs={d.logs} behaviors={behaviors} defaultId={curId} />}
       {d && tab === "docs" && <DocsPanel child={d.child || child} documents={d.documents} />}
-      {tab === "ask" && <ChatPanel childId={child.id} childName={child.name} cards={cards} />}
+      {tab === "ask" && <ChatPanel childId={child.id} childName={child.name} cards={allCards} />}
       {d && tab === "clinic" && <ClinicPanel child={d.child || child} documents={d.documents} />}
       {tab === "edit" && section === "goals" && (
         <ParentGoalsTab
@@ -220,12 +221,15 @@ export default function ParentHome() {
     }
     return {
       ...(dashboard.child || {}),
+      safety_plan_uploaded: (dashboard.documents || []).some((document) =>
+        /safety|crisis/i.test(`${document.documentType || ""} ${document.title || ""} ${document.fileName || ""}`),
+      ),
       behaviors: dashboard.supportCards
         .filter((card) => card && typeof card === "object" && !Array.isArray(card))
         .map((card) => ({
         id: card.id,
         name: card.behaviorName,
-        sourceLabel: card.source === "starter" ? "Starter support" : card.source === "clinician_reviewed" ? "Clinician reviewed" : card.source === "clinician_document" ? "Clinician-uploaded plan" : card.source === "parent_document" ? "Uploaded plan · not clinician-reviewed" : "Needs review",
+        sourceLabel: card.source === "starter" ? "Starter support" : card.source === "clinician_reviewed" ? "Clinician reviewed" : card.source === "clinician_document" ? "Clinician-uploaded plan" : card.source === "parent_document" ? "Based on your uploaded plan · not clinician-reviewed" : "Needs review",
         what_may_be_happening: card.whatMayBeHappening,
         do_this_right_now: card.rightNow || [],
         avoid: card.avoid || [],

@@ -9,7 +9,7 @@ import GoalLines from "./GoalLines";
 
 function statusOf(active, card) {
   if (card?.source === "starter") return { text: "Starter support", kind: "sun" };
-  if (card?.source === "parent_document") return { text: "Uploaded plan · not clinician-reviewed", kind: "" };
+  if (card?.source === "parent_document") return { text: "Based on your uploaded plan · not clinician-reviewed", kind: "" };
   if (card?.source === "clinician_reviewed") return { text: "Clinician reviewed", kind: "" };
   if (card?.source === "clinician_document") return { text: "Clinician-uploaded plan", kind: "" };
   if (card?.source) return { text: "Needs review", kind: "warn" };

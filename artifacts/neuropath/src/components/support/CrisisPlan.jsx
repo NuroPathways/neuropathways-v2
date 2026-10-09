@@ -31,6 +31,7 @@ function listSteps(value) {
 export default function CrisisPlan({ child, profile, loadingProfile, profileLoadError, onBack, onDismiss, isIndividual }) {
   const crisisPlan = listSteps(profile?.crisis_plan);
   const safetyProcedures = listSteps(profile?.safety_procedures);
+  const safetyPlanUploaded = profile?.safety_plan_uploaded === true;
   const name = child?.child_name;
 
   return (
@@ -69,16 +70,17 @@ export default function CrisisPlan({ child, profile, loadingProfile, profileLoad
             <div className="bg-sky-50 border border-sky-200 rounded-2xl p-5 flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-sky-900">General safety guidance</p>
-                <p className="text-sm text-sky-800 mt-1">
-                  This is general information, not an individualized crisis plan for {name || "this client"}. No clinician crisis guidance is on file.
+                <p className="text-sm font-semibold text-sky-900">
+                  {safetyPlanUploaded
+                    ? "A safety plan was uploaded, but its steps are not available in this screen."
+                    : "No safety plan has been uploaded for this child."}
                 </p>
-                <ol className="mt-3 list-decimal pl-5 space-y-2 text-sm text-sky-900">
-                  <li>If anyone is in immediate danger, injured, or needs urgent medical care, call 911 or your local emergency number.</li>
-                  <li>If it is safe, move away from hazards and give everyone space. Do not use physical restraint or untrained holds.</li>
-                  <li>Use a calm, brief voice and reduce noise or other demands when it is safe to do so.</li>
-                  <li>When the immediate risk has passed, contact the treating clinician or local crisis service for guidance tailored to this child.</li>
-                </ol>
+                <p className="text-sm text-sky-800 mt-1">
+                  {safetyPlanUploaded
+                    ? "Review the uploaded document for its instructions. Contact a qualified professional if you need individualized guidance."
+                    : `This screen does not contain an individualized crisis plan for ${name || "this child"}. Upload a safety plan or contact a qualified professional for individualized guidance.`}
+                </p>
+                <p className="text-sm font-bold text-sky-900 mt-3">If there is immediate danger, call 911 or emergency services.</p>
               </div>
             </div>
           </div>

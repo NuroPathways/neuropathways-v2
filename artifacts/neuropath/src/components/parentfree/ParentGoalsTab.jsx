@@ -250,7 +250,7 @@ export default function ParentGoalsTab({
             {discoveredPlanGoals.map((card) => (
               <article className="pf-card sage pf-plan-goal-card" key={`${parentBehaviorIdentity(card)}:${card.planGoal}`}>
                 <h4>{card.behaviorName}</h4>
-                <span className="pf-tag">{card.source === "clinician_reviewed" ? "Clinician reviewed" : card.source === "clinician_document" ? "Clinician-uploaded plan" : card.source === "parent_document" ? "Uploaded plan · not clinician-reviewed" : "Starter support"}</span>
+                <span className="pf-tag">{card.source === "clinician_reviewed" ? "Clinician reviewed" : card.source === "clinician_document" ? "Clinician-uploaded plan" : card.source === "parent_document" ? "Based on your uploaded plan · not clinician-reviewed" : "Starter support"}</span>
                 <p style={{ marginTop: 6 }}><strong>Plan goal:</strong> {card.planGoal}</p>
                 {card.planGoalSourceReferences?.length > 0 && (
                   <p className="pf-hint" style={{ marginTop: 5 }}>
@@ -262,7 +262,7 @@ export default function ParentGoalsTab({
             ))}
             {storedPlanGoals.map((goal) => (
               <article className="pf-card sage pf-plan-goal-card" key={goal.id} data-testid={`plan-goal-${goal.id}`}>
-                <span className="pf-tag">{goal.sourceType === "clinician_uploaded_plan" ? "Clinician-uploaded plan" : "Uploaded plan · not clinician-reviewed"}</span>
+                <span className="pf-tag">{goal.sourceType === "clinician_uploaded_plan" ? "Clinician-uploaded plan" : "Based on your uploaded plan · not clinician-reviewed"}</span>
                 {goal.sourceType === "clinician_uploaded_plan" && <p className="pf-hint">From a clinician-uploaded document</p>}
                 <h4 style={{ marginTop: 5 }}>{goal.title}</h4>
                 {goal.description && <p style={{ marginTop: 6 }}>{goal.description}</p>}

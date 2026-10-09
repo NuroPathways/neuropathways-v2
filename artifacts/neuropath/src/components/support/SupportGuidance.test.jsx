@@ -132,13 +132,23 @@ describe("support guidance", () => {
     });
   });
 
-  it("shows general safety guidance only when no plan guidance is present", () => {
+  it("shows the missing-safety-plan warning only when no plan guidance is present", () => {
     const { rerender } = render(
       <CrisisPlan child={{ child_name: "Sam" }} profile={{}} />,
     );
 
-    expect(screen.getByText("General safety guidance")).toBeTruthy();
-    expect(screen.getByText(/not an individualized crisis plan/i)).toBeTruthy();
+    expect(screen.getByText("No safety plan has been uploaded for this child.")).toBeTruthy();
+    expect(screen.getByText(/not contain an individualized crisis plan/i)).toBeTruthy();
+    expect(screen.getAllByText("If there is immediate danger, call 911 or emergency services.").length).toBeGreaterThan(0);
+
+    rerender(
+      <CrisisPlan
+        child={{ child_name: "Sam" }}
+        profile={{ safety_plan_uploaded: true }}
+      />,
+    );
+    expect(screen.getByText("A safety plan was uploaded, but its steps are not available in this screen.")).toBeTruthy();
+    expect(screen.queryByText("No safety plan has been uploaded for this child.")).toBeNull();
 
     rerender(
       <CrisisPlan
@@ -148,7 +158,7 @@ describe("support guidance", () => {
     );
 
     expect(screen.getByText("Crisis plan steps on file")).toBeTruthy();
-    expect(screen.queryByText("General safety guidance")).toBeNull();
+    expect(screen.queryByText("No safety plan has been uploaded for this child.")).toBeNull();
     expect(screen.getByText("Follow the clinician's written steps.")).toBeTruthy();
   });
 });

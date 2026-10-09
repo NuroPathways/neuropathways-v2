@@ -9,11 +9,12 @@ import {
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, errMsg } from "./common";
 import { sourceLabel } from "./SupportView";
+import { cardIdentity, summarize } from "./progress";
 
 const SOURCE_LABELS = {
   clinician_reviewed: "Clinician reviewed",
   clinician_uploaded_plan: "Clinician-uploaded plan",
-  parent_uploaded_plan: "Uploaded plan · not clinician-reviewed",
+  parent_uploaded_plan: "Based on your uploaded plan · not clinician-reviewed",
   starter_template: "Starter support",
   recent_log_pattern: "Based on recent parent notes",
   selected_behavior: "Based on your selected behavior",
@@ -158,6 +159,7 @@ export default function DailySupportHome({
   childId,
   childName,
   actions = [],
+  logs = [],
   documents = [],
   cards = [],
   selectedId,
@@ -195,6 +197,9 @@ export default function DailySupportHome({
     }),
   };
   const tasks = actions.filter((action) => action.kind === "task");
+  const week = summarize(logs);
+  const focusedCard = cards.find((item) => cardIdentity(item) === selectedId) || cards[0];
+  const focusedSource = focusedCard ? sourceLabel(focusedCard) : null;
 
   const actionGrid = (items) => (
     <div className="pf-daily-grid">
@@ -234,6 +239,88 @@ export default function DailySupportHome({
         )}
       </section>
 
+      <section className="pf-daily-section" aria-labelledby="this-week-heading">
+        <div className="pf-daily-section-heading">
+          <div>
+            <p className="pf-eyebrow">From your recent notes</p>
+            <h2 id="this-week-heading">This Week</h2>
+          </div>
+          <span className="pf-daily-count">{week.entries} logged</span>
+        </div>
+        <div className="pf-card">
+          {focusedCard ? (
+            <>
+              <div className="pf-daily-source">
+                <span className={`pf-tag ${focusedSource.kind}`}>{focusedSource.text}</span>
+              </div>
+              <p style={{ marginTop: 12 }}>
+                This week, try one small support step for <strong>{focusedCard.behaviorName}</strong> during a calm moment.
+              </p>
+              {focusedCard.source === "starter" && (
+                <p className="pf-hint" style={{ marginTop: 8 }}>
+                  This is starter support based on the behavior you selected. Upload a plan later for more personalized support.
+                </p>
+              )}
+            </>
+          ) : (
+            <p>No support area selected yet. Add a behavior to see starter support here.</p>
+          )}
+          <p className="pf-hint" style={{ marginTop: 10 }}>
+            {week.entries
+              ? `${week.entries} parent ${week.entries === 1 ? "note was" : "notes were"} logged in the last 7 days (${week.happened} marked as happened).`
+              : "No parent notes logged in the last 7 days. Your notes are optional observations, not clinical findings."}
+          </p>
+          <button type="button" className="pf-btn small" style={{ marginTop: 12 }} onClick={onLog}>Quick Log</button>
+        </div>
+      </section>
+
+      <section className="pf-daily-section" aria-labelledby="prepare-heading">
+        <div className="pf-daily-section-heading">
+          <div>
+            <p className="pf-eyebrow">Use familiar, low-pressure supports</p>
+            <h2 id="prepare-heading">Prepare</h2>
+          </div>
+          {focusedSource && <span className={`pf-tag ${focusedSource.kind}`}>{focusedSource.text}</span>}
+        </div>
+        {focusedCard ? (
+          <div className="pf-card">
+            <h3>Prepare for a routine involving {focusedCard.behaviorName}</h3>
+            <p className="pf-hint" style={{ marginTop: 6 }}>
+              Use the prevention steps already saved for this support area. Do not create a difficult situation to practice.
+            </p>
+            <ol className="pf-daily-steps">
+              {(focusedCard.prevention || []).slice(0, 3).map((step, index) => <li key={`${focusedCard.id}-prepare-${index}`}>{step}</li>)}
+            </ol>
+            {(!focusedCard.prevention || focusedCard.prevention.length === 0) && (
+              <p className="pf-hint">No preparation steps are available for this support area yet. Review its saved support steps or upload a plan.</p>
+            )}
+            <button type="button" className="pf-btn small primary" style={{ marginTop: 12 }} onClick={() => onOpenSteps(focusedCard)}>Review support steps</button>
+          </div>
+        ) : (
+          <div className="pf-card"><p>Select a behavior or upload a plan to see preparation support.</p></div>
+        )}
+      </section>
+
+      <section className="pf-daily-section" aria-labelledby="practice-skill-heading">
+        <div className="pf-daily-section-heading">
+          <div>
+            <p className="pf-eyebrow">A skill from the selected support area</p>
+            <h2 id="practice-skill-heading">Practice This Skill</h2>
+          </div>
+          {focusedSource && <span className={`pf-tag ${focusedSource.kind}`}>{focusedSource.text}</span>}
+        </div>
+        {focusedCard ? (
+          <div className="pf-card">
+            <h3>{focusedCard.replacementSkill || `Review support for ${focusedCard.behaviorName}`}</h3>
+            {focusedCard.reinforcementIdea && <p className="pf-hint" style={{ marginTop: 8 }}><strong>Saved reinforcement idea:</strong> {focusedCard.reinforcementIdea}</p>}
+            <p className="pf-hint" style={{ marginTop: 8 }}>Try this only during a calm, ordinary moment, using supports already familiar to your child.</p>
+            <button type="button" className="pf-btn small primary" style={{ marginTop: 12 }} onClick={() => onOpenSteps(focusedCard)}>Open skill steps</button>
+          </div>
+        ) : (
+          <div className="pf-card"><p>Add a behavior to see a related starter skill here.</p></div>
+        )}
+      </section>
+
       <section className="pf-card pf-quick-actions">
         <div className="pf-daily-section-heading">
           <div>
@@ -242,7 +329,7 @@ export default function DailySupportHome({
           </div>
         </div>
         <div className="pf-quick-action-grid">
-          <button type="button" className="pf-quick-action" onClick={onLog}><ClipboardList size={20} /><span>Log What Happened</span></button>
+          <button type="button" className="pf-quick-action" onClick={onLog}><ClipboardList size={20} /><span>Quick Log</span></button>
           <button type="button" className="pf-quick-action" onClick={onUpload}><FileUp size={20} /><span>Upload a Plan</span></button>
           <button type="button" className="pf-quick-action" onClick={onAsk}><MessageCircle size={20} /><span>Ask NeuroPathways</span></button>
           <button type="button" className="pf-quick-action" onClick={onOpenLibrary}><BookOpen size={20} /><span>Support Library</span></button>
