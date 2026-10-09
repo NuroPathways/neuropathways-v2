@@ -11,3 +11,4 @@
 - [Support availability](support-availability.md) — optional tracking failures must never interrupt guidance; verify selection of an actual behavior, not just the choice screen.
 - [Legal-notice provenance](legal-notice-provenance.md) — keep accepted policy text distinct from supplemental explanations; never silently change what a recorded consent means.
 - [Document reading optimization](document-reading-optimization.md) — reuse unchanged complete readings; preserve PDF visuals and keep raw-text caches temporary.
+- [Security advisory verification](security-advisory-verification.md) — newer releases and clean audits do not prove an attack is fixed; verify unavailable fixes with regressions.

@@ -1,0 +1,8 @@
+{
+  "name": "@neuropath/node-forge-security",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local node-forge security fork; see ../../README.md for upstream provenance",
+  "main": "lib/index.js",
+  "license": "(BSD-3-Clause OR GPL-2.0)"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "@neuropath/http-cache-semantics-security",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local http-cache-semantics security fork; see ../../README.md for provenance",
+  "main": "index.js",
+  "license": "BSD-2-Clause"
+}

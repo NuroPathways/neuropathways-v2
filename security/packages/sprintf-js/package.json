@@ -1,0 +1,8 @@
+{
+  "name": "@neuropath/sprintf-js-security",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local sprintf-js security fork; see ../../README.md for upstream provenance",
+  "main": "src/sprintf.js",
+  "license": "BSD-3-Clause"
+}
