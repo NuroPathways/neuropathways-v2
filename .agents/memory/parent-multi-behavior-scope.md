@@ -9,13 +9,13 @@ Parents must be able to select one or more behaviors from initial setup, with an
 
 **How to apply:** Preserve both card groups on website and mobile. A selected behavior can focus a help or logging interaction, but must not replace or hide the other saved selections. Progress is based on recorded observations; goal check-ins are explicit caregiver ratings per behavior and do not increment numeric progress. Clear the prior check-in when that behavior's goal changes.
 
-## Restore presentation without removing functionality
+## Current responsive visual direction
 
-Keep the earlier professional blue desktop website and fuller landing-page feel. Restore presentation without rolling back the newer parent features.
+Use a calm, light, mobile-first visual system with navy text, soft teal accents, compact cards and source/status labels, and progressive disclosure. Keep red reserved for urgent help.
 
-**Why:** The user explicitly requested the old desktop/blue UI back while keeping the newly added functionality, rather than another redesign.
+**Why:** The user requested an app-wide redesign to reduce visual bulk and heavy blue while retaining the existing workflows.
 
-**How to apply:** Use older code only as a visual reference. Preserve current accounts, plans, independent behavior goals, progress, and optional upload flows.
+**How to apply:** Preserve the desktop sidebar and mobile navigation. Apply the quieter system across parent and clinician screens without changing routes, role access, clinical information, source/review states, or parent features.
 
 Keep “I Need Help Right Now” separate from the Behavior Support Library.
 
