@@ -13,3 +13,4 @@
 - [Legal-notice provenance](legal-notice-provenance.md) — keep accepted policy text distinct from supplemental explanations; never silently change what a recorded consent means.
 - [Document reading optimization](document-reading-optimization.md) — reuse unchanged complete readings; preserve PDF visuals and keep raw-text caches temporary.
 - [Security advisory verification](security-advisory-verification.md) — newer releases and clean audits do not prove an attack is fixed; verify unavailable fixes with regressions.
+- [NeuroPathways brand mark](neuropathways-brand-mark.md) — keep the app icon as a simple head profile with a winding path and star, using a green-to-blue gradient.
