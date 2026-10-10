@@ -53,7 +53,6 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
-      "lucide-react": path.resolve(import.meta.dirname, "src/components/brand/NeuroMarkIcon.jsx"),
     },
     dedupe: ["react", "react-dom"],
   },
