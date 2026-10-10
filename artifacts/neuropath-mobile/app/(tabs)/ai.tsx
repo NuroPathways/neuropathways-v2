@@ -306,6 +306,11 @@ Child's message: ${msgText}`;
       gap: 7,
       paddingHorizontal: 12,
     },
+    sendBtnText: {
+      color: "#fff",
+      fontSize: 14,
+      fontFamily: "Inter_500Medium",
+    },
     sendBtnDisabled: { opacity: 0.45 },
   });
 
