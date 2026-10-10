@@ -1,7 +1,7 @@
 export default function BrandMark({ size = 32, className = "" }) {
   return (
     <img
-      src="/neuro-pathways-mark.svg"
+      src="/neuro-pathways-mark.png"
       alt=""
       aria-hidden="true"
       className={className}
