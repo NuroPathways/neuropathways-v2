@@ -1,4 +1,5 @@
-import { ArrowLeft, Brain, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
+import BrandMark from "@/components/brand/BrandMark";
 import { useNavigate } from "react-router-dom";
 import LegalLinks from "@/components/legal/LegalLinks";
 import useLegalMetadata from "@/components/legal/useLegalMetadata";
@@ -119,9 +120,7 @@ export default function PrivacyPolicy() {
     <div className="min-h-screen bg-background font-inter">
       <header className="border-b border-border bg-card">
         <div className="max-w-3xl mx-auto px-5 py-5 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <Brain className="w-5 h-5 text-primary-foreground" />
-          </div>
+          <BrandMark size={40} />
           <div>
             <p className="font-semibold text-foreground">NeuroPathways</p>
             <p className="text-xs text-muted-foreground">Privacy Policy · Version 1.0</p>

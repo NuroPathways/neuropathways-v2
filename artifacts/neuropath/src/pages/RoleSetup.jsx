@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
-import { Brain, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import BrandMark from "@/components/brand/BrandMark";
 import SignupAuthorityFields from "@/components/signup/SignupAuthorityFields";
 
 // This page no longer asks the user to pick a role.
@@ -137,7 +138,7 @@ export default function RoleSetup() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4 font-inter">
         <motion.main initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-lg space-y-4 rounded-2xl border border-border bg-card p-6">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center"><Brain className="w-6 h-6 text-primary-foreground" /></div>
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><BrandMark size={38} /></div>
             <div><p className="text-xs text-muted-foreground">NeuroPathways</p><h1 className="text-xl font-semibold text-foreground">Account holder details</h1></div>
           </div>
           <p className="text-sm leading-6 text-muted-foreground">We ask for an age group and these statements to record who is creating the account. Children under 13 cannot create their own accounts.</p>
@@ -157,8 +158,8 @@ export default function RoleSetup() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4 font-inter">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center max-w-md w-full">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
-            <Brain className="w-8 h-8 text-primary-foreground" />
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <BrandMark size={60} />
           </div>
           <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
             <p className="text-sm font-semibold text-yellow-800 mb-1">Unable to set up this account</p>
@@ -175,8 +176,8 @@ export default function RoleSetup() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 font-inter">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-5">
-          <Brain className="w-8 h-8 text-primary-foreground" />
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5">
+          <BrandMark size={60} />
         </div>
         <h1 className="text-xl font-semibold text-foreground mb-2">Welcome to NeuroPathways</h1>
         <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">

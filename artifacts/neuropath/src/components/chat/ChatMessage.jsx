@@ -9,7 +9,7 @@ export default function ChatMessage({ message }) {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
+      className={`flex min-w-0 gap-3 ${isUser ? "justify-end" : "justify-start"}`}
     >
       {!isUser && (
         <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -17,7 +17,7 @@ export default function ChatMessage({ message }) {
         </div>
       )}
       <div
-        className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+        className={`min-w-0 max-w-[80%] break-words whitespace-normal [overflow-wrap:anywhere] rounded-2xl px-4 py-3 ${
           isUser
             ? "bg-primary text-primary-foreground rounded-tr-sm"
             : "bg-card border border-border rounded-tl-sm"
@@ -26,7 +26,7 @@ export default function ChatMessage({ message }) {
         {isUser ? (
           <p className="text-sm leading-relaxed">{message.content}</p>
         ) : (
-          <div className="text-sm leading-relaxed prose prose-sm prose-slate max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+          <div className="min-w-0 max-w-full break-words whitespace-normal [overflow-wrap:anywhere] text-sm leading-relaxed prose prose-sm prose-slate [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
             <ReactMarkdown
               components={{
                 p: ({ children }) => <p className="my-1">{children}</p>,

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from '@/lib/AuthContext';
 import { clearClientSession } from '@/lib/clientSession';
-import { Brain, Mail, Lock, Eye, EyeOff, User, ChevronDown, ChevronUp } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, User, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

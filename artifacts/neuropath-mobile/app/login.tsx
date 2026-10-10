@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TextInput,
+  Image,
   StyleSheet,
   Pressable,
   ActivityIndicator,
@@ -64,7 +65,8 @@ export default function LoginScreen() {
       width: 72,
       height: 72,
       borderRadius: 20,
-      backgroundColor: colors.primary,
+      backgroundColor: colors.background,
+      overflow: "hidden",
       alignItems: "center",
       justifyContent: "center",
       marginBottom: 20,
@@ -214,7 +216,11 @@ export default function LoginScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.logoCircle}>
-            <Feather name="activity" size={34} color="#FFFFFF" />
+            <Image
+              source={require("../assets/images/icon.png")}
+              style={{ width: 72, height: 72 }}
+              accessibilityLabel="NeuroPathways app logo"
+            />
           </View>
           <Text style={styles.appName}>NeuroPathways</Text>
           <Text style={styles.tagline}>

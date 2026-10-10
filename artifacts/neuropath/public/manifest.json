@@ -4,8 +4,8 @@
   "description": "A behavioral health companion for caregivers and clinicians to track progress, care plans, and communication.",
   "start_url": "/",
   "scope": "/",
-  "background_color": "#F3F6FB",
-  "theme_color": "#4B7BB5",
+  "background_color": "#F7FBFA",
+  "theme_color": "#18334B",
   "orientation": "portrait-primary",
   "display": "standalone",
   "icons": [

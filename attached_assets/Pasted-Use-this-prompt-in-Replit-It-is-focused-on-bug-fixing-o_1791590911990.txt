@@ -1,0 +1,569 @@
+Use this prompt in Replit. It is focused on **bug fixing only**, not redesigning or changing how the app works.
+
+```markdown
+# Replit Prompt: Full UI Bug Fix Pass Without Changing App Functionality
+
+I need you to do an all-around UI bug fix pass for NeuroPathways.
+
+Do not redesign the app.
+
+Do not remove features.
+
+Do not change how the app works.
+
+Do not change the product structure, routes, user roles, or app logic unless needed to fix bugs.
+
+This is a bug fix and polish pass focused on broken buttons, weird selected states, text overflow, layout issues, and visual glitches.
+
+---
+
+## 1. Main Problems to Fix
+
+I am running into weird UI bugs across the app:
+
+1. Some buttons show check marks next to them.
+2. Some buttons show circles next to them.
+3. When I click certain buttons, the whole button or item becomes grayed out.
+4. Some clicked items look permanently disabled even when they should still be usable.
+5. Some buttons look like checkbox/radio options even when they are normal action buttons.
+6. Some text is spilling outside of gray text bubbles/cards.
+7. Some AI chat messages or support text does not wrap correctly.
+8. Some text overflows outside cards instead of staying inside.
+9. Some cards still look awkward, blocky, or broken after clicking.
+10. Some UI states are inconsistent between pages.
+
+Fix these issues across the whole app.
+
+---
+
+## 2. Do Not Confuse Buttons With Selection Controls
+
+Audit every button component.
+
+Normal action buttons should not show:
+
+- checkmarks
+- empty circles
+- radio icons
+- checkbox icons
+- selected indicators
+
+unless the control is actually meant to be a checkbox, radio button, or selectable option.
+
+For normal buttons like:
+
+- Open Support Steps
+- I Need Help Now
+- Start Preparation
+- Done
+- Log What Happened
+- Upload Plan
+- Ask AI
+- Add Behavior
+- Add Goal
+- Show Details
+- Save
+- Skip
+- Try Today
+
+they should look like buttons only.
+
+They should not show a circle or checkmark next to the text.
+
+---
+
+## 3. Fix Button Click States
+
+When a user clicks a normal button, it should not stay grayed out unless the action is truly disabled or loading.
+
+Correct button states:
+
+### Default
+
+Button is normal and clickable.
+
+### Hover
+
+Subtle color change only.
+
+### Active / Pressed
+
+Short pressed state only while clicking.
+
+### Loading
+
+Show spinner or loading text only while the action is processing.
+
+### Disabled
+
+Only use disabled styling when the user cannot click it.
+
+Do not leave buttons gray after being clicked.
+
+Do not make a button look disabled after it was pressed unless the action is complete and intentionally unavailable.
+
+---
+
+## 4. Fix Selected State Styling
+
+If something is a selectable card, selected state is allowed.
+
+Examples:
+
+- behavior selection
+- child selection
+- intensity selection
+- goal selection
+- checkbox confirmation
+- radio group
+
+But selected states should be visually clean.
+
+Use selected styling only for actual selectable options.
+
+Selected option style:
+
+- light teal/blue background
+- thin border
+- small checkmark only if useful
+- no giant icon
+- no grayed-out disabled look
+
+Do not apply selected/checked styling to normal action buttons.
+
+---
+
+## 5. Audit Component Library
+
+Look for shared components that may be causing this issue globally.
+
+Check components such as:
+
+- Button
+- ActionButton
+- CardButton
+- SelectableCard
+- OptionButton
+- ChoiceButton
+- RadioGroup
+- Checkbox
+- Toggle
+- SupportStepButton
+- ActivityActionButton
+- QuickLogButton
+- GoalCheckInButton
+- ChatSuggestionButton
+
+Make sure normal buttons and selectable controls are separate components.
+
+If one component is being used for both buttons and selectable choices, split it into two:
+
+1. `ActionButton`
+2. `SelectableOption`
+
+Do not reuse a radio/checkbox-style component for normal actions.
+
+---
+
+## 6. Fix Text Overflow in Gray Bubbles and Cards
+
+Some text is spilling outside gray message bubbles or cards.
+
+Fix text wrapping everywhere.
+
+Apply safe wrapping rules to:
+
+- AI chat bubbles
+- support step bubbles
+- gray text boxes
+- task cards
+- activity cards
+- source explanation boxes
+- goal cards
+- document cards
+- log cards
+- mobile cards
+
+CSS rules should include:
+
+```css
+overflow-wrap: anywhere;
+word-break: break-word;
+white-space: normal;
+max-width: 100%;
+```
+
+For chat bubbles:
+
+```css
+.chat-bubble {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+```
+
+For message text:
+
+```css
+.message-text {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+```
+
+Do not allow text to extend outside of bubbles.
+
+Do not allow long AI responses, URLs, file names, or source labels to break layout.
+
+---
+
+## 7. Fix AI Chat Layout Bugs
+
+AI Chat currently looks awkward and some text may overflow.
+
+Fix:
+
+- message bubble width
+- text wrapping
+- spacing between messages
+- input bar position
+- source badges inside messages
+- long AI responses
+- long user questions
+- mobile chat layout
+
+AI Chat should look like a normal chat:
+
+- user messages aligned right
+- assistant messages aligned left
+- rounded message bubbles
+- sticky input at bottom
+- no text outside bubble
+- no giant blocky cards
+- no oversized source labels
+
+Do not let messages overflow horizontally.
+
+---
+
+## 8. Fix Gray Bubble/Text Box Issues
+
+Any gray bubble or gray card that contains text should:
+
+- expand vertically if needed
+- keep text inside the container
+- wrap long words
+- wrap long AI content
+- preserve readable line spacing
+- not clip text
+- not overflow horizontally
+
+If the content is too long, add:
+
+- Show more
+- Collapse
+- Max height with internal scroll only if necessary
+
+Do not let text visibly escape outside the gray bubble.
+
+---
+
+## 9. Fix Mobile Layout Bugs
+
+Mobile is the priority.
+
+Test on phone-sized widths.
+
+Fix:
+
+- horizontal scrolling
+- overflowing text
+- buttons too wide
+- cards wider than screen
+- badges wider than cards
+- chat bubbles overflowing
+- bottom nav overlap
+- sticky input overlap
+- page content hidden behind bottom nav
+- clicked buttons staying gray
+- weird checkmarks/circles on mobile buttons
+
+No page should require horizontal scrolling.
+
+All cards and buttons should fit inside the mobile viewport.
+
+---
+
+## 10. Fix Badge Overflow
+
+Source badges should stay small.
+
+Badges should not contain long text.
+
+Use short labels only:
+
+- Starter support
+- Uploaded plan
+- Not clinician-reviewed
+- Clinician reviewed
+- Needs review
+- Published by care team
+
+If a badge text is still too long on mobile, wrap it or shorten it.
+
+Do not use giant blue circles.
+
+Do not let badges overflow outside cards.
+
+---
+
+## 11. Fix Disabled and Completed States
+
+Only use grayed-out styling for true disabled states.
+
+For completed states, do not gray out the whole card unless intentional.
+
+Instead use:
+
+- small completed badge
+- subtle check icon
+- “Done” status text
+- light success background
+
+Example:
+
+Correct:
+
+`Done` badge in small green pill.
+
+Incorrect:
+
+Entire card becomes gray and looks broken.
+
+---
+
+## 12. Fix Task and Activity Action Buttons
+
+Task/activity buttons should not look like radio buttons.
+
+For task cards, actions should look like clean buttons:
+
+- Done
+- Struggled
+- Skip
+- Show details
+
+When clicked:
+
+- show a small status update
+- do not permanently gray out all buttons unless the task is completed
+- do not add random circles/checkmarks beside every button
+
+If task is completed, show:
+
+`Completed today`
+
+and keep the card readable.
+
+---
+
+## 13. Fix Goal Check-In Buttons
+
+Goal check-in buttons may be causing checkmark/circle issues.
+
+For check-ins like:
+
+- Going well
+- Needs support
+- Not sure
+
+these can be selectable options, but they should look clean.
+
+After selecting one, show:
+
+- selected state on the chosen option
+- no disabled gray state on the whole section
+- ability to change response if appropriate
+
+Do not make all options gray after clicking one.
+
+---
+
+## 14. Fix Support Now Buttons
+
+Support Now buttons must remain clear and usable.
+
+Buttons like:
+
+- Manageable
+- Getting difficult
+- Unsafe
+- Done
+- I can’t do this
+- It’s getting worse
+
+should be easy to tap.
+
+For intensity selection, selected state is okay.
+
+For action buttons, no checkmark/circle unless necessary.
+
+Do not make Support Now look broken or disabled after a click.
+
+---
+
+## 15. Fix Global CSS Conflicts
+
+Search for global CSS rules that may be causing unintended styles.
+
+Look for rules affecting:
+
+```css
+button:checked
+button:focus
+button:active
+button[aria-pressed="true"]
+button[aria-selected="true"]
+[role="button"]
+.selected
+.active
+.disabled
+.completed
+.option
+.choice
+```
+
+Make sure these styles are not accidentally applying to normal buttons.
+
+Check for inherited styles from radio/checkbox components.
+
+Fix CSS specificity so only the right components receive checkmark/circle styling.
+
+---
+
+## 16. Accessibility and Focus States
+
+Keep accessibility, but make focus states clean.
+
+Keyboard focus should show a subtle outline.
+
+Focus should not look like selected/checked unless the item is actually selected.
+
+Use:
+
+```css
+button:focus-visible {
+  outline: 2px solid rgba(47, 125, 161, 0.45);
+  outline-offset: 2px;
+}
+```
+
+Do not use focus state to add checkmarks, circles, or gray disabled styles.
+
+---
+
+## 17. Loading States
+
+If a button triggers loading, use a temporary loading state.
+
+Example:
+
+- “Saving…”
+- “Loading…”
+- small spinner
+
+When loading finishes, return to normal or show success.
+
+Do not keep the button gray forever.
+
+Do not show a checkbox icon as loading.
+
+---
+
+## 18. QA Every Main Page
+
+Test and fix these pages:
+
+1. Home
+2. Support Now
+3. Support Steps
+4. Behavior Support Library
+5. Goals
+6. Activities / Tasks
+7. Prepare flow
+8. Logs
+9. Documents
+10. Upload Plan
+11. AI Chat
+12. Settings
+13. Child selector
+14. Parent onboarding
+15. Mobile bottom nav
+16. Desktop sidebar
+
+Check each page for:
+
+- buttons with unwanted checkmarks
+- buttons with unwanted circles
+- buttons turning gray after click
+- text overflowing cards
+- chat bubbles overflowing
+- badges overflowing
+- cards too wide
+- broken mobile layout
+
+---
+
+## 19. Preserve Current Visual Direction
+
+Keep the cleaner, softer design direction:
+
+- calm colors
+- compact cards
+- small badges
+- readable text
+- rounded corners
+- mobile-first layout
+
+Do not revert to the older bulky design.
+
+Do not redesign everything again.
+
+Only fix the broken visual states and layout bugs.
+
+---
+
+## 20. Final Report
+
+After fixing, provide a report that includes:
+
+- which components were causing checkmarks/circles
+- which buttons were using the wrong selected state
+- what CSS rules were fixed
+- what text overflow issues were fixed
+- what pages were tested
+- what mobile sizes were tested
+- remaining issues if any
+
+---
+
+## Final Goal
+
+Fix the app-wide UI bugs so NeuroPathways feels clean and stable.
+
+Normal buttons should look like buttons.
+
+Selectable options should look like selectable options.
+
+Clicked buttons should not randomly gray out.
+
+Checkmarks and circles should only appear where they actually make sense.
+
+Text should never overflow outside gray bubbles, chat messages, cards, or badges.
+
+The app should look clean, usable, and polished on mobile and desktop without changing how the product works.
+```

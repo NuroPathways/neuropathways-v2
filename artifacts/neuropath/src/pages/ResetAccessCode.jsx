@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/entities";
-import { Brain, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
+import { CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import BrandMark from "@/components/brand/BrandMark";
 
 export default function ResetAccessCode() {
   const navigate = useNavigate();
@@ -38,7 +39,7 @@ export default function ResetAccessCode() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4 font-inter">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"><Brain className="w-5 h-5 text-primary-foreground" /></div>
+          <BrandMark size={40} />
           <span className="font-semibold text-foreground">NeuroPathways</span>
         </div>
         <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">

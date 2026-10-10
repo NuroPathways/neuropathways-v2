@@ -12,7 +12,7 @@
 }
 .np-legacy .np-nav-sidebar { width: 256px; flex-basis: 256px; }
 .np-legacy .np-nav-brand { min-height: 84px; padding: 20px 24px; }
-.np-legacy .np-nav-brand-mark { background: #496fa4; }
+.np-legacy .np-nav-brand-mark { background: transparent; }
 .np-legacy .np-nav-brand strong { font-size: 14px; }
 .np-legacy .np-nav-groups { padding: 16px; }
 .np-legacy .np-nav-group + .np-nav-group { margin-top: 8px; }
@@ -116,7 +116,7 @@
 .np-legacy { --np-nav-bg: hsl(var(--background)); --np-nav-panel: hsl(var(--background)); --np-nav-line: hsl(var(--border)); --np-nav-accent: hsl(var(--primary)); --np-nav-muted: hsl(var(--muted-foreground)); font-family: var(--font-sans), sans-serif; }
 .np-legacy .np-nav-sidebar { width: 248px; flex-basis: 248px; }
 .np-legacy .np-nav-brand { min-height: 72px; padding: 14px 20px; }
-.np-legacy .np-nav-brand-mark { background: hsl(var(--primary)); }
+.np-legacy .np-nav-brand-mark { background: transparent; }
 .np-legacy .np-nav-brand strong { font-size: 14px; }
 .np-legacy .np-nav-groups { padding: 16px 12px; }
 .np-legacy .np-nav-item { min-height: 42px; border-radius: 10px; padding: 9px 10px; font-size: 13px; }

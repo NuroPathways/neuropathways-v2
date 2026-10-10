@@ -1,5 +1,6 @@
-import { Brain, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { Link } from "react-router-dom";
+import BrandMark from "@/components/brand/BrandMark";
 import LegalLinks from "./LegalLinks";
 import useLegalMetadata from "./useLegalMetadata";
 import BackButton from "@/components/navigation/BackButton";
@@ -11,7 +12,7 @@ export default function LegalDocument({ document: content }) {
       <header className="border-b border-border bg-card">
         <div className="max-w-3xl mx-auto px-5 py-5">
           <Link to="/" className="inline-flex items-center gap-3 font-semibold text-foreground">
-            <span className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"><Brain className="w-5 h-5 text-primary-foreground" /></span>
+            <BrandMark size={40} />
             NeuroPathways
           </Link>
         </div>

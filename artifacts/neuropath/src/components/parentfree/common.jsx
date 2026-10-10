@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
+import BrandMark from "@/components/brand/BrandMark";
 
 export function Brand({ to = "/" }) {
   return (
-    <Link to={to} className="pf-serif" style={{ fontWeight: 700, fontSize: "1.2rem", color: "var(--pf-ink)", textDecoration: "none" }} data-testid="link-brand">
-      Neuro<span style={{ color: "var(--pf-accent)" }}>Pathways</span>
+    <Link to={to} className="pf-serif" style={{ display: "inline-flex", alignItems: "center", gap: 9, fontWeight: 700, fontSize: "1.2rem", color: "var(--pf-ink)", textDecoration: "none" }} data-testid="link-brand">
+      <BrandMark size={32} />
+      <span>Neuro<span style={{ color: "var(--pf-accent)" }}>Pathways</span></span>
     </Link>
   );
 }

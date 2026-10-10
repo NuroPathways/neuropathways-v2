@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   View,
   Text,
+  Image,
   ScrollView,
   StyleSheet,
   Pressable,
@@ -123,7 +124,8 @@ export default function HomeScreen() {
       width: 32,
       height: 32,
       borderRadius: 8,
-      backgroundColor: "rgba(255,255,255,0.2)",
+      backgroundColor: colors.background,
+      overflow: "hidden",
       alignItems: "center",
       justifyContent: "center",
     },
@@ -338,7 +340,11 @@ export default function HomeScreen() {
         <View style={s.headerTop}>
           <View style={s.brandRow}>
             <View style={s.brandDot}>
-              <Feather name="activity" size={16} color="#fff" />
+              <Image
+                source={require("../../assets/images/icon.png")}
+                style={{ width: 32, height: 32 }}
+                accessibilityLabel="NeuroPathways app logo"
+              />
             </View>
             <Text style={s.brandName}>NeuroPathways</Text>
           </View>

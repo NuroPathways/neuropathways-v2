@@ -39,9 +39,7 @@
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border-radius: 11px;
-  color: hsl(var(--primary-foreground));
-  background: var(--np-nav-accent);
+  background: transparent;
 }
 
 .np-nav-brand strong,

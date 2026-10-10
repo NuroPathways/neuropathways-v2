@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Brain, ArrowLeft, Loader2, Eye, EyeOff, ShieldCheck, ExternalLink } from "lucide-react";
+import { ArrowLeft, Loader2, Eye, EyeOff, ShieldCheck, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
+import BrandMark from "@/components/brand/BrandMark";
 import { saveClientSession } from "@/lib/clientSession";
 import SignupAuthorityFields from "@/components/signup/SignupAuthorityFields";
 
@@ -82,9 +83,7 @@ export default function ParentSignupUsername() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4 font-inter">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <Brain className="w-5 h-5 text-primary-foreground" />
-          </div>
+          <BrandMark size={40} />
           <span className="font-semibold text-foreground">NeuroPathways</span>
         </div>
 

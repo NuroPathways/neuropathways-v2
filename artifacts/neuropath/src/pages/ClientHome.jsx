@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Activity, AlertCircle, ArrowDownRight, ArrowRight, ArrowUpRight, Baby, BookOpen, Brain, CalendarDays, Check, ChevronRight, ClipboardList, FileText, Heart, MessageCircle, ShieldCheck, Sparkles, Star, UserRound, Wind, Zap } from "lucide-react";
+import { Activity, AlertCircle, ArrowDownRight, ArrowRight, ArrowUpRight, Baby, BookOpen, CalendarDays, Check, ChevronRight, ClipboardList, FileText, Heart, MessageCircle, ShieldCheck, Sparkles, Star, UserRound, Wind, Zap } from "lucide-react";
 import { base44 } from "@/api/entities";
+import BrandMark from "@/components/brand/BrandMark";
 import { useAuth } from "@/lib/AuthContext";
 import RoleAwareShell from "@/components/navigation/RoleAwareShell";
 import { createClientHomeNavigation, mobilePrimaryKeysForRole } from "@/components/navigation/navigationModels";
@@ -219,7 +220,7 @@ export default function ClientHome({ onSupportNow }) {
       <header className="ch-hero">
         <div className="ch-shell ch-hero-inner">
           <div>
-            <div className="ch-hero-brand"><span><Brain size={17} /></span>NeuroPathways</div>
+            <div className="ch-hero-brand"><span><BrandMark size={25} /></span>NeuroPathways</div>
             <p className="ch-hero-greeting">{greeting()},</p>
             <h1>{greetingName}</h1>
             <p className="ch-hero-subtitle">{isIndividualClient ? "Your personal support hub" : "Your family's behavioral support hub"}</p>

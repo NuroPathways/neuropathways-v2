@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import BrandMark from "@/components/brand/BrandMark";
 import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
 import {
   Users, FileText, Plus, BarChart2, MessageCircle,
-  Upload, ShieldAlert, ChevronRight, Brain, TrendingUp,
+  Upload, ShieldAlert, ChevronRight, TrendingUp,
   Clock, Star, Activity, Settings, ArrowUpRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,7 @@ export default function ClinicianDashboard() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                  <Brain className="w-4 h-4 text-white" />
+                  <BrandMark size={25} />
                 </div>
                 <span className="text-white/80 text-sm font-medium">NeuroPathways</span>
               </div>

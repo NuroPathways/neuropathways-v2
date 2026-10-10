@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from '@/api/entities';
-import { Brain, Stethoscope, Heart } from "lucide-react";
+import { Stethoscope, Heart } from "lucide-react";
 import { motion } from "framer-motion";
+import BrandMark from "@/components/brand/BrandMark";
 
 export default function RoleSelection() {
   const navigate = useNavigate();
@@ -28,9 +29,7 @@ export default function RoleSelection() {
         className="w-full max-w-md"
       >
         <div className="text-center mb-10">
-          <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-5 shadow-lg shadow-primary/25">
-            <Brain className="w-7 h-7 text-primary-foreground" />
-          </div>
+          <div className="mx-auto mb-5"><BrandMark size={56} /></div>
           <h1 className="text-2xl font-bold text-foreground mb-2">How will you use NeuroPathways?</h1>
           <p className="text-muted-foreground text-sm">Choose your role to personalize your experience</p>
         </div>

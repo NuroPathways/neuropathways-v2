@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router-dom";
 import {
   ArrowRight,
   Baby,
-  Brain,
   ChevronDown,
   ChevronRight,
   LifeBuoy,
@@ -12,6 +11,7 @@ import {
   MoreHorizontal,
   X,
 } from "lucide-react";
+import BrandMark from "@/components/brand/BrandMark";
 import "./role-aware-navigation.css";
 import "./legacy-skin.css";
 import {
@@ -178,7 +178,7 @@ export default function RoleAwareShell({
     <div className={`np-nav-shell np-nav-role-${role}${legacyAppearance ? " np-legacy" : ""}${hideTopbar ? " np-nav-hide-topbar" : ""}`}>
       <aside className="np-nav-sidebar">
         <div className="np-nav-brand">
-          <span className="np-nav-brand-mark"><Brain size={19} aria-hidden="true" /></span>
+          <span className="np-nav-brand-mark"><BrandMark size={30} /></span>
           <span><strong>NeuroPathways</strong><small>{roleLabel || "Workspace"}</small></span>
         </div>
         {selectedChild && !showChildLinks && (
@@ -203,7 +203,7 @@ export default function RoleAwareShell({
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          <span className="np-nav-mobile-brand"><Brain size={17} aria-hidden="true" />NeuroPathways</span>
+          <span className="np-nav-mobile-brand"><BrandMark size={25} />NeuroPathways</span>
           <span className="np-nav-mobile-role">{roleLabel || "Workspace"}</span>
           {(childrenOptions.length > 1 || selectedChild) && (
             <ChildContext
@@ -251,7 +251,7 @@ export default function RoleAwareShell({
           />
           <aside className="np-nav-mobile-drawer" aria-label={`${roleLabel || "Workspace"} navigation`}>
             <div className="np-nav-drawer-heading">
-              <span className="np-nav-brand-mark"><Brain size={18} aria-hidden="true" /></span>
+              <span className="np-nav-brand-mark"><BrandMark size={30} /></span>
               <span><strong>NeuroPathways</strong><small>{roleLabel || "Workspace"}</small></span>
               <button type="button" className="np-nav-drawer-close" aria-label="Close navigation menu" onClick={closeMenu}>
                 <X size={18} />

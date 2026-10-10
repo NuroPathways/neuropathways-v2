@@ -523,17 +523,17 @@ export default function AIChat() {
 
           <AnimatePresence>
             {messages.map((m, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`np-ai-chat-turn flex gap-2.5 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`np-ai-chat-turn flex min-w-0 gap-2.5 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 {m.role === "assistant" && (
                   <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Brain className="w-4 h-4 text-primary-foreground" />
                   </div>
                 )}
-                <div className={`np-ai-chat-bubble max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-card border border-border rounded-tl-sm text-foreground"}`}>
+                <div className={`np-ai-chat-bubble min-w-0 max-w-[85%] break-words whitespace-normal [overflow-wrap:anywhere] rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-card border border-border rounded-tl-sm text-foreground"}`}>
                   {m.role === "user" ? (
                     <p>{m.content}</p>
                   ) : (
-                    <div className="prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:font-semibold">
+                    <div className="min-w-0 max-w-full break-words whitespace-normal [overflow-wrap:anywhere] prose prose-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:font-semibold">
                       <ReactMarkdown
                         components={{
                           p: ({ children }) => <p className="my-1 leading-relaxed text-foreground">{children}</p>,

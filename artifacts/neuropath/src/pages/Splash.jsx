@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Brain, ShieldCheck, ArrowRight, LockKeyhole, TimerReset, UserRoundCheck } from "lucide-react";
+import { ShieldCheck, ArrowRight, LockKeyhole, TimerReset, UserRoundCheck } from "lucide-react";
 import { base44 } from '@/api/entities';
+import BrandMark from "@/components/brand/BrandMark";
 import "./splash-landing.css";
 
 const STEPS = [
@@ -45,7 +46,7 @@ export default function Splash() {
   return (
     <div className="np">
       <nav className="np-nav">
-        <span className="np-brand"><span className="np-mark"><Brain size={20} color="#fff" /></span>NeuroPathways</span>
+        <span className="np-brand"><span className="np-mark"><BrandMark size={34} /></span>NeuroPathways</span>
         <div className="np-navr">
           <a href="#clinicians" className="np-textbtn" data-testid="link-nav-clinicians">For clinics</a>
           <Link to="/ParentLogin" className="np-btn small primary" data-testid="link-parent-login">I Already Have an Account</Link>
