@@ -37,9 +37,9 @@ const RATINGS = [
 ];
 
 const OUTCOMES = [
-  ["used_skill", "✓ Completed"],
-  ["not_yet", "○ Didn't get a chance"],
-  ["partially", "○ We struggled with this"],
+  ["used_skill", "Done"],
+  ["not_yet", "Didn't get a chance"],
+  ["partially", "We struggled"],
 ];
 
 function sourceText(action) {
@@ -54,6 +54,7 @@ function statusTone(status) {
 
 function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
   const [error, setError] = useState("");
+  const [showPracticeSteps, setShowPracticeSteps] = useState(false);
   const document = action.sourceDocumentId
     ? documents.find((item) => item.id === action.sourceDocumentId)
     : null;
@@ -61,6 +62,8 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
   const feedback = action.logs?.[0];
   const busy = onStatus.isPending && onStatus.variables?.actionId === action.id;
   const saving = onOutcome.isPending && onOutcome.variables?.actionId === action.id;
+  const practicedSkill = action.steps?.find((step) => step.startsWith("Skill practiced: "));
+  const practiceSteps = action.steps?.filter((step) => step !== practicedSkill) || [];
 
   const updateStatus = (status) => {
     setError("");
@@ -74,25 +77,41 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
     <article className={`pf-card pf-daily-action ${action.status === "needs_review" ? "needs-review" : ""}`} data-testid={`card-daily-action-${action.id}`}>
       <div className="pf-daily-action-top">
         <div>
-          <p className="pf-eyebrow">Practice this today · {action.behaviorName} · {action.estimatedMinutes} min</p>
+          <p className="pf-eyebrow">{action.behaviorName} · {action.estimatedMinutes} min</p>
           <h3>{action.title}</h3>
         </div>
         <span className={`pf-tag ${statusTone(action.status)}`}>{STATUS_LABELS[action.status] || "Ready when you are"}</span>
       </div>
-      <p className="pf-daily-description">{action.description}</p>
+      <p className="pf-daily-description"><strong>What to do:</strong> {action.description}</p>
+      {practicedSkill && <p className="pf-daily-skill"><strong>Skill practiced:</strong> {practicedSkill.replace(/^Skill practiced:\s*/, "")}</p>}
       <div className="pf-daily-source">
         <span className={`pf-tag ${action.sourceType === "starter_template" ? "sun" : ""}`}>{sourceText(action)}</span>
         {document && <span className="pf-hint">Plan: {document.title || document.fileName}</span>}
       </div>
-      {(action.whyItMayHelp || action.steps?.length > 0) && (
-        <details className="pf-daily-details">
-          <summary>Why this may help · View steps</summary>
-          {action.whyItMayHelp && <p className="pf-daily-why"><strong>Why you're doing this:</strong> {action.whyItMayHelp}</p>}
-          {action.steps?.length > 0 && (
-            <ol className="pf-daily-steps">
-              {action.steps.map((step, index) => <li key={`${action.id}-${index}`}>{step}</li>)}
-            </ol>
+      {practiceSteps.length > 0 && (
+        <>
+          <button
+            type="button"
+            className="pf-btn primary"
+            aria-expanded={showPracticeSteps}
+            onClick={() => setShowPracticeSteps((shown) => !shown)}
+          >
+            {showPracticeSteps ? "Hide Activity Steps" : "Try Today"}
+          </button>
+          {showPracticeSteps && (
+            <section className="pf-daily-try-steps" aria-label={`Steps to try for ${action.title}`}>
+              <strong>Steps to try</strong>
+              <ol className="pf-daily-steps">
+                {practiceSteps.map((step, index) => <li key={`${action.id}-try-${index}`}>{step}</li>)}
+              </ol>
+            </section>
           )}
+        </>
+      )}
+      {action.whyItMayHelp && (
+        <details className="pf-daily-details">
+          <summary>Show Details</summary>
+          {action.whyItMayHelp && <p className="pf-daily-why"><strong>Why you're doing this:</strong> {action.whyItMayHelp}</p>}
         </details>
       )}
       {action.status === "needs_review" && (
@@ -101,9 +120,9 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
       {(action.status === "done" || action.status === "logged") && feedback && (
         <p className="pf-hint pf-daily-feedback" data-testid={`text-action-feedback-${action.id}`}>
           {feedback.eventType === "completion" && feedback.rating
-            ? `Your feedback: ${RATINGS.find(([value]) => value === feedback.rating)?.[1] || feedback.rating}`
+            ? `Logged: ${RATINGS.find(([value]) => value === feedback.rating)?.[1] || feedback.rating}`
             : feedback.outcome
-              ? `Your note: ${OUTCOMES.find(([value]) => value === feedback.outcome)?.[1] || feedback.outcome}`
+              ? `Logged: ${OUTCOMES.find(([value]) => value === feedback.outcome)?.[1] || feedback.outcome}`
               : "Your feedback was saved."}
           {feedback.note ? ` · ${feedback.note}` : ""}
         </p>
@@ -174,6 +193,7 @@ export default function DailySupportHome({
   onAsk,
 }) {
   const queryClient = useQueryClient();
+  const [showAllTasks, setShowAllTasks] = useState(false);
   const log = useLogParentDailyAction({ request: parentRequest() });
   const update = useUpdateParentDailyAction({ request: parentRequest() });
   const status = {
@@ -221,13 +241,14 @@ export default function DailySupportHome({
       <section className="pf-daily-section" aria-labelledby="daily-tasks-heading">
         <div className="pf-daily-section-heading">
           <div>
-            <p className="pf-eyebrow">Goal- and plan-based practice</p>
-            <h2 id="daily-tasks-heading">Today for {childName}</h2>
+            <p className="pf-eyebrow">Things to Try Today</p>
+            <h2 id="daily-tasks-heading">Activities for {childName}</h2>
           </div>
           <span className="pf-daily-count">{tasks.filter((task) => task.status === "not_started").length} ready</span>
         </div>
-        <p className="pf-hint">Each activity comes from a saved goal, an uploaded plan, or clearly labeled starter support. Only try what feels safe and fits today.</p>
-        {tasks.length ? actionGrid(tasks) : (
+        <p className="pf-hint">Simple activities connected to selected behaviors and their support sources.</p>
+        <p className="pf-hint">Only try activities that feel safe and realistic today. Stop if an activity becomes stressful or unsafe.</p>
+        {tasks.length ? actionGrid(showAllTasks ? tasks : tasks.slice(0, 3)) : (
           <div className="pf-card" data-testid="empty-daily-plan">
             <h3>Build today's practice list</h3>
             <p>Choose a goal or read an uploaded plan, and activities will be built around what {childName} is working on.</p>
@@ -236,6 +257,11 @@ export default function DailySupportHome({
               <button type="button" className="pf-btn" onClick={onUpload}>Read a Plan</button>
             </div>
           </div>
+        )}
+        {tasks.length > 3 && (
+          <button type="button" className="pf-btn" onClick={() => setShowAllTasks((shown) => !shown)}>
+            {showAllTasks ? "Show Fewer Activities" : "See More Activities"}
+          </button>
         )}
       </section>
 

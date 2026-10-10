@@ -73,7 +73,7 @@ test("daily actions turn plan activities into concrete steps and keep their prov
   assert.deepEqual(actions[0].steps, [
     "In this routine: During homework at the kitchen table",
     "Offer this opportunity: Before a short assignment, offer the familiar break card and wait",
-    "Notice this skill: Requests a break using the card",
+    "Skill practiced: Requests a break using the card",
     "Plan-listed reinforcement: Provide the planned break after the request",
   ]);
   assert.match(actions[0].whyItMayHelp, /Maya/);
@@ -123,7 +123,7 @@ test("daily actions round-robin across selected behaviors and cap the list at fi
   assert.ok(actions.some((action) => action.sourceType === "clinician_reviewed"));
 });
 
-test("a selected goal creates low-pressure Behavior Support Library practice without copying parent notes", () => {
+test("a selected goal creates varied task-refusal activities without copying parent notes", () => {
   const repeatedNote = "Offer a visual break card.";
   const actions = buildParentDailyActionDrafts({
     date: "2026-10-07",
@@ -134,13 +134,33 @@ test("a selected goal creates low-pressure Behavior Support Library practice wit
       { behaviorKey: "task_refusal", customBehavior: null, whatHelped: repeatedNote, createdAt: new Date() },
     ],
   });
-  assert.equal(actions.length, 1);
-  assert.equal(actions[0].sourceType, "starter_template");
-  assert.match(actions[0].whyItMayHelp, /saved goal: Ask for a break/);
-  assert.equal(actions[0].sourceDocumentId, null);
-  assert.match(actions[0].whyItMayHelp, /Behavior Support Library/);
-  assert.match(actions[0].description, /low-pressure/);
-  assert.ok(!actions[0].steps.some((step) => step.includes(repeatedNote)));
+  assert.equal(actions.length, 3);
+  assert.deepEqual(actions.map((action) => action.title), [
+    "Ask for a Break Practice",
+    "One-Step Start",
+    "First-Then Choice",
+  ]);
+  assert.ok(actions.every((action) => action.sourceType === "starter_template"));
+  assert.ok(actions.every((action) => /saved goal: Ask for a break/.test(action.whyItMayHelp)));
+  assert.ok(actions.every((action) => action.sourceDocumentId === null));
+  assert.ok(actions.every((action) => action.steps.some((step) => step.startsWith("If it gets hard:"))));
+  assert.ok(actions.every((action) => !action.steps.some((step) => step.includes(repeatedNote))));
+});
+
+test("starter practice is behavior-specific and excludes unsafe rehearsal", () => {
+  const makeActions = (behaviorKey: string, behaviorName: string) => buildParentDailyActionDrafts({
+    date: "2026-10-07",
+    selectedBehaviors: [selectedBehavior(behaviorKey, behaviorName)],
+    supportCards: [makeStarterCard(behaviorKey, null, "Use a safe replacement")],
+    logs: [],
+  });
+  const elopement = makeActions("elopement", "Elopement / Running Away");
+  const selfInjury = makeActions("self_injury", "Self-Injury");
+  assert.ok(elopement.some((action) => action.title === "Indoor Stop-and-Return Game"));
+  assert.ok(selfInjury.some((action) => action.title === "Practice Asking for Help"));
+  assert.notDeepEqual(elopement.map((action) => action.title), selfInjury.map((action) => action.title));
+  assert.doesNotMatch(elopement.map((action) => `${action.title} ${action.description} ${action.steps.join(" ")}`).join(" "), /restraint|physical block|create a difficult situation/i);
+  assert.doesNotMatch(selfInjury.map((action) => `${action.title} ${action.description} ${action.steps.join(" ")}`).join(" "), /restraint|physical block|create a difficult situation/i);
 });
 
 test("an unselected conflicted plan does not become a family-facing review activity", () => {
@@ -178,7 +198,8 @@ test("a plan-discovered goal creates a sourced daily activity even when the beha
   assert.equal(actions[0].sourceType, "parent_uploaded_plan");
   assert.equal(actions[0].sourceDocumentId, "parent-plan-1");
   assert.match(actions[0].whyItMayHelp, /Maya's plan goal: Request a break independently during homework/);
-  assert.match(actions[0].description, /naturally today/);
+  assert.match(actions[0].description, /communication signal/);
+  assert.match(actions[0].steps[0], /^Skill practiced:/);
 });
 
 test("clinician report goals and explicit milestones generate distinct daily practice actions", () => {
@@ -205,7 +226,7 @@ test("clinician report goals and explicit milestones generate distinct daily pra
   assert.ok(actions.every((action) => action.sourceType === "clinician_uploaded_plan"));
   assert.ok(actions.every((action) => action.supportCardId === null));
   assert.ok(actions.every((action) => action.sourceDocumentId === null));
-  assert.deepEqual(actions.map((action) => action.steps[0]), goal.milestones);
+  assert.deepEqual(actions.map((action) => action.steps[0]), goal.milestones.map((milestone) => `Skill practiced: ${milestone}`));
   assert.ok(actions.every((action) => action.whyItMayHelp.includes("Maya's plan goal")));
   assert.notEqual(actions[0].actionKey, actions[1].actionKey);
 });
@@ -228,6 +249,24 @@ test("unsafe instructions in a document goal never become a daily activity", () 
   assert.deepEqual(actions, []);
 });
 
+test("clinical-sounding placeholder goals are rendered in parent-friendly language", () => {
+  const actions = buildParentDailyActionDrafts({
+    date: "2026-10-07",
+    selectedBehaviors: [],
+    supportCards: [],
+    planGoals: [{
+      id: "parent-facing-goal",
+      title: "No aversive behaviors",
+      description: "",
+      milestones: [],
+      sourceType: "parent_uploaded_plan",
+    }],
+    logs: [],
+  });
+  assert.equal(actions[0]?.title, "Practice: Use safe hands and safe objects");
+  assert.match(actions[0]?.whyItMayHelp || "", /Use safe hands and safe objects/);
+});
+
 test("conflicted plan guidance falls back to safe library support for an active behavior", () => {
   const behavior = { ...selectedBehavior("task_refusal", "Task refusal"), goal: null };
   const actions = buildParentDailyActionDrafts({
@@ -244,13 +283,13 @@ test("conflicted plan guidance falls back to safe library support for an active 
     logs: [],
   });
 
-  assert.equal(actions.length, 1);
-  assert.equal(actions[0].status, "not_started");
-  assert.equal(actions[0].sourceType, "starter_template");
-  assert.equal(actions[0].sourceDocumentId, null);
-  assert.match(actions[0].whyItMayHelp, /Behavior Support Library/);
-  assert.doesNotMatch(`${actions[0].title} ${actions[0].description}`, /conflict|clinician review|restraint|disputed/i);
-  assert.ok(!actions[0].steps.some((step) => /restraint|disputed plan/i.test(step)));
+  assert.equal(actions.length, 3);
+  assert.ok(actions.every((action) => action.status === "not_started"));
+  assert.ok(actions.every((action) => action.sourceType === "starter_template"));
+  assert.ok(actions.every((action) => action.sourceDocumentId === null));
+  assert.ok(actions.every((action) => /Behavior Support Library|starter support/i.test(action.whyItMayHelp)));
+  assert.ok(actions.every((action) => !/conflict|clinician review|restraint|disputed/i.test(`${action.title} ${action.description}`)));
+  assert.ok(actions.every((action) => !action.steps.some((step) => /restraint|disputed plan/i.test(step))));
 });
 
 test("parent action dates accept real calendar days and reject malformed dates", () => {

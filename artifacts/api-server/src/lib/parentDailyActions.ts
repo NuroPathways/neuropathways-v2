@@ -49,6 +49,77 @@ export type ParentPlanGoal = {
 const UNSAFE_PLAN_PRACTICE =
   /\b(restraint|seclusion|pin(?:ning)?|hold(?:ing)?\s+(?:down|still)|physical block(?:ing)?|punish(?:ment)?|extinction|force them)\b/i;
 
+type PracticeActivity = {
+  id: string;
+  title: string;
+  description: string;
+  skill: string;
+  minutes: number;
+  ifHard: string;
+};
+
+const STARTER_PRACTICE_ACTIVITIES: Record<string, PracticeActivity[]> = {
+  elopement: [
+    { id: "stay-together-puzzle", title: "Puzzle Together", description: "Choose a small puzzle and work on it together at a table or on the floor. Notice staying in the same safe area.", skill: "Staying near a caregiver in one safe area", minutes: 5, ifHard: "Pause the activity and move to a calmer, safer place." },
+    { id: "indoor-stop-and-return", title: "Indoor Stop-and-Return Game", description: "In a familiar room away from exits, take a few steps apart. Practice a familiar “stop” or “come back” cue once, then praise returning.", skill: "Responding to a familiar safety cue", minutes: 3, ifHard: "Skip the game and review the child’s existing safety plan." },
+    { id: "stay-together-game", title: "Board Game at the Table", description: "Play a short matching or board game together at the table. Notice staying nearby; stop whenever either of you is ready.", skill: "Staying in one safe location", minutes: 5, ifHard: "Choose a shorter activity in a safer, familiar space." },
+  ],
+  task_refusal: [
+    { id: "one-small-step", title: "One-Step Start", description: "Choose one tiny part of a familiar task, such as putting away one toy or writing one word. Offer help and notice any attempt.", skill: "Starting one manageable task step", minutes: 3, ifHard: "Make the step smaller or offer a break; do not insist on continuing." },
+    { id: "first-then-choice", title: "First-Then Choice", description: "Offer two acceptable ways to begin one small task step, then say what comes next using a familiar first-then phrase.", skill: "Choosing how to start and understanding what comes next", minutes: 3, ifHard: "Pause and offer a break or help instead of repeating the request." },
+    { id: "break-request", title: "Ask for a Break Practice", description: "Before an easy task, show the child’s familiar break signal or communication tool. Model it once and let them choose whether to practice.", skill: "Asking for a break using a familiar communication method", minutes: 3, ifHard: "Accept communication in any familiar form and pause the task." },
+  ],
+  meltdowns: [
+    { id: "calm-space-tour", title: "Calm Space Tour", description: "During a calm moment, visit a familiar quiet space together and let your child choose one item they may want there.", skill: "Finding a familiar calm space and choosing a support", minutes: 3, ifHard: "Keep it brief; do not require your child to stay in the space." },
+    { id: "feelings-match", title: "Feelings Match", description: "Look at a few familiar feeling pictures or words together. Invite your child to point to one, with no need to explain.", skill: "Noticing or communicating a feeling", minutes: 3, ifHard: "Put the cards away and return to a preferred, quiet activity." },
+    { id: "calm-choice", title: "Choose a Calming Option", description: "Offer two calming options your child already knows, such as quiet time or a familiar sensory item. Let them choose or decline.", skill: "Communicating a calming preference", minutes: 3, ifHard: "Reduce demands and give space; do not press for a choice." },
+  ],
+  aggression: [
+    { id: "help-signal", title: "Practice a Help Signal", description: "During an easy shared activity, model the child’s familiar way to ask for help. Pause so they can try it if they want.", skill: "Asking for help before frustration builds", minutes: 3, ifHard: "Offer help directly and pause the activity." },
+    { id: "space-request", title: "Ask for Space Practice", description: "When everyone is calm, practice a familiar word, gesture, or communication button for asking for space.", skill: "Communicating a need for space", minutes: 3, ifHard: "Give space and stop the practice; do not move closer or prompt repeatedly." },
+    { id: "safe-object", title: "Gentle Object Practice", description: "During a calm preferred activity, use a soft toy or pillow and model placing or touching it gently. Keep the practice optional.", skill: "Handling a soft object safely", minutes: 3, ifHard: "Put the object away and switch to a familiar calming option." },
+  ],
+  self_injury: [
+    { id: "familiar-help-request", title: "Practice Asking for Help", description: "During an easy routine, model the child’s familiar way to ask for help or a break. Let them try once if they choose.", skill: "Communicating a need for help or a break", minutes: 3, ifHard: "Pause the routine and use only familiar supports from the child’s safety plan." },
+    { id: "safe-sensory-choice", title: "Choose a Familiar Sensory Tool", description: "During a calm moment, offer two safe sensory options already used by your child and let them choose or decline.", skill: "Choosing a familiar calming support", minutes: 3, ifHard: "Remove the options and follow the child’s existing safety plan." },
+    { id: "calm-space-tour", title: "Calm Space Tour", description: "When your child is calm, visit a familiar quiet space and identify one support they already use there.", skill: "Finding a familiar calm space", minutes: 3, ifHard: "Keep the visit brief and optional." },
+  ],
+  transition_difficulty: [
+    { id: "timer-transition", title: "Timer Transition Practice", description: "For an easy change between two familiar activities, give a short warning and use a familiar timer or visual cue.", skill: "Preparing for a change in activity", minutes: 5, ifHard: "Offer more time or a familiar transition support; do not force the change for practice." },
+    { id: "first-then-transition", title: "First-Then Routine", description: "Show a familiar first-then cue for one small routine, such as “first put away one toy, then snack.”", skill: "Understanding what comes next", minutes: 3, ifHard: "Simplify the next step or pause the transition." },
+    { id: "transition-object", title: "Carry a Transition Object", description: "Let your child choose a small, safe item to carry while moving between two familiar activities.", skill: "Moving between familiar activities", minutes: 3, ifHard: "Stay with the current activity and try another time." },
+  ],
+  property_destruction: [
+    { id: "put-down-practice", title: "Put It Down Practice", description: "During a calm moment, practice picking up one safe household item and placing it gently on a surface.", skill: "Handling and putting down objects safely", minutes: 3, ifHard: "Stop and move breakable items out of reach; offer a break." },
+    { id: "ask-help-object", title: "Ask for Help With a Tricky Item", description: "Choose an easy toy or task together. Model the child’s familiar help signal if it becomes frustrating.", skill: "Asking for help before frustration builds", minutes: 3, ifHard: "Put the item away and pause the task." },
+    { id: "soft-object-practice", title: "Practice With a Soft Object", description: "Use a soft toy or pillow in a calm activity and practice placing it down gently.", skill: "Using safe objects and gentle handling", minutes: 3, ifHard: "End the activity and choose a familiar calming option." },
+  ],
+  daily_living: [
+    { id: "toothbrush-step", title: "One Toothbrush Step", description: "Practice one optional step in the familiar toothbrushing routine, such as picking up the toothbrush or putting it back.", skill: "Participating in one hygiene routine step", minutes: 3, ifHard: "Stop at the first sign of distress and try a smaller step another time." },
+    { id: "shoes-step", title: "One Shoes Step", description: "Offer one small step in the familiar shoes routine, such as opening the shoe or placing it by the door.", skill: "Participating in one dressing routine step", minutes: 3, ifHard: "Offer help or pause; do not force the routine." },
+    { id: "handwashing-step", title: "One Handwashing Step", description: "When it naturally fits, practice one familiar handwashing step, such as turning on the tap or rubbing hands together.", skill: "Participating in one handwashing step", minutes: 3, ifHard: "Pause and try a smaller step later." },
+  ],
+};
+
+const CUSTOM_PRACTICE_ACTIVITIES: PracticeActivity[] = [
+  { id: "familiar-help-signal", title: "Practice a Familiar Help Signal", description: "During an easy, preferred activity, model one communication signal your child already uses for help, a break, or more.", skill: "Communicating a need using a familiar method", minutes: 3, ifHard: "Stop prompting and continue with the preferred activity." },
+  { id: "shared-preferred-activity", title: "Short Shared Activity", description: "Choose a familiar activity your child enjoys and spend a few minutes doing it together, following their lead.", skill: "Joining a familiar activity and communicating choices", minutes: 5, ifHard: "Give space or end the activity if it stops feeling comfortable." },
+  { id: "one-small-routine-step", title: "One Small Routine Step", description: "Choose one easy step from a familiar daily routine and offer help or a choice about how to begin.", skill: "Starting one manageable routine step", minutes: 3, ifHard: "Pause and make the step smaller." },
+];
+
+function practiceActivitiesFor(behavior: Pick<ParentBehavior, "behaviorKey" | "behaviorName">): PracticeActivity[] {
+  const identity = `${behavior.behaviorKey || ""} ${behavior.behaviorName || ""}`.normalize("NFKC").toLowerCase();
+  if (identity.includes("elopement") || identity.includes("running away")) return STARTER_PRACTICE_ACTIVITIES.elopement;
+  if (identity.includes("self_injury") || identity.includes("self-injury") || identity.includes("self injury")) return STARTER_PRACTICE_ACTIVITIES.self_injury;
+  if (identity.includes("aggression")) return STARTER_PRACTICE_ACTIVITIES.aggression;
+  if (identity.includes("meltdown") || identity.includes("dysregulation")) return STARTER_PRACTICE_ACTIVITIES.meltdowns;
+  if (identity.includes("task_refusal") || identity.includes("task refusal")) return STARTER_PRACTICE_ACTIVITIES.task_refusal;
+  if (identity.includes("transition")) return STARTER_PRACTICE_ACTIVITIES.transition_difficulty;
+  if (identity.includes("property_destruction") || identity.includes("property destruction")) return STARTER_PRACTICE_ACTIVITIES.property_destruction;
+  if (identity.includes("daily_living") || identity.includes("daily living") || identity.includes("hygiene")) return STARTER_PRACTICE_ACTIVITIES.daily_living;
+  return CUSTOM_PRACTICE_ACTIVITIES;
+}
+
 function parseGoalMilestones(notes: string | null | undefined): string[] {
   if (typeof notes !== "string") return [];
   return notes.split(/\r?\n/)
@@ -57,6 +128,14 @@ function parseGoalMilestones(notes: string | null | undefined): string[] {
     .filter((line) => !UNSAFE_PLAN_PRACTICE.test(line))
     .map((line) => line.slice(0, 400))
     .slice(0, 8);
+}
+
+function parentFacingGoalText(goal: string): string {
+  const normalized = goal.trim().replace(/[.!?]+$/g, "").toLocaleLowerCase();
+  if (normalized === "no aversive behaviors") return "Use safe hands and safe objects";
+  if (normalized === "reduce maladaptive behavior") return "Use a safer way to ask for help";
+  if (normalized === "increase compliance") return "Complete one small step";
+  return goal.trim();
 }
 
 export async function getParentPlanGoals(childId: string): Promise<ParentPlanGoal[]> {
@@ -86,9 +165,9 @@ const SOURCE_PRIORITY: Record<ParentDailyActionSource, number> = {
   clinician_reviewed: 0,
   clinician_uploaded_plan: 1,
   parent_uploaded_plan: 2,
-  starter_template: 3,
-  recent_log_pattern: 4,
-  selected_behavior: 5,
+  recent_log_pattern: 3,
+  selected_behavior: 4,
+  starter_template: 5,
 };
 
 export function normalizeParentActionDate(requested?: string | null) {
@@ -198,7 +277,7 @@ function planActivityDraft(
   const steps = cleanSteps([
     `In this routine: ${activity.routineContext}`,
     `Offer this opportunity: ${activity.opportunity}`,
-    `Notice this skill: ${activity.skill}`,
+    `Skill practiced: ${activity.skill}`,
     activity.reinforcement
       ? `Plan-listed reinforcement: ${activity.reinforcement}`
       : null,
@@ -213,7 +292,7 @@ function planActivityDraft(
     sourceType: activity.sourceType || sourceTypeFor(card),
     sourceDocumentId: activity.sourceDocumentId,
     title: activity.title,
-    description: `Try this only in the routine described and when it fits ${card.behaviorName}'s written support plan. Do not create a difficult situation to practice it.`,
+    description: `${activity.routineContext}: ${activity.opportunity}`,
     whyItMayHelp: card.planGoal
       ? `This gives ${childName} a chance to practice ${activity.skill} during ${activity.routineContext}, supporting the plan goal: ${card.planGoal}`
       : `This gives ${childName} a chance to practice ${activity.skill} during ${activity.routineContext}, as described in the linked plan.`,
@@ -301,35 +380,6 @@ function cardPractice(card: SupportCard, date: string): DailyActionDraft {
   );
 }
 
-function selectedBehaviorDraft(
-  behavior: ParentBehavior,
-  date: string,
-  kind: ParentDailyActionKind,
-  slot: string,
-  title: string,
-  detail: string,
-): DailyActionDraft {
-  const identity = parentBehaviorIdentity(behavior);
-  return {
-    actionDate: date,
-    actionKey: actionKey(kind, identity, slot),
-    kind,
-    behaviorKey: behavior.behaviorKey,
-    behaviorName: behavior.behaviorName,
-    supportCardId: null,
-    sourceType: "selected_behavior",
-    sourceDocumentId: null,
-    title,
-    description: behavior.goal
-      ? `Based on your family-selected goal for ${behavior.behaviorName}.`
-      : `No support card is saved for ${behavior.behaviorName}; use this as a simple observation or review of familiar support.`,
-    whyItMayHelp: `This is tied to your selected focus, ${behavior.behaviorName}. Use it to notice what fits your family, not as a measure of clinical progress.`,
-    steps: [detail],
-    estimatedMinutes: kind === "practice" ? 3 : 5,
-    status: "not_started",
-  };
-}
-
 function planGuidedPracticeDraft(
   card: SupportCard,
   selectedBehavior: ParentBehavior | undefined,
@@ -341,10 +391,19 @@ function planGuidedPracticeDraft(
   const skill = cleanSteps([card.replacementSkill, ...card.prevention], 1)[0];
   if (!sourceDocumentId || !skill) return null;
 
+  const activity = practiceActivitiesFor(card).find((candidate) =>
+    /\b(break|help|communicat|signal|request)\b/i.test(skill)
+      ? /break|help|signal|communication/i.test(`${candidate.title} ${candidate.skill}`)
+      : /\b(stay|near|stop|boundary|return)\b/i.test(skill)
+        ? /stay|stop|return|safe area/i.test(`${candidate.title} ${candidate.skill}`)
+        : /\b(transition|move|next activity|warning)\b/i.test(skill)
+          ? /transition|next|move/i.test(`${candidate.title} ${candidate.skill}`)
+          : false,
+  ) || practiceActivitiesFor(card)[0];
+  if (!activity) return null;
   const goal = card.planGoal?.trim() || selectedBehavior?.goal?.trim() || "";
-  const supportSource = card.sourceReferences?.[0]?.title || "the uploaded plan";
   const fingerprint = crypto.createHash("sha256")
-    .update(`${sourceDocumentId}|${goal}|${skill}`)
+    .update(`${sourceDocumentId}|${goal}|${skill}|${activity.id}`)
     .digest("hex")
     .slice(0, 20);
   return {
@@ -356,17 +415,18 @@ function planGuidedPracticeDraft(
     supportCardId: card.id || null,
     sourceType: sourceTypeFor(card),
     sourceDocumentId,
-    title: `Practice: ${shortTitle(skill, card.behaviorName)}`,
-    description: `During a routine that comes up naturally today, offer ${childName} a calm, low-pressure chance to practice this skill. Use only familiar supports from the plan; do not create a difficult situation to practice.`,
+    title: activity.title,
+    description: activity.description,
     whyItMayHelp: goal
-      ? `Supports ${childName}'s ${card.planGoal?.trim() ? "plan goal" : "saved goal"}: ${goal}`
-      : `This practice uses support steps read from ${supportSource} for ${card.behaviorName}.`,
+      ? `Practices ${skill} and connects to ${childName}'s ${card.planGoal?.trim() ? "plan goal" : "saved goal"}: ${goal}`
+      : `Practices the plan-listed skill: ${skill}`,
     steps: cleanSteps([
-      `Practice this skill: ${skill}`,
+      `Skill practiced: ${skill}`,
       card.prevention?.[0] ? `Plan support: ${card.prevention[0]}` : null,
       card.reinforcementIdea ? `Plan-supported reinforcement: ${card.reinforcementIdea}` : null,
+      `If it gets hard: ${activity.ifHard}`,
     ]),
-    estimatedMinutes: 5,
+    estimatedMinutes: activity.minutes,
     status: "not_started",
   };
 }
@@ -376,43 +436,54 @@ function selectedGoalPracticeDraft(
   card: SupportCard,
   date: string,
   childName: string,
-): DailyActionDraft | null {
+): DailyActionDraft[] {
   const savedGoal = behavior.goal?.trim() || "";
   const safeGoal = savedGoal && !UNSAFE_PLAN_PRACTICE.test(savedGoal) ? savedGoal : "";
-  const skill = cleanSteps([safeGoal, card.replacementSkill, ...card.prevention], 1)[0];
-  if (!skill) return null;
-  const draft = selectedBehaviorDraft(
-    behavior,
-    date,
-    "task",
-    "goal-practice",
-    `Practice: ${shortTitle(skill, behavior.behaviorName)}`,
-    `During a routine that already comes up today, look for a calm, natural chance to practice: ${skill}`,
-  );
-  draft.supportCardId = card.id || null;
-  draft.sourceDocumentId = null;
-  draft.sourceType = card.source === "starter" ? "starter_template" : "selected_behavior";
-  draft.description = `Try one small, low-pressure practice opportunity for ${behavior.behaviorName}. Use supports already familiar to ${childName}; do not create a difficult situation just to practice.`;
-  draft.whyItMayHelp = card.source === "starter"
-    ? safeGoal
-      ? `This general suggestion from the Behavior Support Library may support ${childName}'s saved goal: ${safeGoal}.`
-      : `This is general starter guidance from the Behavior Support Library for ${behavior.behaviorName}, not an individualized plan.`
-    : safeGoal
-      ? `Supports ${childName}'s saved goal: ${safeGoal}`
-      : `A small practice opportunity for the selected support area: ${behavior.behaviorName}.`;
-  draft.steps = cleanSteps([
-    `Practice this skill: ${skill}`,
-    card.prevention?.[0] ? `General starter support: ${card.prevention[0]}` : null,
-    card.reinforcementIdea ? `General starter reinforcement: ${card.reinforcementIdea}` : null,
-  ]);
-  return draft;
+  const displayGoal = safeGoal ? parentFacingGoalText(safeGoal) : "";
+  const activities = practiceActivitiesFor(behavior);
+  const goalTerms = safeGoal.toLocaleLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length > 3);
+  const ordered = [...activities].sort((left, right) => {
+    const score = (activity: PracticeActivity) => goalTerms.filter((word) =>
+      `${activity.title} ${activity.skill}`.toLocaleLowerCase().includes(word),
+    ).length;
+    return score(right) - score(left);
+  });
+  const seen = new Set<string>();
+  return ordered.filter((activity) => {
+    if (seen.has(activity.id)) return false;
+    seen.add(activity.id);
+    return true;
+  }).map((activity) => ({
+    actionDate: date,
+    actionKey: actionKey("task", parentBehaviorIdentity(behavior), `starter-practice-${activity.id}`),
+    kind: "task",
+    behaviorKey: behavior.behaviorKey,
+    behaviorName: behavior.behaviorName,
+    supportCardId: card.id || null,
+    sourceType: "starter_template",
+    sourceDocumentId: null,
+    title: activity.title,
+    description: activity.description,
+    whyItMayHelp: safeGoal
+      ? `Practices ${activity.skill} and connects to ${childName}'s saved goal: ${displayGoal}`
+      : `Practices ${activity.skill} during a familiar activity. This is starter support, not an individualized plan.`,
+    steps: cleanSteps([
+      `Skill practiced: ${activity.skill}`,
+      `If it gets hard: ${activity.ifHard}`,
+      card.prevention?.[0] ? `Starter support: ${card.prevention[0]}` : null,
+      card.reinforcementIdea ? `Starter encouragement: ${card.reinforcementIdea}` : null,
+    ], 4),
+    estimatedMinutes: activity.minutes,
+    status: "not_started",
+  }));
 }
 
 function documentGoalDrafts(goal: ParentPlanGoal, date: string, childName: string): DailyActionDraft[] {
   const goalText = goal.title.trim();
+  const displayGoal = parentFacingGoalText(goalText);
   const steps = goal.milestones.length
     ? goal.milestones
-    : [goal.description.trim() || goalText];
+    : [goal.description.trim() || displayGoal];
   return steps.flatMap((step, index) => {
     const cleanStep = step.trim().slice(0, 400);
     if (!cleanStep || UNSAFE_PLAN_PRACTICE.test(`${goalText} ${cleanStep}`)) return [];
@@ -429,12 +500,12 @@ function documentGoalDrafts(goal: ParentPlanGoal, date: string, childName: strin
       supportCardId: null,
       sourceType: goal.sourceType,
       sourceDocumentId: null,
-      title: `Practice: ${shortTitle(cleanStep, goalText)}`,
+      title: `Practice: ${shortTitle(cleanStep === goalText ? displayGoal : cleanStep, displayGoal)}`,
       description: goal.milestones.length
         ? `This is a milestone read from the plan. Try it only in a calm, naturally occurring opportunity; do not create a difficult situation to practice.`
         : `Use a calm, naturally occurring opportunity to work toward this goal. Follow any specific steps in the uploaded plan; do not create a difficult situation to practice.`,
-      whyItMayHelp: `Supports ${childName}'s plan goal: ${goalText}`,
-      steps: cleanSteps([cleanStep]),
+      whyItMayHelp: `Supports ${childName}'s plan goal: ${displayGoal}`,
+      steps: cleanSteps([`Skill practiced: ${cleanStep}`]),
       estimatedMinutes: 5,
       status: "not_started",
     }];
@@ -517,9 +588,25 @@ export function buildParentDailyActionDrafts(input: {
   logs: ParentLogInput[];
 }): DailyActionDraft[] {
   const activeIdentities = new Set(input.selectedBehaviors.map(parentBehaviorIdentity));
+  const recentLogRank = new Map<string, number>();
+  const recentLogs = [...input.logs]
+    .filter((log) => Date.now() - new Date(log.createdAt).getTime() <= 30 * 24 * 60 * 60 * 1000)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  for (const log of recentLogs) {
+    const identity = parentBehaviorIdentity({
+      behaviorKey: log.behaviorKey,
+      customBehavior: log.customBehavior,
+      behaviorName: log.customBehavior || log.behaviorKey || "",
+    } as ParentBehavior);
+    if (!recentLogRank.has(identity)) recentLogRank.set(identity, recentLogRank.size);
+  }
   const cards = input.supportCards
     .filter((card) => activeIdentities.has(identityForCard(card)) || card.source !== "starter")
-    .sort((a, b) => SOURCE_PRIORITY[sourceTypeFor(a)] - SOURCE_PRIORITY[sourceTypeFor(b)])
+    .sort((a, b) =>
+      SOURCE_PRIORITY[sourceTypeFor(a)] - SOURCE_PRIORITY[sourceTypeFor(b)] ||
+      (recentLogRank.get(identityForCard(a)) ?? Number.MAX_SAFE_INTEGER) -
+        (recentLogRank.get(identityForCard(b)) ?? Number.MAX_SAFE_INTEGER),
+    )
     .filter((card, index, sorted) =>
       sorted.findIndex((candidate) => identityForCard(candidate) === identityForCard(card)) === index,
     );
@@ -534,12 +621,12 @@ export function buildParentDailyActionDrafts(input: {
         selectedBehavior.customBehavior,
         selectedBehavior.goal,
       );
-      return [selectedGoalPracticeDraft(
+      return selectedGoalPracticeDraft(
         selectedBehavior,
         libraryCard,
         input.date,
         input.childName?.trim() || "your child",
-      )].filter((item): item is DailyActionDraft => Boolean(item));
+      );
     }
     const planActivities = (card.dailyActivities || []).map((activity) =>
       planActivityDraft(card, activity, input.date, input.childName?.trim() || "your child"),
@@ -556,12 +643,12 @@ export function buildParentDailyActionDrafts(input: {
       if (practice) return [practice];
     }
     return selectedBehavior
-      ? [selectedGoalPracticeDraft(
+      ? selectedGoalPracticeDraft(
           selectedBehavior,
           card,
           input.date,
           input.childName?.trim() || "your child",
-        )].filter((item): item is DailyActionDraft => Boolean(item))
+        )
       : [];
   });
   const cardGoalKeys = new Set(cards
@@ -646,6 +733,8 @@ export async function getOrCreateParentDailyActions(input: {
   const drafts = buildParentDailyActionDrafts(input);
   for (const draft of drafts) {
     const now = new Date();
+    // Refresh existing same-day activity copy for returning and demo accounts.
+    // The update deliberately omits status and timestamps so logs remain intact.
     await db.insert(parentDailyActionsTable).values({
       id: crypto.randomUUID(),
       parentId: input.parentId,
@@ -678,7 +767,6 @@ export async function getOrCreateParentDailyActions(input: {
         estimatedMinutes: draft.estimatedMinutes,
         updatedAt: now,
       },
-      setWhere: eq(parentDailyActionsTable.status, "not_started"),
     });
   }
 

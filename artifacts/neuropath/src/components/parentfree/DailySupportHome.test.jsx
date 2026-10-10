@@ -74,4 +74,40 @@ describe("DailySupportHome", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open skill steps" }));
     expect(openSteps).toHaveBeenCalledWith(card);
   });
+
+  it("shows actionable daily activities with plain outcome labels and expandable steps", () => {
+    const action = {
+      id: "daily-action-1",
+      childId: "child-1",
+      kind: "task",
+      status: "not_started",
+      behaviorName: "Task refusal",
+      title: "One-Step Start",
+      description: "Choose one tiny part of a familiar task and notice any attempt.",
+      whyItMayHelp: "Practices starting one manageable step.",
+      steps: ["Skill practiced: Starting a task", "If it gets hard: Make the step smaller or offer a break."],
+      estimatedMinutes: 3,
+      sourceType: "starter_template",
+      sourceDocumentId: null,
+      logs: [],
+    };
+    render(
+      <DailySupportHome
+        childId="child-1"
+        childName="Sam"
+        actions={[action]}
+        documents={[]}
+        cards={[]}
+        logs={[]}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Try Today" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Done" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "We struggled" })).toBeTruthy();
+    expect(screen.getByText("Starting a task")).toBeTruthy();
+    expect(screen.queryByText(/○|✓/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Try Today" }));
+    expect(screen.getByText(/If it gets hard: Make the step smaller/)).toBeTruthy();
+  });
 });

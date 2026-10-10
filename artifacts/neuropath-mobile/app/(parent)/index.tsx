@@ -40,9 +40,9 @@ const DAILY_FEEDBACK = [
 ] as const;
 
 const DAILY_OUTCOMES = [
-  ["used_skill", "Completed", "check-circle"],
-  ["not_yet", "Didn't get a chance", "clock"],
-  ["partially", "This was difficult", "alert-triangle"],
+  ["used_skill", "Done"],
+  ["not_yet", "Didn't get a chance"],
+  ["partially", "We struggled"],
 ] as const;
 
 function DailyActivityCard({ action, documents, childName, onOutcome, isSaving, error }: {
@@ -54,31 +54,44 @@ function DailyActivityCard({ action, documents, childName, onOutcome, isSaving, 
   error?: string;
 }) {
   const c = useColors();
+  const [showPracticeSteps, setShowPracticeSteps] = useState(false);
   const document = action.sourceDocumentId
     ? documents.find((item) => item.id === action.sourceDocumentId)
     : null;
   const feedback = action.logs?.[0];
+  const practicedSkill = action.steps.find((step) => step.startsWith("Skill practiced: "));
+  const practiceSteps = action.steps.filter((step) => step !== practicedSkill);
   const outcomeLabel = DAILY_OUTCOMES.find(([value]) => value === feedback?.outcome)?.[1];
   const ratingLabel = DAILY_FEEDBACK.find(([value]) => value === feedback?.rating)?.[1];
   return (
     <Card>
-      <T size={12} weight="semi" color={c.secondary}>Practice this today · {action.behaviorName} · {action.estimatedMinutes} min</T>
+      <T size={12} weight="semi" color={c.secondary}>{action.behaviorName} · {action.estimatedMinutes} min</T>
       <T size={18} weight="bold">{action.title}</T>
+      <T size={12} weight="semi" color={c.secondary}>What to do</T>
       <T size={14}>{action.description}</T>
-      {(action.whyItMayHelp || action.steps.length > 0) ? (
-        <Disclosure label="Why this may help · View steps">
-          {action.whyItMayHelp ? (
-            <View style={{ backgroundColor: c.muted, borderLeftWidth: 3, borderLeftColor: c.accent, borderRadius: 8, padding: 11, gap: 4 }}>
-              <T size={13} weight="semi">Why you're doing this</T>
-              <T size={13}>{action.whyItMayHelp}</T>
+      {practicedSkill ? <T size={13}><T size={13} weight="semi">Skill practiced: </T>{practicedSkill.replace(/^Skill practiced:\s*/, "")}</T> : null}
+      {practiceSteps.length > 0 ? (
+        <>
+          <Btn kind="ghost" icon="play" label={showPracticeSteps ? "Hide Activity Steps" : "Try Today"} onPress={() => setShowPracticeSteps((shown) => !shown)} />
+          {showPracticeSteps ? (
+            <View style={{ backgroundColor: c.muted, borderRadius: 10, padding: 12, gap: 8 }}>
+              <T size={13} weight="semi">Steps to try</T>
+              {practiceSteps.map((step, index) => (
+                <View key={`${action.id}-try-${index}`} style={{ flexDirection: "row", gap: 9, alignItems: "flex-start" }}>
+                  <T size={13} weight="bold" color={c.primary}>{index + 1}.</T>
+                  <View style={{ flex: 1 }}><T size={14}>{step}</T></View>
+                </View>
+              ))}
             </View>
           ) : null}
-          {action.steps.map((step, index) => (
-            <View key={`${action.id}-${index}`} style={{ flexDirection: "row", gap: 9, alignItems: "flex-start" }}>
-              <T size={13} weight="bold" color={c.primary}>{index + 1}.</T>
-              <View style={{ flex: 1 }}><T size={14}>{step}</T></View>
-            </View>
-          ))}
+        </>
+      ) : null}
+      {action.whyItMayHelp ? (
+        <Disclosure label="Show Details">
+          <View style={{ backgroundColor: c.muted, borderLeftWidth: 3, borderLeftColor: c.accent, borderRadius: 8, padding: 11, gap: 4 }}>
+            <T size={13} weight="semi">Why you're doing this</T>
+            <T size={13}>{action.whyItMayHelp}</T>
+          </View>
         </Disclosure>
       ) : null}
       <T size={12} weight="semi" color={c.secondary}>{DAILY_ACTION_SOURCE[action.sourceType] || "Source not available"}</T>
@@ -86,13 +99,13 @@ function DailyActivityCard({ action, documents, childName, onOutcome, isSaving, 
       {action.status === "needs_review"
         ? <T size={13} weight="semi" color={c.destructive}>Ask your clinician which plan step to use before trying this.</T>
         : action.status === "done" || action.status === "logged"
-          ? <T size={13} color={c.secondary}>{outcomeLabel ? `Your update: ${outcomeLabel}` : ratingLabel ? `Your feedback: ${ratingLabel}` : "Your update is saved for today."}{feedback?.note ? ` · ${feedback.note}` : ""}</T>
+          ? <T size={13} color={c.secondary}>{outcomeLabel ? `Logged: ${outcomeLabel}` : ratingLabel ? `Logged: ${ratingLabel}` : "Your update is saved for today."}{feedback?.note ? ` · ${feedback.note}` : ""}</T>
           : action.status === "skipped"
             ? <T size={13} color={c.secondary}>You can revisit this support step from the library.</T>
             : (
               <View style={{ gap: 8 }}>
-                <T size={13} weight="semi">Did you work on it today?</T>
-                {DAILY_OUTCOMES.map(([value, label, icon]) => {
+                <T size={13} weight="semi">Try this today</T>
+                {DAILY_OUTCOMES.map(([value, label]) => {
                   const primary = value === "used_skill";
                   return (
                     <Pressable
@@ -116,7 +129,6 @@ function DailyActivityCard({ action, documents, childName, onOutcome, isSaving, 
                         opacity: isSaving ? 0.55 : pressed ? 0.86 : 1,
                       })}
                     >
-                      <Feather name={icon} size={18} color={primary ? c.primaryForeground : c.primary} />
                       <T weight="semi" color={primary ? c.primaryForeground : c.foreground}>{isSaving ? "Saving..." : label}</T>
                     </Pressable>
                   );
@@ -183,6 +195,7 @@ export default function SupportNow() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showHelpBlocks, setShowHelpBlocks] = useState(false);
+  const [showAllDailyActions, setShowAllDailyActions] = useState(false);
   const [dailyActionError, setDailyActionError] = useState<{ actionId: string; message: string } | null>(null);
   const logAction = useLogParentDailyAction({ request: opts });
   const q = useQuery({ queryKey: ["parent-dashboard", child?.id], queryFn: () => getParentDashboard(child!.id, opts), enabled: !!child });
@@ -234,10 +247,11 @@ export default function SupportNow() {
 
       {q.isLoading ? <Skeleton lines={4} /> : q.isError ? <ErrorBox message={msg(q.error, "Your support could not load.")} onRetry={() => q.refetch()} /> : (
         <>
-          <T weight="bold" size={19}>{`Today for ${childName}`}</T>
-          <T size={14} color={c.secondary}>Daily practice activities are based on the routines and skills described in the available plan.</T>
+          <T weight="bold" size={19}>Things to Try Today</T>
+          <T size={14} color={c.secondary}>Simple activities connected to selected behaviors and their support sources.</T>
+          <T size={13} color={c.secondary}>Only try activities that feel safe and realistic today. Stop if an activity becomes stressful or unsafe.</T>
           {(q.data?.dailyActions ?? []).length ? (
-            (q.data?.dailyActions ?? []).map((action) => (
+            (showAllDailyActions ? (q.data?.dailyActions ?? []) : (q.data?.dailyActions ?? []).slice(0, 3)).map((action) => (
               <DailyActivityCard
                 key={action.id}
                 action={action}
@@ -256,6 +270,9 @@ export default function SupportNow() {
               <Btn kind="ghost" icon="upload" label="Upload a Plan" onPress={() => router.push("/(parent)/documents" as never)} />
             </Card>
           )}
+          {(q.data?.dailyActions ?? []).length > 3 ? (
+            <Btn kind="ghost" label={showAllDailyActions ? "Show Fewer Activities" : "See More Activities"} onPress={() => setShowAllDailyActions((shown) => !shown)} />
+          ) : null}
           {(q.data?.planGoals ?? []).length > 0 ? (
             <Card>
               <T weight="bold" size={17}>Goals and milestones from plans and reports</T>
