@@ -48,6 +48,15 @@ export default function AIScreen() {
     enabled: !!childId,
   });
 
+  const { data: childProfile = null } = useQuery({
+    queryKey: ["mobile-child-profile", childId],
+    queryFn: async () => {
+      const children = await entities.Child.filter();
+      return children.find((child: any) => child.id === childId) ?? null;
+    },
+    enabled: !!childId,
+  });
+
   const sendMessage = async (text?: string) => {
     const msgText = (text ?? input).trim();
     if (!msgText || loading) return;
@@ -64,18 +73,52 @@ export default function AIScreen() {
     setLoading(true);
 
     try {
+      const profileLines = [
+        `Name: ${childProfile?.childName ?? user?.child_name ?? "not recorded"}`,
+        childProfile?.age != null ? `Age: ${childProfile.age}` : "",
+        childProfile?.diagnosis ? `Recorded diagnosis: ${childProfile.diagnosis}` : "",
+        childProfile?.triggers ? `Recorded triggers: ${childProfile.triggers}` : "",
+      ].filter(Boolean);
+      const profileContext = `\n\nSelected child profile:\n${profileLines.join("\n")}`;
       const planContext =
         plans.length > 0
-          ? `\n\nContext — Behavior Plans:\n${plans
+          ? `\n\nSelected child's behavior plans:\n${plans
               .slice(0, 3)
               .map(
-                (p: any) =>
-                  `- ${p.behaviorName ?? p.behavior_name ?? "Plan"}: ${p.interventionStrategies ?? p.intervention_strategies ?? ""}`
+                (p: any) => {
+                  const name = p.behaviorName ?? p.behavior_name ?? "Plan";
+                  const details = [
+                    p.behaviorDescription ?? p.behavior_description,
+                    p.behaviorFunction ?? p.behavior_function ? `Possible purpose: ${p.behaviorFunction ?? p.behavior_function}` : "",
+                    p.commonTriggers ?? p.common_triggers ? `Recorded triggers: ${p.commonTriggers ?? p.common_triggers}` : "",
+                    p.strategyTitle ?? p.strategy_title,
+                    p.strategySteps ?? p.strategy_steps,
+                    p.deescalationSteps ?? p.deescalation_steps ? `Calming steps: ${p.deescalationSteps ?? p.deescalation_steps}` : "",
+                    p.reinforcementMethod ?? p.reinforcement_method ? `What to encourage: ${p.reinforcementMethod ?? p.reinforcement_method}` : "",
+                    p.avoidActions ?? p.avoid_actions ? `What to avoid: ${p.avoidActions ?? p.avoid_actions}` : "",
+                  ].filter(Boolean);
+                  return `- ${name}: ${details.join("; ")}`;
+                }
               )
               .join("\n")}`
           : "";
 
-      const prompt = `You are NeuroPath AI, a compassionate behavioral health support assistant. The user is ${user?.child_name ?? "a client"}.${planContext}\n\nUser: ${msgText}\n\nProvide warm, practical, clinician-approved guidance in 2-3 paragraphs.`;
+      const history = messages
+        .slice(0, 8)
+        .reverse()
+        .map((message) => `${message.role === "user" ? "You" : "NeuroPath AI"}: ${message.text}`)
+        .join("\n");
+      const prompt = `You are NeuroPath AI, a warm and practical support assistant speaking directly to the child who is using this chat.
+
+Use "you" and "your"; do not talk about the child as if they are absent. Adapt your words to the child's recorded age and profile. Use their name naturally, not in every sentence. When relevant, connect advice to a specific recorded plan strategy or trigger. Never assume a diagnosis explains how the child feels or behaves, and do not invent personal details. If the profile or plan does not answer the question, say so briefly and offer safe general support. Do not claim advice is clinician-approved unless the plan explicitly says it has been reviewed. Keep the answer clear, kind, and easy to act on. Do not diagnose, recommend medication changes, or give physical restraint instructions. If someone is in immediate danger, tell the child to get a trusted adult and contact local emergency services.
+
+${profileContext}
+${planContext}
+
+Recent conversation:
+${history || "No earlier messages."}
+
+Child's message: ${msgText}`;
 
       const reply = await invokeAI(prompt);
       const assistantMsg: Message = {
@@ -253,12 +296,15 @@ export default function AIScreen() {
       maxHeight: 100,
     },
     sendBtn: {
-      width: 44,
+      minWidth: 78,
       height: 44,
       borderRadius: 22,
       backgroundColor: colors.primary,
       alignItems: "center",
       justifyContent: "center",
+      flexDirection: "row",
+      gap: 7,
+      paddingHorizontal: 12,
     },
     sendBtnDisabled: { opacity: 0.45 },
   });
@@ -343,11 +389,18 @@ export default function AIScreen() {
             style={[s.sendBtn, (!input.trim() || loading) && s.sendBtnDisabled]}
             onPress={() => sendMessage()}
             disabled={!input.trim() || loading}
+            accessibilityRole="button"
+            accessibilityLabel={loading ? "Sending message" : "Send message"}
+            accessibilityState={{ disabled: !input.trim() || loading }}
+            hitSlop={6}
           >
             {loading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Feather name="send" size={18} color="#fff" />
+              <>
+                <Feather name="send" size={17} color="#fff" />
+                <Text style={s.sendBtnText}>Send</Text>
+              </>
             )}
           </Pressable>
         </View>

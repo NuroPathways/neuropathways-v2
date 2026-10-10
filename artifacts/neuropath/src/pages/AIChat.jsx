@@ -66,6 +66,18 @@ function profileValue(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function childProfileContext(child) {
+  if (!child) return "No child profile details are available.";
+  const details = [];
+  const age = field(child, "age");
+  const diagnosis = profileValue(field(child, "diagnosis"));
+  const triggers = profileValue(field(child, "triggers"));
+  if (age !== null && age !== undefined) details.push(`Age: ${age}`);
+  if (diagnosis) details.push(`Recorded diagnosis: ${diagnosis.slice(0, 500)}`);
+  if (triggers) details.push(`Profile notes about triggers: ${triggers.slice(0, 1200)}`);
+  return details.length ? details.join("\n") : "No additional profile details are recorded.";
+}
+
 function scannedProfileContext(profile, documents, isIndividual) {
   if (!profile) return "";
   const sourceIds = field(profile, "source_doc_ids", "sourceDocIds");
@@ -301,12 +313,17 @@ STRICT RULES FOR INDIVIDUAL CLIENT MODE:
 - EVERY piece of guidance must be a direct instruction or observation addressed to "you"
 - Good examples: "Try moving to a quieter space", "You might feel better if you take a few slow breaths", "When you notice yourself getting overwhelmed, you can step away", "Your plan says to..."
 - If the clinical document uses third-person language about the client, silently translate it to second person before using it`
-    : `You are speaking to a parent or caregiver. Use caregiver-directed language — refer to the child by name or as "they/them". It's appropriate to say things like "Allow ${child?.child_name || "them"} to retreat to a quiet space" or "Pause verbal demands until ${child?.child_name || "they"} is regulated."`;
+    : `You are speaking to a parent or caregiver. Give suggestions to the caregiver, and refer to the child by their recorded name when it sounds natural; otherwise say "your child." Never write as if the child is the person reading.`;
 
   const systemPrompt = `You are NeuroPath AI — a warm, practical behavioral support assistant for families and individual clients. ${voiceInstruction}
 
 TODAY'S DATE: ${today}
-${isIndividualClient ? `CLIENT: ${child?.child_name || "Unknown"}, Age: ${child?.age || "N/A"}, Diagnosis: ${child?.diagnosis || "N/A"}` : `CHILD: ${child?.child_name || "Unknown"}, Age: ${child?.age || "N/A"}, Diagnosis: ${child?.diagnosis || "N/A"}`}
+${isIndividualClient ? `CLIENT: ${child?.child_name || "Unknown"}` : `CHILD: ${child?.child_name || "Unknown"}`}
+
+=== SELECTED CHILD PROFILE ===
+${childProfileContext(child)}
+Use profile details and the selected child's plan below to make relevant suggestions concrete and age-appropriate. Prefer recorded strengths, triggers, communication needs, and plan strategies when available. Do not infer personality, ability, or behavior causes from a diagnosis. Do not mention a diagnosis unless it is directly relevant to the question.
+=== END CHILD PROFILE ===
 
 === CLINICIAN DATA & CONTEXT ===
 ${clinicianContext.context || "No data loaded yet."}
@@ -329,7 +346,7 @@ IMPORTANT RESPONSE RULES:
    ### What to avoid
    ### When to contact your clinician (only if relevant)
 3. Be warm, specific, and practical. Write like a knowledgeable friend, not a clinical report.
-4. Use the clinician's data when it directly applies. Do not invent child-specific facts, triggers, diagnoses, or treatment plans. If the context does not answer the question, give safe, generalized ABA-informed suggestions based on the behavior the parent described and label them as general information.
+ 4. Use the selected child's profile and clinician data when they directly apply. Refer to a relevant recorded strategy by its actual name or steps. Do not invent child-specific facts, triggers, diagnoses, preferences, or treatment plans. If the context does not answer the question, give safe, generalized ABA-informed suggestions based on the behavior the caregiver described and label them as general information.
 5. Keep crisis/safety guidance (aggression, self-harm, emergency instructions) clear and precise — do NOT water down safety steps.
 6. Use the clinician's actual data — reference specific plan names, strategies, and steps when relevant.
 7. Treat document names and scan status as metadata, not document contents. Use extracted findings only from the document-based summary and never claim to have read a document that is marked unread or failed.
@@ -590,8 +607,16 @@ export default function AIChat() {
             disabled={isLoading || loadingContext}
             className="flex-1 resize-none rounded-xl border-border text-sm max-h-32 min-h-[44px]"
           />
-          <Button onClick={() => sendMessage()} disabled={isLoading || loadingContext || !input.trim()} className="h-11 w-11 p-0 rounded-xl bg-primary hover:bg-primary/90 flex-shrink-0">
-            <Send className="w-4 h-4" />
+          <Button
+            type="button"
+            aria-label={isLoading ? "Sending message" : "Send message"}
+            title="Send message"
+            onClick={() => sendMessage()}
+            disabled={isLoading || loadingContext || !input.trim()}
+            className="h-11 min-w-[84px] px-3 gap-2 rounded-xl bg-primary hover:bg-primary/90 flex-shrink-0"
+          >
+            <Send className="w-4 h-4" aria-hidden="true" />
+            <span>Send</span>
           </Button>
         </div>
         <p className="text-center text-[11px] leading-relaxed text-muted-foreground mt-2 max-w-2xl mx-auto">
