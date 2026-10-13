@@ -13,6 +13,7 @@ const supportMocks = vi.hoisted(() => ({
 const currentApproval = {
   reviewStatus: "approved",
   reviewer: "Qualified reviewer",
+  reviewerCredentials: "Licensed clinician",
   reviewedAt: "2026-10-01",
   approvalScope: "urgent behavior support",
   renewalDate: "2099-01-01",
@@ -72,6 +73,9 @@ describe("support guidance", () => {
           behaviors: {
             elopement: {
               ...currentApproval,
+              planId: "plan-1",
+              childId: "child-1",
+              planStatus: "approved",
               name: "Leaving the area",
               do_this_right_now: ["Move to a safer place", "Offer a clear choice"],
             },
@@ -99,7 +103,41 @@ describe("support guidance", () => {
       />,
     );
 
-    expect(screen.getByText("No behavior cards on file yet.")).toBeTruthy();
+    expect(screen.getByText("No current approved behavior steps are available.")).toBeTruthy();
+  });
+
+  it("does not show unreviewed behavior guidance in Help Now", () => {
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Sam" }}
+        profile={{ behaviors: [{ name: "Hitting", do_this_right_now: ["Use a generic hold"] }] }}
+        onBack={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+
+    expect(screen.queryByText("Use a generic hold")).toBeNull();
+    expect(screen.getByRole("button", { name: "Open safety plan" })).toBeTruthy();
+  });
+
+  it("does not show high-risk steps without a current child-bound plan", () => {
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Sam" }}
+        profile={{
+          behaviors: [{
+            ...currentApproval,
+            name: "Elopement",
+            do_this_right_now: ["Use individualized step"],
+          }],
+        }}
+        onBack={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+
+    expect(screen.queryByText("Use individualized step")).toBeNull();
+    expect(screen.getByText("No current approved behavior steps are available.")).toBeTruthy();
   });
 
   it("keeps keyed portal behaviors as separate choices in the support popup", async () => {
@@ -109,11 +147,17 @@ describe("support guidance", () => {
           behaviors: {
             elopement: {
                 ...currentApproval,
+              planId: "plan-1",
+              childId: "child-1",
+              planStatus: "approved",
               name: "Leaving the area",
               do_this_right_now: ["Move to a safer place"],
             },
             aggression: {
                 ...currentApproval,
+              planId: "plan-1",
+              childId: "child-1",
+              planStatus: "approved",
               name: "Hitting",
               do_this_right_now: ["Create space"],
             },

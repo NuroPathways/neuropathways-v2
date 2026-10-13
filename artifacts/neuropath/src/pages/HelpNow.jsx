@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
-import { ArrowLeft, AlertTriangle, ChevronRight, CheckCircle2, ShieldAlert, Loader2, MessageSquare, Target, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertTriangle, ChevronRight, CheckCircle2, ShieldAlert, Loader2, MessageSquare, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import HelpFeedback from "@/components/help/HelpFeedback";
 
 const BEHAVIOR_COLORS = [
   "bg-red-50 border-red-200 text-red-700",
@@ -35,6 +34,31 @@ function Section({ title, items, colorClass }) {
   );
 }
 
+function hasCurrentClinicalApproval(behavior) {
+  const status = String(behavior?.reviewStatus ?? behavior?.review_status ?? behavior?.approvalStatus ?? behavior?.approval_status ?? "").toLowerCase();
+  const reviewer = behavior?.reviewer ?? behavior?.reviewerName ?? behavior?.reviewer_name ?? behavior?.approvedBy ?? behavior?.approved_by;
+  const credentials = behavior?.reviewerCredentials ?? behavior?.reviewer_credentials ?? behavior?.reviewerCredential ?? behavior?.reviewer_credential;
+  const reviewedAt = behavior?.reviewedAt ?? behavior?.reviewed_at ?? behavior?.reviewDate ?? behavior?.review_date;
+  const scope = behavior?.approvalScope ?? behavior?.approval_scope;
+  const renewalAt = behavior?.renewalDate ?? behavior?.renewal_date ?? behavior?.reviewExpiresAt ?? behavior?.review_expires_at;
+  const renewalTime = Date.parse(renewalAt || "");
+  return status === "approved"
+    && Boolean(String(reviewer || "").trim())
+    && Boolean(String(credentials || "").trim())
+    && Boolean(String(reviewedAt || "").trim())
+    && Boolean(String(scope || "").trim())
+    && Boolean(String(behavior?.version ?? behavior?.contentVersion ?? behavior?.content_version ?? "").trim())
+    && Number.isFinite(renewalTime)
+    && renewalTime >= Date.now()
+    && behavior.publishable === true
+    && (behavior.productionEligible === true || behavior.production_eligible === true);
+}
+
+function isHighRiskBehavior(behavior) {
+  return /\b(aggression|hitting|biting|self[- ]?injury|self[- ]?harm|elopement|wandering|leaving the area)\b/i.test(String(behavior?.name || ""))
+    || ["high", "high_risk", "high-risk"].includes(String(behavior?.riskTier ?? behavior?.risk_tier ?? "").toLowerCase());
+}
+
 export default function HelpNow() {
   const navigate = useNavigate();
   const { user, isLoadingAuth } = useAuth();
@@ -43,15 +67,12 @@ export default function HelpNow() {
   const [behaviorPlans, setBehaviorPlans] = useState([]);
   const [selectedBehavior, setSelectedBehavior] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [scanning, setScanning] = useState(false);
   const [step, setStep] = useState("select_behavior");
   const [isIndividualClient, setIsIndividualClient] = useState(false);
   const [portalFailed, setPortalFailed] = useState(false);
-  const [docsCount, setDocsCount] = useState(0);
   const [childrenForPicker, setChildrenForPicker] = useState([]);
 
   const childId = new URLSearchParams(window.location.search).get("child_id");
-  const hasScannedRef = useRef(false);
 
   useEffect(() => {
     if (isLoadingAuth) return;
@@ -113,53 +134,25 @@ export default function HelpNow() {
       }).then(r => r?.data || {}).catch(() => null);
       const portal = portalRes || {};
       setPortalFailed(!portalRes || !!portal.error);
-      setDocsCount((portal.documents || []).filter(d => d.file_url).length);
 
       const profiles = portal.profile ? [portal.profile] : [];
       if (profiles.length > 0) setProfile(profiles[0]);
       setBehaviorPlans(portal.plans || []);
-      const docs = portal.documents || [];
-
       setLoading(false);
 
-      // Build the profile from documents using the backend (single source of truth).
-      // Only rebuild when there's no profile yet, new docs were added, or the profile is empty.
-      if (!hasScannedRef.current) {
-        hasScannedRef.current = true;
-        const existingProfile = profiles[0];
-        const docsWithFiles = docs.filter(d => d.file_url);
-        const scannedIds = new Set((existingProfile?.source_doc_ids) || []);
-        const hasNewDocs = docsWithFiles.some(d => !scannedIds.has(d.id));
-        const needsBuild = !existingProfile || hasNewDocs || !(existingProfile.behaviors?.length > 0);
-        if (needsBuild && docsWithFiles.length > 0) {
-          runBuild(foundChild);
-        }
-      }
     };
     load();
   }, [childId, isLoadingAuth, user?.id]);
 
-  // Build the profile via the backend buildClientProfile function, then reload it.
-  const runBuild = async (foundChild) => {
-    setScanning(true);
-    try {
-      await base44.functions.invoke("buildClientProfile", {
-        child_id: foundChild.id,
-        account_id: user?.id,
-        invite_token: user?.invite_token,
-      });
-      const refreshed = await base44.functions.invoke('getClientPortalData', {
-        child_id: foundChild.id,
-        account_id: user?.id,
-        invite_token: user?.invite_token,
-      }).then(r => r?.data?.profile).catch(() => null);
-      if (refreshed) setProfile(refreshed);
-    } catch (e) { /* keep whatever profile we already have */ }
-    setScanning(false);
-  };
-
   const handleSelectBehavior = (behavior) => {
-    setSelectedBehavior(behavior);
+    setSelectedBehavior({
+      ...behavior,
+      triggers: [],
+      clinical_interventions: [],
+      prevention_tips: [],
+      reinforcement_rewards: [],
+      linked_goals: [],
+    });
     // Information event only — viewing guidance does NOT log a behavior occurrence.
     // Actual behaviors are logged via the "Log This Behavior" button.
     if (child) {
@@ -183,8 +176,11 @@ export default function HelpNow() {
   };
 
   // Build behavior cards: prefer ClientProfile behaviors, fall back to BehaviorPlan records
-  const profileBehaviors = (profile && profile.behaviors) || [];
+  const profileBehaviors = Array.isArray(profile?.behaviors)
+    ? profile.behaviors
+    : Object.values(profile?.behaviors || {});
   const fallbackBehaviors = behaviorPlans.map(bp => ({
+    ...bp,
     name: bp.behavior_name,
     description: bp.behavior_description || '',
     triggers: bp.common_triggers ? bp.common_triggers.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean) : [],
@@ -193,24 +189,19 @@ export default function HelpNow() {
     when_to_contact_clinician: '',
     linked_goals: [],
   }));
-  const behaviors = profileBehaviors.length > 0 ? profileBehaviors : fallbackBehaviors;
+  const behaviors = [...profileBehaviors, ...fallbackBehaviors].filter((behavior) => (
+    hasCurrentClinicalApproval(behavior)
+    && (!isHighRiskBehavior(behavior) || (
+      Boolean(behavior.planId ?? behavior.plan_id)
+      && String(behavior.childId ?? behavior.child_id ?? "") === String(child?.id ?? "")
+      && ["approved", "active"].includes(String(behavior.planStatus ?? behavior.plan_status ?? "").toLowerCase())
+    ))
+  ));
   const hasProfile = behaviors.length > 0;
 
   // All treatment goal titles on file — used as a fallback so Goal Mapping always shows.
-  const allGoalTitles = ((profile && profile.goals) || []).map(g => g && g.title).filter(Boolean);
-  const goalsForBehavior = (selectedBehavior && selectedBehavior.linked_goals && selectedBehavior.linked_goals.length > 0)
-    ? selectedBehavior.linked_goals
-    : allGoalTitles;
-  const docsExist = docsCount > 0;
-
-  // Measurable objectives related to the selected behavior (loose name match)
-  const objectivesForBehavior = (selectedBehavior && profile && profile.objectives)
-    ? profile.objectives.filter(o => {
-        const t = (o.target_behavior || "").toLowerCase();
-        const n = (selectedBehavior.name || "").toLowerCase();
-        return t && (n.includes(t) || t.includes(n) || n.split(" ").some(w => w.length > 4 && t.includes(w)));
-      })
-    : [];
+  const goalsForBehavior = [];
+  const objectivesForBehavior = [];
 
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -284,33 +275,22 @@ export default function HelpNow() {
                   <p className="text-muted-foreground text-sm">We couldn't load your profile. Please try again, or message your clinician if this keeps happening.</p>
                   <Button variant="outline" className="rounded-xl" onClick={() => window.location.reload()}>Try Again</Button>
                 </div>
-              ) : scanning ? (
-                <div className="text-center py-12 space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  </div>
-                  <h2 className="font-bold text-foreground text-lg">Preparing Your Help Cards...</h2>
-                  <p className="text-sm text-muted-foreground">Reading {child.child_name}'s clinical documents. This takes about 30 seconds.</p>
-                </div>
               ) : !hasProfile ? (
                 <div className="text-center py-12 space-y-4">
-                  {portalFailed ? (
-                    <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-left">
-                      <p className="text-sm font-semibold text-red-800 mb-1">We couldn't load your help cards.</p>
-                      <p className="text-sm text-red-700">Please sign out and sign back in, then try again. If this keeps happening, message your clinician.</p>
-                      <Button variant="outline" className="w-full rounded-xl mt-3" onClick={() => window.location.reload()}>Try Again</Button>
-                    </div>
-                  ) : !docsExist ? (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-left">
-                      <p className="text-sm font-semibold text-yellow-800 mb-1">No documents uploaded yet.</p>
-                      <p className="text-sm text-yellow-700">Once your clinician uploads treatment plans or behavior protocols for {child.child_name}, personalized help cards will appear here automatically.</p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Loading your help cards... please wait a moment.</p>
-                  )}
-                  <Button variant="outline" className="w-full rounded-xl" onClick={() => navigate("/Messages")}>
-                    Message Your Clinician
-                  </Button>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-left">
+                    <p className="text-sm font-semibold text-yellow-800 mb-1">
+                      {portalFailed ? "We couldn't load the current plan." : "No current approved behavior steps are available."}
+                    </p>
+                    <p className="text-sm text-yellow-700">Draft, expired, or unreviewed guidance is not shown here. Check any saved safety plan below or contact your care team.</p>
+                    {Array.isArray(profile?.crisis_plan) && profile.crisis_plan.length > 0 && (
+                      <div className="mt-4 rounded-xl bg-red-600 p-4 text-left text-white">
+                        <p className="mb-2 flex items-center gap-2 text-sm font-bold"><ShieldAlert className="h-4 w-4" /> Saved safety plan</p>
+                        {profile.crisis_plan.map((line, index) => <p className="text-sm" key={index}>{index + 1}. {line}</p>)}
+                      </div>
+                    )}
+                    <p className="mt-4 text-sm font-semibold text-red-800">If anyone is in immediate danger, call 911 or local emergency services.</p>
+                  </div>
+                  <Button variant="outline" className="w-full rounded-xl" onClick={() => navigate("/Messages")}>Contact Your Care Team</Button>
                 </div>
               ) : (
                 <>
@@ -335,16 +315,6 @@ export default function HelpNow() {
                     Only showing behaviors from {child.child_name}'s clinician-approved plans.
                   </p>
 
-                  {profile && profile.diagnoses && profile.diagnoses.length > 0 && (
-                    <div className="mt-5 bg-card border border-border rounded-2xl p-4">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Diagnoses on File</p>
-                      <div className="flex flex-wrap gap-2">
-                        {profile.diagnoses.map((d, i) => (
-                          <span key={i} className="text-xs bg-primary/10 text-primary font-medium px-2.5 py-1 rounded-full">{d}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
             </motion.div>
@@ -555,14 +525,6 @@ export default function HelpNow() {
                 </div>
               )}
 
-              <HelpFeedback child={child} topic={selectedBehavior.name} />
-
-              <Button
-                className="w-full rounded-xl gap-2 mb-3"
-                onClick={() => navigate("/LogBehavior?child_id=" + (child && child.id) + "&behavior=" + selectedBehavior.name)}
-              >
-                <CheckCircle2 className="w-4 h-4" /> Log This Behavior
-              </Button>
               <Button variant="outline" className="w-full rounded-xl gap-2" onClick={() => navigate("/Messages")}>
                 <MessageSquare className="w-4 h-4" /> Message Your Clinician
               </Button>

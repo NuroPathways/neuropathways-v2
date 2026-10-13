@@ -234,17 +234,17 @@ export function createFreeCaregiverNavigation({ activeTab, activeSection, goToTa
       ],
     },
     {
-      label: "Your plan",
+      label: "Goals",
       items: [
-        { key: "library", label: "Shared support content", icon: BookOpen, active: activeTab === "today" && activeSection === "library", onSelect: () => goToTab("today", "library") },
         { key: "goals", label: "Goals", icon: Target, active: activeTab === "edit" && activeSection === "goals", onSelect: () => goToTab("edit", "goals") },
-        { key: "history", label: "History", icon: ClipboardList, active: activeTab === "log", onSelect: () => goToTab("log") },
-        { key: "care-plan", label: "Care Plan", icon: FileText, active: activeTab === "docs", onSelect: () => goToTab("docs") },
       ],
     },
     {
       label: "Menu",
       items: [
+        { key: "library", label: "Shared support content", icon: BookOpen, active: activeTab === "today" && activeSection === "library", onSelect: () => goToTab("today", "library") },
+        { key: "history", label: "History", icon: ClipboardList, active: activeTab === "log", onSelect: () => goToTab("log") },
+        { key: "care-plan", label: "Care Plan", icon: FileText, active: activeTab === "docs", onSelect: () => goToTab("docs") },
         { key: "ask", label: "AI Chat", icon: Sparkles, active: activeTab === "ask", onSelect: () => goToTab("ask") },
         { key: "profiles", label: "Child Profiles", icon: UserRound, active: activeTab === "edit" && activeSection !== "goals", onSelect: () => goToTab("edit", "profile") },
         { key: "clinic", label: "Clinic", icon: Heart, active: activeTab === "clinic", onSelect: () => goToTab("clinic") },

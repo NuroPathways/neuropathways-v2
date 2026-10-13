@@ -67,6 +67,7 @@ function normalizeBehavior(value, index) {
 function hasCurrentClinicalApproval(behavior) {
   const status = textValue(behavior.reviewStatus ?? behavior.review_status ?? behavior.approvalStatus ?? behavior.approval_status).toLowerCase();
   const reviewer = textValue(behavior.reviewer ?? behavior.reviewerName ?? behavior.reviewer_name ?? behavior.approvedBy ?? behavior.approved_by);
+  const credentials = textValue(behavior.reviewerCredentials ?? behavior.reviewer_credentials ?? behavior.reviewerCredential ?? behavior.reviewer_credential);
   const reviewedAt = textValue(behavior.reviewedAt ?? behavior.reviewed_at ?? behavior.reviewDate ?? behavior.review_date);
   const scope = textValue(behavior.approvalScope ?? behavior.approval_scope);
   const renewalAt = textValue(behavior.renewalDate ?? behavior.renewal_date ?? behavior.reviewExpiresAt ?? behavior.review_expires_at);
@@ -74,14 +75,19 @@ function hasCurrentClinicalApproval(behavior) {
   const renewalTime = Date.parse(renewalAt);
   return status === "approved"
     && reviewer.length > 0
+    && credentials.length > 0
     && reviewedAt.length > 0
     && scope.length > 0
     && version.length > 0
     && Number.isFinite(renewalTime)
     && renewalTime >= Date.now()
     && behavior.publishable === true
-    && behavior.productionEligible !== false
-    && behavior.production_eligible !== false;
+    && (behavior.productionEligible === true || behavior.production_eligible === true);
+}
+
+function requiresPlanBinding(behavior) {
+  return /\b(aggression|hitting|biting|self[- ]?injury|self[- ]?harm|elopement|wandering|leaving the area)\b/i.test(textValue(behavior.name))
+    || ["high", "high_risk", "high-risk"].includes(textValue(behavior.riskTier ?? behavior.risk_tier).toLowerCase());
 }
 
 function normalizeBehaviorRows(value) {
@@ -203,7 +209,15 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
 export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onOpenSafety, onDismiss, isIndividual, logEngagement = true }) {
   const [selectedBehavior, setSelectedBehavior] = useState(null);
 
-  const behaviors = normalizeBehaviorRows(profile?.behaviors).filter(hasCurrentClinicalApproval);
+  const behaviors = normalizeBehaviorRows(profile?.behaviors).filter((behavior) => (
+    hasCurrentClinicalApproval(behavior)
+    && (!requiresPlanBinding(behavior)
+      || (
+        textValue(behavior.planId ?? behavior.plan_id).length > 0
+        && textValue(behavior.childId ?? behavior.child_id) === textValue(child?.id)
+        && ["approved", "active"].includes(textValue(behavior.planStatus ?? behavior.plan_status).toLowerCase())
+      ))
+  ));
 
   const handleSelectBehavior = (behavior) => {
     if (logEngagement && child) {
