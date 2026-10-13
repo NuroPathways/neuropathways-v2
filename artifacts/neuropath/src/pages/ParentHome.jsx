@@ -58,6 +58,8 @@ function Body({ child }) {
   useEffect(() => {
     if (tab === "today" && sp.get("section") === "library") {
       libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (tab === "today" && sp.get("section") === "practice") {
+      document.getElementById("practice-skill-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [tab, sp, q.data]);
   useEffect(() => {
@@ -260,7 +262,7 @@ export default function ParentHome() {
       currentLabel={currentLabel}
       activeKey={activeItem?.key}
       navGroups={navGroups}
-      mobilePrimaryKeys={mobilePrimaryKeysForRole("caregiver")}
+      mobilePrimaryKeys={["home", "support", "practice"]}
       accountName={user.first_name || user.full_name || "Caregiver"}
       accountMeta="Caregiver account"
       selectedChild={selected}

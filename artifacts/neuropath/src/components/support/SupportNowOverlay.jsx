@@ -409,6 +409,7 @@ export default function SupportNowOverlay({
               loadingProfile={loadingProfile}
               profileLoadError={profileLoadError}
               onBack={handleBack}
+              onOpenSafety={() => setStep("crisis")}
               onDismiss={handleDismiss}
               isIndividual={isIndividual}
               logEngagement={logEngagement}

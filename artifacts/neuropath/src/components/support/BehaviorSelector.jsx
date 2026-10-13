@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { base44 } from '@/api/entities';
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, X, CheckCircle2, AlertCircle, ShieldAlert, Phone, ChevronRight } from "lucide-react";
+import { ArrowLeft, X, AlertCircle, ShieldAlert, Phone, ChevronRight } from "lucide-react";
 
 const BEHAVIOR_COLORS = [
   { bg: "bg-red-50", border: "border-red-200", text: "text-red-800", badge: "bg-red-100 text-red-700" },
@@ -62,6 +62,26 @@ function normalizeBehavior(value, index) {
     reinforcement_rewards: listItems(raw.reinforcement_rewards ?? raw.reinforcementRewards ?? raw.reinforcement),
     when_to_contact_clinician: textValue(raw.when_to_contact_clinician ?? raw.whenToContactClinician ?? raw.seekHelp),
   };
+}
+
+function hasCurrentClinicalApproval(behavior) {
+  const status = textValue(behavior.reviewStatus ?? behavior.review_status ?? behavior.approvalStatus ?? behavior.approval_status).toLowerCase();
+  const reviewer = textValue(behavior.reviewer ?? behavior.reviewerName ?? behavior.reviewer_name ?? behavior.approvedBy ?? behavior.approved_by);
+  const reviewedAt = textValue(behavior.reviewedAt ?? behavior.reviewed_at ?? behavior.reviewDate ?? behavior.review_date);
+  const scope = textValue(behavior.approvalScope ?? behavior.approval_scope);
+  const renewalAt = textValue(behavior.renewalDate ?? behavior.renewal_date ?? behavior.reviewExpiresAt ?? behavior.review_expires_at);
+  const version = textValue(behavior.version ?? behavior.contentVersion ?? behavior.content_version);
+  const renewalTime = Date.parse(renewalAt);
+  return status === "approved"
+    && reviewer.length > 0
+    && reviewedAt.length > 0
+    && scope.length > 0
+    && version.length > 0
+    && Number.isFinite(renewalTime)
+    && renewalTime >= Date.now()
+    && behavior.publishable === true
+    && behavior.productionEligible !== false
+    && behavior.production_eligible !== false;
 }
 
 function normalizeBehaviorRows(value) {
@@ -154,32 +174,6 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
           </div>
         )}
 
-        {behavior.prevention_tips && behavior.prevention_tips.length > 0 && (
-          <div className="mb-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Prevention Tips</h4>
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-1.5">
-              {behavior.prevention_tips.map((p, i) => (
-                <p key={i} className="text-sm text-blue-800 flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-600" /> {p}
-                </p>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {behavior.reinforcement_rewards && behavior.reinforcement_rewards.length > 0 && (
-          <div className="mb-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Reinforcement & Rewards</h4>
-            <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 space-y-1.5">
-              {behavior.reinforcement_rewards.map((r, i) => (
-                <p key={i} className="text-sm text-teal-800 flex items-start gap-2">
-                  <span className="flex-shrink-0 mt-0.5">⭐</span> {r}
-                </p>
-              ))}
-            </div>
-          </div>
-        )}
-
         {behavior.when_to_contact_clinician && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
             <p className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-1">Contact Your Clinician If</p>
@@ -206,10 +200,10 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
   );
 }
 
-export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onDismiss, isIndividual, logEngagement = true }) {
+export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onOpenSafety, onDismiss, isIndividual, logEngagement = true }) {
   const [selectedBehavior, setSelectedBehavior] = useState(null);
 
-  const behaviors = normalizeBehaviorRows(profile?.behaviors);
+  const behaviors = normalizeBehaviorRows(profile?.behaviors).filter(hasCurrentClinicalApproval);
 
   const handleSelectBehavior = (behavior) => {
     if (logEngagement && child) {
@@ -256,10 +250,13 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
         ) : behaviors.length === 0 ? (
           <div className="py-8 space-y-4">
             <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
-              <p className="text-sm font-semibold text-yellow-800 mb-1">No behavior cards on file yet.</p>
+              <p className="text-sm font-semibold text-yellow-800 mb-1">No current approved behavior steps are available.</p>
               <p className="text-sm text-yellow-700">
-                Once your clinician uploads behavior plans or treatment documents for {child?.child_name || "this client"}, personalized behavior cards will appear here automatically.
+                This screen only shows guidance with current clinical review details. It will not use draft, expired, or unreviewed guidance. You can still check the safety plan or contact your care team.
               </p>
+              <button type="button" onClick={onOpenSafety || onBack} className="mt-4 min-h-11 rounded-xl border border-yellow-300 bg-white px-4 text-sm font-semibold text-yellow-900">
+                Open safety plan
+              </button>
             </div>
           </div>
         ) : (

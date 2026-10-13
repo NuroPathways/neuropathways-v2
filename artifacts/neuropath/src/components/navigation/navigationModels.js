@@ -224,23 +224,28 @@ export function createFreeCaregiverNavigation({ activeTab, activeSection, goToTa
       label: "Today",
       items: [
         { key: "home", label: "Home", icon: Home, active: activeTab === "today" && !activeSection, onSelect: () => goToTab("today") },
-        { key: "support", label: "Support Now", icon: LifeBuoy, support: true, onSelect: onSupportNow },
+        { key: "support", label: "Help Now", icon: LifeBuoy, support: true, onSelect: onSupportNow },
       ],
     },
     {
-      label: "Care plan",
+      label: "Practice",
       items: [
-        { key: "support-steps", label: "Support Steps", icon: BookOpen, active: activeTab === "steps", onSelect: () => goToTab("steps") },
-        { key: "library", label: "Behavior Support Library", icon: BookOpen, active: activeTab === "today" && activeSection === "library", onSelect: () => goToTab("today", "library") },
+        { key: "practice", label: "Practice", icon: Activity, active: activeTab === "today" && activeSection === "practice", onSelect: () => goToTab("today", "practice") },
+      ],
+    },
+    {
+      label: "Your plan",
+      items: [
+        { key: "library", label: "Shared support content", icon: BookOpen, active: activeTab === "today" && activeSection === "library", onSelect: () => goToTab("today", "library") },
         { key: "goals", label: "Goals", icon: Target, active: activeTab === "edit" && activeSection === "goals", onSelect: () => goToTab("edit", "goals") },
-        { key: "logs", label: "Logs", icon: ClipboardList, active: activeTab === "log", onSelect: () => goToTab("log") },
-        { key: "documents", label: "Upload Plan", icon: FileText, active: activeTab === "docs", onSelect: () => goToTab("docs") },
-        { key: "ask", label: "AI Chat", icon: Sparkles, active: activeTab === "ask", onSelect: () => goToTab("ask") },
+        { key: "history", label: "History", icon: ClipboardList, active: activeTab === "log", onSelect: () => goToTab("log") },
+        { key: "care-plan", label: "Care Plan", icon: FileText, active: activeTab === "docs", onSelect: () => goToTab("docs") },
       ],
     },
     {
-      label: "Family",
+      label: "Menu",
       items: [
+        { key: "ask", label: "AI Chat", icon: Sparkles, active: activeTab === "ask", onSelect: () => goToTab("ask") },
         { key: "profiles", label: "Child Profiles", icon: UserRound, active: activeTab === "edit" && activeSection !== "goals", onSelect: () => goToTab("edit", "profile") },
         { key: "clinic", label: "Clinic", icon: Heart, active: activeTab === "clinic", onSelect: () => goToTab("clinic") },
         { key: "add-child", label: "Add a child", icon: Plus, onSelect: onAddChild },

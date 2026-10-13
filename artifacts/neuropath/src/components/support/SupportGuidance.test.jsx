@@ -10,6 +10,17 @@ const supportMocks = vi.hoisted(() => ({
   filterProfiles: vi.fn(),
 }));
 
+const currentApproval = {
+  reviewStatus: "approved",
+  reviewer: "Qualified reviewer",
+  reviewedAt: "2026-10-01",
+  approvalScope: "urgent behavior support",
+  renewalDate: "2099-01-01",
+  version: "1.0",
+  publishable: true,
+  productionEligible: true,
+};
+
 vi.mock("@/api/entities", () => ({
   base44: {
     functions: {
@@ -38,7 +49,7 @@ describe("support guidance", () => {
         user={{ id: "parent-1" }}
         children={[{ id: "child-1", child_name: "Sam" }]}
         loadProfileForChild={async () => ({
-          behaviors: [{ name: "Transition difficulty", do_this_right_now: ["Give a brief advance notice"] }],
+          behaviors: [{ ...currentApproval, name: "Transition difficulty", do_this_right_now: ["Give a brief advance notice"] }],
         })}
         logEngagement={false}
         openRequest={1}
@@ -60,6 +71,7 @@ describe("support guidance", () => {
         profile={{
           behaviors: {
             elopement: {
+              ...currentApproval,
               name: "Leaving the area",
               do_this_right_now: ["Move to a safer place", "Offer a clear choice"],
             },
@@ -96,10 +108,12 @@ describe("support guidance", () => {
         profile: {
           behaviors: {
             elopement: {
+                ...currentApproval,
               name: "Leaving the area",
               do_this_right_now: ["Move to a safer place"],
             },
             aggression: {
+                ...currentApproval,
               name: "Hitting",
               do_this_right_now: ["Create space"],
             },
