@@ -162,6 +162,8 @@ describe("navigation role and menu models", () => {
     expect(goToTab).toHaveBeenCalledWith("today", "library");
     itemByKey(groups, "goals").onSelect();
     expect(goToTab).toHaveBeenCalledWith("edit", "goals");
+    itemByKey(groups, "practice").onSelect();
+    expect(goToTab).toHaveBeenCalledWith("practice");
     itemByKey(groups, "support").onSelect();
     expect(onSupportNow).toHaveBeenCalledOnce();
     itemByKey(groups, "add-child").onSelect();

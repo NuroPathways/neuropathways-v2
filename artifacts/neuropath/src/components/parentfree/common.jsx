@@ -3,7 +3,7 @@ import BrandMark from "@/components/brand/BrandMark";
 
 export function Brand({ to = "/" }) {
   return (
-    <Link to={to} className="pf-serif" style={{ display: "inline-flex", alignItems: "center", gap: 9, fontWeight: 700, fontSize: "1.2rem", color: "var(--pf-ink)", textDecoration: "none" }} data-testid="link-brand">
+    <Link to={to} className="pf-serif pf-brand" style={{ display: "inline-flex", alignItems: "center", gap: 9, flexShrink: 0, whiteSpace: "nowrap", fontWeight: 700, fontSize: "1.2rem", color: "var(--pf-ink)", textDecoration: "none" }} data-testid="link-brand">
       <BrandMark size={32} />
       <span>Neuro<span style={{ color: "var(--pf-accent)" }}>Pathways</span></span>
     </Link>
@@ -45,9 +45,9 @@ export function Field({ label, hint, children }) {
 export function Shell({ children, right }) {
   return (
     <div className="pf">
-      <header className="pf-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px" }}>
+      <header className="pf-wrap pf-header" style={{ padding: "20px" }}>
         <Brand />
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>{right}</div>
+        <div className="pf-header-actions">{right}</div>
       </header>
       {children}
     </div>

@@ -230,7 +230,7 @@ export function createFreeCaregiverNavigation({ activeTab, activeSection, goToTa
     {
       label: "Practice",
       items: [
-        { key: "practice", label: "Practice", icon: Activity, active: activeTab === "today" && activeSection === "practice", onSelect: () => goToTab("today", "practice") },
+        { key: "practice", label: "Practice", icon: Activity, active: activeTab === "practice", onSelect: () => goToTab("practice") },
       ],
     },
     {

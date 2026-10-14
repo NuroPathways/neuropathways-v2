@@ -327,26 +327,6 @@ export default function DailySupportHome({
         )}
       </section>
 
-      <section className="pf-daily-section" aria-labelledby="practice-skill-heading">
-        <div className="pf-daily-section-heading">
-          <div>
-            <p className="pf-eyebrow">A skill from the selected support area</p>
-            <h2 id="practice-skill-heading">Practice This Skill</h2>
-          </div>
-          {focusedSource && <span className={`pf-tag ${focusedSource.kind}`}>{focusedSource.text}</span>}
-        </div>
-        {focusedCard ? (
-          <div className="pf-card">
-            <h3>{focusedCard.replacementSkill || `Review support for ${focusedCard.behaviorName}`}</h3>
-            {focusedCard.reinforcementIdea && <p className="pf-hint" style={{ marginTop: 8 }}><strong>Saved reinforcement idea:</strong> {focusedCard.reinforcementIdea}</p>}
-            <p className="pf-hint" style={{ marginTop: 8 }}>Try this only during a calm, ordinary moment, using supports already familiar to your child.</p>
-            <button type="button" className="pf-btn small primary" style={{ marginTop: 12 }} onClick={() => onOpenSteps(focusedCard)}>Open skill steps</button>
-          </div>
-        ) : (
-          <div className="pf-card"><p>Add a behavior to see a related starter skill here.</p></div>
-        )}
-      </section>
-
       <section className="pf-card pf-quick-actions">
         <div className="pf-daily-section-heading">
           <div>

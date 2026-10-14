@@ -19,10 +19,11 @@ import { cardIdentity } from "@/components/parentfree/progress";
 import BehaviorLibrary from "@/components/parentfree/BehaviorLibrary";
 import ChildEditor from "@/components/parentfree/ChildEditor";
 import DailySupportHome from "@/components/parentfree/DailySupportHome";
+import PracticePage from "@/components/parentfree/PracticePage";
 import SupportNowOverlay, { clearSupportPopupSession } from "@/components/support/SupportNowOverlay";
 import { AlertTriangle } from "lucide-react";
 
-const TABS = [["today", "Today's Support"], ["steps", "Support Steps"], ["log", "Log What Happened"], ["docs", "Upload Plan"], ["ask", "Ask"], ["clinic", "Clinic"], ["edit", "Edit Child Profile"]];
+const TABS = [["today", "Today's Support"], ["practice", "Practice"], ["steps", "Support Steps"], ["log", "Log What Happened"], ["docs", "Upload Plan"], ["ask", "Ask"], ["clinic", "Clinic"], ["edit", "Edit Child Profile"]];
 
 const focusPrefix = (userId) => `np-parent-focus:${userId}:`;
 function readFocus(userId, childId) {
@@ -43,7 +44,8 @@ function currentLocalDay() {
 function Body({ child }) {
   const { user } = useAuth();
   const [sp, setSp] = useSearchParams();
-  const tab = TABS.some(([k]) => k === sp.get("tab")) ? sp.get("tab") : "today";
+  const legacyPracticeRoute = sp.get("tab") === "today" && sp.get("section") === "practice";
+  const tab = legacyPracticeRoute ? "practice" : TABS.some(([k]) => k === sp.get("tab")) ? sp.get("tab") : "today";
   const [selId, setSelId] = useState(() => readFocus(user?.id, child.id));
   const [section, setSection] = useState(() => sp.get("section"));
   const [addFromHelp, setAddFromHelp] = useState(null);
@@ -56,12 +58,12 @@ function Body({ child }) {
   useEffect(() => { setSection(sp.get("section")); }, [sp]);
   useEffect(() => { if (tab !== "steps") setSupportStepId(null); }, [tab]);
   useEffect(() => {
-    if (tab === "today" && sp.get("section") === "library") {
+    if (legacyPracticeRoute) {
+      setSp({ tab: "practice" }, { replace: true });
+    } else if (tab === "today" && sp.get("section") === "library") {
       libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else if (tab === "today" && sp.get("section") === "practice") {
-      document.getElementById("practice-skill-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, [tab, sp, q.data]);
+  }, [tab, sp, setSp, legacyPracticeRoute, q.data]);
   useEffect(() => {
     if (!selId) return;
     try { sessionStorage.setItem(`${focusPrefix(user?.id)}${child.id}`, selId); }
@@ -84,6 +86,7 @@ function Body({ child }) {
   const card = cards.find((c) => cardIdentity(c) === selId) || cards[0];
   const supportStepCard = helpCards.find((c) => cardIdentity(c) === supportStepId);
   const curId = card ? cardIdentity(card) : null;
+  const focusedCard = cards.find((item) => cardIdentity(item) === selId) || card;
   const behaviors = cards.map((c) => ({ behaviorKey: c.behaviorKey, customBehavior: c.behaviorKey === "custom" ? c.behaviorName : null, behaviorName: c.behaviorName, goal: c.goal }));
 
   return (
@@ -119,6 +122,14 @@ function Body({ child }) {
           onAddBehavior={() => go("edit", "behaviors")}
           onGoals={() => go("edit", "goals")}
           onEditProfile={() => go("edit", "profile")}
+        />
+      )}
+      {d && tab === "practice" && (
+        <PracticePage
+          childName={child.name}
+          card={focusedCard}
+          onOpenSteps={(supportCard) => { setSupportStepId(cardIdentity(supportCard)); go("steps"); }}
+          onAddBehavior={() => go("edit", "behaviors")}
         />
       )}
       {d && tab === "steps" && (
@@ -205,8 +216,9 @@ export default function ParentHome() {
   const [supportRequest, setSupportRequest] = useState(0);
   const incomplete = useMemo(() => children.find((c) => !isSetupComplete(c)), [children]);
   const popupChildren = useMemo(() => children.map((child) => ({ ...child, child_name: child.name })), [children]);
-  const activeTab = TABS.some(([key]) => key === searchParams.get("tab")) ? searchParams.get("tab") : "today";
-  const activeSection = searchParams.get("section") || "";
+  const legacyPracticeRoute = searchParams.get("tab") === "today" && searchParams.get("section") === "practice";
+  const activeTab = legacyPracticeRoute ? "practice" : TABS.some(([key]) => key === searchParams.get("tab")) ? searchParams.get("tab") : "today";
+  const activeSection = legacyPracticeRoute ? "" : searchParams.get("section") || "";
   const goToTab = (tab, section) => {
     const params = new URLSearchParams();
     if (tab !== "today" || section) params.set("tab", tab);

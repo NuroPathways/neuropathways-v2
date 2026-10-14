@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 describe("DailySupportHome", () => {
-  it("shows direct-mode weekly notes, preparation and a sourced skill from starter support", () => {
+  it("keeps weekly notes and preparation on Home without embedding the separate Practice page", () => {
     const card = {
       id: "starter-task-refusal",
       behaviorKey: "task_refusal",
@@ -67,11 +67,11 @@ describe("DailySupportHome", () => {
     expect(screen.getByText(/This is starter support based on the behavior you selected/)).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Prepare" })).toBeTruthy();
     expect(screen.getByText("Offer a small choice.")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Practice This Skill" })).toBeTruthy();
-    expect(screen.getByText("Ask for a break.")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Practice This Skill" })).toBeNull();
+    expect(screen.queryByText("Ask for a break.")).toBeNull();
     expect(screen.getAllByText("Starter support").length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open skill steps" }));
+    fireEvent.click(screen.getByRole("button", { name: "Review support steps" }));
     expect(openSteps).toHaveBeenCalledWith(card);
   });
 
