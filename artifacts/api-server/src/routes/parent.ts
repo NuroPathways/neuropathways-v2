@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { Router, type Request, type Response } from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import {
   behaviorLogsTable,
@@ -40,7 +40,7 @@ import {
   accountAuthorityInvalidStatus,
 } from "../lib/accountAuthority";
 import { getParentSupportCards, listParentDocuments } from "../lib/parentDocuments";
-import { parentLoginLimitKey } from "../lib/parentAuthRateLimit";
+import { parentLoginAccountKey } from "../lib/parentAuthRateLimit";
 import {
   hashParentPassword,
   hashParentSessionToken,
@@ -62,6 +62,8 @@ import {
 } from "../lib/parentAuth";
 
 const router = Router();
+// Keep a network-wide abuse ceiling, but scope the tighter sign-in budget to
+// an IP/account pair so one family sharing an IP cannot lock out its neighbors.
 const parentLoginIpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 60,
@@ -75,10 +77,9 @@ const parentLoginAccountLimiter = rateLimit({
   limit: 10,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  keyGenerator: (req) => parentLoginLimitKey(
-    req.ip,
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip || "unknown")}:${parentLoginAccountKey(
     normalizeParentEmail(isRecord(req.body) ? req.body.email : null),
-  ),
+  )}`,
   message: { error: "Too many sign-in attempts for this account from this network. Please try again later." },
   skip: () => process.env.DISABLE_RATE_LIMIT === "true",
 });
