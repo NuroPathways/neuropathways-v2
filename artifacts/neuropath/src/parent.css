@@ -27,6 +27,9 @@
 .pf-btn.small { min-height: 36px; padding-inline: 12px; font-size: .82rem; }
 .pf-btn.ghost { border-color: transparent; background: transparent; }
 .pf-input,.pf-area,.pf-select { width: 100%; min-height: 46px; padding: 11px 13px; border: 1px solid var(--pf-line); border-radius: 10px; color: var(--pf-ink); background: var(--pf-paper); }
+.pf-custom-behavior-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 8px; }
+.pf-custom-behavior-row .pf-input { width: 100%; min-width: 0; box-sizing: border-box; }
+.pf-custom-behavior-add { min-width: 64px; white-space: nowrap; overflow-wrap: normal; }
 .pf-area { min-height: 96px; resize: vertical; }
 .pf-input:focus,.pf-area:focus,.pf-select:focus { outline: 2px solid hsl(var(--ring) / .65); outline-offset: 1px; }
 .pf-label { display: block; margin-bottom: 6px; font-weight: 650; font-size: .86rem; }

@@ -50,9 +50,9 @@ export function BehaviorChoice({ templates, sels, setSels, loading }) {
       {!loading && (
         <div className="pf-card" style={{ padding: 16, display: "grid", gap: 8 }}>
           <Field label="Something else? Type your own">
-            <div style={{ display: "flex", gap: 8 }}>
+            <div className="pf-custom-behavior-row">
               <input className="pf-input" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }} data-testid="input-custom-behavior" />
-              <button type="button" className="pf-btn" disabled={!draft.trim()} onClick={addCustom} data-testid="button-add-custom">Add</button>
+              <button type="button" className="pf-btn pf-custom-behavior-add" disabled={!draft.trim()} onClick={addCustom} data-testid="button-add-custom">Add</button>
             </div>
           </Field>
         </div>
