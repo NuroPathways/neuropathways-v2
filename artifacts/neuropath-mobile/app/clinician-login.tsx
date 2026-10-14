@@ -22,13 +22,13 @@ export default function ClinicianLoginScreen() {
     page: { flex: 1, backgroundColor: colors.background },
     content: { padding: 24, paddingBottom: insets.bottom + 28, gap: 14 },
     title: { fontFamily: "Inter_700Bold", fontSize: 27, color: colors.foreground, marginTop: 16 },
-    caption: { color: colors.mutedForeground, fontSize: 14, lineHeight: 21, marginBottom: 12 },
+    caption: { color: colors.mutedForeground, fontSize: 14, marginBottom: 12 },
     label: { color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 },
     input: { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, borderWidth: 1, borderRadius: colors.radius, padding: 14, fontSize: 16 },
     button: { backgroundColor: colors.primary, padding: 16, borderRadius: colors.radius, alignItems: "center", marginTop: 10 },
     buttonText: { color: colors.primaryForeground, fontFamily: "Inter_700Bold", fontSize: 16 },
     link: { color: colors.primary, fontFamily: "Inter_600SemiBold", textAlign: "center", padding: 14 },
-    error: { color: colors.destructive, lineHeight: 20 },
+    error: { color: colors.destructive },
   });
   async function submit() {
     if (!email.trim() || !password || (register && (!firstName.trim() || !lastName.trim()))) {
@@ -66,7 +66,7 @@ export default function ClinicianLoginScreen() {
         <Text style={styles.label}>Last name</Text><TextInput style={styles.input} value={lastName} onChangeText={setLastName} autoComplete="family-name" />
         <Text style={styles.label}>Who is creating this account? Clinician</Text>
         <Text style={styles.label}>Account holder's age group</Text>
-        <View style={{ flexDirection: "row", gap: 8 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", gap: 8 }}>
           {(["under_13", "13_17", "18_plus"] as const).map((group) => (
             <Pressable key={group} accessibilityRole="radio" accessibilityState={{ selected: accountHolderAgeGroup === group }} onPress={() => setAccountHolderAgeGroup(group)} style={{ padding: 10, borderRadius: colors.radius, borderWidth: 1, borderColor: accountHolderAgeGroup === group ? colors.primary : colors.border }}>
               <Text style={{ color: colors.foreground, fontSize: 12 }}>{group === "under_13" ? "Under 13" : group === "13_17" ? "13–17" : "18 or older"}</Text>
@@ -76,7 +76,7 @@ export default function ClinicianLoginScreen() {
         {accountHolderAgeGroup === "under_13" && <Text accessibilityRole="alert" style={styles.error}>A parent or guardian must create this account. NeuroPathways does not allow children under 13 to create their own accounts.</Text>}
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: adultOrGuardianConfirmed }} onPress={() => setAdultOrGuardianConfirmed(!adultOrGuardianConfirmed)} style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
           <Text style={{ color: colors.primary, fontSize: 20 }}>{adultOrGuardianConfirmed ? "☑" : "□"}</Text>
-          <Text style={{ color: colors.foreground, flex: 1, lineHeight: 20 }}>I confirm I am 18 or older, or I have parent/guardian permission to use this account.</Text>
+          <Text allowFontScaling style={{ color: colors.foreground, flex: 1 }}>I confirm I am 18 or older, or I have parent/guardian permission to use this account.</Text>
         </Pressable>
       </>}
       <Text style={styles.label}>Email</Text>

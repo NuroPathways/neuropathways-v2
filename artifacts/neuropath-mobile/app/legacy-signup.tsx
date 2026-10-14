@@ -143,27 +143,27 @@ export default function SignupScreen() {
     back: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", paddingVertical: 8, marginBottom: 24 },
     backText: { color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 14 },
     eyebrow: { color: colors.primary, fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 1.4, marginBottom: 10 },
-    title: { color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 30, lineHeight: 36, marginBottom: 10 },
-    intro: { color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 23, marginBottom: 24 },
+    title: { color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 30, marginBottom: 10 },
+    intro: { color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15, marginBottom: 24 },
     card: { backgroundColor: colors.card, borderRadius: 20, borderColor: colors.border, borderWidth: 1, padding: 20 },
     label: { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 12, letterSpacing: 0.6, textTransform: "uppercase", marginTop: 20, marginBottom: 8 },
     input: { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, borderRadius: 12, minHeight: 48, paddingHorizontal: 14, color: colors.foreground, fontFamily: "Inter_400Regular", fontSize: 16 },
     inputRow: { flexDirection: "row", alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, borderRadius: 12 },
     codeInput: { flex: 1, borderWidth: 0 },
     iconButton: { padding: 12 },
-    hint: { color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 18, marginTop: 6 },
+    hint: { color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 6 },
     rule: { height: 1, backgroundColor: colors.border, marginTop: 26, marginBottom: 4 },
     privacy: { backgroundColor: colors.background, borderRadius: 16, borderColor: colors.border, borderWidth: 1, padding: 17, marginTop: 28 },
     privacyHead: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 9 },
     privacyTitle: { color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 16 },
-    privacyText: { color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, lineHeight: 20 },
+    privacyText: { color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 },
     link: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingVertical: 10, marginBottom: 9 },
     linkText: { color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 13 },
     consent: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 12, borderTopWidth: 1, borderColor: colors.border },
     checkbox: { width: 23, height: 23, borderRadius: 6, borderColor: colors.primary, borderWidth: 1.5, backgroundColor: colors.card, alignItems: "center", justifyContent: "center", marginTop: 1 },
     checked: { backgroundColor: colors.primary },
-    consentText: { flex: 1, color: colors.foreground, fontFamily: "Inter_400Regular", fontSize: 13, lineHeight: 20 },
-    error: { color: colors.destructive, fontFamily: "Inter_500Medium", fontSize: 13, lineHeight: 20, marginTop: 18, backgroundColor: colors.muted, borderRadius: 10, padding: 14 },
+    consentText: { flex: 1, color: colors.foreground, fontFamily: "Inter_400Regular", fontSize: 13 },
+    error: { color: colors.destructive, fontFamily: "Inter_500Medium", fontSize: 13, marginTop: 18, backgroundColor: colors.muted, borderRadius: 10, padding: 14 },
     button: { backgroundColor: colors.primary, borderRadius: 12, minHeight: 50, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, marginTop: 24 },
     disabled: { opacity: 0.5 },
     buttonText: { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 16 },
@@ -194,11 +194,11 @@ export default function SignupScreen() {
           {accountHolderAgeGroup === "under_13" && <Text accessibilityRole="alert" style={s.error}>A parent or guardian must create this account. NeuroPathways does not allow children under 13 to create their own accounts.</Text>}
           <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: adultOrGuardianConfirmed }} onPress={() => setAdultOrGuardianConfirmed(!adultOrGuardianConfirmed)} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start", marginTop: 12 }}>
             <Text style={{ color: colors.primary, fontSize: 20 }}>{adultOrGuardianConfirmed ? "☑" : "□"}</Text>
-            <Text style={{ color: colors.foreground, flex: 1, lineHeight: 20 }}>I confirm I am 18 or older, or I have parent/guardian permission to use this account.</Text>
+            <Text allowFontScaling style={{ color: colors.foreground, flex: 1 }}>I confirm I am 18 or older, or I have parent/guardian permission to use this account.</Text>
           </Pressable>
           <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: parentGuardianAuthorityConfirmed }} onPress={() => setParentGuardianAuthorityConfirmed(!parentGuardianAuthorityConfirmed)} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start", marginTop: 12 }}>
             <Text style={{ color: colors.primary, fontSize: 20 }}>{parentGuardianAuthorityConfirmed ? "☑" : "□"}</Text>
-            <Text style={{ color: colors.foreground, flex: 1, lineHeight: 20 }}>I confirm I am the parent, guardian, or authorized caregiver for any child profile I create.</Text>
+            <Text allowFontScaling style={{ color: colors.foreground, flex: 1 }}>I confirm I am the parent, guardian, or authorized caregiver for any child profile I create.</Text>
           </Pressable>
           <Text style={[s.label, { marginTop: 0 }]}>Your Name</Text>
           <TextInput testID="signup-parent-name" style={s.input} value={form.parent_name} onChangeText={set("parent_name")} placeholder="e.g. Maria Rivera" placeholderTextColor={colors.mutedForeground} autoComplete="name" />

@@ -24,7 +24,7 @@ export function H({ children, sub }: { children: React.ReactNode; sub?: string }
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ flexShrink: 1, fontFamily: "Inter_700Bold", fontSize: 26, color: c.foreground }}>{children}</Text>
-      {sub ? <Text style={{ flexShrink: 1, fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22, color: c.secondary }}>{sub}</Text> : null}
+      {sub ? <Text allowFontScaling style={{ flexShrink: 1, fontFamily: "Inter_400Regular", fontSize: 15, color: c.secondary }}>{sub}</Text> : null}
     </View>
   );
 }
@@ -41,7 +41,7 @@ export function Card({ children, style, tone }: { children: React.ReactNode; sty
 export function T({ children, weight = "regular", size = 15, color, style }: { children: React.ReactNode; weight?: "regular" | "semi" | "bold"; size?: number; color?: string; style?: object }) {
   const c = useColors();
   const f = weight === "bold" ? "Inter_700Bold" : weight === "semi" ? "Inter_600SemiBold" : "Inter_400Regular";
-  return <Text style={[{ flexShrink: 1, fontFamily: f, fontSize: size, lineHeight: size * 1.45, color: color ?? c.foreground }, style]}>{children}</Text>;
+  return <Text allowFontScaling style={[{ flexShrink: 1, fontFamily: f, fontSize: size, color: color ?? c.foreground }, style]}>{children}</Text>;
 }
 
 export function Btn({ label, onPress, kind = "primary", loading, disabled, icon, testID }: { label: string; onPress: () => void; kind?: "primary" | "ghost" | "danger"; loading?: boolean; disabled?: boolean; icon?: keyof typeof Feather.glyphMap; testID?: string }) {
@@ -57,7 +57,7 @@ export function Btn({ label, onPress, kind = "primary", loading, disabled, icon,
       style={({ pressed }) => [{ minHeight: 50, borderRadius: 14, paddingHorizontal: 18, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, backgroundColor: bg, opacity: disabled ? 0.45 : pressed ? 0.85 : 1 }, kind === "ghost" && { borderWidth: 1.5, borderColor: c.primary }]}
     >
       {loading ? <ActivityIndicator color={fg} /> : icon ? <Feather name={icon} size={18} color={fg} /> : null}
-      <Text style={{ flexShrink: 1, textAlign: "center", fontFamily: "Inter_600SemiBold", fontSize: 16, color: fg }}>{label}</Text>
+      <Text allowFontScaling style={{ flexShrink: 1, textAlign: "center", fontFamily: "Inter_600SemiBold", fontSize: 16, color: fg }}>{label}</Text>
     </Pressable>
   );
 }
@@ -66,8 +66,9 @@ export function Field({ label, hint, ...p }: TextInputProps & { label: string; h
   const c = useColors();
   return (
     <View style={{ gap: 6 }}>
-      <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: c.foreground }}>{label}</Text>
+      <Text allowFontScaling style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: c.foreground }}>{label}</Text>
       <TextInput
+        allowFontScaling
         placeholderTextColor={c.mutedForeground}
         {...p}
         style={[{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.card, paddingHorizontal: 14, paddingVertical: 12, fontFamily: "Inter_400Regular", fontSize: 16, color: c.foreground }, p.multiline && { minHeight: 96, textAlignVertical: "top" }, p.style]}
