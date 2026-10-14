@@ -24,7 +24,7 @@ export default function SignupAuthorityFields({
         </label>
         <select
           id="signup-account-holder-type"
-          className="mt-2 w-full min-h-[44px] rounded-xl border border-input bg-background px-3 text-sm"
+          className="mt-2 w-full min-w-0 max-w-full min-h-[44px] rounded-xl border border-input bg-background px-3 text-sm"
           value={role}
           aria-describedby="signup-client-account-note"
           disabled
@@ -48,7 +48,7 @@ export default function SignupAuthorityFields({
         </label>
         <select
           id="signup-age-group"
-          className="mt-2 w-full min-h-[44px] rounded-xl border border-input bg-background px-3 text-sm"
+          className="mt-2 w-full min-w-0 max-w-full min-h-[44px] rounded-xl border border-input bg-background px-3 text-sm"
           value={ageGroup}
           onChange={(event) => setAgeGroup(event.target.value)}
           required

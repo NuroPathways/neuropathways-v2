@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Responsive form layout check</title>
+    <link rel="stylesheet" href="../../index.css" />
+    <link rel="stylesheet" href="../../parent.css" />
+    <style>
+      body { padding: 0; }
+      .check-form { display: grid; gap: 14px; margin-top: 18px; }
+      .check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .check-chat { display: grid; gap: 10px; }
+      .check-results { position: fixed; left: -10000px; top: 0; }
+      @media (max-width: 359px) {
+        .check-grid { grid-template-columns: minmax(0, 1fr); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="pf">
+      <main class="pf-narrow">
+        <section class="pf-card" data-role="parent" aria-label="Parent child setup form">
+          <h1 data-check-text>Add your child</h1>
+          <form class="check-form">
+            <div>
+              <label class="pf-label" data-check-text for="parent-name">
+                Child first name or nickname you would like us to use
+              </label>
+              <input id="parent-name" class="pf-input" value="averyaveryaveryaveryaveryaveryaveryavery" />
+            </div>
+            <div>
+              <label class="pf-label" data-check-text for="parent-notes">
+                Notes about supports, routines, and important context
+              </label>
+              <textarea id="parent-notes" class="pf-area">A long parent note with averyaveryaveryaveryaveryaveryaveryaveryavery so text wraps inside the field.</textarea>
+            </div>
+            <div class="pf-error" role="alert" data-check-text>
+              Could not save this profile because averyaveryaveryaveryaveryaveryaveryaveryavery needs attention.
+              <button type="button" class="pf-btn small" data-check-text>Try again after checking every detail</button>
+            </div>
+            <button class="pf-btn primary" type="button" data-check-text>Continue to the next setup step</button>
+          </form>
+        </section>
+
+        <section class="pf-card" data-role="child" aria-label="Child custom behavior form">
+          <h2 data-check-text>Tell us what would help</h2>
+          <form class="check-form">
+            <div>
+              <label class="pf-label" data-check-text for="child-goal">
+                What is one small goal you want to work toward?
+              </label>
+              <textarea id="child-goal" class="pf-area" placeholder="Write a little about it"></textarea>
+            </div>
+            <div class="pf-custom-behavior-row" data-check-row>
+              <input class="pf-input" aria-label="Add a custom support behavior" value="averyaveryaveryaveryaveryavery" />
+              <button type="button" class="pf-btn pf-custom-behavior-add" data-check-text>Add behavior</button>
+            </div>
+            <div class="pf-chat">
+              <div class="pf-bubble me" data-check-text>averyaveryaveryaveryaveryaveryaveryaveryavery</div>
+              <div class="pf-bubble ai" data-check-text>Thanks for sharing. We can work on this one step at a time.</div>
+            </div>
+            <div class="pf-error" role="alert" data-check-text>
+              Please check this answer before continuing: averyaveryaveryaveryaveryaveryaveryaveryavery.
+            </div>
+            <button class="pf-btn primary" type="button" data-check-text>Save my answer</button>
+          </form>
+        </section>
+
+        <section class="pf-card" data-role="clinician" aria-label="Clinician client profile form">
+          <h2 data-check-text>Create a client profile</h2>
+          <div id="clinician-react-form"></div>
+        </section>
+      </main>
+    </div>
+    <pre id="responsive-check-results" class="check-results"></pre>
+    <script type="module" src="./responsive-form-layout.jsx"></script>
+    <script>
+      window.addEventListener("load", async () => {
+        if (document.fonts?.ready) await document.fonts.ready;
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        const issues = [];
+        const viewportWidth = document.documentElement.clientWidth;
+        const documentWidth = document.documentElement.scrollWidth;
+        if (documentWidth > viewportWidth + 1) {
+          issues.push({ role: "page", element: "document", issue: `horizontal overflow ${documentWidth}px > ${viewportWidth}px` });
+        }
+
+        document.querySelectorAll("[data-check-text]").forEach((element) => {
+          const bounds = element.getBoundingClientRect();
+          const parent = element.closest("[data-role]");
+          const role = parent?.dataset.role ?? "unknown";
+          const selector = `${element.tagName.toLowerCase()}${typeof element.className === "string" && element.className ? `.${element.className.trim().replace(/\s+/g, ".")}` : ""}`;
+          if (bounds.left < -1 || bounds.right > viewportWidth + 1) {
+            issues.push({ role, element: selector, issue: `text container escapes viewport (${Math.round(bounds.left)}..${Math.round(bounds.right)})` });
+          }
+          if (element.scrollWidth > element.clientWidth + 1) {
+            issues.push({ role, element: selector, issue: `content overflows its box (${element.scrollWidth}px > ${element.clientWidth}px)` });
+          }
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          [...range.getClientRects()].forEach((rect) => {
+            if (rect.width && (rect.left < bounds.left - 2 || rect.right > bounds.right + 2)) {
+              issues.push({ role, element: selector, issue: `text escapes its container (${Math.round(rect.left)}..${Math.round(rect.right)} vs ${Math.round(bounds.left)}..${Math.round(bounds.right)})` });
+            }
+          });
+        });
+
+        document.querySelectorAll("[data-role] input, [data-role] textarea, [data-role] select").forEach((field) => {
+          const card = field.closest("[data-role]");
+          const bounds = field.getBoundingClientRect();
+          const style = getComputedStyle(card);
+          const left = card.getBoundingClientRect().left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
+          const right = card.getBoundingClientRect().right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight);
+          if (bounds.left < left - 1 || bounds.right > right + 1) {
+            issues.push({ role: card.dataset.role, element: `${field.tagName.toLowerCase()}.${field.className}`, issue: `form field escapes card content bounds (${Math.round(bounds.left)}..${Math.round(bounds.right)}; card ${Math.round(left)}..${Math.round(right)})` });
+          }
+        });
+
+        document.querySelectorAll("[data-check-row]").forEach((row) => {
+          const [input, button] = row.children;
+          const inputBounds = input.getBoundingClientRect();
+          const buttonBounds = button.getBoundingClientRect();
+          const rowBounds = row.getBoundingClientRect();
+          if (inputBounds.right > buttonBounds.left + 1 || buttonBounds.right > rowBounds.right + 1) {
+            issues.push({ role: "child", element: "input and add button", issue: "controls overlap or escape their row" });
+          }
+        });
+
+        const report = {
+          viewport: viewportWidth,
+          roles: [...document.querySelectorAll("[data-role]")].map((node) => node.dataset.role),
+          checkedTextContainers: document.querySelectorAll("[data-check-text]").length,
+          reactControls: [...new Set([...document.querySelectorAll("[data-react-control]")].map((node) => node.dataset.reactControl))].sort(),
+          issues,
+        };
+        document.getElementById("responsive-check-results").textContent = JSON.stringify(report);
+        document.title = `CHECK_RESULTS:${encodeURIComponent(JSON.stringify(report))}`;
+      });
+    </script>
+  </body>
+</html>

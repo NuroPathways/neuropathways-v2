@@ -36,9 +36,11 @@
 * { box-sizing: border-box; border-color: hsl(var(--border)); }
 html, body { min-height: 100%; overscroll-behavior-y: none; -webkit-overflow-scrolling: touch; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; background: hsl(var(--background)); color: hsl(var(--foreground)); font-family: var(--font-sans); font-size: 15px; line-height: 1.55; }
+label { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 button, input, textarea, select { font: inherit; }
 input, textarea, select, [role="textbox"] { min-width: 0; max-width: 100%; }
 button, [role="button"] { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+form > * { min-width: 0; }
 button, [role="button"] { -webkit-user-select: none; user-select: none; }
 h1,h2,h3,h4 { font-family: var(--font-display); letter-spacing: -.035em; color: hsl(var(--foreground)); }
 a { color: inherit; }
