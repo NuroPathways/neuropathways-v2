@@ -37,7 +37,7 @@ async function waitForServer(url, child) {
   throw new Error(`Timed out waiting for responsive form fixture at ${url}`);
 }
 
-async function runBrowserCheck(url, viewport) {
+async function runBrowserCheck(url, viewport, textScale = 1) {
   const profileDir = await mkdtemp(path.join(os.tmpdir(), "neuropath-responsive-"));
   const browser = spawn(chromium, [
     "--headless", "--no-sandbox", "--disable-gpu", "--no-first-run",
@@ -91,7 +91,9 @@ async function runBrowserCheck(url, viewport) {
       deviceScaleFactor: 1,
       mobile: true,
     });
-    await command("Page.navigate", { url });
+    const fixtureUrl = new URL(url);
+    fixtureUrl.searchParams.set("textScale", String(textScale));
+    await command("Page.navigate", { url: fixtureUrl.toString() });
 
     let encodedReport;
     for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -140,6 +142,19 @@ try {
     assert.deepEqual(report.issues, [], `${viewport.name} layout problems:\n${JSON.stringify(report.issues, null, 2)}`);
     console.log(`PASS ${viewport.name} (${viewport.width}px): ${report.roles.join(", ")} forms; ${report.checkedTextContainers} text containers; no clipping or horizontal overflow`);
   }
+
+  const scaledViewport = viewports[0];
+  const scaledReport = await runBrowserCheck(fixtureUrl, scaledViewport, 2);
+  assert.equal(scaledReport.viewport, scaledViewport.width, "Text scaling must preserve the narrow phone viewport");
+  assert.equal(scaledReport.textScale, 2, "The 200% text-size setting must be active");
+  assert.ok(scaledReport.rootFontSize >= 32, `Root text size did not reach 200%: ${scaledReport.rootFontSize}px`);
+  assert.ok(scaledReport.parentLabelFontSize >= 27, `Parent labels did not enlarge: ${scaledReport.parentLabelFontSize}px`);
+  assert.ok(scaledReport.clinicianLabelFontSize >= 23, `Clinician labels did not enlarge: ${scaledReport.clinicianLabelFontSize}px`);
+  assert.deepEqual(scaledReport.roles, ["parent", "child", "clinician"], "A representative parent or clinician form is missing at 200% text size");
+  assert.ok(scaledReport.checkedTextContainers >= 19, "Expected label, error, and button text was not checked at 200%");
+  assert.deepEqual(scaledReport.reactControls, ["button", "input", "select", "textarea"], "Shared clinician form controls were not all exercised at 200%");
+  assert.deepEqual(scaledReport.issues, [], `200% text-size layout problems:\n${JSON.stringify(scaledReport.issues, null, 2)}`);
+  console.log(`PASS ${scaledViewport.name} (${scaledViewport.width}px) at 200% text: parent and clinician labels, errors, controls, and buttons remain readable and reachable`);
 } finally {
   server.kill("SIGTERM");
 }

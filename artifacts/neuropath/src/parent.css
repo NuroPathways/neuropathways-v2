@@ -179,6 +179,10 @@
   .np-ai-chat-bubble { max-width: 91%; padding: 11px 13px; }
 }
 @media (max-width: 420px) { .pf-daily-action-top { flex-direction: column; align-items: flex-start; } .pf-daily-section-heading > .pf-btn { flex: 0 0 auto; } }
+@media (max-width: 359px) {
+  .pf-custom-behavior-row { grid-template-columns: minmax(0,1fr); }
+  .pf-custom-behavior-add { justify-self: start; }
+}
 @media (min-width: 768px) { .np-nav-shell .np-ai-chat { height: calc(100dvh - 62px); min-height: 480px; } }
 .dark .pf { --pf-warn: hsl(var(--destructive) / .12); }
 .dark .pf-tag.warn,.dark .pf-error,.dark .pf-daily-review-note { color: hsl(var(--destructive)); }

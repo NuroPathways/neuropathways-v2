@@ -77,6 +77,11 @@
     <script type="module" src="./responsive-form-layout.jsx"></script>
     <script>
       window.addEventListener("load", async () => {
+        const textScale = Number(new URLSearchParams(location.search).get("textScale") || 1);
+        if (textScale > 1) {
+          document.documentElement.style.fontSize = `${16 * textScale}px`;
+          document.body.style.setProperty("font-size", `${15 * textScale}px`, "important");
+        }
         if (document.fonts?.ready) await document.fonts.ready;
         await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -107,9 +112,16 @@
           });
         });
 
-        document.querySelectorAll("[data-role] input, [data-role] textarea, [data-role] select").forEach((field) => {
+        const documentHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+        document.querySelectorAll("[data-role] input, [data-role] textarea, [data-role] select, [data-role] button").forEach((field) => {
           const card = field.closest("[data-role]");
           const bounds = field.getBoundingClientRect();
+          if (bounds.width <= 0 || bounds.height <= 0 || field.getClientRects().length === 0) {
+            issues.push({ role: card.dataset.role, element: `${field.tagName.toLowerCase()}.${field.className}`, issue: "form control is not visible" });
+          }
+          if (bounds.left < -1 || bounds.right > viewportWidth + 1 || bounds.top < -1 || bounds.bottom > documentHeight + 1) {
+            issues.push({ role: card.dataset.role, element: `${field.tagName.toLowerCase()}.${field.className}`, issue: "form control is outside the scrollable page" });
+          }
           const style = getComputedStyle(card);
           const left = card.getBoundingClientRect().left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
           const right = card.getBoundingClientRect().right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight);
@@ -123,13 +135,22 @@
           const inputBounds = input.getBoundingClientRect();
           const buttonBounds = button.getBoundingClientRect();
           const rowBounds = row.getBoundingClientRect();
-          if (inputBounds.right > buttonBounds.left + 1 || buttonBounds.right > rowBounds.right + 1) {
+          const overlap = inputBounds.left < buttonBounds.right && inputBounds.right > buttonBounds.left
+            && inputBounds.top < buttonBounds.bottom && inputBounds.bottom > buttonBounds.top;
+          const escapes = [inputBounds, buttonBounds].some((bounds) =>
+            bounds.left < rowBounds.left - 1 || bounds.right > rowBounds.right + 1
+            || bounds.top < rowBounds.top - 1 || bounds.bottom > rowBounds.bottom + 1);
+          if (overlap || escapes) {
             issues.push({ role: "child", element: "input and add button", issue: "controls overlap or escape their row" });
           }
         });
 
         const report = {
           viewport: viewportWidth,
+          textScale,
+          rootFontSize: parseFloat(getComputedStyle(document.documentElement).fontSize),
+          parentLabelFontSize: parseFloat(getComputedStyle(document.querySelector('[data-role="parent"] .pf-label')).fontSize),
+          clinicianLabelFontSize: parseFloat(getComputedStyle(document.querySelector('[data-role="clinician"] label')).fontSize),
           roles: [...document.querySelectorAll("[data-role]")].map((node) => node.dataset.role),
           checkedTextContainers: document.querySelectorAll("[data-check-text]").length,
           reactControls: [...new Set([...document.querySelectorAll("[data-react-control]")].map((node) => node.dataset.reactControl))].sort(),

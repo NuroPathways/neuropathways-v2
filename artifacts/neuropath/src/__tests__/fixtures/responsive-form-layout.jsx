@@ -61,9 +61,9 @@ function ClinicianForm() {
           </SelectContent>
         </Select>
       </div>
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Input data-react-control="input" aria-label="Search client by identifier" value="averyaveryaveryaveryavery" readOnly className="min-w-0 flex-1" />
-        <Button type="button" data-check-text data-react-control="button" className="shrink-0">
+        <Button type="button" data-check-text data-react-control="button" className="min-w-0">
           Find client by exact profile identifier
         </Button>
       </div>
