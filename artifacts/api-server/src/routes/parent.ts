@@ -40,6 +40,7 @@ import {
   accountAuthorityInvalidStatus,
 } from "../lib/accountAuthority";
 import { getParentSupportCards, listParentDocuments } from "../lib/parentDocuments";
+import { parentLoginLimitKey } from "../lib/parentAuthRateLimit";
 import {
   hashParentPassword,
   hashParentSessionToken,
@@ -61,12 +62,32 @@ import {
 } from "../lib/parentAuth";
 
 const router = Router();
-const authLimiter = rateLimit({
+const parentLoginIpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: 60,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  message: { error: "Too many parent sign-in attempts. Please try again later." },
+  message: { error: "Too many sign-in requests from this network. Please try again later." },
+  skip: () => process.env.DISABLE_RATE_LIMIT === "true",
+});
+const parentLoginAccountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: (req) => parentLoginLimitKey(
+    req.ip,
+    normalizeParentEmail(isRecord(req.body) ? req.body.email : null),
+  ),
+  message: { error: "Too many sign-in attempts for this account from this network. Please try again later." },
+  skip: () => process.env.DISABLE_RATE_LIMIT === "true",
+});
+const parentRegistrationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many account creation requests from this network. Please try again later." },
   skip: () => process.env.DISABLE_RATE_LIMIT === "true",
 });
 const passwordChangeLimiter = rateLimit({
@@ -464,7 +485,7 @@ router.get("/parent/starter-library", (_req, res) => {
   res.json(starterLibrary);
 });
 
-router.post("/parent/auth/register", authLimiter, async (req: Request, res: Response) => {
+router.post("/parent/auth/register", parentRegistrationLimiter, async (req: Request, res: Response) => {
   const body = req.body;
   if (!isRecord(body) || !hasOnlyKeys(body, ["firstName", "email", "password", "confirmPassword", "privacyConsent", "healthConsent", "accountHolderType", "accountHolderAgeGroup", "adultOrGuardianConfirmed", "parentGuardianAuthorityConfirmed"])) {
     res.status(400).json({ error: "Invalid registration request" });
@@ -606,7 +627,7 @@ router.post("/parent/auth/register", authLimiter, async (req: Request, res: Resp
   }
 });
 
-router.post("/parent/auth/login", authLimiter, async (req: Request, res: Response) => {
+router.post("/parent/auth/login", parentLoginIpLimiter, parentLoginAccountLimiter, async (req: Request, res: Response) => {
   const body = req.body;
   if (!isRecord(body) || !hasOnlyKeys(body, ["email", "password"])) {
     res.status(400).json({ error: "Invalid login request" });
