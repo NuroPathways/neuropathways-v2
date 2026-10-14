@@ -26,9 +26,9 @@ function Location() {
   return <output data-testid="destination">{location.pathname}{location.search}</output>;
 }
 
-function openHome(onSupportNow = vi.fn()) {
+function openHome(onSupportNow = vi.fn(), initialEntry = "/ClientHome") {
   render(
-    <MemoryRouter initialEntries={["/ClientHome"]}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/ClientHome" element={<ClientHome onSupportNow={onSupportNow} />} />
         <Route path="/LogBehavior" element={<Location />} />
@@ -68,6 +68,14 @@ describe("restored client dashboard", () => {
     expect(screen.getByText("A real observation")).toBeTruthy();
     fireEvent.click(screen.getByTestId("button-client-help-now"));
     expect(onSupportNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the separate Practice page for the selected family child", async () => {
+    openHome(vi.fn(), "/ClientHome?view=practice&child_id=child-a");
+    expect(await screen.findByTestId("panel-practice")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Practice" })).toBeTruthy();
+    expect(screen.getByText("Saved plan steps")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "My Children" })).toBeNull();
   });
 
   it("keeps sibling selection connected to the authorized portal request", async () => {

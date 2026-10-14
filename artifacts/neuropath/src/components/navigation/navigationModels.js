@@ -146,17 +146,22 @@ export function canChooseNavigationChild(childrenOptions, onChildSelect) {
   return Boolean(childrenOptions?.length > 1 && onChildSelect);
 }
 
-const routeForChild = (route, childId) =>
-  childId ? `${route}?child_id=${encodeURIComponent(childId)}` : route;
+const routeForChild = (route, childId) => {
+  if (!childId) return route;
+  const [path, query = ""] = route.split("?");
+  const params = new URLSearchParams(query);
+  params.set("child_id", childId);
+  return `${path}?${params.toString().replace(/\+/g, "%20")}`;
+};
 
-export function createClientHomeNavigation({ isIndividualClient, selectedId, onSupportNow }) {
+export function createClientHomeNavigation({ isIndividualClient, selectedId, onSupportNow, activePage = "home" }) {
   const navigationRoute = (route) => routeForChild(route, selectedId);
   if (isIndividualClient) {
     return [
       {
         label: "Your space",
         items: [
-          { key: "home", label: "Home", icon: BookOpen, to: "/ClientHome", active: true, pages: ["ClientHome"] },
+          { key: "home", label: "Home", icon: BookOpen, to: "/ClientHome", active: activePage === "home", pages: ["ClientHome"] },
           { key: "support", label: "Support Now", icon: LifeBuoy, support: true, onSelect: () => onSupportNow?.() },
           { key: "support-steps", label: "Support Steps", icon: ShieldCheck, to: navigationRoute("/HelpNow") },
         ],
@@ -186,8 +191,9 @@ export function createClientHomeNavigation({ isIndividualClient, selectedId, onS
     {
       label: "Today",
       items: [
-        { key: "home", label: "Home", icon: BookOpen, to: "/ClientHome", active: true, pages: ["ClientHome"] },
+        { key: "home", label: "Home", icon: BookOpen, to: "/ClientHome", active: activePage === "home", pages: ["ClientHome"] },
         { key: "support", label: "Support Now", icon: LifeBuoy, support: true, onSelect: () => onSupportNow?.() },
+        { key: "practice", label: "Practice", icon: Activity, to: navigationRoute("/ClientHome?view=practice"), active: activePage === "practice" },
       ],
     },
     {

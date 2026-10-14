@@ -53,6 +53,7 @@ export default function ClientHome({ onSupportNow }) {
   const navigate = useNavigate();
   const location = useLocation();
   const isIndividualClient = user?.account_type === "individual";
+  const practiceView = !isIndividualClient && new URLSearchParams(location.search).get("view") === "practice";
   const [selectedId, setSelectedId] = useState(() =>
     new URLSearchParams(location.search).get("child_id") || user?.children?.[0]?.id || user?.child_id || user?.id || null
   );
@@ -151,9 +152,10 @@ export default function ClientHome({ onSupportNow }) {
     isIndividualClient,
     selectedId,
     onSupportNow,
+    activePage: practiceView ? "practice" : "home",
   });
   const navigationItems = originalNavigation.flatMap((group) => group.items);
-  const primaryKeys = ["ai-chat", "support", "documents", "messages", "settings"];
+  const primaryKeys = ["practice", "ai-chat", "support", "documents", "messages", "settings"];
   const navigationGroups = [
     { label: "", items: navigationItems.filter((item) => item.key === "home").map((item) => ({ ...item, label: "Dashboard", icon: UserRound })) },
     { label: "", items: primaryKeys.map((key) => navigationItems.find((item) => item.key === key)).filter(Boolean).map((item) => ({
@@ -172,10 +174,10 @@ export default function ClientHome({ onSupportNow }) {
       legacyAppearance
       showChildLinks={!isIndividualClient}
       hideTopbar
-      currentLabel="Dashboard"
-      activeKey="home"
+      currentLabel={practiceView ? "Practice" : "Dashboard"}
+      activeKey={practiceView ? "practice" : "home"}
       navGroups={navigationGroups}
-      mobilePrimaryKeys={mobilePrimaryKeysForRole(isIndividualClient ? "individual" : "caregiver")}
+      mobilePrimaryKeys={isIndividualClient ? mobilePrimaryKeysForRole("individual") : ["home", "support", "practice", "logs"]}
       accountName={isIndividualClient ? firstName(user?.display_name || user?.full_name || childName) : `${firstName(childName)}’s family`}
       accountMeta={isIndividualClient ? "Individual account" : "Family account"}
       selectedChild={isIndividualClient ? null : siblings.find((sibling) => sibling.id === selectedId) || child}
@@ -238,7 +240,7 @@ export default function ClientHome({ onSupportNow }) {
           <span><strong>I Need Help Right Now</strong><small>Get guidance from your support plans</small></span>
           <ChevronRight size={20} />
         </button>
-        {!loading && !error && (
+        {!practiceView && !loading && !error && (
           <section className="ch-children-section" aria-label={isIndividualClient ? "My profile" : "My Children"}>
             <h2><Baby size={16} />{isIndividualClient ? "My Profile" : "My Children"}</h2>
             <div className="ch-children-grid">
@@ -262,7 +264,36 @@ export default function ClientHome({ onSupportNow }) {
           </section>
         )}
 
-        {loading ? <LoadingState /> : error ? (
+        {practiceView ? (
+          loading ? <LoadingState /> : error ? (
+            <div className="ch-error" role="alert"><div><strong>Practice could not load.</strong><p>{error?.message || "Your saved information is safe. Try again in a moment."}</p></div><button className="ch-retry" type="button" onClick={() => loadPortal(selectedId)}>Try again</button></div>
+          ) : (
+            <section className="ch-panel" data-testid="panel-practice">
+              <div className="ch-panel-head">
+                <div>
+                  <p className="ch-eyebrow">Familiar steps from your shared plan</p>
+                  <h2>Practice</h2>
+                  <p className="ch-panel-sub">Use a calm, ordinary moment. Keep to guidance already shared by your care team.</p>
+                </div>
+              </div>
+              {plans.length || interventionPlans.length ? (
+                <>
+                  <h3>{value(interventionPlans[0] || plans[0], "title", "planName", "plan_name", "behaviorName", "behavior_name") || "Your shared support plan"}</h3>
+                  <p className="ch-subtitle">
+                    {value(interventionPlans[0] || plans[0], "replacementSkill", "replacement_skill", "strategySteps", "strategy_steps", "description", "summary") ||
+                      `Review one familiar support step with ${isIndividualClient ? "yourself" : childName}.`}
+                  </p>
+                  {goals.length > 0 && <p className="ch-panel-sub">Connected goal: {goalLabel(goals[0])}</p>}
+                  <button type="button" className="ch-text-link" onClick={() => go("/HelpNow")}>Open support steps <ArrowRight size={14} /></button>
+                </>
+              ) : (
+                <EmptyMessage title="No shared plan yet">
+                  <>Practice guidance will appear here when your care team shares a plan.</>
+                </EmptyMessage>
+              )}
+            </section>
+          )
+        ) : loading ? <LoadingState /> : error ? (
           <div className="ch-error" role="alert"><div><strong>We couldn’t open your home just now.</strong><p>{error?.message || "Your saved information is safe. Try again in a moment."}</p></div><button className="ch-retry" type="button" onClick={() => loadPortal(selectedId)}>Try again</button></div>
         ) : (
           <div className="ch-layout">

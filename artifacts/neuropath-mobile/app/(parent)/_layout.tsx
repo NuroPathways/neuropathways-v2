@@ -23,6 +23,7 @@ export default function ParentTabs() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: "Support Now", tabBarIcon: icon("life-buoy") }} />
+      <Tabs.Screen name="practice" options={{ title: "Practice", tabBarIcon: icon("activity") }} />
       <Tabs.Screen name="log" options={{ title: "Log", tabBarIcon: icon("edit-3") }} />
       <Tabs.Screen name="documents" options={{ title: "Documents", tabBarIcon: icon("file-text") }} />
       <Tabs.Screen name="chat" options={{ title: "Ask", tabBarIcon: icon("message-circle") }} />

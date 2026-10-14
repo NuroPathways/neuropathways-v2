@@ -230,7 +230,10 @@ describe("role-aware shell interactions", () => {
       isIndividualClient: false,
       selectedId: "child-1",
       onSupportNow,
+      activePage: "practice",
     });
+    expect(itemByKey(groups, "practice").active).toBe(true);
+    expect(itemByKey(groups, "practice").to).toBe("/ClientHome?view=practice&child_id=child-1");
     renderShell({ navGroups: groups, mobilePrimaryKeys: ["home", "support", "logs"] });
 
     fireEvent.click(screen.getByTestId("nav-support-bottom"));
