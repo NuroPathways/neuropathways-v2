@@ -42,14 +42,17 @@ Implementation follows the attached phased specification. Existing accounts, dat
 
 ## Phase 4 — Clinic sharing and review
 
-- [ ] Explicit consent scopes and revocation.
+- [x] Parents choose whether to share all, selected, or no uploaded documents when connecting; a parent can disconnect clinic access later.
 - [ ] Versioned clinician review and publishing.
-- [ ] Parent ownership and private-source provenance remain intact.
+- [x] Revoking a clinic link clears its document-sharing access without deleting the parent account, child records, uploaded files, or support history.
+- [x] Invite creation uses a single-use, expiring copy-link flow; the UI does not claim email delivery.
+- [ ] Add consent-scoped sharing of observations and explicit reviewed-activity assignment.
 
 ## Cross-platform and verification
 
 - [x] Web and Expo mobile shared parent navigation, child context, Home, Help Now, Practice, Goals, and History surfaces.
 - [x] Web and Expo mobile Phase 3 Help Now and family tools, backed by parent-and-child scoped persistence.
+- [x] Web and Expo mobile clinic connection revocation; both retain parent-owned records.
 - [x] Role-specific clinician and individual-client navigation remains in place.
 - [x] Add/extend navigation and account-context regression coverage; web tests and mobile typecheck pass.
 - [x] Record actual tests and remaining limitations before completion.
@@ -59,5 +62,7 @@ Phase 1 limitation: History in the Expo parent session and independent-parent da
 Phase 2 limitation: This phase reuses the saved daily-action activity content and does not add a routine-authoring system. Saved activity position and bookmarks persist across web/mobile and daily-action refreshes; no production database schema was changed.
 
 Phase 3 limitations: Reminder delivery infrastructure is not configured, so schedules persist but do not notify. Private routine images are not supported; routines offer short icon names and optional times. The UI explicitly identifies both limitations.
+
+Phase 4 limitation: This first slice covers document sharing choices and clinic-link revocation. Versioned review/publishing, reviewed-activity assignment, and consent-scoped observation sharing remain outstanding.
 
 Verification: `pnpm --filter @workspace/neuropath test` (62 passed), web production build passed, `pnpm --filter @workspace/neuropath-mobile run typecheck` passed, and API server typecheck/build passed. The additive practice-progress table was applied to the development database only. The web build reports the existing large JavaScript chunk advisory.

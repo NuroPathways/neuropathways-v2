@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { connectParentClinic, listParentDocuments, previewParentClinicInvite } from "@workspace/api-client-react";
+import { connectParentClinic, listParentDocuments, previewParentClinicInvite, revokeParentClinicLink } from "@workspace/api-client-react";
 import type { ParentClinicInvitePreview } from "@workspace/api-client-react";
 import { Btn, Card, Check, Chip, ErrorBox, Field, H, Row, Screen, T, msg } from "@/components/ParentUi";
 import { useParent } from "@/context/ParentContext";
@@ -20,6 +20,7 @@ export default function Connect() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const docs = useQuery({ queryKey: ["parent-docs", child?.id], queryFn: () => listParentDocuments(child!.id, opts), enabled: !!child && !!preview });
   if (!child) return null;
 
@@ -45,8 +46,31 @@ export default function Connect() {
     } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   };
   const toggle = (id: string) => setDocIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const disconnect = async () => {
+    setBusy(true); setError("");
+    try {
+      const result = await revokeParentClinicLink(child.id, opts);
+      await refresh();
+      qc.invalidateQueries();
+      setDone(result.message);
+    } catch (e) { setError(msg(e)); } finally { setBusy(false); }
+  };
 
-  if (done) return <Screen><H>Connected</H><Card><T>{done}</T></Card><Btn label="Done" onPress={() => router.back()} /></Screen>;
+  if (done) return <Screen><H>Clinic connection updated</H><Card><T>{done}</T></Card><Btn label="Done" onPress={() => router.back()} /></Screen>;
+  if (child.clinicianId) return (
+    <Screen>
+      <H sub="Clinic sharing can be stopped without deleting your parent account or records.">Clinic connection</H>
+      <Card><T weight="semi">Connected to a clinic</T><T size={14}>Disconnecting removes clinic access and stops sharing uploaded documents. Parent records and support history remain in your account.</T></Card>
+      {confirmDisconnect ? (
+        <Card tone="warn">
+          <T weight="semi">Disconnect clinic access?</T>
+          {error ? <ErrorBox message={error} /> : null}
+          <Btn kind="danger" label="Confirm disconnect" onPress={disconnect} loading={busy} />
+          <Btn kind="ghost" label="Keep connected" onPress={() => setConfirmDisconnect(false)} disabled={busy} />
+        </Card>
+      ) : <Btn kind="danger" label="Disconnect clinic" onPress={() => setConfirmDisconnect(true)} />}
+    </Screen>
+  );
 
   return (
     <Screen>
@@ -65,7 +89,7 @@ export default function Connect() {
           ) : null}
           <T weight="semi">What would you like to share?</T>
           <Row wrap>
-            <Chip label="Everything" selected={sharing === "all"} onPress={() => setSharing("all")} />
+            <Chip label="All documents" selected={sharing === "all"} onPress={() => setSharing("all")} />
             <Chip label="Choose documents" selected={sharing === "selected"} onPress={() => setSharing("selected")} />
             <Chip label="Nothing yet" selected={sharing === "none"} onPress={() => setSharing("none")} />
           </Row>

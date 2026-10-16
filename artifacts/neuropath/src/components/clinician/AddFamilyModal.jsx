@@ -19,6 +19,7 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
   const [saving, setSaving] = useState(false);
   const [inviteLink, setInviteLink] = useState("");
   const [inviteError, setInviteError] = useState("");
+  const [copyNotice, setCopyNotice] = useState("");
   const [inviteExpires, setInviteExpires] = useState("");
   const [family, setFamily] = useState({ family_name: "", notes: "" });
   const [guardian, setGuardian] = useState({ name: "", email: "" });
@@ -69,7 +70,7 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
         const link = /^https?:/i.test(inv.inviteUrl) ? inv.inviteUrl : `${window.location.origin}${inv.inviteUrl}`;
         setInviteLink(link);
         setInviteExpires(inv.expiresAt);
-        base44.functions.invoke('sendInviteEmail', { to: guardian.email, name: guardian.name, link, type: 'family' }).catch(() => {});
+        setCopyNotice("The invite link is ready. No email was sent; copy the link and share it with the parent.");
       } catch (err) {
         setInviteError(err?.message || "The family was saved, but the parent invite could not be created.");
       }
@@ -94,7 +95,9 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
   };
 
   const copyLink = () => {
-    navigator.clipboard.writeText(inviteLink);
+    navigator.clipboard.writeText(inviteLink)
+      .then(() => setCopyNotice("Invite link copied. Share it with the parent; no email was sent."))
+      .catch(() => setCopyNotice("Copy wasn't available. Select and copy the invite link above."));
   };
 
   if (!open) return null;
@@ -168,7 +171,7 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
                   <div>
                     <Label className="text-xs text-muted-foreground">Email (for invite)</Label>
                     <Input type="email" value={guardian.email} onChange={e => setGrd("email", e.target.value)} placeholder="parent@email.com" className="mt-1 rounded-xl border-border text-sm" />
-                    <p className="text-xs text-muted-foreground mt-1">An invite link will be sent to this email.</p>
+                    <p className="text-xs text-muted-foreground mt-1">A single-use invite link will be created for this email. You will share it yourself.</p>
                   </div>
                 </div>
               </div>
@@ -236,8 +239,9 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
               <div>
                 <h3 className="font-bold text-foreground text-lg">Family Added!</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {inviteLink ? `Invite created for ${guardian.email}. Send them this link; it works once and expires ${inviteExpires ? new Date(inviteExpires).toLocaleDateString() : "in 7 days"}.` : (inviteError || "No invite was created.")}
+                  {inviteLink ? `Invite created for ${guardian.email}. It works once and expires ${inviteExpires ? new Date(inviteExpires).toLocaleDateString() : "in 7 days"}.` : (inviteError || "No invite was created.")}
                 </p>
+                {copyNotice && <p role="status" className="text-sm text-muted-foreground">{copyNotice}</p>}
               </div>
               {inviteLink && (
                 <div className="bg-muted rounded-xl p-4 text-left space-y-2">
