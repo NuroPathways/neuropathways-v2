@@ -11,6 +11,8 @@ import {
   familiesTable,
   parentDailyActionLogsTable,
   parentDailyActionsTable,
+  parentPracticeProgressTable,
+  parentFamilyToolsTable,
   parentAccountsTable,
   parentChildSettingsTable,
   parentLogsTable,
@@ -24,6 +26,8 @@ import {
   RecordParentGoalFeedbackBody,
   RecordParentGoalFeedbackResponse,
   UpdateParentDailyActionBody,
+  UpdateParentPracticeProgressBody,
+  SaveParentFamilyToolsBody,
 } from "@workspace/api-zod";
 import { makeStarterCard, starterLibrary } from "../lib/parentStarterLibrary";
 import {
@@ -470,12 +474,24 @@ export async function getParentDashboardData(parentId: string, childId: string, 
       createdAt: log.createdAt,
     })),
   });
+  const progressRows = await db.select().from(parentPracticeProgressTable).where(and(
+    eq(parentPracticeProgressTable.parentId, parentId),
+    eq(parentPracticeProgressTable.childId, childId),
+  ));
+  const progressByKey = new Map(progressRows.map((progress) => [progress.actionKey, progress]));
   return {
     child: serializeParentChild(owned, owned.settings),
     supportCards,
     documents,
     logs: storedLogs.map(serializeParentLog),
-    dailyActions,
+    dailyActions: dailyActions.map((action) => {
+      const progress = progressByKey.get(action.actionKey);
+      return {
+        ...action,
+        currentStep: progress?.currentStep ?? 0,
+        bookmarked: progress?.bookmarked ?? action.status === "saved_for_later",
+      };
+    }),
     planGoals,
   };
 }
@@ -1144,6 +1160,53 @@ router.get("/parent/children/:childId/dashboard", requireParent, async (req: Req
   }
 });
 
+router.get("/parent/children/:childId/family-tools", requireParent, async (req: Request, res: Response) => {
+  const childId = getRouteChildId(req);
+  if (!childId) {
+    res.status(400).json({ error: "Child is required" });
+    return;
+  }
+  const parentId = req.parentAccount!.id;
+  const owned = await ownedParentChild(parentId, childId);
+  if (!owned) {
+    res.status(404).json({ error: "Child not found" });
+    return;
+  }
+  const [record] = await db.select().from(parentFamilyToolsTable).where(and(
+    eq(parentFamilyToolsTable.parentId, parentId),
+    eq(parentFamilyToolsTable.childId, childId),
+  )).limit(1);
+  const state = record?.state ?? { routines: [], routineRuns: [], preferences: {}, reminders: [] };
+  res.json({ ...state, reminderDelivery: "unavailable" });
+});
+
+router.put("/parent/children/:childId/family-tools", requireParent, async (req: Request, res: Response) => {
+  const childId = getRouteChildId(req);
+  const parsed = SaveParentFamilyToolsBody.safeParse(req.body);
+  if (!childId || !parsed.success) {
+    res.status(400).json({ error: "Invalid family tools state" });
+    return;
+  }
+  const parentId = req.parentAccount!.id;
+  const owned = await ownedParentChild(parentId, childId);
+  if (!owned) {
+    res.status(404).json({ error: "Child not found" });
+    return;
+  }
+  const state = {
+    routines: parsed.data.routines,
+    routineRuns: parsed.data.routineRuns,
+    preferences: parsed.data.preferences,
+    reminders: parsed.data.reminders,
+  };
+  const [saved] = await db.insert(parentFamilyToolsTable).values({ parentId, childId, state })
+    .onConflictDoUpdate({
+      target: [parentFamilyToolsTable.parentId, parentFamilyToolsTable.childId],
+      set: { state, updatedAt: new Date() },
+    }).returning();
+  res.json({ ...saved.state, reminderDelivery: "unavailable" });
+});
+
 router.patch("/parent/children/:childId/daily-actions/:actionId", requireParent, async (req: Request, res: Response) => {
   const childId = getRouteChildId(req);
   const actionId = typeof req.params.actionId === "string" ? req.params.actionId : "";
@@ -1187,6 +1250,81 @@ router.patch("/parent/children/:childId/daily-actions/:actionId", requireParent,
     res.json(serializeParentDailyAction(updated, []));
   } catch {
     res.status(500).json({ error: "Unable to update daily action" });
+  }
+});
+
+router.patch("/parent/children/:childId/daily-actions/:actionId/practice-progress", requireParent, async (req: Request, res: Response) => {
+  const childId = getRouteChildId(req);
+  const actionId = typeof req.params.actionId === "string" ? req.params.actionId : "";
+  const parsed = UpdateParentPracticeProgressBody.safeParse(req.body);
+  if (!childId || !actionId || !parsed.success) {
+    res.status(400).json({ error: "Invalid practice progress request" });
+    return;
+  }
+  try {
+    const parentId = req.parentAccount!.id;
+    const owned = await ownedParentChild(parentId, childId);
+    if (!owned) {
+      res.status(404).json({ error: "Child not found" });
+      return;
+    }
+    const [action] = await db.select().from(parentDailyActionsTable).where(and(
+      eq(parentDailyActionsTable.id, actionId),
+      eq(parentDailyActionsTable.parentId, parentId),
+      eq(parentDailyActionsTable.childId, childId),
+    )).limit(1);
+    if (!action) {
+      res.status(404).json({ error: "Daily action not found" });
+      return;
+    }
+    if (action.status === "done" || action.status === "logged" || action.status === "skipped" || action.status === "needs_review") {
+      res.status(409).json({ error: "This activity is already closed" });
+      return;
+    }
+    if (parsed.data.currentStep > action.steps.length + 2) {
+      res.status(400).json({ error: "currentStep is outside the saved activity" });
+      return;
+    }
+    const now = new Date();
+    const [progress] = await db.insert(parentPracticeProgressTable).values({
+      parentId,
+      childId,
+      actionKey: action.actionKey,
+      currentStep: parsed.data.currentStep,
+      bookmarked: parsed.data.bookmarked,
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: [
+        parentPracticeProgressTable.parentId,
+        parentPracticeProgressTable.childId,
+        parentPracticeProgressTable.actionKey,
+      ],
+      set: {
+        currentStep: parsed.data.currentStep,
+        bookmarked: parsed.data.bookmarked,
+        updatedAt: now,
+      },
+    }).returning();
+    if (action.status === "not_started" || action.status === "saved_for_later") {
+      await db.update(parentDailyActionsTable).set({
+        status: parsed.data.bookmarked ? "saved_for_later" : action.status === "saved_for_later" ? "not_started" : action.status,
+        updatedAt: now,
+      }).where(and(
+        eq(parentDailyActionsTable.id, actionId),
+        eq(parentDailyActionsTable.parentId, parentId),
+        eq(parentDailyActionsTable.childId, childId),
+      ));
+    }
+    res.json({
+      actionId,
+      childId,
+      actionKey: action.actionKey,
+      currentStep: progress.currentStep,
+      bookmarked: progress.bookmarked,
+      updatedAt: progress.updatedAt.toISOString(),
+    });
+  } catch {
+    res.status(500).json({ error: "Unable to save practice progress" });
   }
 });
 

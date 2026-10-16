@@ -6,6 +6,7 @@
 - [Shared document compatibility](shared-document-compatibility.md) — document references are shared contracts; new native access must preserve web viewing and scanning.
 - [Guidance consent provenance](guidance-consent-provenance.md) — clinical priority never removes private contributing sources; clinician previews and action responses need consent-filtered projections.
 - [Parent UI and behavior scope](parent-multi-behavior-scope.md) — daily-first home must preserve multi-goal selections, clear sources, and parent-controlled plan discoveries.
+- [Practice progress identity](practice-progress-identity.md) — persist activity position by parent, child, and stable activity key, not by date-scoped daily-action ID.
 - [Shared authentication test limits](shared-auth-test-limits.md) — API and browser checks can consume the same development IP quota despite using different accounts.
 - [Document discovery test semantics](document-discovery-test-semantics.md) — distinguish known-category matching from genuinely custom discoveries in live model tests.
 - [Replit production database pause](replit-production-db-pause.md) — a disabled production endpoint can break auth and document flows; unpause it in the Database pane before changing app code.

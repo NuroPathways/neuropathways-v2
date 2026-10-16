@@ -50,11 +50,15 @@ import type {
   ParentDocumentScanResult,
   ParentDocumentSharingInput,
   ParentDocumentUploadInput,
+  ParentFamilyTools,
+  ParentFamilyToolsInput,
   ParentGoalFeedbackInput,
   ParentLog,
   ParentLogInput,
   ParentLoginInput,
   ParentPasswordChangeInput,
+  ParentPracticeProgress,
+  ParentPracticeProgressInput,
   ParentRegistrationInput,
   ParentSession,
   ParentSharedSupport,
@@ -1380,6 +1384,287 @@ export const useLogParentDailyAction = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getLogParentDailyActionMutationOptions(options), queryClient);
+    }
+
+export const getUpdateParentPracticeProgressUrl = (childId: string,
+    actionId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/daily-actions/${actionId}/practice-progress`
+}
+
+/**
+ * @summary Save a parent's activity position and saved-for-later choice
+ */
+export const updateParentPracticeProgress = async (childId: string,
+    actionId: string,
+    parentPracticeProgressInput: ParentPracticeProgressInput, options?: Parameters<typeof customFetch>[1]): Promise<ParentPracticeProgress> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ParentPracticeProgress>(getUpdateParentPracticeProgressUrl(childId,actionId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(parentPracticeProgressInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateParentPracticeProgressMutationKey = () => ['updateParentPracticeProgress'] as const;
+
+export const getUpdateParentPracticeProgressMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateParentPracticeProgress>>, TError,UpdateParentPracticeProgressMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateParentPracticeProgress>>, TError,UpdateParentPracticeProgressMutationVariables, TContext> => {
+
+const mutationKey = getUpdateParentPracticeProgressMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateParentPracticeProgress>>, UpdateParentPracticeProgressMutationVariables> = (props) => {
+          const {childId,actionId,data} = props ?? {};
+
+          return  updateParentPracticeProgress(childId,actionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateParentPracticeProgressMutationResult = NonNullable<Awaited<ReturnType<typeof updateParentPracticeProgress>>>
+    export type UpdateParentPracticeProgressMutationBody = BodyType<ParentPracticeProgressInput>
+    export type UpdateParentPracticeProgressMutationError = ErrorType<unknown>
+    export type UpdateParentPracticeProgressMutationVariables = {childId: string;actionId: string;data: BodyType<ParentPracticeProgressInput>}
+
+    /**
+ * @summary Save a parent's activity position and saved-for-later choice
+ */
+export const useUpdateParentPracticeProgress = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateParentPracticeProgress>>, TError,UpdateParentPracticeProgressMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateParentPracticeProgress>>,
+        TError,
+        UpdateParentPracticeProgressMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateParentPracticeProgressMutationOptions(options), queryClient);
+    }
+
+export const getGetParentFamilyToolsUrl = (childId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/family-tools`
+}
+
+/**
+ * @summary Read the parent's private routines, preferences, and reminder schedules
+ */
+export const getParentFamilyTools = async (childId: string, options?: Parameters<typeof customFetch>[1]): Promise<ParentFamilyTools> => {
+
+  return customFetch<ParentFamilyTools>(getGetParentFamilyToolsUrl(childId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetParentFamilyToolsQueryKey = (childId: string,) => {
+    return [
+    `/api/parent/children/${childId}/family-tools`
+    ] as const;
+    }
+
+
+export const getGetParentFamilyToolsQueryOptions = <TData = Awaited<ReturnType<typeof getParentFamilyTools>>, TError = ErrorType<unknown>>(childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentFamilyTools>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetParentFamilyToolsQueryKey(childId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getParentFamilyTools>>> = ({ signal }) => getParentFamilyTools(childId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: childId !== null && childId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getParentFamilyTools>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetParentFamilyToolsQueryResult = NonNullable<Awaited<ReturnType<typeof getParentFamilyTools>>>
+export type GetParentFamilyToolsQueryError = ErrorType<unknown>
+
+
+export function useGetParentFamilyTools<TData = Awaited<ReturnType<typeof getParentFamilyTools>>, TError = ErrorType<unknown>>(
+ childId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentFamilyTools>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getParentFamilyTools>>,
+          TError,
+          Awaited<ReturnType<typeof getParentFamilyTools>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetParentFamilyTools<TData = Awaited<ReturnType<typeof getParentFamilyTools>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentFamilyTools>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getParentFamilyTools>>,
+          TError,
+          Awaited<ReturnType<typeof getParentFamilyTools>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetParentFamilyTools<TData = Awaited<ReturnType<typeof getParentFamilyTools>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentFamilyTools>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Read the parent's private routines, preferences, and reminder schedules
+ */
+
+export function useGetParentFamilyTools<TData = Awaited<ReturnType<typeof getParentFamilyTools>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentFamilyTools>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetParentFamilyToolsQueryOptions(childId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveParentFamilyToolsUrl = (childId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/family-tools`
+}
+
+/**
+ * @summary Save private routines, preferences, and reminder schedules
+ */
+export const saveParentFamilyTools = async (childId: string,
+    parentFamilyToolsInput: ParentFamilyToolsInput, options?: Parameters<typeof customFetch>[1]): Promise<ParentFamilyTools> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ParentFamilyTools>(getSaveParentFamilyToolsUrl(childId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(parentFamilyToolsInput)
+  }
+);}
+
+
+
+
+
+export const getSaveParentFamilyToolsMutationKey = () => ['saveParentFamilyTools'] as const;
+
+export const getSaveParentFamilyToolsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveParentFamilyTools>>, TError,SaveParentFamilyToolsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveParentFamilyTools>>, TError,SaveParentFamilyToolsMutationVariables, TContext> => {
+
+const mutationKey = getSaveParentFamilyToolsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveParentFamilyTools>>, SaveParentFamilyToolsMutationVariables> = (props) => {
+          const {childId,data} = props ?? {};
+
+          return  saveParentFamilyTools(childId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveParentFamilyToolsMutationResult = NonNullable<Awaited<ReturnType<typeof saveParentFamilyTools>>>
+    export type SaveParentFamilyToolsMutationBody = BodyType<ParentFamilyToolsInput>
+    export type SaveParentFamilyToolsMutationError = ErrorType<unknown>
+    export type SaveParentFamilyToolsMutationVariables = {childId: string;data: BodyType<ParentFamilyToolsInput>}
+
+    /**
+ * @summary Save private routines, preferences, and reminder schedules
+ */
+export const useSaveParentFamilyTools = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveParentFamilyTools>>, TError,SaveParentFamilyToolsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveParentFamilyTools>>,
+        TError,
+        SaveParentFamilyToolsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveParentFamilyToolsMutationOptions(options), queryClient);
     }
 
 export const getAddParentLogUrl = (childId: string,) => {

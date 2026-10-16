@@ -74,7 +74,12 @@ export default function Layout({ children, currentPageName }) {
 
   const role = resolveNavigationRole(user, isIndividualFallback);
   const homePath = user.invite_token ? "/ClientHome" : "/ParentDashboard";
-  const currentChildId = new URLSearchParams(location.search).get("child_id") || user.child_id || user.children?.[0]?.id;
+  const requestedChildId = new URLSearchParams(location.search).get("child_id");
+  let savedChildId = null;
+  try { savedChildId = localStorage.getItem(`np-family-child:${user.id}`); } catch { /* Storage may be unavailable. */ }
+  const currentChildId = requestedChildId || (childrenList.some((child) => String(child.id) === String(savedChildId)) ? savedChildId : null)
+    || (childrenList.some((child) => String(child.id) === String(user.child_id)) ? user.child_id : null)
+    || childrenList[0]?.id;
   const selectedChild = role === "caregiver" && childrenList.length
     ? childrenList.find((child) => String(child.id) === String(currentChildId)) || childrenList[0]
     : null;
@@ -101,10 +106,13 @@ export default function Layout({ children, currentPageName }) {
         ...item,
         active: item.pages?.includes(currentPageName) || false,
         to: openSupportOverlay ? undefined : item.to && ((path) => {
-          if (!user.invite_token || path === "/ClientHome") return path;
-          const childId = currentChildId;
+          if ((!user.invite_token && role !== "caregiver") || path === "/ClientHome") return path;
+          const childId = selectedChild?.id || currentChildId;
           if (!childId) return path;
-          return `${path}?child_id=${encodeURIComponent(childId)}`;
+          const [pathname, query = ""] = path.split("?");
+          const params = new URLSearchParams(query);
+          params.set("child_id", childId);
+          return `${pathname}?${params.toString()}`;
         })(item.to),
         onSelect: openSupportOverlay ? () => setSupportRequest((request) => request + 1) : item.onSelect,
         disabled: openSupportOverlay && childrenList.length === 0,
@@ -127,12 +135,15 @@ export default function Layout({ children, currentPageName }) {
   const mobilePrimaryKeys = mobilePrimaryKeysForRole(role);
 
   const handleChildSelect = (childId) => {
+    try { localStorage.setItem(`np-family-child:${user.id}`, childId); } catch { /* Storage may be unavailable. */ }
     if (user.invite_token) {
       const params = new URLSearchParams(location.search);
       params.set("child_id", childId);
       navigate(`${location.pathname}?${params.toString()}`);
     } else {
-      navigate(`/ChildProfile?child_id=${encodeURIComponent(childId)}`);
+      const params = new URLSearchParams(location.search);
+      params.set("child_id", childId);
+      navigate(`${location.pathname}?${params.toString()}`);
     }
   };
 
@@ -148,10 +159,10 @@ export default function Layout({ children, currentPageName }) {
       mobilePrimaryKeys={mobilePrimaryKeys}
       accountName={accountName}
       accountMeta={accountMeta}
-      selectedChild={hasPortalChildContext ? selectedChild : null}
-      childrenOptions={hasPortalChildContext ? childrenList : []}
+      selectedChild={role === "caregiver" ? selectedChild : null}
+      childrenOptions={role === "caregiver" ? childrenList : []}
       contextLabel="Viewing support for"
-      onChildSelect={hasPortalChildContext && childrenList.length > 1 ? handleChildSelect : undefined}
+      onChildSelect={role === "caregiver" && childrenList.length > 1 ? handleChildSelect : undefined}
       onLogout={() => base44.auth.logout("/")}
     >
       {children}

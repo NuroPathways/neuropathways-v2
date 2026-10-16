@@ -34,6 +34,9 @@ export interface ParentDailyAction {
      */
   estimatedMinutes: number;
   status: ParentDailyActionStatus;
+  /** @minimum 0 */
+  currentStep: number;
+  bookmarked: boolean;
   /** @nullable */
   completedAt: Date | null;
   /** @nullable */

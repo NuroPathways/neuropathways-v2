@@ -830,6 +830,8 @@ function serializeAction(action: ParentDailyAction, logs: ParentDailyActionLog[]
     steps: action.steps || [],
     estimatedMinutes: action.estimatedMinutes,
     status: action.status,
+    currentStep: 0,
+    bookmarked: action.status === "saved_for_later",
     completedAt: action.completedAt?.toISOString() ?? null,
     loggedAt: action.loggedAt?.toISOString() ?? null,
     createdAt: action.createdAt.toISOString(),

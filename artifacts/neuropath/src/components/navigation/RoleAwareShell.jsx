@@ -107,6 +107,7 @@ export default function RoleAwareShell({
   const activeItem = allItems.find((item) => item.key === activeKey || item.active);
   const pageLabel = currentLabel || activeItem?.label || "Home";
   const mobileItems = getMobileNavigationItems(navGroups, mobilePrimaryKeys);
+  const mobileMenuItem = role === "caregiver" ? allItems.find((item) => item.key === "menu") : null;
   const initials = String(accountName || "A").trim().charAt(0).toUpperCase() || "A";
 
   useEffect(() => {
@@ -279,15 +280,24 @@ export default function RoleAwareShell({
             closeMenu={closeMenu}
           />
         ))}
-        <button
-          className={`np-nav-item np-nav-item-bottom ${mobileOpen ? "is-active" : ""}`}
-          type="button"
-          aria-expanded={mobileOpen}
-          onClick={() => setMobileOpen((open) => !open)}
-          data-testid="button-navigation-more"
-        >
-          <MoreHorizontal size={20} aria-hidden="true" /><span>More</span>
-        </button>
+        {mobileMenuItem ? (
+          <NavigationLink
+            item={mobileMenuItem}
+            active={mobileMenuItem.key === activeKey || Boolean(mobileMenuItem.active)}
+            variant="bottom"
+            closeMenu={closeMenu}
+          />
+        ) : (
+          <button
+            className={`np-nav-item np-nav-item-bottom ${mobileOpen ? "is-active" : ""}`}
+            type="button"
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen((open) => !open)}
+            data-testid="button-navigation-more"
+          >
+            <MoreHorizontal size={20} aria-hidden="true" /><span>More</span>
+          </button>
+        )}
       </nav>
     </div>
   );

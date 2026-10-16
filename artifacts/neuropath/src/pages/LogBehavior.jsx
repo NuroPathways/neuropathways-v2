@@ -53,7 +53,7 @@ function SmartSelect({ label, options, value, onValueChange, placeholder, textPl
               {opt}
             </SelectItem>
           ))}
-          <SelectItem value="__other__">✏️ Other — type below</SelectItem>
+            <SelectItem value="__other__">Other — type below</SelectItem>
         </SelectContent>
       </Select>
       <AnimatePresence>

@@ -3,7 +3,7 @@ import { Pressable, View } from "react-native";
 import { useFocusEffect, router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getParentBehaviors, getParentDashboard, parentBehaviorIdentity, useLogParentDailyAction } from "@workspace/api-client-react";
+import { getGetParentDashboardQueryKey, getParentBehaviors, getParentDashboard, parentBehaviorIdentity, useLogParentDailyAction } from "@workspace/api-client-react";
 import type { ParentDailyAction, ParentDocument, SupportCard } from "@workspace/api-client-react";
 import { BehaviorLibrary } from "@/components/BehaviorLibrary";
 import { ChildSwitch } from "@/components/ChildSwitch";
@@ -198,7 +198,7 @@ export default function SupportNow() {
   const [showAllDailyActions, setShowAllDailyActions] = useState(false);
   const [dailyActionError, setDailyActionError] = useState<{ actionId: string; message: string } | null>(null);
   const logAction = useLogParentDailyAction({ request: opts });
-  const q = useQuery({ queryKey: ["parent-dashboard", child?.id], queryFn: () => getParentDashboard(child!.id, opts), enabled: !!child });
+  const q = useQuery({ queryKey: getGetParentDashboardQueryKey(child?.id ?? ""), queryFn: () => getParentDashboard(child!.id, opts), enabled: !!child });
   const refetch = q.refetch;
   // Re-sync behavior, goal and source text from the server whenever this tab regains focus (e.g. after a scan).
   useFocusEffect(useCallback(() => { if (child) refetch(); }, [child, refetch]));
@@ -226,7 +226,7 @@ export default function SupportNow() {
       },
     }, {
       onSuccess: async () => {
-        await queryClient.invalidateQueries({ queryKey: ["parent-dashboard", child.id] });
+        await queryClient.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(child.id) });
       },
       onError: (error) => setDailyActionError({ actionId: action.id, message: msg(error, "Your update could not be saved.") }),
     });

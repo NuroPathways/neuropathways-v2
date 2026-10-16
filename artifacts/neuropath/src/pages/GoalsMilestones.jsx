@@ -44,7 +44,11 @@ export default function GoalsMilestones() {
         kids = [...byId, ...byEmail].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
       }
       setChildren(kids);
-      const cid = childIdParam || kids[0]?.id || "";
+      let savedId = null;
+      try { savedId = localStorage.getItem(`np-family-child:${user.id}`); } catch { /* Storage may be unavailable. */ }
+      const cid = kids.find((child) => String(child.id) === String(childIdParam))?.id
+        || kids.find((child) => String(child.id) === String(savedId))?.id
+        || kids[0]?.id || "";
       setSelectedChildId(cid);
     };
     load();
@@ -116,6 +120,13 @@ export default function GoalsMilestones() {
   };
 
   const selectedChild = children.find(c => c.id === selectedChildId);
+  const changeChild = (childId) => {
+    setSelectedChildId(childId);
+    try { localStorage.setItem(`np-family-child:${user?.id}`, childId); } catch { /* Storage may be unavailable. */ }
+    const params = new URLSearchParams(window.location.search);
+    params.set("child_id", childId);
+    navigate(`/GoalsMilestones?${params.toString()}`, { replace: true });
+  };
 
   // Normalize old vs new field names
   const normalizeGoal = (g) => ({
@@ -158,7 +169,7 @@ export default function GoalsMilestones() {
         {children.length > 1 && (
           <div className="legacy-goals-child-select">
             <span className="text-xs font-semibold text-muted-foreground">Viewing progress for</span>
-            <Select value={selectedChildId} onValueChange={setSelectedChildId}>
+            <Select value={selectedChildId} onValueChange={changeChild}>
               <SelectTrigger className="rounded-lg bg-card"><SelectValue placeholder="Select profile" /></SelectTrigger>
               <SelectContent>{children.map(c => <SelectItem key={c.id} value={c.id}>{c.child_name}</SelectItem>)}</SelectContent>
             </Select>

@@ -1,6 +1,6 @@
 import { Toaster } from "@/components/ui/toaster"
-import { useState } from "react";
-import { QueryClientProvider } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from "react";
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from 'react-router-dom';
@@ -41,9 +41,11 @@ import ClientHome from './pages/ClientHome';
 import SupportNowOverlay from '@/components/support/SupportNowOverlay';
 import PublicLegalRoutes from '@/components/legal/PublicLegalRoutes';
 import DataRequests from '@/pages/DataRequests';
+import ParentMenu from '@/pages/ParentMenu';
+import ParentHistory from '@/pages/ParentHistory';
 
 // Free email parents only ever use the parent-owned screens, never legacy CRUD pages.
-const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/DataRequests', '/Settings', '/privacy'];
+const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/DataRequests', '/Settings', '/privacy', '/Practice', '/Menu', '/History', '/GoalsMilestones', '/Messages'];
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -64,15 +66,38 @@ const ClientHomeRoute = () => {
 
   return (
     <>
-      {user?.invite_token && <SupportNowOverlay user={user} children={children} isIndividual={user?.account_type === "individual"} openRequest={supportRequest} />}
+      {user?.invite_token && <SupportNowOverlay user={user} children={children} isIndividual={user?.account_type === "individual"} openRequest={supportRequest} autoOpen={false} />}
       <ClientHome onSupportNow={() => setSupportRequest((request) => request + 1)} />
     </>
   );
 };
 
+const ParentLegacyDestination = ({ tab, section }) => {
+  const { user } = useAuth();
+  const location = useLocation();
+  if (user?.account_type !== "parent_free") return <Navigate to={`/ParentDashboard${location.search}`} replace />;
+  const params = new URLSearchParams(location.search);
+  params.set("tab", tab);
+  if (section) params.set("section", section);
+  else params.delete("section");
+  return <Navigate to={`/ParentHome?${params.toString()}`} replace />;
+};
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, user } = useAuth();
   const location = useLocation();
+  const queryClient = useQueryClient();
+  const previousIdentity = useRef();
+
+  useEffect(() => {
+    const identity = user?.id;
+    if (identity === previousIdentity.current) return;
+    if (previousIdentity.current !== undefined || identity !== undefined) {
+      void queryClient.cancelQueries();
+      queryClient.clear();
+    }
+    previousIdentity.current = identity;
+  }, [queryClient, user?.id]);
 
   // Reset links are intentionally usable without an existing clinician or client session.
   if (location.pathname === "/ResetAccessCode") {
@@ -148,8 +173,11 @@ const AuthenticatedApp = () => {
       <Route path="/ParentSignupUsername" element={<ParentSignupUsername />} />
       <Route path="/ParentQuickStart" element={<ParentQuickStart />} />
       <Route path="/ParentHome" element={<ParentHome />} />
+      <Route path="/Practice" element={<ParentLegacyDestination tab="practice" />} />
+      <Route path="/Menu" element={<LayoutWrapper currentPageName="Menu"><ParentMenu /></LayoutWrapper>} />
+      <Route path="/History" element={<LayoutWrapper currentPageName="History"><ParentHistory /></LayoutWrapper>} />
       <Route path="/ClientHome" element={<ClientHomeRoute />} />
-      <Route path="/GoalsMilestones" element={<LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>} />
+      <Route path="/GoalsMilestones" element={user?.account_type === "parent_free" ? <ParentLegacyDestination tab="edit" section="goals" /> : <LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>} />
       <Route path="/DataImport" element={<DataImport />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>

@@ -44,6 +44,7 @@ function currentLocalDay() {
 
 function Body({ child }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
   const legacyPracticeRoute = sp.get("tab") === "today" && sp.get("section") === "practice";
   const tab = legacyPracticeRoute ? "practice" : TABS.some(([k]) => k === sp.get("tab")) ? sp.get("tab") : "today";
@@ -127,8 +128,21 @@ function Body({ child }) {
       )}
       {d && tab === "practice" && (
         <PracticePage
+          childId={child.id}
           childName={child.name}
-          card={focusedCard}
+          child={d.child || child}
+          actions={d.dailyActions || []}
+          documents={d.documents || []}
+          initialActionId={sp.get("activity_id")}
+          onExitRoute={() => {
+            if (sp.has("activity_id")) {
+              const next = new URLSearchParams(sp);
+              next.delete("activity_id");
+              setSp(next, { replace: true });
+            }
+          }}
+          onGoals={() => go("edit", "goals")}
+          onHistory={() => navigate(`/History?child_id=${encodeURIComponent(child.id)}`)}
           onOpenSteps={(supportCard) => { setSupportStepId(cardIdentity(supportCard)); go("steps"); }}
           onAddBehavior={() => go("edit", "behaviors")}
         />
@@ -213,10 +227,12 @@ export default function ParentHome() {
   const nav = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const { children, selected, select } = useSelectedChild();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [supportRequest, setSupportRequest] = useState(0);
   const incomplete = useMemo(() => children.find((c) => !isSetupComplete(c)), [children]);
   const popupChildren = useMemo(() => children.map((child) => ({ ...child, child_name: child.name })), [children]);
+  const deepLinkedChild = children.find((child) => String(child.id) === String(searchParams.get("child_id")));
+  const activeChild = deepLinkedChild || selected;
   const legacyPracticeRoute = searchParams.get("tab") === "today" && searchParams.get("section") === "practice";
   const activeTab = legacyPracticeRoute ? "practice" : TABS.some(([key]) => key === searchParams.get("tab")) ? searchParams.get("tab") : "today";
   const activeSection = legacyPracticeRoute ? "" : searchParams.get("section") || "";
@@ -224,6 +240,7 @@ export default function ParentHome() {
     const params = new URLSearchParams();
     if (tab !== "today" || section) params.set("tab", tab);
     if (section) params.set("section", section);
+    if (activeChild?.id) params.set("child_id", activeChild.id);
     nav(`/ParentHome${params.size ? `?${params.toString()}` : ""}`);
   };
   const loadPopupProfile = useCallback(async (childId) => {
@@ -246,7 +263,7 @@ export default function ParentHome() {
     };
   }, []);
   if (!isAuthenticated || user?.account_type !== "parent_free") return <Navigate to="/ParentLogin" replace />;
-  if (children.length === 0 || (incomplete && incomplete.id === selected?.id)) return <Navigate to="/ParentQuickStart" replace />;
+  if (children.length === 0 || (incomplete && incomplete.id === activeChild?.id)) return <Navigate to="/ParentQuickStart" replace />;
 
   const navGroups = createFreeCaregiverNavigation({
     activeTab,
@@ -254,6 +271,8 @@ export default function ParentHome() {
     goToTab,
     onSupportNow: () => setSupportRequest((request) => request + 1),
     onAddChild: () => nav("/ParentQuickStart?new=1"),
+    onMenu: () => nav(`/Menu${activeChild?.id ? `?child_id=${encodeURIComponent(activeChild.id)}` : ""}`),
+    onHistory: () => nav(`/History${activeChild?.id ? `?child_id=${encodeURIComponent(activeChild.id)}` : ""}`),
   });
   const activeItem = navGroups.flatMap((group) => group.items).find((item) => item.active);
   const currentLabel = activeItem?.label || "Home";
@@ -266,22 +285,27 @@ export default function ParentHome() {
       currentLabel={currentLabel}
       activeKey={activeItem?.key}
       navGroups={navGroups}
-      mobilePrimaryKeys={["home", "support", "practice"]}
+      mobilePrimaryKeys={["home", "support", "practice", "goals"]}
       accountName={user.first_name || user.full_name || "Caregiver"}
       accountMeta="Caregiver account"
-      selectedChild={selected}
+      selectedChild={activeChild}
       childrenOptions={children}
       contextLabel="Viewing support for"
-      onChildSelect={select}
+      onChildSelect={(childId) => {
+        select(childId);
+        const next = new URLSearchParams(searchParams);
+        next.set("child_id", childId);
+        setSearchParams(next, { replace: true });
+      }}
       onLogout={() => { clearFocus(user?.id); clearSupportPopupSession(user?.id); logout(); }}
     >
       <div className="pf">
       <main className="pf-wrap wide">
         <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
-        <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span style={{ color: "rgba(255,255,255,.75)", fontWeight: 400 }}>for {selected.name}</span></h1>
+        <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span style={{ color: "rgba(255,255,255,.75)", fontWeight: 400 }}>for {activeChild.name}</span></h1>
         <Link to="/DataRequests" className="text-sm underline underline-offset-4" style={{ color: "rgba(255,255,255,.88)" }}>Privacy &amp; data requests</Link></div>
         {activeTab === "today" && !activeSection && <button type="button" className="pf-help-cta" onClick={() => setSupportRequest((request) => request + 1)} data-testid="button-dashboard-help-now"><span className="ico"><AlertTriangle size={20} /></span><span><strong>I Need Help Right Now</strong><small>Open support steps for a stressful moment</small></span></button>}
-        <Body key={selected.id} child={selected} />
+        <Body key={activeChild.id} child={activeChild} />
       </main>
       </div>
       <SupportNowOverlay

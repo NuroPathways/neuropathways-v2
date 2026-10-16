@@ -15,6 +15,7 @@ import GoalWidget from "@/components/parent/GoalWidget";
 import StreakBadge from "@/components/parent/StreakBadge";
 import MomentumCard from "@/components/parent/MomentumCard";
 import SupportNowOverlay from "@/components/support/SupportNowOverlay";
+import ParentFamilyHome from "@/pages/ParentFamilyHome";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -710,8 +711,7 @@ export default function ParentDashboard() {
   return (
     <>
       <SupportNowOverlay user={user} children={children} isIndividual={false} />
-      <FamilyDashboard user={user} children={children} recentLogs={recentLogs} unreadMessages={unreadMessages} loading={false}
-        selectedChildId={selectedChildId} setSelectedChildId={setSelectedChildId} clientPortalCache={clientPortalCache} />
+      <ParentFamilyHome user={user} children={children} recentLogs={recentLogs} unreadMessages={unreadMessages} selectedChildId={selectedChildId} />
     </>
   );
 }

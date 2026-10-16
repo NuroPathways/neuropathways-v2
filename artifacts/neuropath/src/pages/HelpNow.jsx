@@ -102,16 +102,21 @@ export default function HelpNow() {
         });
       }
 
-      // No child_id in URL + multiple children → show picker first
-      if (!childId && allChildren.length > 1) {
+      let savedId = null;
+      try { savedId = localStorage.getItem(`np-family-child:${me.id}`); } catch { /* Storage may be unavailable. */ }
+      const authorizedRequested = allChildren.find((candidate) => String(candidate.id) === String(childId));
+      const authorizedSaved = allChildren.find((candidate) => String(candidate.id) === String(savedId));
+      const hasValidSelection = !!(authorizedRequested || authorizedSaved || allChildren.length === 1);
+      if (!hasValidSelection && allChildren.length > 1) {
         setChildrenForPicker(allChildren);
         setStep("child_select");
         setLoading(false);
         return;
       }
 
-      const foundChild = childId ? allChildren.find(c => c.id === childId) : allChildren[0];
+      const foundChild = authorizedRequested || authorizedSaved || allChildren[0];
       if (!foundChild) { setLoading(false); return; }
+      try { localStorage.setItem(`np-family-child:${me.id}`, foundChild.id); } catch { /* Storage may be unavailable. */ }
       setChild(foundChild);
       setStep("select_behavior");
 
@@ -266,7 +271,10 @@ export default function HelpNow() {
             {childrenForPicker.map(c => (
               <button
                 key={c.id}
-                onClick={() => navigate(`/HelpNow?child_id=${c.id}`, { replace: true })}
+                onClick={() => {
+                  try { localStorage.setItem(`np-family-child:${user?.id}`, c.id); } catch { /* Storage may be unavailable. */ }
+                  navigate(`/HelpNow?child_id=${c.id}`, { replace: true });
+                }}
                 className="w-full flex items-center justify-between bg-card border-2 border-border hover:border-red-400 rounded-2xl p-4 text-left transition-all group"
               >
                 <div className="flex items-center gap-3">
@@ -481,7 +489,7 @@ export default function HelpNow() {
                   <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 space-y-1.5">
                     {selectedBehavior.reinforcement_rewards.map((r, i) => (
                       <p key={i} className="text-sm text-teal-800 flex items-start gap-2">
-                        <span className="flex-shrink-0 mt-0.5">⭐</span> {r}
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" /> {r}
                       </p>
                     ))}
                   </div>

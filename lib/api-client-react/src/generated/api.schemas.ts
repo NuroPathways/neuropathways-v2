@@ -463,6 +463,9 @@ export interface ParentDailyAction {
      */
   estimatedMinutes: number;
   status: ParentDailyActionStatus;
+  /** @minimum 0 */
+  currentStep: number;
+  bookmarked: boolean;
   /** @nullable */
   completedAt: string | null;
   /** @nullable */
@@ -478,6 +481,60 @@ export interface ParentDashboard {
   logs: ParentLog[];
   dailyActions: ParentDailyAction[];
   planGoals: ParentPlanGoal[];
+}
+
+export interface ParentPracticeProgress {
+  actionId: string;
+  childId: string;
+  actionKey: string;
+  /** @minimum 0 */
+  currentStep: number;
+  bookmarked: boolean;
+  updatedAt: string;
+}
+
+export interface ParentPracticeProgressInput {
+  /** @minimum 0 */
+  currentStep: number;
+  bookmarked: boolean;
+}
+
+export type ParentFamilyToolsRoutinesItem = { [key: string]: unknown };
+
+export type ParentFamilyToolsRoutineRunsItem = { [key: string]: unknown };
+
+export type ParentFamilyToolsPreferences = { [key: string]: unknown };
+
+export type ParentFamilyToolsRemindersItem = { [key: string]: unknown };
+
+export type ParentFamilyToolsReminderDelivery = typeof ParentFamilyToolsReminderDelivery[keyof typeof ParentFamilyToolsReminderDelivery];
+
+
+export const ParentFamilyToolsReminderDelivery = {
+  unavailable: 'unavailable',
+} as const;
+
+export interface ParentFamilyTools {
+  routines: ParentFamilyToolsRoutinesItem[];
+  routineRuns: ParentFamilyToolsRoutineRunsItem[];
+  preferences: ParentFamilyToolsPreferences;
+  reminders: ParentFamilyToolsRemindersItem[];
+  reminderDelivery: ParentFamilyToolsReminderDelivery;
+}
+
+export type ParentFamilyToolsInputRoutinesItem = { [key: string]: unknown };
+
+export type ParentFamilyToolsInputRoutineRunsItem = { [key: string]: unknown };
+
+export type ParentFamilyToolsInputPreferences = { [key: string]: unknown };
+
+export type ParentFamilyToolsInputRemindersItem = { [key: string]: unknown };
+
+export interface ParentFamilyToolsInput {
+  routines: ParentFamilyToolsInputRoutinesItem[];
+  routineRuns: ParentFamilyToolsInputRoutineRunsItem[];
+  preferences: ParentFamilyToolsInputPreferences;
+  reminders: ParentFamilyToolsInputRemindersItem[];
 }
 
 export interface ParentDailyActionLogResponse {

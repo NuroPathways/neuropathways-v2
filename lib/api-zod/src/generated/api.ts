@@ -381,6 +381,8 @@ export const getParentDashboardResponseSupportCardsItemPlanGoalMax = 500;
 
 export const getParentDashboardResponseDailyActionsItemEstimatedMinutesMax = 60;
 
+export const getParentDashboardResponseDailyActionsItemCurrentStepMin = 0;
+
 
 
 export const GetParentDashboardResponse = zod.object({
@@ -492,6 +494,8 @@ export const GetParentDashboardResponse = zod.object({
   "steps": zod.array(zod.string()),
   "estimatedMinutes": zod.number().int().min(1).max(getParentDashboardResponseDailyActionsItemEstimatedMinutesMax),
   "status": zod.enum(['not_started', 'done', 'logged', 'skipped', 'saved_for_later', 'needs_review']),
+  "currentStep": zod.number().int().min(getParentDashboardResponseDailyActionsItemCurrentStepMin),
+  "bookmarked": zod.boolean(),
   "completedAt": zod.coerce.date().nullable(),
   "loggedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
@@ -532,6 +536,8 @@ export const UpdateParentDailyActionBody = zod.object({
 
 export const updateParentDailyActionResponseEstimatedMinutesMax = 60;
 
+export const updateParentDailyActionResponseCurrentStepMin = 0;
+
 
 
 export const UpdateParentDailyActionResponse = zod.object({
@@ -551,6 +557,8 @@ export const UpdateParentDailyActionResponse = zod.object({
   "steps": zod.array(zod.string()),
   "estimatedMinutes": zod.number().int().min(1).max(updateParentDailyActionResponseEstimatedMinutesMax),
   "status": zod.enum(['not_started', 'done', 'logged', 'skipped', 'saved_for_later', 'needs_review']),
+  "currentStep": zod.number().int().min(updateParentDailyActionResponseCurrentStepMin),
+  "bookmarked": zod.boolean(),
   "completedAt": zod.coerce.date().nullable(),
   "loggedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
@@ -590,6 +598,8 @@ export const LogParentDailyActionBody = zod.object({
 
 export const logParentDailyActionResponseActionEstimatedMinutesMax = 60;
 
+export const logParentDailyActionResponseActionCurrentStepMin = 0;
+
 
 
 export const LogParentDailyActionResponse = zod.object({
@@ -610,6 +620,8 @@ export const LogParentDailyActionResponse = zod.object({
   "steps": zod.array(zod.string()),
   "estimatedMinutes": zod.number().int().min(1).max(logParentDailyActionResponseActionEstimatedMinutesMax),
   "status": zod.enum(['not_started', 'done', 'logged', 'skipped', 'saved_for_later', 'needs_review']),
+  "currentStep": zod.number().int().min(logParentDailyActionResponseActionCurrentStepMin),
+  "bookmarked": zod.boolean(),
   "completedAt": zod.coerce.date().nullable(),
   "loggedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
@@ -638,6 +650,76 @@ export const LogParentDailyActionResponse = zod.object({
   "note": zod.string().nullable(),
   "createdAt": zod.coerce.date()
 })
+})
+
+
+/**
+ * @summary Save a parent's activity position and saved-for-later choice
+ */
+export const UpdateParentPracticeProgressParams = zod.object({
+  "childId": zod.coerce.string(),
+  "actionId": zod.coerce.string()
+})
+
+export const updateParentPracticeProgressBodyCurrentStepMin = 0;
+
+
+
+export const UpdateParentPracticeProgressBody = zod.object({
+  "currentStep": zod.number().int().min(updateParentPracticeProgressBodyCurrentStepMin),
+  "bookmarked": zod.boolean()
+})
+
+export const updateParentPracticeProgressResponseCurrentStepMin = 0;
+
+
+
+export const UpdateParentPracticeProgressResponse = zod.object({
+  "actionId": zod.string(),
+  "childId": zod.string(),
+  "actionKey": zod.string(),
+  "currentStep": zod.number().int().min(updateParentPracticeProgressResponseCurrentStepMin),
+  "bookmarked": zod.boolean(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Read the parent's private routines, preferences, and reminder schedules
+ */
+export const GetParentFamilyToolsParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const GetParentFamilyToolsResponse = zod.object({
+  "routines": zod.array(zod.record(zod.string(), zod.unknown())),
+  "routineRuns": zod.array(zod.record(zod.string(), zod.unknown())),
+  "preferences": zod.record(zod.string(), zod.unknown()),
+  "reminders": zod.array(zod.record(zod.string(), zod.unknown())),
+  "reminderDelivery": zod.enum(['unavailable'])
+})
+
+
+/**
+ * @summary Save private routines, preferences, and reminder schedules
+ */
+export const SaveParentFamilyToolsParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const SaveParentFamilyToolsBody = zod.object({
+  "routines": zod.array(zod.record(zod.string(), zod.unknown())),
+  "routineRuns": zod.array(zod.record(zod.string(), zod.unknown())),
+  "preferences": zod.record(zod.string(), zod.unknown()),
+  "reminders": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+export const SaveParentFamilyToolsResponse = zod.object({
+  "routines": zod.array(zod.record(zod.string(), zod.unknown())),
+  "routineRuns": zod.array(zod.record(zod.string(), zod.unknown())),
+  "preferences": zod.record(zod.string(), zod.unknown()),
+  "reminders": zod.array(zod.record(zod.string(), zod.unknown())),
+  "reminderDelivery": zod.enum(['unavailable'])
 })
 
 

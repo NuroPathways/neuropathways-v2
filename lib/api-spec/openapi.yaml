@@ -318,6 +318,88 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ParentDailyActionLogResponse"
+  /parent/children/{childId}/daily-actions/{actionId}/practice-progress:
+    patch:
+      operationId: updateParentPracticeProgress
+      tags: [parent]
+      summary: Save a parent's activity position and saved-for-later choice
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: actionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentPracticeProgressInput"
+      responses:
+        "200":
+          description: Saved child-specific activity progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentPracticeProgress"
+  /parent/children/{childId}/family-tools:
+    get:
+      operationId: getParentFamilyTools
+      tags: [parent]
+      summary: Read the parent's private routines, preferences, and reminder schedules
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Child-specific family tools
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentFamilyTools"
+    put:
+      operationId: saveParentFamilyTools
+      tags: [parent]
+      summary: Save private routines, preferences, and reminder schedules
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentFamilyToolsInput"
+      responses:
+        "200":
+          description: Saved child-specific family tools
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentFamilyTools"
   /parent/children/{childId}/logs:
     post:
       operationId: addParentLog
@@ -1256,6 +1338,11 @@ components:
         status:
           type: string
           enum: [not_started, done, logged, skipped, saved_for_later, needs_review]
+        currentStep:
+          type: integer
+          minimum: 0
+        bookmarked:
+          type: boolean
         completedAt:
           type: [string, "null"]
           format: date-time
@@ -1269,7 +1356,69 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ParentDailyActionLog"
-      required: [id, childId, actionDate, actionKey, kind, behaviorKey, behaviorName, supportCardId, sourceType, sourceDocumentId, title, description, whyItMayHelp, steps, estimatedMinutes, status, completedAt, loggedAt, createdAt, logs]
+      required: [id, childId, actionDate, actionKey, kind, behaviorKey, behaviorName, supportCardId, sourceType, sourceDocumentId, title, description, whyItMayHelp, steps, estimatedMinutes, status, currentStep, bookmarked, completedAt, loggedAt, createdAt, logs]
+    ParentPracticeProgress:
+      type: object
+      properties:
+        actionId:
+          type: string
+        childId:
+          type: string
+        actionKey:
+          type: string
+        currentStep:
+          type: integer
+          minimum: 0
+        bookmarked:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+      required: [actionId, childId, actionKey, currentStep, bookmarked, updatedAt]
+    ParentPracticeProgressInput:
+      type: object
+      properties:
+        currentStep:
+          type: integer
+          minimum: 0
+        bookmarked:
+          type: boolean
+      required: [currentStep, bookmarked]
+    ParentFamilyTools:
+      type: object
+      properties:
+        routines:
+          type: array
+          items: { type: object, additionalProperties: true }
+        routineRuns:
+          type: array
+          items: { type: object, additionalProperties: true }
+        preferences:
+          type: object
+          additionalProperties: true
+        reminders:
+          type: array
+          items: { type: object, additionalProperties: true }
+        reminderDelivery:
+          type: string
+          enum: [unavailable]
+      required: [routines, routineRuns, preferences, reminders, reminderDelivery]
+    ParentFamilyToolsInput:
+      type: object
+      properties:
+        routines:
+          type: array
+          items: { type: object, additionalProperties: true }
+        routineRuns:
+          type: array
+          items: { type: object, additionalProperties: true }
+        preferences:
+          type: object
+          additionalProperties: true
+        reminders:
+          type: array
+          items: { type: object, additionalProperties: true }
+      required: [routines, routineRuns, preferences, reminders]
     ParentDailyActionLog:
       type: object
       properties:

@@ -1,4 +1,4 @@
-import { FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 
 const severityColor = {
@@ -55,7 +55,7 @@ export default function BehaviorPlanSummary({ plan }) {
           )}
           {plan.escalation_signs && (
             <div className="p-3 bg-red-50 rounded-xl">
-              <p className="text-xs font-medium text-red-700 uppercase tracking-wide mb-1">⚠ Escalation Signs</p>
+              <p className="text-xs font-medium text-red-700 uppercase tracking-wide mb-1 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" /> Escalation Signs</p>
               <p className="text-sm text-red-800">{plan.escalation_signs}</p>
             </div>
           )}

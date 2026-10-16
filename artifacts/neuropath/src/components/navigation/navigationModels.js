@@ -10,6 +10,7 @@ import {
   LifeBuoy,
   Mail,
   MessageCircle,
+  MoreHorizontal,
   Plus,
   Settings,
   ShieldAlert,
@@ -90,24 +91,22 @@ export function createRoleNavigation(role, homePath, includeUploadPlan = false) 
 
   return [
     {
-      label: "Today",
+      label: "Family",
       items: [
         { key: "home", label: "Home", icon: Home, to: homePath, pages: ["ParentDashboard", "ClientDashboard"] },
         { key: "support", label: "Support Now", icon: LifeBuoy, to: "/HelpNow", support: true, pages: ["HelpNow"] },
-      ],
-    },
-    {
-      label: "Care plan",
-      items: [
+        { key: "practice", label: "Practice", icon: Activity, to: "/Practice", pages: ["Practice"] },
         { key: "goals", label: "Goals", icon: Target, to: "/GoalsMilestones", pages: ["GoalsMilestones"] },
-        { key: "documents", label: "Documents", icon: FileText, to: "/DocumentCenter", pages: ["DocumentCenter"] },
-        { key: "logs", label: "Logs", icon: ClipboardList, to: "/LogBehavior", pages: ["LogBehavior"] },
-        { key: "ai-chat", label: "AI Chat", icon: Bot, to: "/AIChat", pages: ["AIChat"] },
+        { key: "menu", label: "Menu", icon: MoreHorizontal, to: "/Menu", pages: ["Menu", "History"] },
       ],
     },
     {
-      label: "Family",
+      label: "More",
       items: [
+        { key: "history", label: "History", icon: ClipboardList, to: "/History", pages: ["History"] },
+        { key: "library", label: "Support Library", icon: BookOpen, to: "/ParentHome?tab=today&section=library" },
+        { key: "documents", label: "Care plan & documents", icon: FileText, to: "/DocumentCenter", pages: ["DocumentCenter"] },
+        { key: "ai-chat", label: "AI Chat", icon: Bot, to: "/AIChat", pages: ["AIChat"] },
         { key: "profiles", label: "Child Profiles", icon: Users, to: "/ChildProfile", pages: ["ChildProfile"] },
         ...(includeUploadPlan
           ? [{ key: "upload-plan", label: "Upload Plan", icon: Upload, to: "/UploadBehaviorPlan", pages: ["UploadBehaviorPlan"] }]
@@ -127,7 +126,7 @@ export function createRoleNavigation(role, homePath, includeUploadPlan = false) 
 export function mobilePrimaryKeysForRole(role) {
   if (role === "clinician") return ["dashboard", "clients", "reports"];
   if (role === "individual") return ["home", "support", "progress"];
-  return ["home", "support", "logs"];
+  return ["home", "support", "practice", "goals"];
 }
 
 export function getMobileNavigationItems(navGroups, primaryKeys) {
@@ -224,7 +223,7 @@ export function createClientHomeNavigation({ isIndividualClient, selectedId, onS
   ];
 }
 
-export function createFreeCaregiverNavigation({ activeTab, activeSection, goToTab, onSupportNow, onAddChild }) {
+export function createFreeCaregiverNavigation({ activeTab, activeSection, goToTab, onSupportNow, onAddChild, onMenu, onHistory }) {
   return [
     {
       label: "Today",
@@ -248,12 +247,16 @@ export function createFreeCaregiverNavigation({ activeTab, activeSection, goToTa
     {
       label: "Menu",
       items: [
-        { key: "library", label: "Shared support content", icon: BookOpen, active: activeTab === "today" && activeSection === "library", onSelect: () => goToTab("today", "library") },
-        { key: "history", label: "History", icon: ClipboardList, active: activeTab === "log", onSelect: () => goToTab("log") },
-        { key: "care-plan", label: "Care Plan", icon: FileText, active: activeTab === "docs", onSelect: () => goToTab("docs") },
+        { key: "menu", label: "Menu", icon: MoreHorizontal, active: false, onSelect: onMenu },
+        { key: "history", label: "History", icon: ClipboardList, active: false, onSelect: onHistory },
+        { key: "library", label: "Support library", icon: BookOpen, active: activeTab === "today" && activeSection === "library", onSelect: () => goToTab("today", "library") },
+        { key: "care-plan", label: "Care plan & documents", icon: FileText, active: activeTab === "docs", onSelect: () => goToTab("docs") },
+        { key: "upload", label: "Upload a plan", icon: Upload, active: activeTab === "docs", onSelect: () => goToTab("docs") },
         { key: "ask", label: "AI Chat", icon: Sparkles, active: activeTab === "ask", onSelect: () => goToTab("ask") },
-        { key: "profiles", label: "Child Profiles", icon: UserRound, active: activeTab === "edit" && activeSection !== "goals", onSelect: () => goToTab("edit", "profile") },
-        { key: "clinic", label: "Clinic", icon: Heart, active: activeTab === "clinic", onSelect: () => goToTab("clinic") },
+        { key: "preferences", label: "Enjoyment & preferences", icon: UserRound, active: activeTab === "edit" && activeSection !== "goals", onSelect: () => goToTab("edit", "profile") },
+        { key: "profiles", label: "Child profile", icon: UserRound, active: false, onSelect: () => goToTab("edit", "profile") },
+        { key: "clinic", label: "Clinic connection", icon: Heart, active: activeTab === "clinic", onSelect: () => goToTab("clinic") },
+        { key: "messages", label: "Messages", icon: Mail, to: "/Messages", pages: ["Messages"] },
         { key: "add-child", label: "Add a child", icon: Plus, onSelect: onAddChild },
       ],
     },

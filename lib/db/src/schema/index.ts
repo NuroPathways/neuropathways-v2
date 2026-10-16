@@ -2,5 +2,7 @@ export * from "./auth";
 export * from "./entities";
 export * from "./parent";
 export * from "./parent-daily-actions";
+export * from "./parent-practice-progress";
+export * from "./parent-family-tools";
 export * from "./parent-documents";
 export * from "./parent-link";

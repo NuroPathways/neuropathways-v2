@@ -132,7 +132,7 @@ describe("navigation role and menu models", () => {
   it("maps each role's mobile quick links to existing menu items", () => {
     const cases = [
       ["clinician", "/ClinicianDashboard", ["dashboard", "clients", "reports"]],
-      ["caregiver", "/ParentDashboard", ["home", "support", "logs"]],
+      ["caregiver", "/ParentDashboard", ["home", "support", "practice", "goals"]],
       ["individual", "/ClientHome", ["home", "support", "progress"]],
     ];
 
@@ -148,14 +148,17 @@ describe("navigation role and menu models", () => {
     const goToTab = vi.fn();
     const onSupportNow = vi.fn();
     const onAddChild = vi.fn();
+    const onHistory = vi.fn();
     const groups = createFreeCaregiverNavigation({
       activeTab: "edit",
       activeSection: "goals",
       goToTab,
       onSupportNow,
       onAddChild,
+      onHistory,
     });
 
+    expect(new Set(allItems(groups).map((item) => item.key)).size).toBe(allItems(groups).length);
     expect(itemByKey(groups, "goals").active).toBe(true);
     expect(itemByKey(groups, "profiles").active).toBe(false);
     itemByKey(groups, "library").onSelect();
@@ -164,6 +167,12 @@ describe("navigation role and menu models", () => {
     expect(goToTab).toHaveBeenCalledWith("edit", "goals");
     itemByKey(groups, "practice").onSelect();
     expect(goToTab).toHaveBeenCalledWith("practice");
+    itemByKey(groups, "history").onSelect();
+    expect(onHistory).toHaveBeenCalledOnce();
+    const onMenu = vi.fn();
+    const menuGroups = createFreeCaregiverNavigation({ activeTab: "today", activeSection: "", goToTab, onSupportNow, onAddChild, onMenu });
+    itemByKey(menuGroups, "menu").onSelect();
+    expect(onMenu).toHaveBeenCalledOnce();
     itemByKey(groups, "support").onSelect();
     expect(onSupportNow).toHaveBeenCalledOnce();
     itemByKey(groups, "add-child").onSelect();
@@ -191,7 +200,7 @@ describe("navigation role and menu models", () => {
 describe("role-aware shell interactions", () => {
   it.each([
     ["clinician", "/ClinicianDashboard", ["dashboard", "clients", "reports"]],
-    ["caregiver", "/ParentDashboard", ["home", "support", "logs"]],
+    ["caregiver", "/ParentDashboard", ["home", "support", "practice", "goals"]],
     ["individual", "/ClientHome", ["home", "support", "progress"]],
   ])("renders %s quick links and expandable menu", (role, homePath, primaryKeys) => {
     const groups = createRoleNavigation(role, homePath, true);
@@ -222,6 +231,15 @@ describe("role-aware shell interactions", () => {
     fireEvent.click(within(drawer).getByRole("link", { name: destination.label }));
     expect(screen.getByTestId("current-location").textContent).toBe(destination.to);
     expect(menuButton.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("routes the caregiver bottom Menu destination to the Menu page", () => {
+    const groups = createRoleNavigation("caregiver", "/ParentDashboard", true);
+    renderShell({ role: "caregiver", navGroups: groups });
+
+    fireEvent.click(screen.getByTestId("nav-menu-bottom"));
+    expect(screen.getByTestId("current-location").textContent).toBe("/Menu");
+    expect(screen.queryByTestId("button-navigation-more")).toBeNull();
   });
 
   it("opens the existing child-first support flow from the mobile quick link", () => {

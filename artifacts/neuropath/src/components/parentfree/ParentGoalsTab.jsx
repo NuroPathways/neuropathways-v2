@@ -24,7 +24,7 @@ function lastCheckInLabel(value) {
   return `Last checked in ${parsed.toLocaleDateString()}`;
 }
 
-function PlanMilestones({ card, dailyActions = [] }) {
+function PlanMilestones({ card, dailyActions = [], childId }) {
   const planActivities = Array.isArray(card.dailyActivities) ? card.dailyActivities : [];
   const todayActions = dailyActions.filter((action) =>
     action.kind === "task" && action.supportCardId === card.id,
@@ -52,6 +52,7 @@ function PlanMilestones({ card, dailyActions = [] }) {
             <li key={action.id} style={{ display: "block" }}>
               <strong>{action.title}</strong>
               <span className="pf-hint" style={{ display: "block", marginTop: 3 }}>{action.description}</span>
+              <a className="pf-btn small" data-testid={`goal-practice-link-${action.id}`} href={`/ParentHome?tab=practice&activity_id=${encodeURIComponent(action.id)}&child_id=${encodeURIComponent(childId || action.childId)}`}>Open this activity</a>
             </li>
           ))}
         </ul>
@@ -69,7 +70,7 @@ function PlanMilestones({ card, dailyActions = [] }) {
   );
 }
 
-function PlanGoalMilestones({ goal, dailyActions }) {
+function PlanGoalMilestones({ goal, dailyActions, childId }) {
   const goalKey = goal.title.trim().toLocaleLowerCase().replace(/\s+/g, " ");
   const activities = dailyActions.filter((action) =>
     action.kind === "task" &&
@@ -93,6 +94,7 @@ function PlanGoalMilestones({ goal, dailyActions }) {
               <li key={activity.id} style={{ display: "block" }}>
                 <strong>{activity.title}</strong>
                 <span className="pf-hint" style={{ display: "block", marginTop: 3 }}>{activity.description}</span>
+                <a className="pf-btn small" data-testid={`goal-practice-link-${activity.id}`} href={`/ParentHome?tab=practice&activity_id=${encodeURIComponent(activity.id)}&child_id=${encodeURIComponent(childId || activity.childId)}`}>Open this activity</a>
               </li>
             ))}
           </ul>
@@ -201,7 +203,7 @@ export default function ParentGoalsTab({
             <div style={{ marginTop: 12 }}>
               <GoalLines card={goalCard} active />
             </div>
-          {linkedCard?.planGoal && <PlanMilestones card={linkedCard} dailyActions={dailyActions} />}
+          {linkedCard?.planGoal && <PlanMilestones card={linkedCard} dailyActions={dailyActions} childId={child?.id} />}
 
             {behavior.goal ? (
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--pf-line)" }}>
@@ -257,7 +259,7 @@ export default function ParentGoalsTab({
                     From: {card.planGoalSourceReferences.map((reference) => reference.title).join(", ")}
                   </p>
                 )}
-                <PlanMilestones card={card} dailyActions={dailyActions} />
+                <PlanMilestones card={card} dailyActions={dailyActions} childId={child?.id} />
               </article>
             ))}
             {storedPlanGoals.map((goal) => (
@@ -266,7 +268,7 @@ export default function ParentGoalsTab({
                 {goal.sourceType === "clinician_uploaded_plan" && <p className="pf-hint">From a clinician-uploaded document</p>}
                 <h4 style={{ marginTop: 5 }}>{goal.title}</h4>
                 {goal.description && <p style={{ marginTop: 6 }}>{goal.description}</p>}
-                <PlanGoalMilestones goal={goal} dailyActions={dailyActions} />
+                <PlanGoalMilestones goal={goal} dailyActions={dailyActions} childId={child?.id} />
               </article>
             ))}
           </div>
