@@ -358,6 +358,7 @@ IMPORTANT RESPONSE RULES:
 
   return await base44.integrations.Core.InvokeLLM({
     model: "claude_sonnet_4_6",
+    invite_token: user?.invite_token,
     prompt: `${systemPrompt}\n\n${securityRule}\n\n${isIndividualClient ? "Client's" : "Parent's"} message: "${userMessage}"\n\nRespond directly and helpfully:`
   });
 }

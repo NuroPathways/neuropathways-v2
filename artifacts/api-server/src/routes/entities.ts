@@ -388,6 +388,29 @@ function makeCrud(path: string, table: any) {
           return res.status(403).json({ error: "Parent account ownership cannot be changed by the clinic." });
         }
       }
+      // Generic CRUD is used by several account types and is not a relationship-
+      // management API. Keep record ownership and identity immutable here; the
+      // dedicated linking/sharing routes perform their own consent and access checks.
+      const immutableFields = [
+        "id",
+        "clinicianId",
+        "tenantId",
+        "parentId",
+        "familyId",
+        "childId",
+        "workspaceId",
+        "createdBy",
+      ];
+      for (const key of immutableFields) {
+        if (!(key in table) || !(key in update)) continue;
+        if (update[key] !== existing[key]) {
+          return res.status(403).json({ error: "Record ownership cannot be changed through this endpoint." });
+        }
+        delete update[key];
+      }
+      if (Object.keys(update).length === 0) {
+        return res.json(stripSensitive(serialize(existing)));
+      }
       const [row] = await db.update(table)
         .set(update)
         .where(eq(table.id, req.params.id))
@@ -1552,9 +1575,17 @@ router.post("/manage-client-goal", async (req: any, res) => {
     return !!a?.familyId && a.familyId === b?.familyId;
   };
 
+  const clinicianMayAccessChild = async (targetChildId: string | null | undefined) => {
+    if (!clinicianId || !targetChildId) return false;
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, targetChildId));
+    return child?.clinicianId === clinicianId;
+  };
+
   // May the caller act on an existing reward-token row?
   const canAccessRow = async (row: any) => {
-    if (clinicianId) return !row.clinicianId || row.clinicianId === clinicianId;
+    if (clinicianId) {
+      return row.clinicianId === clinicianId && await clinicianMayAccessChild(row.childId);
+    }
     return clientMayAccessChild(row.childId);
   };
 
@@ -1563,6 +1594,9 @@ router.post("/manage-client-goal", async (req: any, res) => {
       case "create": {
         const targetChildId = clinicianId ? bodyChildId : (bodyChildId ?? authChildId);
         if (!targetChildId) return res.status(400).json({ error: "child_id required" });
+        if (clinicianId && !(await clinicianMayAccessChild(targetChildId))) {
+          return res.status(403).json({ error: "Access denied" });
+        }
         if (!clinicianId && !(await clientMayAccessChild(targetChildId))) {
           return res.status(403).json({ error: "Access denied" });
         }

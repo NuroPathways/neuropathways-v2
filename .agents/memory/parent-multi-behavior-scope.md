@@ -15,7 +15,7 @@ Use a calm, light, mobile-first visual system with navy text, soft teal accents,
 
 **Why:** The user requested an app-wide redesign to reduce visual bulk and heavy blue while retaining the existing workflows.
 
-**How to apply:** Preserve the desktop sidebar and mobile navigation. Apply the quieter system across parent and clinician screens without changing routes, role access, clinical information, source/review states, or parent features.
+**How to apply:** Preserve the desktop sidebar and mobile navigation. For the phased redesign, cover web and native Expo plus independent parents, clinic-connected families, individual clients, and clinicians. Keep role-specific routes and capabilities intact while applying changes.
 
 Keep “I Need Help Right Now” separate from the Behavior Support Library.
 

@@ -145,8 +145,8 @@ export const auth = {
 
 export const integrations = {
   Core: {
-    InvokeLLM: async ({ prompt, model }) =>
-      apiFetch("/ai/invoke-llm", { method: "POST", body: JSON.stringify({ prompt, model }) }),
+    InvokeLLM: async ({ prompt, model, invite_token }) =>
+      apiFetch("/ai/invoke-llm", { method: "POST", body: JSON.stringify({ prompt, model, invite_token }) }),
     UploadFile: async ({ file }) => {
       const formData = new FormData();
       formData.append("file", file);

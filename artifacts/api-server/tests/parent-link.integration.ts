@@ -162,6 +162,9 @@ async function registerClinician(label: string): Promise<{ id: string; auth: Aut
     password: "Fixture-Clinician-Password-44!",
     firstName: `Fixture ${label}`,
     lastName: "Clinician",
+    accountHolderType: "clinician",
+    accountHolderAgeGroup: "18_plus",
+    adultOrGuardianConfirmed: true,
   });
   assert.equal(response.status, 201, `Clinician fixture registration failed: ${JSON.stringify(response.body)}`);
   const id = required(response.body?.clinician?.id, `clinician ${label} id`);
@@ -215,6 +218,10 @@ async function registerParent(label: string, firstName: string): Promise<{
     email,
     password: "Fixture-Parent-Password-44!",
     confirmPassword: "Fixture-Parent-Password-44!",
+    accountHolderType: "parent_guardian",
+    accountHolderAgeGroup: "18_plus",
+    adultOrGuardianConfirmed: true,
+    parentGuardianAuthorityConfirmed: true,
     privacyConsent: true,
     healthConsent: true,
   });
@@ -377,14 +384,47 @@ async function run(): Promise<void> {
     email: `${emailPrefix}-unauth@example.test`,
   });
   expectStatus(unauthenticatedInvite, 401, "Invite issuance rejects unauthenticated callers");
+  const unauthenticatedAi = await post("/ai/invoke-llm", undefined, {
+    prompt: "test",
+    file_urls: ["/api/uploads/private-document.pdf"],
+  });
+  expectStatus(unauthenticatedAi, 401, "AI invocation rejects unauthenticated callers before handling file references");
 
   const clinicianA = await registerClinician("clinic-a");
   const clinicianB = await registerClinician("clinic-b");
   const parentA = await registerParent("parent-a", `Parent A ${runKey}`);
   const parentB = await registerParent("parent-b", `Parent B ${runKey}`);
+  const unapprovedAiFile = await post("/ai/invoke-llm", parentA.auth, {
+    prompt: "test",
+    file_urls: ["/api/uploads/private-document.pdf"],
+  });
+  expectStatus(unapprovedAiFile, 400, "AI invocation refuses unverified file paths for an authenticated parent");
+  const independentChild = await createParentChild(parentA.auth, `Independent ${runKey}`);
+  const parentOwnedGoalId = crypto.randomUUID();
+  await db.insert(rewardTokensTable).values({
+    id: parentOwnedGoalId,
+    childId: independentChild.id,
+    parentId: parentA.id,
+    tenantId: parentA.workspaceId,
+    clinicianId: null,
+    goalName: "Parent-owned goal",
+  });
+  const clinicianCannotEditNullOwnerGoal = await post("/manage-client-goal", clinicianA.auth, {
+    action: "update",
+    goal_id: parentOwnedGoalId,
+    data: { goal_name: "Attempted change" },
+  });
+  expectStatus(clinicianCannotEditNullOwnerGoal, 403, "Clinicians cannot access goals whose clinician owner is null");
 
   const familyA = await createFamily(clinicianA.auth, `Fixture Family A ${runKey}`, parentA.email);
   const familyB = await createFamily(clinicianB.auth, `Fixture Family B ${runKey}`, parentB.email);
+  const clinicBChild = await createClinicChild(clinicianB.auth, familyB, `Clinic B child ${runKey}`);
+  const crossClinicianGoalCreate = await post("/manage-client-goal", clinicianA.auth, {
+    action: "create",
+    child_id: clinicBChild.id,
+    data: { goal_name: "Unauthorized goal" },
+  });
+  expectStatus(crossClinicianGoalCreate, 403, "Clinicians cannot create goals for another clinician's child");
 
   const crossFamilyInvite = await post("/parent/clinic-invites", clinicianB.auth, {
     familyId: familyA,
@@ -434,6 +474,23 @@ async function run(): Promise<void> {
     behaviorType: "fixture",
     notes: `owned by ${parentB.id}`,
   });
+  const reassignClinicianAttempt = await patch(`/behavior-plans/${protectedPlanId}`, clinicianA.auth, {
+    clinician_id: clinicianB.id,
+  });
+  expectStatus(reassignClinicianAttempt, 403, "Generic updates cannot reassign a record to another clinician");
+  const reassignChildAttempt = await patch(`/behavior-plans/${protectedPlanId}`, clinicianA.auth, {
+    child_id: crypto.randomUUID(),
+  });
+  expectStatus(reassignChildAttempt, 403, "Generic updates cannot move a record to another child");
+  const [protectedPlanAfterMutationAttempts] = await db
+    .select()
+    .from(behaviorPlansTable)
+    .where(eq(behaviorPlansTable.id, protectedPlanId));
+  check(
+    "Rejected generic ownership changes leave the record owner and child unchanged",
+    protectedPlanAfterMutationAttempts?.clinicianId === clinicianA.id &&
+      protectedPlanAfterMutationAttempts?.childId === protectedChild.id,
+  );
 
   const noneDoc = await attachParentDocument(parentA.id, parentA.workspaceId, noneChild.id, "none-share");
   const noneLogId = await addParentLog(parentA.auth, noneChild.id);
