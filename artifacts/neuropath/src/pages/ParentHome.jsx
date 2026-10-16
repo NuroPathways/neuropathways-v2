@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { getParentBehaviors, getParentDashboard, parentBehaviorIdentity, useGetParentDashboard, getGetParentDashboardQueryKey } from "@workspace/api-client-react";
+import { getParentBehaviors, getParentDashboard, getStarterLibrary, parentBehaviorIdentity, useGetParentDashboard, getGetParentDashboardQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, Skeleton } from "@/components/parentfree/common";
@@ -20,6 +20,7 @@ import BehaviorLibrary from "@/components/parentfree/BehaviorLibrary";
 import ChildEditor from "@/components/parentfree/ChildEditor";
 import DailySupportHome from "@/components/parentfree/DailySupportHome";
 import PracticePage from "@/components/parentfree/PracticePage";
+import { parentDirectBehaviors } from "@/components/parentfree/parentDirectSupport";
 import SupportNowOverlay, { clearSupportPopupSession } from "@/components/support/SupportNowOverlay";
 import { AlertTriangle } from "lucide-react";
 
@@ -229,38 +230,19 @@ export default function ParentHome() {
     const request = parentRequest();
     const headers = new Headers(request.headers);
     headers.set("X-Parent-Local-Date", currentLocalDay());
-    const dashboard = await getParentDashboard(childId, { ...request, headers });
+    const [dashboard, starterLibrary] = await Promise.all([
+      getParentDashboard(childId, { ...request, headers }),
+      getStarterLibrary(request).catch(() => []),
+    ]);
     if (!Array.isArray(dashboard.supportCards)) {
       throw new Error("Support cards could not be loaded.");
     }
-    const activeBehaviorIds = new Set(
-      getParentBehaviors(dashboard.child || {}).map(parentBehaviorIdentity),
-    );
     return {
       ...(dashboard.child || {}),
       safety_plan_uploaded: (dashboard.documents || []).some((document) =>
         /safety|crisis/i.test(`${document.documentType || ""} ${document.title || ""} ${document.fileName || ""}`),
       ),
-      behaviors: dashboard.supportCards
-        .filter((card) =>
-          card &&
-          typeof card === "object" &&
-          !Array.isArray(card) &&
-          activeBehaviorIds.has(parentBehaviorIdentity(card)) &&
-          card.conflict !== true,
-        )
-        .map((card) => ({
-        id: card.id,
-        name: card.behaviorName,
-          parentDirectEligible: true,
-        sourceLabel: card.source === "starter" ? "Starter support" : card.source === "clinician_reviewed" ? "Clinician reviewed" : card.source === "clinician_document" ? "Clinician-uploaded plan" : card.source === "parent_document" ? "Based on your uploaded plan · not clinician-reviewed" : "Needs review",
-        what_may_be_happening: card.whatMayBeHappening,
-        do_this_right_now: card.rightNow || [],
-        avoid: card.avoid || [],
-        prevention_tips: card.prevention || [],
-        reinforcement_rewards: card.reinforcementIdea ? [card.reinforcementIdea] : [],
-        when_to_contact_clinician: card.seekHelp,
-      })),
+      behaviors: parentDirectBehaviors(dashboard.child || {}, dashboard.supportCards, starterLibrary),
     };
   }, []);
   if (!isAuthenticated || user?.account_type !== "parent_free") return <Navigate to="/ParentLogin" replace />;
