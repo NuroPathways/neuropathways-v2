@@ -65,6 +65,31 @@ describe("support guidance", () => {
     expect(supportMocks.createEngagementEvent).not.toHaveBeenCalled();
   });
 
+  it("shows active parent-direct behaviors without requiring clinician-approval metadata", async () => {
+    render(
+      <SupportNowOverlay
+        user={{ id: "parent-free-1", account_type: "parent_free" }}
+        children={[{ id: "child-1", child_name: "Sam" }]}
+        loadProfileForChild={async () => ({
+          behaviors: [{
+            id: "behavior-1",
+            name: "Transition difficulty",
+            parentDirectEligible: true,
+            sourceLabel: "Starter support",
+            do_this_right_now: ["Offer one familiar choice"],
+          }],
+        })}
+        logEngagement={false}
+        openRequest={1}
+        autoOpen={false}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Continue to support options" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Help With a Behavior/ }));
+    expect(await screen.findByRole("button", { name: /Transition difficulty/ })).toBeTruthy();
+  });
+
   it("normalizes a single-object behavior profile and opens its support card", () => {
     render(
       <BehaviorSelector
