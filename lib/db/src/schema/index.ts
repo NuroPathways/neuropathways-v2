@@ -6,3 +6,4 @@ export * from "./parent-practice-progress";
 export * from "./parent-family-tools";
 export * from "./parent-documents";
 export * from "./parent-link";
+export * from "./parent-clinic-consents";

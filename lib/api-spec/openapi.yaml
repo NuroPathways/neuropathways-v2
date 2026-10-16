@@ -1651,6 +1651,8 @@ components:
         sharing:
           type: string
           enum: [all, selected, none]
+        shareObservations:
+          type: boolean
         documentIds:
           type: array
           items:

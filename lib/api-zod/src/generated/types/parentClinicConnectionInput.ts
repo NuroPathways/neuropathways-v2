@@ -10,6 +10,7 @@ import type { ParentClinicConnectionInputSharing } from './parentClinicConnectio
 export interface ParentClinicConnectionInput {
   inviteToken: string;
   sharing: ParentClinicConnectionInputSharing;
+  shareObservations?: boolean;
   documentIds?: string[];
   mergeChildId?: string;
   confirmMerge?: boolean;

@@ -12,6 +12,7 @@ export default function ClinicPanel({ child, documents }) {
   const [preview, setPreview] = useState(null);
   const [sharing, setSharing] = useState("none");
   const [docIds, setDocIds] = useState([]);
+  const [shareObservations, setShareObservations] = useState(false);
   const [mergeId, setMergeId] = useState("");
   const [confirmMerge, setConfirmMerge] = useState(false);
   const [consent, setConsent] = useState(false);
@@ -38,7 +39,7 @@ export default function ClinicPanel({ child, documents }) {
 
   const connect = () => {
     setError("");
-    const data = { inviteToken: token, sharing };
+    const data = { inviteToken: token, sharing, shareObservations };
     if (sharing === "selected") data.documentIds = docIds;
     if (needsMerge && mergeId && mergeId !== "none") { data.mergeChildId = mergeId; data.confirmMerge = confirmMerge; }
     conn.mutate({ childId: child.id, data }, {
@@ -115,6 +116,10 @@ export default function ClinicPanel({ child, documents }) {
                 </label>
               ))
           )}
+          <label style={{ display: "flex", gap: 8, fontSize: ".9rem" }}>
+            <input type="checkbox" checked={shareObservations} onChange={(e) => setShareObservations(e.target.checked)} data-testid="checkbox-share-observations" />
+            <span>Also share caregiver-recorded observations with this clinic. This is optional and can be stopped by disconnecting.</span>
+          </label>
           <label style={{ display: "flex", gap: 8, fontSize: ".9rem" }}>
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} data-testid="checkbox-clinic-consent" />
             <span>I consent to linking {child.name}'s account to {preview.clinicianName}'s clinic and to sharing only the documents I chose above. I can disconnect clinic access later.</span>

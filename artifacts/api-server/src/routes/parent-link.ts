@@ -18,6 +18,7 @@ import {
   messagesTable,
   mobileTokensTable,
   parentClinicInvitesTable,
+  parentClinicConsentsTable,
   parentChildSettingsTable,
   parentDocumentsTable,
   parentLogsTable,
@@ -271,6 +272,13 @@ router.delete("/parent/children/:childId/clinic-link", requireParent, async (req
           eq(parentDocumentsTable.parentId, parentId),
           eq(parentDocumentsTable.childId, child.id),
         ));
+      await tx.update(parentClinicConsentsTable).set({
+        scopes: [],
+        revokedAt: new Date(),
+      }).where(and(
+        eq(parentClinicConsentsTable.parentId, parentId),
+        eq(parentClinicConsentsTable.childId, child.id),
+      ));
       await tx.update(childrenTable).set({ clinicianId: null, familyId: null })
         .where(and(
           eq(childrenTable.id, child.id),
@@ -400,6 +408,9 @@ router.post("/parent/children/:childId/connect", requireParent, async (req: any,
   }
   if (sharing !== "selected" && documentIds !== undefined) {
     return res.status(400).json({ error: "documentIds may only be provided when sharing is selected" });
+  }
+  if (req.body?.shareObservations !== undefined && typeof req.body.shareObservations !== "boolean") {
+    return res.status(400).json({ error: "shareObservations must be a boolean" });
   }
   const selectedIds = sharing === "selected" ? [...new Set((documentIds ?? []) as string[])] : [];
   if (selectedIds.length > 500) return res.status(400).json({ error: "Too many selected documents" });
@@ -589,6 +600,22 @@ router.post("/parent/children/:childId/connect", requireParent, async (req: any,
         ));
       }
 
+      const scopes = [
+        ...(sharing !== "none" ? ["documents"] : []),
+        ...(req.body?.shareObservations === true ? ["observations"] : []),
+      ];
+      await tx.insert(parentClinicConsentsTable).values({
+        parentId,
+        childId: parentChild.id,
+        clinicianId: invite.clinicianId,
+        scopes,
+        consentedAt: now,
+        revokedAt: null,
+      }).onConflictDoUpdate({
+        target: [parentClinicConsentsTable.parentId, parentClinicConsentsTable.childId],
+        set: { clinicianId: invite.clinicianId, scopes, consentedAt: now, revokedAt: null },
+      });
+
       await logAudit(tx, {
         userId: parentId,
         userRole: "parent",
@@ -613,6 +640,7 @@ router.post("/parent/children/:childId/connect", requireParent, async (req: any,
           clinicianId: invite.clinicianId,
           sharing,
           documentIds: sharedIds,
+          shareObservations: req.body?.shareObservations === true,
         },
       });
 

@@ -980,6 +980,7 @@ export const ConnectParentClinicParams = zod.object({
 export const ConnectParentClinicBody = zod.object({
   "inviteToken": zod.string(),
   "sharing": zod.enum(['all', 'selected', 'none']),
+  "shareObservations": zod.boolean().optional(),
   "documentIds": zod.array(zod.string()).optional(),
   "mergeChildId": zod.string().optional(),
   "confirmMerge": zod.boolean().optional()

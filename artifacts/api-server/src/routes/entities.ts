@@ -8,7 +8,7 @@ import {
   interventionPlansTable, behaviorLogsTable, rewardTokensTable, messagesTable,
   aiConversationsTable, dailyCheckInsTable, winLogsTable, engagementEventsTable,
   clientProfilesTable, userProfilesTable, usersTable, auditLogsTable, invitationsTable,
-  clientSessionsTable, mobileTokensTable, clientAccessCodeResetsTable, consentEventsTable,
+  clientSessionsTable, mobileTokensTable, clientAccessCodeResetsTable, consentEventsTable, parentClinicConsentsTable,
 } from "@workspace/db";
 import { eq, and, inArray, or, isNull, gt, ne, sql, desc } from "drizzle-orm";
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
@@ -328,6 +328,23 @@ function makeCrud(path: string, table: any) {
       const rows = clauses.length > 0
         ? await db.select().from(table).where(and(...clauses))
         : await db.select().from(table);
+      const [requesterProfile] = path === "/behavior-logs"
+        ? await db.select({ appRole: userProfilesTable.appRole })
+            .from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id))
+        : [null];
+      if (path === "/behavior-logs" && requesterProfile?.appRole === "clinician") {
+        const grants = await db.select({ childId: parentClinicConsentsTable.childId })
+          .from(parentClinicConsentsTable)
+          .where(and(
+            eq(parentClinicConsentsTable.clinicianId, req.user.id),
+            isNull(parentClinicConsentsTable.revokedAt),
+            sql`${parentClinicConsentsTable.scopes} @> '["observations"]'::jsonb`,
+          ));
+        const allowedChildren = new Set(grants.map((grant) => grant.childId));
+        const visibleRows = rows.filter((row: any) => !row.parentId || allowedChildren.has(row.childId));
+        res.json(stripSensitive(serialize(visibleRows)));
+        return;
+      }
       res.json(stripSensitive(serialize(rows)));
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -625,11 +642,21 @@ router.get("/clinician-data", requireAuth, async (req: any, res) => {
       db.select().from(messagesTable).where(eq(messagesTable.toUserId, req.user.id)),
     ]);
 
+    const observationConsents = await db.select({ childId: parentClinicConsentsTable.childId })
+      .from(parentClinicConsentsTable)
+      .where(and(
+        eq(parentClinicConsentsTable.clinicianId, req.user.id),
+        isNull(parentClinicConsentsTable.revokedAt),
+        sql`${parentClinicConsentsTable.scopes} @> '["observations"]'::jsonb`,
+      ));
+    const sharedObservationChildIds = new Set(observationConsents.map((grant) => grant.childId));
+    const visibleLogs = logs.filter((log: any) => !log.parentId || sharedObservationChildIds.has(log.childId));
+
     return res.json({
       children: stripSensitive(serialize(children)),
       families: families.map(serializeFamily),
       clientAccounts: [],
-      logs: serialize(logs),
+      logs: serialize(visibleLogs),
       messages: serialize(messages),
     });
   } catch (e: any) {

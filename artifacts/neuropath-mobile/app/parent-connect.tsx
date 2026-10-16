@@ -14,6 +14,7 @@ export default function Connect() {
   const [invite, setInvite] = useState("");
   const [preview, setPreview] = useState<ParentClinicInvitePreview | null>(null);
   const [sharing, setSharing] = useState<Sharing>("none");
+  const [shareObservations, setShareObservations] = useState(false);
   const [docIds, setDocIds] = useState<string[]>([]);
   const [mergeId, setMergeId] = useState<string | null>(null);
   const [confirmMerge, setConfirmMerge] = useState(false);
@@ -36,7 +37,7 @@ export default function Connect() {
     setBusy(true); setError("");
     try {
       const r = await connectParentClinic(child.id, {
-        inviteToken: invite.trim(), sharing,
+        inviteToken: invite.trim(), sharing, shareObservations,
         ...(sharing === "selected" ? { documentIds: docIds } : {}),
         ...(preview.requiresMergeReview ? { mergeChildId: mergeId!, confirmMerge: true } : {}),
       }, opts);
@@ -93,6 +94,9 @@ export default function Connect() {
             <Chip label="Choose documents" selected={sharing === "selected"} onPress={() => setSharing("selected")} />
             <Chip label="Nothing yet" selected={sharing === "none"} onPress={() => setSharing("none")} />
           </Row>
+          <Check checked={shareObservations} onToggle={() => setShareObservations(!shareObservations)}>
+            <T size={14}>Also share caregiver-recorded observations with this clinic. This is optional and can be stopped by disconnecting.</T>
+          </Check>
           {sharing === "selected" ? (docs.data?.length ? docs.data.map((d) => (
             <Check key={d.id} checked={docIds.includes(d.id)} onToggle={() => toggle(d.id)}><T>{d.title}</T></Check>
           )) : <T size={14}>You have no documents to share yet.</T>) : null}

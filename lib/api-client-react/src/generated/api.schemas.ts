@@ -689,6 +689,7 @@ export const ParentClinicConnectionInputSharing = {
 export interface ParentClinicConnectionInput {
   inviteToken: string;
   sharing: ParentClinicConnectionInputSharing;
+  shareObservations?: boolean;
   documentIds?: string[];
   mergeChildId?: string;
   confirmMerge?: boolean;

@@ -42,7 +42,8 @@ Implementation follows the attached phased specification. Existing accounts, dat
 
 ## Phase 4 — Clinic sharing and review
 
-- [x] Parents choose whether to share all, selected, or no uploaded documents when connecting; a parent can disconnect clinic access later.
+- [x] Parents choose whether to share all, selected, or no uploaded documents and separately opt in to caregiver observations; clinician log reads filter to the active observation-consent scope.
+- [x] Consent scopes are persisted per parent/child/clinician and cleared when clinic access is revoked.
 - [ ] Versioned clinician review and publishing.
 - [x] Revoking a clinic link clears its document-sharing access without deleting the parent account, child records, uploaded files, or support history.
 - [x] Invite creation uses a single-use, expiring copy-link flow; the UI does not claim email delivery.
@@ -63,6 +64,6 @@ Phase 2 limitation: This phase reuses the saved daily-action activity content an
 
 Phase 3 limitations: Reminder delivery infrastructure is not configured, so schedules persist but do not notify. Private routine images are not supported; routines offer short icon names and optional times. The UI explicitly identifies both limitations.
 
-Phase 4 limitation: This first slice covers document sharing choices and clinic-link revocation. Versioned review/publishing, reviewed-activity assignment, and consent-scoped observation sharing remain outstanding.
+Phase 4 limitation: Version-aware document review already checks source content hashes, but explicit reviewed-activity assignment/publishing and clinician feedback on shared observations remain outstanding. Invitation delivery is copy-link only; no email is claimed or sent.
 
 Verification: `pnpm --filter @workspace/neuropath test` (62 passed), web production build passed, `pnpm --filter @workspace/neuropath-mobile run typecheck` passed, and API server typecheck/build passed. The additive practice-progress table was applied to the development database only. The web build reports the existing large JavaScript chunk advisory.
