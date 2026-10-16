@@ -131,6 +131,10 @@ function Section({ title, items, colorClass }) {
 
 function BehaviorCard({ behavior, child, isIndividual, onBack }) {
   const name = child?.child_name;
+  const [stepIndex, setStepIndex] = useState(0);
+  const [showSimpler, setShowSimpler] = useState(false);
+  const immediateSteps = behavior.do_this_right_now?.length ? behavior.do_this_right_now : behavior.interventions || [];
+  const simplerStep = behavior.if_it_escalates?.[0] || behavior.when_to_contact_clinician || "Pause the activity if you can do so safely. Offer a familiar, lower-demand option and give space.";
 
   return (
     <div>
@@ -146,26 +150,31 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
 
       <div className="p-5 space-y-4">
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Starter support is general guidance, not a clinician-approved treatment plan. Uploaded-plan support is not clinician-reviewed unless a review is explicitly identified.
+          {behavior.sourceLabel || "Source not available"}. Any explanation here is a possibility, not a conclusion. Use only what feels safe.
         </p>
         {behavior.what_may_be_happening && (
           <div className="bg-card border border-border rounded-xl p-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Why This May Be Happening</h4>
-            <p className="text-sm text-foreground leading-relaxed">{behavior.what_may_be_happening}</p>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">One possible explanation</h4>
+            <p className="text-sm text-foreground leading-relaxed">{behavior.what_may_be_happening.split(/[.!?]\s/)[0]}{/[.!?]$/.test(behavior.what_may_be_happening.split(/[.!?]\s/)[0]) ? "" : "."}</p>
           </div>
         )}
 
-        {behavior.do_this_right_now && behavior.do_this_right_now.length > 0 && (
-          <Section title="Do This Right Now" items={behavior.do_this_right_now} colorClass="bg-orange-50 border-orange-200 text-orange-800" />
-        )}
-
-        {behavior.interventions && behavior.interventions.length > 0 && (
-          <Section title="Clinician-Approved Strategies" items={behavior.interventions} colorClass="bg-green-50 border-green-200 text-green-800" />
-        )}
-
-        {behavior.if_it_escalates && behavior.if_it_escalates.length > 0 && (
-          <Section title="If It Escalates" items={behavior.if_it_escalates} colorClass="bg-red-50 border-red-200 text-red-800" />
-        )}
+        <section className="rounded-2xl border border-orange-200 bg-orange-50 p-4" aria-live="polite">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-orange-800 mb-2">{showSimpler ? "A simpler supported step" : "Try one step"}</h4>
+          {showSimpler
+            ? <p className="text-sm leading-relaxed text-orange-900">{simplerStep}</p>
+            : immediateSteps.length
+              ? <><p className="text-sm leading-relaxed text-orange-900">{immediateSteps[Math.min(stepIndex, immediateSteps.length - 1)]}</p>
+                {immediateSteps.length > 1 && <div className="mt-3 flex flex-wrap items-center gap-3">
+                  {stepIndex > 0 && <button type="button" onClick={() => setStepIndex((value) => Math.max(0, value - 1))} className="min-h-10 rounded-lg border border-orange-300 px-3 text-sm font-semibold text-orange-900">Back</button>}
+                  {stepIndex < immediateSteps.length - 1 && <button type="button" onClick={() => setStepIndex((value) => Math.min(immediateSteps.length - 1, value + 1))} className="min-h-10 rounded-lg border border-orange-300 px-3 text-sm font-semibold text-orange-900">Next step</button>}
+                </div>}
+              </>
+              : <p className="text-sm leading-relaxed text-orange-900">No immediate step is saved for this support area. Pause, reduce demands if possible, and use the safety information below.</p>}
+          <button type="button" onClick={() => setShowSimpler((value) => !value)} className="mt-3 min-h-10 rounded-lg border border-orange-300 px-3 text-sm font-semibold text-orange-900">
+            {showSimpler ? "Return to saved step" : "This isn't working"}
+          </button>
+        </section>
 
         {behavior.prevention_tips && behavior.prevention_tips.length > 0 && (
           <Section title="Prevention Ideas" items={behavior.prevention_tips} colorClass="bg-blue-50 border-blue-200 text-blue-800" />
@@ -218,6 +227,7 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
   const [selectedBehavior, setSelectedBehavior] = useState(null);
 
   const behaviors = normalizeBehaviorRows(profile?.behaviors).filter((behavior) => {
+    if (behavior.conflict === true || Boolean(textValue(behavior.conflictMessage ?? behavior.conflict_message))) return false;
     if (parentDirect) return behavior.parentDirectEligible === true;
     return hasCurrentClinicalApproval(behavior)
       && (!requiresPlanBinding(behavior)
@@ -263,7 +273,12 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
         {loadingProfile ? (
           <div className="py-12 text-center">
             <div className="w-10 h-10 border-4 border-border border-t-primary rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">Loading {child?.child_name}'s plans...</p>
+            <p className="text-sm text-muted-foreground mb-4">Loading {child?.child_name}'s saved support guidance…</p>
+            <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-left">
+              <p className="text-sm font-semibold text-red-800">Emergency help is available now.</p>
+              <p className="mt-1 text-sm text-red-700">If anyone is in immediate danger or hurt, call your local emergency number.</p>
+              <button type="button" onClick={onOpenSafety || onBack} className="mt-3 min-h-11 rounded-xl border border-red-300 bg-white px-4 text-sm font-semibold text-red-900">Open safety information</button>
+            </div>
           </div>
         ) : profileLoadError ? (
           <div role="alert" className="bg-red-50 border border-red-200 rounded-2xl p-5">
@@ -302,7 +317,7 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
                     className={`${colors.bg} border-2 ${colors.border} rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-100`}
                   >
                     <p className={`text-sm font-semibold leading-snug ${colors.text}`}>{behavior.name}</p>
-                    {behavior.sourceLabel && <span className="text-[11px] font-medium text-muted-foreground">{behavior.sourceLabel}</span>}
+                    <span className="text-[11px] font-medium text-muted-foreground">{behavior.sourceLabel || "Source not available"}</span>
                     <ChevronRight className={`w-4 h-4 mt-1 opacity-60 ${colors.text}`} />
                   </button>
                 );

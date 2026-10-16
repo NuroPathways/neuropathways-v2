@@ -2,14 +2,11 @@ import { getParentBehaviors, parentBehaviorIdentity } from "@workspace/api-clien
 
 const sourceLabel = (source) => {
   switch (source) {
+    case "starter": return "Source: Pre-programmed library";
     case "clinician_reviewed":
     case "clinician_document":
-    case "parent_document":
-      return "Source: Behavior plan";
-    case "starter":
-      return "Source: Pre-programmed library";
-    default:
-      return "Source: Behavior plan";
+    case "parent_document": return "Source: Behavior plan";
+    default: return "Source not available";
   }
 };
 

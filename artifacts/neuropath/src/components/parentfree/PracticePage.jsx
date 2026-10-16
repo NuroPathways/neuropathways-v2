@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getGetParentDashboardQueryKey, logParentDailyAction, updateParentPracticeProgress } from "@workspace/api-client-react";
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, errMsg } from "./common";
+import FamilyTools from "./FamilyTools";
 
 const SOURCE_LABELS = {
   clinician_reviewed: "Clinician reviewed",
@@ -157,8 +158,8 @@ export default function PracticePage({ childId, childName = "your child", action
             {onHistory && <button type="button" onClick={onHistory}>Practice history</button>}
           </div>}
         </article>
-      ) : view === "My Routines" ? (
-        <div className="np-practice-empty" data-testid="empty-practice-routines"><strong>No routines saved yet.</strong><p>When routines are available for this child, they will appear here. No routine records have been added.</p></div>
+       ) : view === "My Routines" ? (
+        <FamilyTools childId={childId} childName={childName} actions={actions} onActivities={() => setView("Activities")} />
       ) : visibleActions.length ? (
         <div className="np-practice-grid">
           {visibleActions.map((action) => <button type="button" className="np-practice-action" key={action.id}

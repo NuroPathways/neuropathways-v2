@@ -73,3 +73,33 @@ a { color: inherit; }
 .np-practice textarea { width:100%; min-height:90px; border:1px solid #cbdad2; border-radius:12px; padding:12px; background:#fffefa; color:inherit; font:inherit; }
 .np-practice-empty { padding:27px; border:1px dashed #bfd1c8; background:#f6faf6; border-radius:18px; color:#587071; }
 @media(max-width:640px) { .np-practice-head { display:block; } .np-practice-nav { overflow-x:auto; flex-wrap:nowrap; } .np-practice-nav button { white-space:nowrap; } }
+.np-family-tools { display:grid; gap:16px; min-width:0; color:#203b43; }
+.np-tools-heading { padding:20px; border-radius:18px; background:#e7f1ed; }
+.np-tools-heading h2 { margin:3px 0 8px; font-size:1.65rem; }
+.np-tools-heading p { margin:0; }
+.np-tools-tabs,.np-tools-actions,.np-inline-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.np-tools-tabs { border-bottom:1px solid #cfddd7; }
+.np-tools-tabs button,.np-tools-actions button,.np-inline-actions button { min-height:40px; border:1px solid #cbdad2; border-radius:11px; padding:8px 12px; background:#f5f8f4; color:#245b56; font:inherit; font-weight:650; cursor:pointer; }
+.np-tools-tabs button[aria-pressed="true"] { background:#2f7772; color:#fff; }
+.np-tools-form,.np-preferences,.np-routine-card,.np-routine-player,.np-lesson-card { display:grid; gap:12px; min-width:0; padding:18px; border:1px solid #d8e3dd; border-radius:17px; background:#fbfcf8; }
+.np-tools-form h3,.np-preferences h3,.np-routine-title h3,.np-routine-player h3,.np-lesson-card h3 { margin:0; }
+.np-family-tools label { display:grid; gap:6px; color:#304e50; font-weight:650; }
+.np-family-tools input,.np-family-tools textarea,.np-family-tools select { width:100%; min-width:0; min-height:44px; border:1px solid #cbdad2; border-radius:10px; padding:10px 12px; background:#fffefa; color:#203b43; font:inherit; }
+.np-step-meta { display:grid; gap:10px; padding:12px; border-radius:12px; background:#f1f6f2; }
+.np-routine-title { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.np-routine-card ol { padding-left:24px; display:grid; gap:10px; }
+.np-routine-card li { padding-left:3px; }
+.np-routine-card li span { display:block; margin-bottom:6px; }
+.np-inline-actions button { min-height:34px; padding:5px 9px; }
+.np-inline-actions button:disabled { opacity:.45; cursor:not-allowed; }
+.np-now-step { padding:18px; border-radius:14px; background:#e7f1ed; font-size:1.25rem; }
+.np-tools-empty { padding:20px; border:1px dashed #bfd1c8; border-radius:16px; background:#f6faf6; }
+.np-tools-error { padding:12px; border-left:4px solid #a34b3c; background:#fff0e9; color:#713a31; }
+.np-delivery-note { padding:14px; border-radius:12px; background:#f4edda; color:#5e5030; }
+.np-tools-days { display:flex; flex-wrap:wrap; gap:8px; margin-top:7px; }
+.np-tools-days label { display:flex; flex-direction:row; align-items:center; gap:5px; border:1px solid #cbdad2; border-radius:999px; padding:6px 9px; background:#f5f8f4; font-size:.82rem; }
+.np-tools-days input { width:auto; min-height:auto; accent-color:#2f7772; }
+.np-private-footnote { border-top:1px solid #d8e3dd; padding-top:12px; }
+.np-lessons { display:grid; gap:12px; }
+.np-lesson-card p { margin:0; }
+@media(max-width:640px) { .np-routine-title { align-items:flex-start; flex-direction:column; } .np-tools-tabs { overflow-x:auto; flex-wrap:nowrap; } .np-tools-tabs button { white-space:nowrap; } }

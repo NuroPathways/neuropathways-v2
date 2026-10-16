@@ -33,9 +33,12 @@ Implementation follows the attached phased specification. Existing accounts, dat
 
 ## Phase 3 — Help Now and ongoing support
 
-- [ ] Shared, source-aware Help Now experience with immediate access.
-- [ ] Routines, preserved preferences, and original learning content.
-- [ ] Opt-in reminders with truthful availability and no real sends during implementation.
+- [x] Source-aware, step-by-step Help Now in web and mobile; emergency information remains available while guidance loads, and the “This isn't working” branch offers a simpler step/safety information.
+- [x] Parent-owned visual routines with editable/reordered steps, optional icons/times, and separately persisted pause/resume runs.
+- [x] Editable preferences are stored separately from scanned clinical profiles; comfort preferences are never presented as rewards.
+- [x] Original Learn Why lessons include examples, optional ungraded reflection, a path back to activities, and skip.
+- [x] Recurring reminder schedules support time, days, timezone, snooze, pause/cancel, and quiet hours; new reminders default off.
+- [x] No reminder notifications are sent or simulated; delivery is explicitly marked unavailable.
 
 ## Phase 4 — Clinic sharing and review
 
@@ -46,6 +49,7 @@ Implementation follows the attached phased specification. Existing accounts, dat
 ## Cross-platform and verification
 
 - [x] Web and Expo mobile shared parent navigation, child context, Home, Help Now, Practice, Goals, and History surfaces.
+- [x] Web and Expo mobile Phase 3 Help Now and family tools, backed by parent-and-child scoped persistence.
 - [x] Role-specific clinician and individual-client navigation remains in place.
 - [x] Add/extend navigation and account-context regression coverage; web tests and mobile typecheck pass.
 - [x] Record actual tests and remaining limitations before completion.
@@ -53,5 +57,7 @@ Implementation follows the attached phased specification. Existing accounts, dat
 Phase 1 limitation: History in the Expo parent session and independent-parent dashboard includes behavior observations and practice activity. Informational engagement events are available only in the legacy web history source because the parent-session dashboard API does not expose them.
 
 Phase 2 limitation: This phase reuses the saved daily-action activity content and does not add a routine-authoring system. Saved activity position and bookmarks persist across web/mobile and daily-action refreshes; no production database schema was changed.
+
+Phase 3 limitations: Reminder delivery infrastructure is not configured, so schedules persist but do not notify. Private routine images are not supported; routines offer short icon names and optional times. The UI explicitly identifies both limitations.
 
 Verification: `pnpm --filter @workspace/neuropath test` (62 passed), web production build passed, `pnpm --filter @workspace/neuropath-mobile run typecheck` passed, and API server typecheck/build passed. The additive practice-progress table was applied to the development database only. The web build reports the existing large JavaScript chunk advisory.

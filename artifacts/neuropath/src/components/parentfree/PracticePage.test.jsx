@@ -3,6 +3,20 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import PracticePage from "./PracticePage";
 
+vi.mock("@workspace/api-client-react", () => ({
+  getGetParentDashboardQueryKey: (id) => ["dashboard", id],
+  logParentDailyAction: vi.fn(async () => ({})),
+  updateParentPracticeProgress: vi.fn(async () => ({})),
+  getGetParentFamilyToolsQueryKey: (id) => ["family-tools", id],
+  saveParentFamilyTools: vi.fn(async (_id, data) => data),
+  useGetParentFamilyTools: () => ({
+    data: { routines: [], routineRuns: [], preferences: { favoriteActivities: [], favoriteThings: [], communicationMethods: [], comfortSensoryPreferences: [], dislikes: [] }, reminders: [], reminderDelivery: "unavailable" },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
+
 afterEach(cleanup);
 const renderPractice = (node) => render(<QueryClientProvider client={new QueryClient()}>{node}</QueryClientProvider>);
 
@@ -39,7 +53,7 @@ describe("PracticePage", () => {
     expect(onAddBehavior).toHaveBeenCalledOnce();
   });
 
-  it("shows saved daily actions in an authored-step activity flow and explicitly represents empty routines", () => {
+  it("shows saved activity steps and a real empty routine editor", () => {
     const action = {
       id: "action-a",
       childId: "child-a",
@@ -62,7 +76,7 @@ describe("PracticePage", () => {
     expect(screen.getByText("Show the saved visual.")).toBeTruthy();
     expect(screen.getByText(/Goal: Move between activities/)).toBeTruthy();
     fireEvent.click(screen.getByTestId("practice-view-my-routines"));
-    expect(screen.getByTestId("empty-practice-routines")).toBeTruthy();
-    expect(screen.getByText(/No routine records have been added/)).toBeTruthy();
+    expect(screen.getByText("Create a visual routine")).toBeTruthy();
+    expect(screen.getByText("No routines saved")).toBeTruthy();
   });
 });

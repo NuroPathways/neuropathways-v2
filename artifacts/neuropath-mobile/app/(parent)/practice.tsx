@@ -7,6 +7,7 @@ import type { ParentDailyActionLogInput } from "@workspace/api-client-react";
 import { Card, ErrorBox, H, Screen, Skeleton, T, msg } from "@/components/ParentUi";
 import { useParent } from "@/context/ParentContext";
 import { useColors } from "@/hooks/useColors";
+import { FamilyTools } from "@/components/FamilyTools";
 
 const VIEWS = ["Activities", "Learn Why", "My Routines", "Saved for Later"] as const;
 type PracticeView = typeof VIEWS[number];
@@ -192,7 +193,7 @@ export default function Practice() {
           </View>
         </Card>
       ) : view === "My Routines" ? (
-        <Card><T weight="bold" size={17}>No routines saved yet</T><T size={14} color={c.secondary}>When routines are available for this child, they will appear here. No routine records have been added.</T></Card>
+        <FamilyTools actions={(q.data?.dailyActions ?? []).map((item) => ({ id: item.id, title: item.title, status: item.status }))} onActivities={() => setView("Activities")} />
       ) : actions.length ? actions.map((item) => <Pressable key={item.id} accessibilityRole="button" testID={`practice-activity-${item.id}`} onPress={() => open(item.id)}>
         <Card>
           <T size={12} weight="semi" color={c.primary}>{item.estimatedMinutes} min · {sourceFor(item.sourceType, item.sourceDocumentId)}</T>

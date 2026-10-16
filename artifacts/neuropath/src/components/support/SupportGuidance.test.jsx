@@ -113,8 +113,10 @@ describe("support guidance", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Leaving the area/ }));
 
-    expect(screen.getByText("Do This Right Now")).toBeTruthy();
+    expect(screen.getByText("Try one step")).toBeTruthy();
     expect(screen.getByText("Move to a safer place")).toBeTruthy();
+    expect(screen.queryByText("Offer a clear choice")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next step" }));
     expect(screen.getByText("Offer a clear choice")).toBeTruthy();
   });
 
