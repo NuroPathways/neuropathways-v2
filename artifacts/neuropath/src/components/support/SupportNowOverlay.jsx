@@ -412,6 +412,7 @@ export default function SupportNowOverlay({
               onOpenSafety={() => setStep("crisis")}
               onDismiss={handleDismiss}
               isIndividual={isIndividual}
+              parentDirect={user?.account_type === "parent_free"}
               logEngagement={logEngagement}
             />
           )}

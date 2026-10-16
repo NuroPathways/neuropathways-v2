@@ -206,18 +206,19 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
   );
 }
 
-export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onOpenSafety, onDismiss, isIndividual, logEngagement = true }) {
+export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onOpenSafety, onDismiss, isIndividual, parentDirect = false, logEngagement = true }) {
   const [selectedBehavior, setSelectedBehavior] = useState(null);
 
-  const behaviors = normalizeBehaviorRows(profile?.behaviors).filter((behavior) => (
-    hasCurrentClinicalApproval(behavior)
-    && (!requiresPlanBinding(behavior)
-      || (
-        textValue(behavior.planId ?? behavior.plan_id).length > 0
-        && textValue(behavior.childId ?? behavior.child_id) === textValue(child?.id)
-        && ["approved", "active"].includes(textValue(behavior.planStatus ?? behavior.plan_status).toLowerCase())
-      ))
-  ));
+  const behaviors = normalizeBehaviorRows(profile?.behaviors).filter((behavior) => {
+    if (parentDirect) return behavior.parentDirectEligible === true;
+    return hasCurrentClinicalApproval(behavior)
+      && (!requiresPlanBinding(behavior)
+        || (
+          textValue(behavior.planId ?? behavior.plan_id).length > 0
+          && textValue(behavior.childId ?? behavior.child_id) === textValue(child?.id)
+          && ["approved", "active"].includes(textValue(behavior.planStatus ?? behavior.plan_status).toLowerCase())
+        ));
+  });
 
   const handleSelectBehavior = (behavior) => {
     if (logEngagement && child) {
@@ -264,13 +265,19 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
         ) : behaviors.length === 0 ? (
           <div className="py-8 space-y-4">
             <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
-              <p className="text-sm font-semibold text-yellow-800 mb-1">No current approved behavior steps are available.</p>
-              <p className="text-sm text-yellow-700">
-                This screen only shows guidance with current clinical review details. It will not use draft, expired, or unreviewed guidance. You can still check the safety plan or contact your care team.
+              <p className="text-sm font-semibold text-yellow-800 mb-1">
+                {parentDirect ? "No active support behaviors are available yet." : "No current approved behavior steps are available."}
               </p>
-              <button type="button" onClick={onOpenSafety || onBack} className="mt-4 min-h-11 rounded-xl border border-yellow-300 bg-white px-4 text-sm font-semibold text-yellow-900">
-                Open safety plan
-              </button>
+              <p className="text-sm text-yellow-700">
+                {parentDirect
+                  ? "Return to the dashboard to add a behavior or upload a support plan. Only active, non-conflicting support guidance appears here."
+                  : "This screen only shows guidance with current clinical review details. It will not use draft, expired, or unreviewed guidance. You can still check the safety plan or contact your care team."}
+              </p>
+              {!parentDirect && (
+                <button type="button" onClick={onOpenSafety || onBack} className="mt-4 min-h-11 rounded-xl border border-yellow-300 bg-white px-4 text-sm font-semibold text-yellow-900">
+                  Open safety plan
+                </button>
+              )}
             </div>
           </div>
         ) : (

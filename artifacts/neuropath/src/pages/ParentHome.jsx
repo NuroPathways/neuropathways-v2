@@ -233,16 +233,26 @@ export default function ParentHome() {
     if (!Array.isArray(dashboard.supportCards)) {
       throw new Error("Support cards could not be loaded.");
     }
+    const activeBehaviorIds = new Set(
+      getParentBehaviors(dashboard.child || {}).map(parentBehaviorIdentity),
+    );
     return {
       ...(dashboard.child || {}),
       safety_plan_uploaded: (dashboard.documents || []).some((document) =>
         /safety|crisis/i.test(`${document.documentType || ""} ${document.title || ""} ${document.fileName || ""}`),
       ),
       behaviors: dashboard.supportCards
-        .filter((card) => card && typeof card === "object" && !Array.isArray(card))
+        .filter((card) =>
+          card &&
+          typeof card === "object" &&
+          !Array.isArray(card) &&
+          activeBehaviorIds.has(parentBehaviorIdentity(card)) &&
+          card.conflict !== true,
+        )
         .map((card) => ({
         id: card.id,
         name: card.behaviorName,
+          parentDirectEligible: true,
         sourceLabel: card.source === "starter" ? "Starter support" : card.source === "clinician_reviewed" ? "Clinician reviewed" : card.source === "clinician_document" ? "Clinician-uploaded plan" : card.source === "parent_document" ? "Based on your uploaded plan · not clinician-reviewed" : "Needs review",
         what_may_be_happening: card.whatMayBeHappening,
         do_this_right_now: card.rightNow || [],
