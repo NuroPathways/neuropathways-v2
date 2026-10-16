@@ -1,0 +1,1297 @@
+I would make a more substantial change to how parents move through NeuroPathways, rather than simply adding more cards to the existing home page.
+
+The two documents point toward the same approach: **connect learning, preparation, activities, and progress around the same child-specific skill**, while keeping immediate help available at any time. They also recommend visual routines, short demonstrations, parent-selected goals, optional reminders, and simple observation tracking. Pasted text Pasted text (2)
+
+My recommendation is to simplify the parent app into **Home, Help Now, Practice, and Goals**, with the remaining features available through a Menu. This is a navigation change, not a removal of functionality.
+
+The most important design decision is to **keep NeuroPathways' existing color scheme**, use significantly more empty space, and show less information at once. Parents should be able to find what they need without scrolling through multiple large blocks of text.
+
+## Replit implementation prompt
+
+Copy the following into Replit and attach both research documents.
+
+---
+
+# NeuroPathways — Complete Parent Experience and Workflow Redesign
+
+## Primary objective
+
+Redesign the existing NeuroPathways parent-facing application to create a simpler, more connected, and more useful everyday experience.
+
+Use the two attached research documents as the foundation for this implementation.
+
+I authorize significant changes to the parent-facing interface, navigation, page organization, and workflows where those changes genuinely improve usability.
+
+**Do not change the existing NeuroPathways color scheme.**
+
+Preserve the current brand identity, including the established blues, teals, background colors, typography character, and existing logo.
+
+Do not introduce a completely new visual identity.
+
+The objective is to make the app feel noticeably simpler and easier to navigate through better organization, larger amounts of empty space, clearer actions, and more thoughtfully connected features.
+
+### Important requirements
+
+- Actually implement the changes, rather than only producing suggestions.
+- Inspect the existing application before modifying it.
+- Reuse working features and backend functionality wherever possible.
+- Preserve existing accounts, documents, goals, logs, and uploaded information.
+- Maintain both parent-direct and clinic-connected functionality.
+- **The parent version must work completely without a clinician.**
+- Keep clinical guidance and general educational support clearly distinguished.
+- Prioritize mobile usability without sacrificing the desktop experience.
+- Do not duplicate features, databases, or application workflows unnecessarily.
+
+The finished app should feel like a single, cohesive product rather than multiple disconnected tools.
+
+---
+
+## 1. Establish a Simpler Application Structure
+
+The current app includes Home, Support Now, Support Steps, Behavior Support Library, Goals, Logs, Documents, Upload Plan, and AI Chat.
+
+These features are useful, but the navigation feels fragmented.
+
+Reorganize the parent-facing experience around four primary destinations.
+
+| Primary destination | Purpose |
+|---|---|
+| **Home** | Show parents where to start and what is relevant today. |
+| **Help Now** | Provide immediate access to existing support guidance. |
+| **Practice** | Bring together activities, lessons, demonstrations, routines, and preparation. |
+| **Goals** | Show what the family is working toward and the observations recorded over time. |
+
+Include a **Menu** containing the secondary tools:
+
+- History and Logs
+- Behavior Support Library
+- Care Plan and Documents
+- Upload Plan
+- AI Chat
+- Things My Child Enjoys
+- Clinic Connection
+- Settings
+
+This can involve changing existing routes and navigation components, but preserve backward compatibility with current routes and saved data.
+
+### Mobile navigation
+
+Use a clean bottom navigation bar:
+
+**Home | Help Now | Practice | Goals | Menu**
+
+Each destination should have a consistent icon and short label.
+
+Help Now should remain easy to identify and reach.
+
+### Desktop navigation
+
+Keep the existing left sidebar structure, but organize it around the same destinations.
+
+Do not create separate navigation systems that make the mobile and desktop experiences feel unrelated.
+
+---
+
+# 2. Redesign the Home Page
+
+The Home page should become much simpler.
+
+It should not attempt to display every available feature.
+
+When parents open NeuroPathways, they should understand what to do within a few seconds.
+
+### Main header
+
+Keep:
+
+# Support for John
+
+Use the selected child's actual name.
+
+Directly underneath, show a short sentence:
+
+**Support, activities, and routines that fit your day.**
+
+Include the child selector near the top.
+
+Avoid large decorative headers that consume unnecessary vertical space.
+
+### Primary action
+
+Keep the existing:
+
+## I Need Help Now
+
+This should remain the most prominent action.
+
+Use its existing urgent-action color and recognizable icon.
+
+The entire button should be clickable.
+
+Subtext:
+
+**Get support for something happening right now.**
+
+This button should open the existing Support Now system, reorganized into the new Help Now experience.
+
+It should not open a learning lesson or require completing a task.
+
+### Main Home content
+
+Below the Help Now button, show two main entrances.
+
+**Practice Together**
+
+Icon: activity, puzzle, or play symbol.
+
+Text:
+
+*Find a short activity or skill to practice with John.*
+
+Button: **Explore Activities**
+
+**Prepare for Something**
+
+Icon: clock or calendar.
+
+Text:
+
+*Get ready for a routine, transition, or upcoming activity.*
+
+Button: **Prepare**
+
+These should be visually inviting without becoming two enormous blocks.
+
+### Continue section
+
+If a parent recently started an activity or saved a routine, show:
+
+**Continue Where You Left Off**
+
+Example:
+
+*Getting Ready for School*
+
+*3 steps · Last opened yesterday*
+
+Button: **Continue**
+
+If there is nothing to continue, do not display an empty section.
+
+### Home page design rules
+
+The Home page should have considerable empty space.
+
+Do not display:
+
+- five full-length activity cards
+- long treatment-plan explanations
+- multiple copies of goal information
+- clinical terminology
+- large lists of uploaded documents
+- repeated source badges
+- several competing primary actions
+
+Those belong inside their respective sections.
+
+The Home page should be a welcoming starting point, not an information dashboard.
+
+---
+
+# 3. Create a Unified Practice Experience
+
+The Practice section is one of the most important additions.
+
+Combine existing daily activities, preparation activities, skill practice, and relevant educational information into one connected experience.
+
+### Practice landing page
+
+Title:
+
+# Practice With John
+
+Subtitle:
+
+**Simple things you can try together during everyday moments.**
+
+Display four clearly separated areas.
+
+**Activities**
+
+Real parent-child activities connected to selected skills and behaviors.
+
+**Learn Why**
+
+Short explanations that help parents understand the purpose of a strategy.
+
+**My Routines**
+
+Simple visual routines parents can create and save.
+
+**Saved for Later**
+
+Lessons and activities the parent has bookmarked.
+
+Use a clean layout with recognizable icons, short descriptions, and generous spacing between options.
+
+Do not display all activity details on the landing page.
+
+---
+
+# 4. Create a Connected Activity Experience
+
+The existing activity-generation system needs a more structured presentation.
+
+Each activity should be connected to a meaningful skill or goal.
+
+Example relationship:
+
+**Goal → Skill → Activity → Practice → Observation → Progress**
+
+The user should not need to recreate this relationship manually.
+
+### Activity example
+
+**Activity: First-Then Practice**
+
+Related skill: Making transitions easier
+
+Estimated time: 5 minutes
+
+What you need: Two familiar activities.
+
+Short introduction:
+
+*Practice showing John what comes first and what comes next.*
+
+Button:
+
+**Start Activity**
+
+### When the parent opens the activity
+
+Present a simple sequence.
+
+#### Understand
+
+Explain the purpose in two or three short sentences.
+
+Example:
+
+*Knowing what comes next can make transitions more predictable. A First-Then visual shows John the current activity and what follows.*
+
+#### See
+
+Show a simple demonstration.
+
+For example:
+
+**First:** Put shoes on.
+
+**Then:** Listen to music.
+
+Use a visual demonstration, illustration, or original short video when appropriate content exists.
+
+Do not fabricate videos, claim demonstrations were clinician-approved when they were not, or copy proprietary program materials.
+
+#### Try
+
+Provide a suitable practice activity.
+
+Example:
+
+1. Choose two familiar activities.
+2. Show the First-Then sequence.
+3. Give John time to understand or respond.
+4. Follow the agreed routine, adjusting if needed.
+
+Keep the instructions short.
+
+If the activity involves individualized prompting, reinforcement, or treatment procedures, use the applicable plan instead of inventing those details.
+
+#### Reflect
+
+After the activity, offer an optional check-in.
+
+**How did it go?**
+
+- We tried it
+- We needed more support
+- We didn't get a chance
+
+Optional note.
+
+Button: **Save**
+
+Do not require the parent to complete this section before leaving.
+
+### Critical distinction
+
+Completing an activity should mean the family participated.
+
+It should not automatically mean the child mastered a goal or improved clinically.
+
+---
+
+# 5. Introduce a Visual Routine Builder
+
+Add a parent-friendly visual routine builder within Practice.
+
+This should build on existing goals, activities, and support data rather than introducing a disconnected system.
+
+### Example
+
+Title:
+
+**Getting Ready for School**
+
+Visual sequence:
+
+👟 Shoes → 🧥 Coat → 🚪 Outside
+
+Parents should be able to:
+
+- create a routine
+- add steps
+- reorder steps
+- remove steps
+- choose icons or images
+- add optional times
+- save the routine
+- open it later
+- mark steps as finished
+
+If parents upload their own pictures, use the application's existing private-file handling and permissions.
+
+### Routine display
+
+When opened, the routine should have a clean, focused interface.
+
+Show one step prominently:
+
+**Now**
+
+Put on shoes.
+
+Underneath:
+
+**Next**
+
+Put on coat.
+
+Button:
+
+**Finished**
+
+After completion, move to the next step.
+
+Include Back and Pause.
+
+Do not automatically interpret the completion of a visual routine as independent performance by the child.
+
+### Design
+
+Use a large, clear image or icon for the current step.
+
+Keep surrounding information minimal.
+
+Parents should be able to use the routine while standing beside their child without reading a long paragraph.
+
+---
+
+# 6. Add "Things My Child Enjoys"
+
+Create a simple preferences area connected to the child profile.
+
+Use the title:
+
+## Things John Enjoys
+
+This section allows parents to record preferences that can help personalize activities.
+
+Include:
+
+**Favorite activities**
+
+Examples: trains, drawing, puzzles, music.
+
+**Favorite things**
+
+Examples: books, sensory toys, building blocks.
+
+**Communication**
+
+Examples: spoken language, gestures, AAC, pictures.
+
+**Comfort and sensory preferences**
+
+Examples: quiet spaces, headphones, movement breaks.
+
+**Things John dislikes**
+
+Optional.
+
+Parents should be able to edit these preferences at any time.
+
+### Personalization
+
+Use preferences to suggest more relevant activities when appropriate.
+
+For example:
+
+If John enjoys trains, the app might suggest:
+
+**Train Turn-Taking**
+
+*Take turns adding pieces to a train track.*
+
+Skill: Shared play and turn-taking.
+
+However, do not automatically treat preferred items as rewards that must be earned.
+
+Do not withhold essential comfort, communication access, or desired objects to force a response.
+
+Individualized reinforcement schedules must come from an appropriate plan or clinician configuration.
+
+---
+
+# 7. Improve the Learning Experience
+
+The research identifies several important caregiver-teaching methods.
+
+Integrate their useful design principles into NeuroPathways without copying branded curricula.
+
+### Learn Why
+
+Create a small educational library within Practice.
+
+Use parent-friendly topics such as:
+
+**Understanding What Happened**
+
+Explain what occurred before, during, and after an event.
+
+**Preparing for Transitions**
+
+Introduce predictability, visuals, and routine preparation.
+
+**Helping Communication**
+
+Discuss noticing and responding to communication, including gestures and AAC.
+
+**Making Routines Easier**
+
+Explain breaking activities into manageable steps.
+
+**Following Your Child's Interests**
+
+Introduce responsive play and shared engagement.
+
+**Encouraging Useful Skills**
+
+Explain descriptive praise and supportive feedback.
+
+Each lesson should be brief.
+
+Suggested format:
+
+1. A short explanation.
+2. A simple example.
+3. An optional interactive exercise.
+4. A related activity.
+
+Parents should be able to skip directly to the activity.
+
+Do not require lessons, tests, or quizzes before accessing useful support.
+
+### Interactive examples
+
+For suitable lessons, include:
+
+**Try an Example**
+
+Example:
+
+*John points toward a toy he wants.*
+
+Question:
+
+**What could you do next?**
+
+Offer a few reasonable choices.
+
+After selection, explain the underlying principle in simple language.
+
+Do not grade parents or punish incorrect answers.
+
+Do not present these examples as clinical assessments.
+
+---
+
+# 8. Improve Help Now Without Making It Complicated
+
+Help Now should remain a separate experience.
+
+It must be usable without:
+
+- completing lessons
+- choosing a goal
+- setting up a routine
+- uploading a document
+- connecting with a clinician
+- completing a log
+
+### Help Now opening
+
+Title:
+
+# What do you need help with?
+
+Show the child's relevant saved support areas.
+
+Also provide direct access to safety information where available.
+
+If multiple children exist, select the correct child first.
+
+If one child is already selected, use that child automatically.
+
+### Active support layout
+
+Use the structured design shown in the supplied mobile reference.
+
+Include, when supported by the source:
+
+**Why this may be happening**
+
+A brief, carefully worded explanation based on known observations or relevant plan information.
+
+Do not claim a confirmed behavioral function unless professionally assessed.
+
+**Do this right now**
+
+Short numbered steps appropriate to the current situation.
+
+**Things to avoid**
+
+A small set of applicable cautions.
+
+**Prevention tips**
+
+Useful suggestions for later, shown after the immediate guidance rather than interrupting it.
+
+### When the situation is stressful
+
+Reduce the interface to one appropriate action at a time.
+
+Example:
+
+**Step 1**
+
+Reduce talking.
+
+Button: **Done**
+
+Secondary action: **This isn't working**
+
+If the parent indicates the situation is becoming unsafe, prioritize emergency and individualized safety-plan information.
+
+Do not invent a new clinical protocol or improvise a crisis response.
+
+### Exiting Help Now
+
+The parent should be able to exit immediately.
+
+Do not require feedback or create a log automatically.
+
+Recording an observation can be offered separately when appropriate, but it must be optional.
+
+---
+
+# 9. Create a Better Goals Experience
+
+The Goals page should become a place to understand and track meaningful skills.
+
+Use:
+
+# Goals for John
+
+Subtitle:
+
+**The skills and routines you're working toward.**
+
+### Weekly tracker
+
+Add a simple seven-day tracker inspired by the reference screen.
+
+Show:
+
+Mon · Tue · Wed · Thu · Fri · Sat · Sun
+
+Use the current color palette.
+
+A completed day should indicate a recorded practice or check-in.
+
+Do not treat every day without a check-in as failure.
+
+Do not automatically mark a goal achieved because an activity was completed.
+
+### Goal cards
+
+Example:
+
+**Asking for Help**
+
+Related skill: Communication
+
+Recent practice: Tuesday
+
+Related activity: Make Help Easy to Ask For
+
+Button: **View Goal**
+
+When opened, show:
+
+- What we're working toward
+- Why this matters
+- Activities that support this goal
+- Relevant observations
+- Milestones, if explicitly established
+- Parent notes
+
+### Goal progress
+
+Keep these states separate:
+
+**Participation**
+
+The parent and child tried an activity.
+
+**Observation**
+
+Something specific was reported.
+
+**Milestone**
+
+An established criterion was observed or confirmed.
+
+**Clinical progress**
+
+Only when supported by appropriate clinical assessment or review.
+
+Do not blend these categories into a single misleading percentage.
+
+---
+
+# 10. Reorganize Logs Into History
+
+Move the existing parent-facing logging experience into a cleaner **History** section.
+
+Preserve the existing records and data.
+
+History should show:
+
+**Activities Tried**
+
+**Support Events**
+
+**Observations**
+
+**Saved Notes**
+
+Use chronological organization.
+
+### Observation entry
+
+Use a short default form:
+
+**What happened before?**
+
+**What did you notice?**
+
+**What happened next?**
+
+Optional:
+
+- Time
+- Duration
+- Location
+- People present
+- Related behavior
+- Additional note
+
+Do not force all these fields into the default view.
+
+Keep advanced details expandable.
+
+### Avoid duplicate logging
+
+An activity should generate at most one saved completion/check-in record for the relevant action unless the parent intentionally creates another entry.
+
+Viewing a support card is not the same as a behavior incident.
+
+Using Help Now should not automatically increment behavior counts.
+
+If an activity, goal, and history entry are connected, maintain those relationships rather than copying the same information into separate records.
+
+---
+
+# 11. Add Optional Reminders
+
+Parents should be able to set reminders for activities or routines.
+
+Examples:
+
+**Getting ready for school**
+
+**Practice our communication activity**
+
+**Open bedtime routine**
+
+Allow:
+
+- reminder time
+- recurring days
+- snooze
+- pause
+- cancel
+- quiet hours
+
+When tapped, the reminder should open the exact relevant activity or routine.
+
+Do not send parents to the generic home page unnecessarily.
+
+Keep notification previews privacy-conscious.
+
+Avoid exposing sensitive behavior or diagnosis information on a locked screen.
+
+Do not enable recurring notifications automatically without permission.
+
+---
+
+# 12. Keep Clinician Connection Optional
+
+This is critical.
+
+**NeuroPathways must remain fully usable without a clinician.**
+
+Parent-direct accounts should have access to:
+
+- Home
+- Help Now
+- Practice
+- Activities
+- Learn Why
+- Visual Routines
+- Goals
+- History
+- Preferences
+- Reminders
+- Behavior Support Library
+- Document Upload
+- AI Chat
+
+Parent-direct users should not encounter blocked screens asking them to connect with a clinician before continuing.
+
+### Parent-direct content
+
+Clearly distinguish:
+
+**Starter support**
+
+General educational activities and support.
+
+**Based on your uploaded document**
+
+Information derived from parent-provided records.
+
+**Not clinician-reviewed**
+
+Information that has not been independently approved by a clinician.
+
+Parent-uploaded documents can be used to explain existing instructions and suggest low-risk educational activities consistent with the available information.
+
+Do not treat an uploaded document as permission for AI to generate new individualized treatment protocols.
+
+### Clinic-connected accounts
+
+Retain:
+
+- clinician review
+- approved support
+- assigned activities
+- care-team feedback
+- clinical documentation
+- approved strategies
+- clinician summaries
+
+These features should enhance the parent experience rather than replace the independent mode.
+
+---
+
+# 13. Connect Everything Through Shared Data
+
+Avoid creating separate data models for every feature.
+
+Inspect the current database and build on the existing entities.
+
+The important relationships are:
+
+**Child → Skill → Goal → Activity → Routine → History → Observation**
+
+Documents and support strategies can connect to the relevant child, skills, and activities.
+
+### Suggested common activity fields
+
+Use equivalent existing fields where possible:
+
+- activity_id
+- child_id
+- related_skill_id
+- related_goal_id
+- source_type
+- source_document_id
+- source_version
+- approval_status
+- title
+- description
+- materials
+- steps
+- estimated_duration
+- communication_options
+- stop_conditions
+- created_at
+- updated_at
+
+### Shared experience requirements
+
+The selected child should remain consistent across pages.
+
+The parent should not have to choose the same child repeatedly.
+
+An activity opened from Goals should be the same activity available in Practice.
+
+A reminder should link to the saved activity.
+
+An observation should connect to the relevant activity or behavior when applicable.
+
+If a parent connects to a clinic later, existing parent-created information should not disappear or be replaced.
+
+Sharing parent-owned data with a clinic should require the appropriate permission.
+
+---
+
+# 14. Use a Simple, Spacious Design System
+
+This is an important requirement.
+
+**Do not change the current color scheme.**
+
+Use the application's existing color variables and design tokens.
+
+Do not add a new palette.
+
+The main design changes should come from spacing, layout, typography, and clearer hierarchy.
+
+### Overall appearance
+
+The app should feel:
+
+- quiet
+- clean
+- organized
+- welcoming
+- easy to scan
+- professional
+- visually light
+- accessible
+- comfortable to use repeatedly
+
+### Empty space
+
+More empty space is preferred.
+
+Use larger gaps between important sections.
+
+Do not feel obligated to fill every area of the screen.
+
+Do not surround every piece of information with a colored card.
+
+Use clean background space to separate content.
+
+### Cards
+
+Use cards only when they organize meaningful information or represent a distinct action.
+
+Avoid creating a card inside another card inside another card.
+
+Prefer:
+
+- simple rows
+- understated dividers
+- clean section headings
+- one main action per section
+- expandable details
+
+### Typography
+
+Use readable but restrained typography.
+
+Suggested hierarchy:
+
+- Page titles: approximately 26–30px
+- Section titles: approximately 20–22px
+- Activity titles: approximately 17–18px
+- Body text: approximately 15–16px
+- Supporting text: approximately 13–14px
+
+Avoid oversized headings and excessive bold text.
+
+### Content width
+
+On desktop, do not stretch every content block across the full page.
+
+Use a comfortable reading width, particularly for learning, activity, and support-step screens.
+
+Use two columns only when they genuinely improve comprehension.
+
+Do not create dense three- or four-column card grids simply because there is room.
+
+### Icons
+
+Keep icons where they improve recognition.
+
+Use one consistent icon family.
+
+Use icons for:
+
+- Home
+- Help Now
+- Practice
+- Goals
+- History
+- Routines
+- Activities
+- Documents
+- Reminders
+
+Do not add decorative icons to every paragraph.
+
+### Animations
+
+Keep transitions smooth and subtle.
+
+Do not add animations that delay access to Help Now.
+
+Respect reduced-motion preferences.
+
+### Mobile usability
+
+Ensure:
+
+- comfortable tap targets
+- readable text
+- no horizontal overflow
+- clear back navigation
+- accessible focus states
+- correct text wrapping
+- sufficient contrast
+- screen-reader labels
+- no content hidden behind bottom navigation
+
+---
+
+# 15. Design Each Screen Around One Main Question
+
+This should guide the entire redesign.
+
+**Home**
+
+*Where do I start?*
+
+**Help Now**
+
+*What can I do in this situation?*
+
+**Practice**
+
+*What can we try together?*
+
+**Activity Detail**
+
+*How do I do this?*
+
+**Learn Why**
+
+*Why might this approach help?*
+
+**My Routines**
+
+*What's happening now and next?*
+
+**Goals**
+
+*What are we working toward?*
+
+**History**
+
+*What did we try or notice?*
+
+**Things My Child Enjoys**
+
+*What works well for my child?*
+
+Do not turn every screen into a full dashboard.
+
+One screen should primarily serve one purpose.
+
+---
+
+# 16. Parent-Friendly Language
+
+Use everyday language.
+
+Examples:
+
+Instead of **Intervention Fidelity**, use **Steps You Tried**.
+
+Instead of **Antecedent**, use **What Happened Before**.
+
+Instead of **Target Behavior**, use **Behavior** or **Support Area**.
+
+Instead of **Reinforcement Protocol**, use **What the Plan Says to Encourage** when plan-based.
+
+Instead of **Behavioral Function**, use **Why This May Be Happening**, with uncertainty clearly stated.
+
+Instead of **Parent Training Module**, use **Learn Why**.
+
+Instead of **Program Execution**, use **Try This Together**.
+
+Keep clinical terminology available in the clinician portal and underlying records.
+
+Do not simplify critical safety instructions in a way that changes their meaning.
+
+---
+
+# 17. Maintain Clinical and Educational Boundaries
+
+The research discusses RUBI, Stepping Stones Triple P, Project ImPACT, TEACCH, and More Than Words.
+
+Use general educational design concepts from these approaches, such as:
+
+- learning through brief explanations
+- demonstrations
+- responsive interaction
+- visual schedules
+- natural-routine practice
+- caregiver reflection
+- individualized preferences
+- accessible communication
+- preparation for predictable situations
+
+Do not copy proprietary worksheets, manuals, videos, or full curricula without permission.
+
+Do not present original NeuroPathways adaptations as licensed delivery of those programs.
+
+Do not autonomously introduce:
+
+- planned ignoring
+- extinction procedures
+- restrictive interventions
+- physical prompting protocols
+- individualized reinforcement schedules
+- forced communication
+- forced eye contact
+- exposure hierarchies
+- crisis interventions
+
+Do not independently infer the function of a behavior.
+
+When potentially unsafe behavior is reported, the app must prioritize safety information and appropriately approved content rather than generating novel interventions.
+
+If there is immediate danger, show:
+
+**If there is immediate danger, call 911 or emergency services.**
+
+---
+
+# 18. Implement in Phases
+
+Do not attempt to build every advanced feature simultaneously.
+
+Follow this sequence.
+
+### Phase 1 — Reorganize the existing experience
+
+Implement:
+
+- new primary navigation
+- simplified Home
+- connected Practice entrance
+- improved Goals presentation
+- History organization
+- shared child context
+- predictable navigation
+- preserved existing routes and data
+
+This phase should primarily reorganize working features rather than replace them.
+
+### Phase 2 — Build the connected activity experience
+
+Implement:
+
+- one shared activity-detail template
+- Understand → See → Try → Reflect
+- goal/skill/activity relationships
+- Save for Later
+- activity progress preservation
+- optional feedback
+- accurate source labels
+
+This is the most important functional improvement.
+
+### Phase 3 — Add everyday support tools
+
+Implement:
+
+- visual routine builder
+- Things My Child Enjoys
+- routine-linked activities
+- brief learning examples
+- optional reminders
+- more useful parent-friendly progress
+
+### Phase 4 — Strengthen clinic-connected workflows
+
+Implement or improve:
+
+- clinician review of relevant parent observations
+- approved activity assignment
+- clinician-editable parent guidance
+- care-team summaries
+- source/version tracking
+- appropriate sharing permissions
+
+Do not let Phase 4 become a prerequisite for the parent-direct experience.
+
+### Phase 5 — Future enhancements
+
+Do not automatically introduce these now:
+
+- video-based feedback of parent-child interactions
+- automated scoring of caregiver implementation
+- advanced clinical treatment adaptation
+- complex gamification
+- large proprietary curriculum integrations
+
+These require additional design, privacy, clinical, and licensing decisions.
+
+---
+
+# 19. Required Testing
+
+Before finishing, test the experience from start to finish.
+
+### Parent-direct account
+
+Verify a parent can:
+
+1. Create an account without a clinician.
+2. Add a child.
+3. Select a support area.
+4. Open Help Now.
+5. Browse activities.
+6. Start an activity.
+7. View an explanation or example.
+8. Practice and leave without logging.
+9. Save an optional reflection.
+10. View the correct related goal.
+11. Create a visual routine.
+12. Save an activity for later.
+13. Return to a partially completed activity.
+14. Find the same information in History.
+15. Upload a document.
+16. Continue using the application independently.
+
+### Clinic-connected account
+
+Verify clinician relationships, approved content, sharing permissions, and existing dashboards still work.
+
+### Visual testing
+
+Test at approximately:
+
+- 360px mobile width
+- 390px mobile width
+- larger mobile width
+- tablet
+- desktop
+
+Check for:
+
+- overflowing text
+- awkward badge wrapping
+- overlapping bottom navigation
+- oversized cards
+- too many competing actions
+- broken buttons
+- incorrect selected states
+- inaccessible controls
+- missing child context
+- duplicate history entries
+
+### Regression testing
+
+Make sure existing document scanning, Support Now, AI Chat, goal storage, logging, invitations, and authentication remain functional.
+
+---
+
+# 20. Final Deliverables
+
+I want working changes in the application.
+
+Do not stop after producing a design proposal.
+
+After implementation, provide:
+
+1. A short explanation of the new app structure.
+2. Which existing components were reused.
+3. Which navigation and workflows changed.
+4. Which new features were added.
+5. Any required database changes.
+6. Screenshots of the redesigned mobile pages.
+7. Results of functional and visual tests.
+8. Remaining limitations or features intentionally postponed.
+
+## Final Design Goal
+
+NeuroPathways should no longer feel like a collection of disconnected support cards, documents, and goal trackers.
+
+It should feel like a simple, connected tool parents can use throughout ordinary daily life.
+
+A parent should be able to:
+
+**Open the app → choose what they need → understand → try something together → optionally record what happened → see how it connects to their goals.**
+
+When immediate help is needed, the parent should be able to bypass everything and open Help Now directly.
+
+Keep the existing NeuroPathways colors.
+
+Use more empty space.
+
+Keep screens focused.
+
+Reduce unnecessary text.
+
+Make navigation intuitive.
+
+**Prioritize usefulness and clarity over displaying more information.**
+
+---
+
+### One change I would prioritize above everything else
+
+Build the **connected activity page first**. Both research documents emphasize that caregiver learning becomes useful when explanation, demonstration, practice, and feedback are linked to an actual skill and everyday routine. Pasted text Pasted text (2)
+
+For example, a parent who selects *Communication* should be able to open an activity, see a short example of responding to gestures or AAC, try it during play, and optionally record an observation. The same activity should appear under the related goal without making the parent enter the information twice.
+
+That single connected workflow will make NeuroPathways feel substantially more useful without requiring parents to navigate a complicated application.
