@@ -107,6 +107,115 @@ const CUSTOM_PRACTICE_ACTIVITIES: PracticeActivity[] = [
   { id: "one-small-routine-step", title: "One Small Routine Step", description: "Choose one easy step from a familiar daily routine and offer help or a choice about how to begin.", skill: "Starting one manageable routine step", minutes: 3, ifHard: "Pause and make the step smaller." },
 ];
 
+type ActivityGuidance = { steps: string[]; reinforcementTarget: string };
+
+const ACTIVITY_GUIDANCE: Record<string, ActivityGuidance> = {
+  "stay-together-puzzle": {
+    steps: ["Choose a familiar, easy puzzle in a child-approved safe area; keep exits clear and never use the puzzle to prevent leaving.", "Offer one or two pieces, model one turn, then pause and follow your child's lead.", "A familiar visual timer may show the activity's end, but do not require staying until it rings."],
+    reinforcementTarget: "voluntarily joining, offering a piece, communicating, or returning by choice",
+  },
+  "indoor-stop-and-return": {
+    steps: ["Only practice in a child-safe indoor area away from exits, stairs, and other hazards, and only if this fits the existing safety plan.", "When calm, invite one small movement toward a familiar object and use the child's familiar safety cue once.", "Notice a response or communication; never block, chase, or repeat the cue as a drill."],
+    reinforcementTarget: "responding to the familiar cue or communicating a need",
+  },
+  "stay-together-game": {
+    steps: ["Set out a short, familiar game in a safe place the child can freely leave.", "Take one brief turn, then offer the next turn or a break as a choice.", "End while the game is still comfortable rather than testing how long the child will stay."],
+    reinforcementTarget: "choosing a turn, staying nearby by choice, or asking for a break",
+  },
+  "one-small-step": {
+    steps: ["Pick one small part of a familiar task and put only the needed materials within reach.", "Offer help or a choice about how to begin; wait without repeating the request.", "Stop after the one step or when the child asks for a break."],
+    reinforcementTarget: "starting, attempting, asking for help, or requesting a break",
+  },
+  "first-then-choice": {
+    steps: ["Choose one easy task step and two acceptable ways to do it.", "State the familiar first-then sequence once, showing the next activity if that cue is already familiar.", "Let the child choose, request help, or decline; do not withhold a needed break."],
+    reinforcementTarget: "making a choice, communicating, or trying the first step",
+  },
+  "break-request": {
+    steps: ["Before an easy task, place the child's familiar break signal or communication tool within reach.", "Model the signal once, then pause; accept any familiar communication that means break.", "Honor the break promptly so the communication remains useful."],
+    reinforcementTarget: "using any familiar break signal or communication",
+  },
+  "calm-space-tour": {
+    steps: ["During a calm moment, identify a familiar quiet space the child can enter and leave freely.", "Invite the child to choose one item they already know or want there; do not add unfamiliar sensory items without caregiver approval.", "Explore briefly together, then let the child decide whether to stay, leave, or return later."],
+    reinforcementTarget: "choosing an item, exploring the space, or communicating a preference",
+  },
+  "feelings-match": {
+    steps: ["Choose two or three familiar feeling pictures or words and sit beside the child.", "Invite a point, look, gesture, or word; do not require an explanation or correction.", "Accept no response and put the materials away if the child is done."],
+    reinforcementTarget: "noticing, pointing to, or communicating a feeling in any familiar way",
+  },
+  "calm-choice": {
+    steps: ["Offer two calming options the child already knows and can safely use.", "Pause so the child can choose, communicate another option, or decline.", "Make the selected option available without requiring the child to demonstrate distress first."],
+    reinforcementTarget: "choosing, communicating, or declining an option",
+  },
+  "help-signal": {
+    steps: ["Begin an easy shared activity the child has chosen.", "Show the child's familiar help signal once, then pause long enough for them to respond if they want.", "Provide help when requested; do not create frustration to prompt the signal."],
+    reinforcementTarget: "using a familiar help signal or asking for help",
+  },
+  "space-request": {
+    steps: ["When everyone is calm, identify the child's familiar word, gesture, or communication button for space.", "Model it once from a comfortable distance, then pause.", "Honor the request by giving space; do not prompt repeatedly or move closer."],
+    reinforcementTarget: "communicating a need for space or a break",
+  },
+  "safe-object": {
+    steps: ["Choose a soft, familiar object during a calm, preferred activity.", "Model placing or touching it gently once, then let the child choose whether to try.", "Put it away and switch activities if either person is uncomfortable."],
+    reinforcementTarget: "choosing the object or handling it safely by choice",
+  },
+  "familiar-help-request": {
+    steps: ["During an easy routine, make the child's familiar help or break communication available.", "Model the signal once and pause; do not wait for distress or self-injury.", "Respond to the communication promptly and use only supports already in the safety plan."],
+    reinforcementTarget: "using a familiar help or break signal",
+  },
+  "safe-sensory-choice": {
+    steps: ["Offer two safe sensory options the child already uses and tolerates.", "Let the child choose, communicate another option, or decline.", "Keep the selected option available only while it remains comfortable and safe."],
+    reinforcementTarget: "communicating a sensory preference or choosing to participate",
+  },
+  "timer-transition": {
+    steps: ["Choose an easy transition between two familiar activities, not a difficult or urgent one.", "Give the familiar warning and show the timer or visual cue only if the child already uses it comfortably.", "Offer extra time, help, or a pause; do not force the transition for practice."],
+    reinforcementTarget: "noticing the cue, communicating, or taking a voluntary transition step",
+  },
+  "first-then-transition": {
+    steps: ["Choose one small transition the child already knows.", "Show or say the familiar first-then cue once and allow processing time.", "Offer help or a break if the child does not move on; do not repeat demands."],
+    reinforcementTarget: "communicating about the transition or taking a voluntary next step",
+  },
+  "transition-object": {
+    steps: ["Offer a small, safe familiar item the child may carry between two known activities.", "Let the child choose the item, another support, or no item.", "Move only when the child is ready and the transition is safe."],
+    reinforcementTarget: "choosing a transition support or moving when ready",
+  },
+  "put-down-practice": {
+    steps: ["During a calm moment, choose one safe, non-breakable household item.", "Model placing it gently on a nearby surface, then offer the child a turn without pressure.", "Stop if the child becomes uncomfortable; do not introduce breakable objects."],
+    reinforcementTarget: "choosing to handle or put down the safe item gently",
+  },
+  "ask-help-object": {
+    steps: ["Choose an easy, familiar toy or task together; avoid items that are likely to cause frustration.", "Make the child's familiar help signal available and model it once if useful.", "Respond to a help request promptly and put the item away if it becomes difficult."],
+    reinforcementTarget: "asking for help or choosing to continue",
+  },
+  "soft-object-practice": {
+    steps: ["Choose a familiar soft toy or pillow during a calm activity.", "Model placing it down gently; invite, but do not require, a turn.", "End the practice if the child is no longer comfortable."],
+    reinforcementTarget: "choosing to handle or place the soft object gently",
+  },
+  "toothbrush-step": {
+    steps: ["Use the familiar toothbrush routine and offer one optional step, such as picking up or putting away the brush.", "Offer help or a choice; do not move the brush into the child's mouth.", "Stop at any sign of discomfort and try a smaller step another time."],
+    reinforcementTarget: "choosing or attempting the one optional routine step",
+  },
+  "shoes-step": {
+    steps: ["Use the child's familiar shoes and offer one small step, such as opening a shoe or placing it by the door.", "Let the child choose help, another step, or to stop.", "Finish after the chosen step; do not require wearing the shoes for practice."],
+    reinforcementTarget: "choosing or attempting one dressing step",
+  },
+  "handwashing-step": {
+    steps: ["When handwashing naturally fits, offer one familiar step, such as turning on the tap or rubbing hands together.", "Model once or offer help if the child accepts it.", "Pause or stop if the water, sound, or routine is uncomfortable."],
+    reinforcementTarget: "choosing or attempting one familiar handwashing step",
+  },
+  "familiar-help-signal": {
+    steps: ["Start a familiar activity the child enjoys and keep the help, break, or more signal accessible.", "Model the signal once during a natural pause, then wait.", "Respond to the signal right away; do not turn the activity into a test."],
+    reinforcementTarget: "using a familiar signal or communicating a choice",
+  },
+  "shared-preferred-activity": {
+    steps: ["Offer a familiar activity the child enjoys and ask or observe how they want to begin.", "Join their play by copying or taking a simple turn, following their lead.", "Pause when they communicate, shift activities, or show they are finished."],
+    reinforcementTarget: "initiating, sharing a turn, or communicating a preference",
+  },
+  "one-small-routine-step": {
+    steps: ["Choose one easy step from a familiar routine, not a new or difficult task.", "Offer help or two acceptable ways to begin, then wait.", "Stop after that step or sooner if the child asks for a break."],
+    reinforcementTarget: "choosing, starting, or asking for help with the step",
+  },
+};
+
 function practiceActivitiesFor(behavior: Pick<ParentBehavior, "behaviorKey" | "behaviorName">): PracticeActivity[] {
   const identity = `${behavior.behaviorKey || ""} ${behavior.behaviorName || ""}`.normalize("NFKC").toLowerCase();
   if (identity.includes("elopement") || identity.includes("running away")) return STARTER_PRACTICE_ACTIVITIES.elopement;
@@ -468,11 +577,21 @@ function selectedGoalPracticeDraft(
       ? `Practices ${activity.skill} and connects to ${childName}'s saved goal: ${displayGoal}`
       : `Practices ${activity.skill} during a familiar activity. This is starter support, not an individualized plan.`,
     steps: cleanSteps([
+      ...(ACTIVITY_GUIDANCE[activity.id]?.steps || [
+        `Set up the activity as described: ${activity.description}`,
+        `Offer one voluntary chance to practice ${activity.skill.toLocaleLowerCase()}.`,
+      ]),
       `Skill practiced: ${activity.skill}`,
+      card.source !== "starter"
+        ? card.reinforcementIdea?.trim()
+          ? `Positive reinforcement from the support plan: ${card.reinforcementIdea.trim()}`
+          : null
+        : `Positive reinforcement: after your child ${ACTIVITY_GUIDANCE[activity.id]?.reinforcementTarget || `practices ${activity.skill.toLocaleLowerCase()}`}, give immediate, behavior-specific praise and, if you know it is welcome, a preferred item or activity. Do not assume physical touch is welcome or withhold breaks or communication.`,
+      card.source === "starter" && card.prevention?.[0]
+        ? `Starter support: ${card.prevention[0]}`
+        : null,
       `If it gets hard: ${activity.ifHard}`,
-      card.prevention?.[0] ? `Starter support: ${card.prevention[0]}` : null,
-      card.reinforcementIdea ? `Starter encouragement: ${card.reinforcementIdea}` : null,
-    ], 4),
+    ], 7),
     estimatedMinutes: activity.minutes,
     status: "not_started",
   }));

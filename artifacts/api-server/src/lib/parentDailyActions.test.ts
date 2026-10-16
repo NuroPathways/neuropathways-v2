@@ -158,9 +158,30 @@ test("starter practice is behavior-specific and excludes unsafe rehearsal", () =
   const selfInjury = makeActions("self_injury", "Self-Injury");
   assert.ok(elopement.some((action) => action.title === "Indoor Stop-and-Return Game"));
   assert.ok(selfInjury.some((action) => action.title === "Practice Asking for Help"));
+  const puzzle = elopement.find((action) => action.title === "Puzzle Together");
+  assert.ok(puzzle);
+  assert.ok(puzzle.steps.some((step) => /familiar, easy puzzle/.test(step)));
+  assert.ok(puzzle.steps.some((step) => /Positive reinforcement/.test(step)));
+  assert.ok(puzzle.steps.some((step) => /never use the puzzle to prevent leaving/.test(step)));
   assert.notDeepEqual(elopement.map((action) => action.title), selfInjury.map((action) => action.title));
   assert.doesNotMatch(elopement.map((action) => `${action.title} ${action.description} ${action.steps.join(" ")}`).join(" "), /restraint|physical block|create a difficult situation/i);
   assert.doesNotMatch(selfInjury.map((action) => `${action.title} ${action.description} ${action.steps.join(" ")}`).join(" "), /restraint|physical block|create a difficult situation/i);
+});
+
+test("calm space tour gets steps for that activity, choice, and low-pressure participation", () => {
+  const actions = buildParentDailyActionDrafts({
+    date: "2026-10-07",
+    selectedBehaviors: [selectedBehavior("meltdowns", "Meltdowns")],
+    supportCards: [makeStarterCard("meltdowns", null, "Find a familiar calm space")],
+    logs: [],
+  });
+  const tour = actions.find((action) => action.title === "Calm Space Tour");
+
+  assert.ok(tour);
+  assert.ok(tour.steps.some((step) => /familiar quiet space the child can enter and leave freely/.test(step)));
+  assert.ok(tour.steps.some((step) => /child to choose one item/.test(step)));
+  assert.ok(tour.steps.some((step) => /Positive reinforcement/.test(step)));
+  assert.ok(tour.steps.some((step) => /do not assume physical touch is welcome/i.test(step)));
 });
 
 test("an unselected conflicted plan does not become a family-facing review activity", () => {
