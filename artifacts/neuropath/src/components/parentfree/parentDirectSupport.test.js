@@ -20,7 +20,7 @@ describe("parentDirectBehaviors", () => {
     expect(behaviors[0]).toMatchObject({
       name: "Task refusal",
       parentDirectEligible: true,
-      sourceLabel: "Starter support",
+      sourceLabel: "Source: Pre-programmed library",
       do_this_right_now: ["Offer a brief, familiar choice."],
     });
   });
@@ -39,11 +39,11 @@ describe("parentDirectBehaviors", () => {
       [{ key: "task_refusal", rightNow: ["Use the safe starter step."] }],
     );
 
-    expect(behaviors[0].sourceLabel).toBe("Starter support");
+    expect(behaviors[0].sourceLabel).toBe("Source: Pre-programmed library");
     expect(behaviors[0].do_this_right_now).toEqual(["Use the safe starter step."]);
   });
 
-  it("does not add plan discoveries that the parent has not selected", () => {
+  it("keeps safe plan discoveries available alongside the parent's saved behavior", () => {
     const behaviors = parentDirectBehaviors(
       { behaviorKey: "task_refusal", behaviorName: "Task refusal" },
       [
@@ -53,6 +53,31 @@ describe("parentDirectBehaviors", () => {
       [],
     );
 
-    expect(behaviors.map((behavior) => behavior.name)).toEqual(["Task refusal"]);
+    expect(behaviors.map((behavior) => behavior.name)).toEqual(["Task refusal", "Elopement"]);
+    expect(behaviors[1].sourceLabel).toBe("Source: Behavior plan");
+  });
+
+  it("preserves available plan strategies, escalation, prevention, and reinforcement details", () => {
+    const behaviors = parentDirectBehaviors(
+      { behaviorKey: "task_refusal", behaviorName: "Task refusal" },
+      [{
+        behaviorKey: "task_refusal",
+        behaviorName: "Task refusal",
+        source: "clinician_reviewed",
+        conflict: false,
+        interventions: ["Use the clinician's agreed prompt."],
+        ifItEscalates: ["Pause and follow the safety plan."],
+        prevention: ["Preview the transition."],
+        reinforcementIdea: "Recognize the first step.",
+      }],
+      [],
+    );
+
+    expect(behaviors[0]).toMatchObject({
+      interventions: ["Use the clinician's agreed prompt."],
+      if_it_escalates: ["Pause and follow the safety plan."],
+      prevention_tips: ["Preview the transition."],
+      reinforcement_rewards: ["Recognize the first step."],
+    });
   });
 });

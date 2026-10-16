@@ -45,7 +45,7 @@ Always show selectable behavior blocks when Help Now opens, even with one active
 
 **Why:** The user reiterated that Help Now should still show behavior blocks and allow selection, and that uploaded plans should automatically update Help Now and goals.
 
-**How to apply:** Include active behaviors and plan-found candidates. Refresh their support and plan-goal displays after a successful scan on web and mobile, without repeating setup.
+**How to apply:** Include active behaviors and non-conflicting plan-found candidates. Keep saved behaviors visible and preserve all available guidance fields when projecting support cards into Help Now; don't reduce cards to only immediate steps. Refresh support and plan-goal displays after a successful scan on web and mobile, without repeating setup.
 
 Keep saved parent goals unchanged and show explicit plan goals alongside them, including when they differ.
 

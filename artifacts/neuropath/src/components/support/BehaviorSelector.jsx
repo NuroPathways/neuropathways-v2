@@ -167,6 +167,14 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
           <Section title="If It Escalates" items={behavior.if_it_escalates} colorClass="bg-red-50 border-red-200 text-red-800" />
         )}
 
+        {behavior.prevention_tips && behavior.prevention_tips.length > 0 && (
+          <Section title="Prevention Ideas" items={behavior.prevention_tips} colorClass="bg-blue-50 border-blue-200 text-blue-800" />
+        )}
+
+        {behavior.reinforcement_rewards && behavior.reinforcement_rewards.length > 0 && (
+          <Section title="Encouragement" items={behavior.reinforcement_rewards} colorClass="bg-teal-50 border-teal-200 text-teal-800" />
+        )}
+
         {behavior.avoid && behavior.avoid.length > 0 && (
           <div className="mb-4">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Things to Avoid</h4>

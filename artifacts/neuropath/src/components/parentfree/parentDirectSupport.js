@@ -2,12 +2,14 @@ import { getParentBehaviors, parentBehaviorIdentity } from "@workspace/api-clien
 
 const sourceLabel = (source) => {
   switch (source) {
-    case "clinician_reviewed": return "Clinician reviewed";
-    case "clinician_document": return "Clinician-uploaded plan";
-    case "parent_document": return "Based on your uploaded plan · not clinician-reviewed";
+    case "clinician_reviewed":
+    case "clinician_document":
+    case "parent_document":
+      return "Source: Behavior plan";
     case "starter":
-      return "Starter support";
-    default: return "Source not available";
+      return "Source: Pre-programmed library";
+    default:
+      return "Source: Behavior plan";
   }
 };
 
@@ -27,23 +29,52 @@ export function parentDirectBehaviors(child, supportCards, starterLibrary) {
     : [];
   const templates = Array.isArray(starterLibrary) ? starterLibrary : [];
 
-  return getParentBehaviors(child || {}).map((selection) => {
+  const selections = getParentBehaviors(child || {});
+  const selectedIds = new Set(selections.map(parentBehaviorIdentity));
+
+  const toBehavior = (base, identity, name, source) => ({
+    ...base,
+    id: base?.id || identity,
+    behaviorKey: base?.behaviorKey,
+    name,
+    parentDirectEligible: true,
+    sourceLabel: sourceLabel(source),
+    what_may_be_happening: base?.what_may_be_happening || base?.whatMayBeHappening || base?.context || "",
+    do_this_right_now: base?.do_this_right_now || base?.doThisRightNow || base?.rightNow || base?.right_now || [],
+    interventions: base?.interventions || base?.clinicianApprovedSteps || base?.clinician_approved_strategies || base?.strategies || [],
+    if_it_escalates: base?.if_it_escalates || base?.ifItEscalates || base?.escalationSteps || base?.escalation_steps || [],
+    avoid: base?.avoid || base?.thingsToAvoid || base?.things_to_avoid || [],
+    prevention_tips: base?.prevention_tips || base?.preventionTips || base?.prevention || [],
+    reinforcement_rewards: base?.reinforcement_rewards || base?.reinforcementRewards || base?.reinforcement || (base?.reinforcementIdea ? [base.reinforcementIdea] : []),
+    when_to_contact_clinician: base?.when_to_contact_clinician || base?.whenToContactClinician || base?.seekHelp || "",
+  });
+
+  const active = selections.map((selection) => {
     const identity = parentBehaviorIdentity(selection);
     const existingCard = cards.find((card) => parentBehaviorIdentity(card) === identity);
     const card = existingCard && existingCard.conflict !== true ? existingCard : null;
     const template = templates.find((item) => item.key === selection.behaviorKey) || genericStarter;
 
-    return {
-      id: card?.id || identity,
-      name: selection.behaviorName,
-      parentDirectEligible: true,
-      sourceLabel: card ? sourceLabel(card.source) : "Starter support",
-      what_may_be_happening: card?.whatMayBeHappening || template.whatMayBeHappening,
-      do_this_right_now: card?.rightNow || template.rightNow,
-      avoid: card?.avoid || template.avoid,
-      prevention_tips: card?.prevention || template.prevention,
-      reinforcement_rewards: [card?.reinforcementIdea || template.reinforcementIdea].filter(Boolean),
-      when_to_contact_clinician: card?.seekHelp || template.seekHelp,
-    };
+    return toBehavior(
+      card || template,
+      identity,
+      selection.behaviorName,
+      card?.source || "starter",
+    );
   });
+
+  const discoveries = cards
+    .filter((card) =>
+      card.source !== "starter" &&
+      card.conflict !== true &&
+      !selectedIds.has(parentBehaviorIdentity(card)),
+    )
+    .map((card) => toBehavior(
+      card,
+      parentBehaviorIdentity(card),
+      card.behaviorName || card.name || "Plan behavior",
+      card.source,
+    ));
+
+  return [...active, ...discoveries];
 }
