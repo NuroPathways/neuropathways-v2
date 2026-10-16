@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
@@ -67,12 +67,16 @@ export default function HelpNow() {
   const [behaviorPlans, setBehaviorPlans] = useState([]);
   const [selectedBehavior, setSelectedBehavior] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
   const [step, setStep] = useState("select_behavior");
   const [isIndividualClient, setIsIndividualClient] = useState(false);
   const [portalFailed, setPortalFailed] = useState(false);
+  const [buildFailed, setBuildFailed] = useState(false);
+  const [docsCount, setDocsCount] = useState(0);
   const [childrenForPicker, setChildrenForPicker] = useState([]);
 
   const childId = new URLSearchParams(window.location.search).get("child_id");
+  const scannedChildIdRef = useRef(null);
 
   useEffect(() => {
     if (isLoadingAuth) return;
@@ -134,15 +138,47 @@ export default function HelpNow() {
       }).then(r => r?.data || {}).catch(() => null);
       const portal = portalRes || {};
       setPortalFailed(!portalRes || !!portal.error);
+      const docs = portal.documents || [];
+      const docsWithFiles = docs.filter(d => d.file_url || d.fileUrl);
+      setDocsCount(docsWithFiles.length);
 
       const profiles = portal.profile ? [portal.profile] : [];
       if (profiles.length > 0) setProfile(profiles[0]);
       setBehaviorPlans(portal.plans || []);
       setLoading(false);
 
+      if (scannedChildIdRef.current !== foundChild.id) {
+        scannedChildIdRef.current = foundChild.id;
+        const existingProfile = profiles[0];
+        const scannedIds = new Set(existingProfile?.source_doc_ids || existingProfile?.sourceDocIds || []);
+        const hasNewDocs = docsWithFiles.some(d => !scannedIds.has(d.id));
+        const needsBuild = !existingProfile || hasNewDocs || !(existingProfile.behaviors?.length > 0);
+        if (needsBuild && docsWithFiles.length > 0) runBuild(foundChild);
+      }
     };
     load();
   }, [childId, isLoadingAuth, user?.id]);
+
+  const runBuild = async (foundChild) => {
+    setScanning(true);
+    setBuildFailed(false);
+    try {
+      await base44.functions.invoke("buildClientProfile", {
+        child_id: foundChild.id,
+        account_id: user?.id,
+        invite_token: user?.invite_token,
+      });
+      const refreshed = await base44.functions.invoke("getClientPortalData", {
+        child_id: foundChild.id,
+        account_id: user?.id,
+        invite_token: user?.invite_token,
+      }).then(r => r?.data?.profile).catch(() => null);
+      if (refreshed) setProfile(refreshed);
+    } catch {
+      setBuildFailed(true);
+    }
+    setScanning(false);
+  };
 
   const handleSelectBehavior = (behavior) => {
     setSelectedBehavior({
@@ -198,6 +234,7 @@ export default function HelpNow() {
     ))
   ));
   const hasProfile = behaviors.length > 0;
+  const docsExist = docsCount > 0;
 
   // All treatment goal titles on file — used as a fallback so Goal Mapping always shows.
   const goalsForBehavior = [];
@@ -275,6 +312,12 @@ export default function HelpNow() {
                   <p className="text-muted-foreground text-sm">We couldn't load your profile. Please try again, or message your clinician if this keeps happening.</p>
                   <Button variant="outline" className="rounded-xl" onClick={() => window.location.reload()}>Try Again</Button>
                 </div>
+              ) : scanning ? (
+                <div className="text-center py-12 space-y-4">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
+                  <h2 className="font-bold text-foreground text-lg">Preparing Your Help Cards...</h2>
+                  <p className="text-sm text-muted-foreground">Reading {child.child_name}'s clinical documents. This may take a moment.</p>
+                </div>
               ) : !hasProfile ? (
                 <div className="text-center py-12 space-y-4">
                   <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-left">
@@ -289,6 +332,12 @@ export default function HelpNow() {
                       </div>
                     )}
                     <p className="mt-4 text-sm font-semibold text-red-800">If anyone is in immediate danger, call 911 or local emergency services.</p>
+                    {buildFailed && docsExist && (
+                      <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3">
+                        <p className="text-sm text-red-800 mb-2">We couldn't build your help cards from the uploaded documents.</p>
+                        <Button variant="outline" className="w-full rounded-xl" onClick={() => runBuild(child)}>Try Again</Button>
+                      </div>
+                    )}
                   </div>
                   <Button variant="outline" className="w-full rounded-xl" onClick={() => navigate("/Messages")}>Contact Your Care Team</Button>
                 </div>
