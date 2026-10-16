@@ -78,6 +78,7 @@ export * from './parentSession';
 export * from './parentSharedSupport';
 export * from './parentSupportReviewInput';
 export * from './parentSupportReviewResult';
+export * from './revokeParentClinicLink200';
 export * from './sourceReference';
 export * from './starterTemplate';
 export * from './supportCard';

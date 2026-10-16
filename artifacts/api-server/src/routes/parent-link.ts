@@ -253,6 +253,47 @@ router.post("/parent/children/:childId/link-preview", requireParent, async (req:
   }
 });
 
+router.delete("/parent/children/:childId/clinic-link", requireParent, async (req: any, res) => {
+  const parentId = req.parentAccount?.id;
+  if (!parentId) return res.status(401).json({ error: "Parent authentication required" });
+  try {
+    const owned = await ownedParentChild(parentId, req.params.childId);
+    const child = owned?.child;
+    if (!child || child.status === "merged") return res.status(404).json({ error: "Child not found" });
+    const workspaceId = req.parentAccount.workspaceId as string;
+    if (!workspaceId || child.tenantId !== workspaceId) {
+      return res.status(403).json({ error: "This child is not in the parent workspace" });
+    }
+
+    await db.transaction(async (tx: any) => {
+      await tx.update(parentDocumentsTable).set({ sharedClinicianId: null })
+        .where(and(
+          eq(parentDocumentsTable.parentId, parentId),
+          eq(parentDocumentsTable.childId, child.id),
+        ));
+      await tx.update(childrenTable).set({ clinicianId: null, familyId: null })
+        .where(and(
+          eq(childrenTable.id, child.id),
+          eq(childrenTable.parentId, parentId),
+          eq(childrenTable.tenantId, workspaceId),
+        ));
+      await logAudit(tx, {
+        userId: parentId,
+        userRole: "parent",
+        action: "parent_clinic_link_revoked",
+        targetType: "child",
+        targetId: child.id,
+        tenantId: workspaceId,
+        metadata: { clinicianId: child.clinicianId ?? null, familyId: child.familyId ?? null },
+      });
+    });
+    return res.json({ ok: true, message: "Clinic access was disconnected. Your parent account and records are unchanged." });
+  } catch (error: any) {
+    req.log?.error?.({ err: error }, "Unable to revoke parent clinic link");
+    return res.status(500).json({ error: "Unable to disconnect the clinic" });
+  }
+});
+
 async function moveAuthorizedChildData(
   tx: any,
   duplicateChildId: string,

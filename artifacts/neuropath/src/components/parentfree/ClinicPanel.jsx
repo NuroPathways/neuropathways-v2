@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePreviewParentClinicInvite, useConnectParentClinic } from "@workspace/api-client-react";
+import { usePreviewParentClinicInvite, useConnectParentClinic, useRevokeParentClinicLink } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest, recallInvite, forgetInvite } from "@/lib/parentSession";
 import { ErrorBox, Field, errMsg } from "./common";
@@ -19,6 +19,7 @@ export default function ClinicPanel({ child, documents }) {
   const [done, setDone] = useState("");
   const prev = usePreviewParentClinicInvite({ request: parentRequest() });
   const conn = useConnectParentClinic({ request: parentRequest() });
+  const revoke = useRevokeParentClinicLink({ request: parentRequest() });
 
   const lookup = (e) => {
     e.preventDefault();
@@ -46,11 +47,32 @@ export default function ClinicPanel({ child, documents }) {
     });
   };
 
+  const disconnect = () => {
+    if (!window.confirm(`Disconnect ${child.name}'s clinic access? Their parent account, uploaded records, and support history will remain.`)) return;
+    setError(""); setDone("");
+    revoke.mutate({ childId: child.id }, {
+      onSuccess: async (result) => {
+        setDone(result.message);
+        await refreshParent();
+        qc.invalidateQueries();
+      },
+      onError: (er) => setError(errMsg(er, "Could not disconnect the clinic.")),
+    });
+  };
+
   return (
     <div className="pf-grid2">
       <div className="pf-card" style={{ display: "grid", gap: 14 }}>
         <h2>Connect to your clinic</h2>
-        {child.clinicianId && <p className="pf-tag" style={{ justifySelf: "start" }} data-testid="text-clinic-connected">Connected to a clinician</p>}
+        {child.clinicianId && (
+          <div style={{ display: "grid", gap: 8 }}>
+            <p className="pf-tag" style={{ justifySelf: "start" }} data-testid="text-clinic-connected">Connected to a clinician</p>
+            <p className="pf-hint">Disconnecting stops the clinic link and document access. It does not delete your parent account, uploaded records, or support history.</p>
+            <button type="button" className="pf-btn" onClick={disconnect} disabled={revoke.isPending} data-testid="button-disconnect-clinic">
+              {revoke.isPending ? "Disconnecting..." : "Disconnect clinic"}
+            </button>
+          </div>
+        )}
         <p style={{ color: "var(--pf-ink-soft)" }}>Your clinic can send an invite link. Linking never shares anything by itself. You decide what they see.</p>
         <form onSubmit={lookup} style={{ display: "grid", gap: 10 }}>
           <Field label="Invite link or code"><input className="pf-input" value={token} onChange={(e) => setToken(e.target.value)} data-testid="input-invite-token" /></Field>
@@ -95,7 +117,7 @@ export default function ClinicPanel({ child, documents }) {
           )}
           <label style={{ display: "flex", gap: 8, fontSize: ".9rem" }}>
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} data-testid="checkbox-clinic-consent" />
-            <span>I consent to linking {child.name}'s account to {preview.clinicianName}'s clinic and to sharing only what I chose above. I can stop sharing a document later.</span>
+            <span>I consent to linking {child.name}'s account to {preview.clinicianName}'s clinic and to sharing only the documents I chose above. I can disconnect clinic access later.</span>
           </label>
           <button className="pf-btn primary" disabled={!canConnect || conn.isPending} onClick={connect} data-testid="button-connect-clinic">{conn.isPending ? "Connecting..." : "Connect to clinic"}</button>
         </div>

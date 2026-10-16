@@ -1017,6 +1017,19 @@ export const ConnectParentClinicResponse = zod.object({
 
 
 /**
+ * @summary Disconnect a child from a clinic without deleting parent records
+ */
+export const RevokeParentClinicLinkParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const RevokeParentClinicLinkResponse = zod.object({
+  "ok": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
  * @summary Review shared parent support as a clinician
  */
 export const ReviewParentSupportParams = zod.object({

@@ -672,6 +672,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ParentClinicConnectionResult"
+  /parent/children/{childId}/clinic-link:
+    delete:
+      operationId: revokeParentClinicLink
+      tags: [clinic-link]
+      summary: Disconnect a child from a clinic without deleting parent records
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Clinic access disconnected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  message:
+                    type: string
+                required: [ok, message]
   /parent/children/{childId}/support-review:
     post:
       operationId: reviewParentSupport

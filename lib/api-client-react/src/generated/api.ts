@@ -64,6 +64,7 @@ import type {
   ParentSharedSupport,
   ParentSupportReviewInput,
   ParentSupportReviewResult,
+  RevokeParentClinicLink200,
   StarterTemplate
 } from './api.schemas';
 
@@ -2562,6 +2563,80 @@ export const useConnectParentClinic = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getConnectParentClinicMutationOptions(options), queryClient);
+    }
+
+export const getRevokeParentClinicLinkUrl = (childId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/clinic-link`
+}
+
+/**
+ * @summary Disconnect a child from a clinic without deleting parent records
+ */
+export const revokeParentClinicLink = async (childId: string, options?: Parameters<typeof customFetch>[1]): Promise<RevokeParentClinicLink200> => {
+
+  return customFetch<RevokeParentClinicLink200>(getRevokeParentClinicLinkUrl(childId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeParentClinicLinkMutationKey = () => ['revokeParentClinicLink'] as const;
+
+export const getRevokeParentClinicLinkMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeParentClinicLink>>, TError,RevokeParentClinicLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeParentClinicLink>>, TError,RevokeParentClinicLinkMutationVariables, TContext> => {
+
+const mutationKey = getRevokeParentClinicLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeParentClinicLink>>, RevokeParentClinicLinkMutationVariables> = (props) => {
+          const {childId} = props ?? {};
+
+          return  revokeParentClinicLink(childId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeParentClinicLinkMutationResult = NonNullable<Awaited<ReturnType<typeof revokeParentClinicLink>>>
+
+    export type RevokeParentClinicLinkMutationError = ErrorType<unknown>
+    export type RevokeParentClinicLinkMutationVariables = {childId: string}
+
+    /**
+ * @summary Disconnect a child from a clinic without deleting parent records
+ */
+export const useRevokeParentClinicLink = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeParentClinicLink>>, TError,RevokeParentClinicLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof revokeParentClinicLink>>,
+        TError,
+        RevokeParentClinicLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevokeParentClinicLinkMutationOptions(options), queryClient);
     }
 
 export const getReviewParentSupportUrl = (childId: string,) => {

@@ -722,3 +722,8 @@ export interface ParentPasswordChangeInput {
   newPassword: string;
 }
 
+export type RevokeParentClinicLink200 = {
+  ok: boolean;
+  message: string;
+};
+
