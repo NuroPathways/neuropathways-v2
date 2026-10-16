@@ -1,0 +1,855 @@
+# NeuroPathways — Phased Implementation of the Parent Experience Redesign
+
+Implement this redesign in the existing NeuroPathways application.
+
+Inspect the current code before changing it. The file references below come from a review of `NuroPathways/neuropathways-v2` at commit `d93d16606a3316e0aebd611b1d0e6ecfab240c05`. The repository may have changed since that review. Verify each finding against the current branch and adapt the implementation accordingly.
+
+Actually implement and test the changes. Work in small, reviewable phases rather than making one large rewrite.
+
+## 1. Nonnegotiable requirements
+
+Preserve:
+
+- The existing color palette, logo, and brand identity.
+- Existing accounts, child profiles, documents, goals, logs, and relationships.
+- Fully independent parent mode.
+- Clinic-connected accounts and clinician workflows.
+- Immediate access to Help Now.
+- Existing routes and deep links through compatibility routes or redirects.
+- The distinction between educational support and reviewed clinical guidance.
+
+Improve the experience through:
+
+- More empty space.
+- Less information on each screen.
+- Clearer navigation.
+- Short instructions.
+- Consistent child selection.
+- Connected activities, goals, and observations.
+- Optional logging and reminders.
+
+Do not rebuild the app from scratch.
+
+Do not require a clinician, clinic code, referral, uploaded document, completed lesson, goal, or routine to use the core parent experience.
+
+Do not make activity completion automatically mean clinical improvement, independent performance, or goal mastery.
+
+## 2. Inspect the actual application first
+
+Review:
+
+- `artifacts/neuropath/src/App.jsx`
+- `artifacts/neuropath/src/pages.config.js`
+- `artifacts/neuropath/src/Layout.jsx`
+- `artifacts/neuropath/src/api/entities.js`
+- `artifacts/neuropath/src/lib/AuthContext.jsx`
+- `artifacts/neuropath/src/lib/clientSession.js`
+- `artifacts/neuropath/src/index.css`
+- `artifacts/neuropath/tailwind.config.js`
+- `artifacts/api-server/src/app.ts`
+- `artifacts/api-server/src/routes/`
+- `artifacts/api-server/src/middlewares/`
+- `lib/db/src/schema/entities.ts`
+- `lib/db/src/schema/auth.ts`
+- `lib/db/drizzle.config.ts`
+- `artifacts/neuropath-mobile/`
+- `test-suite.sh`
+- `artifacts/neuropath/public/test-runner.html`
+- `TESTING.md`
+- `test-scenarios.md`
+
+Identify:
+
+1. The current branch and commit.
+2. Existing changes that must be preserved.
+3. Current parent, clinician, and mobile authentication paths.
+4. Existing activity-related functionality that can be reused.
+5. Current schema and migration approach.
+6. Available automated tests and missing coverage.
+
+Do not assume that features described in older prompts already exist.
+
+The reviewed version had goals in `reward_tokens` and extracted goals in `client_profiles.goals`, but no dedicated activity, routine, bookmark, or reminder tables. Verify this before adding anything.
+
+Treat `pages.config.js` according to its generation mechanism. Do not manually edit generated code without understanding how it is maintained.
+
+## 3. Implementation process
+
+Implement the phases below in order.
+
+For each phase:
+
+1. Briefly state the scope.
+2. Make the changes.
+3. Run appropriate tests.
+4. Fix failures introduced by the changes.
+5. Record the files changed, migrations, test results, and remaining limitations.
+6. Continue to the next phase when its prerequisites are satisfied.
+
+Maintain a concise implementation checklist in a new project document.
+
+Use feature flags where they help introduce new screens safely. Keep flags independent of whether a parent has a clinician.
+
+Use a development or test database for automated tests. Do not run destructive test fixtures against production.
+
+Do not deploy to production, send real notifications, or modify production data as part of this implementation.
+
+# Phase 0 — Secure the shared foundation and preserve independent access
+
+Complete this phase before new features reuse file storage, goal mutations, or clinic sharing.
+
+## 0A. Centralize authorization
+
+Review and consolidate authorization currently distributed across:
+
+- `routes/entities.ts`
+- `routes/entities-helpers.ts`
+- `routes/upload.ts`
+- `routes/mobile.ts`
+- `middlewares/authMiddleware.ts`
+
+Introduce a shared authorization service, such as:
+
+`artifacts/api-server/src/lib/child-access.ts`
+
+It must:
+
+- Resolve the authenticated identity server-side.
+- Distinguish parent, clinician, and mobile access.
+- Verify access to the requested child.
+- Verify that linked records belong to that child.
+- Support independent parents whose clinician ID is null.
+- Deny access to unrelated records.
+- Prevent clients from reassigning ownership through request bodies.
+
+Never treat a null clinician ID as permission for any clinician to access a record.
+
+Apply the same policy to list, detail, create, update, delete, download, scanning, AI, and new activity endpoints.
+
+Preserve supported authentication methods during the transition.
+
+## 0B. Verify and repair the identified access problems
+
+Check the current code for these previously observed issues:
+
+- `/uploads` served files without a record-level authorization check.
+- `/ai/invoke-llm` lacked authentication and accepted uploaded-file paths.
+- `/manage-client-goal` allowed a cookie-authenticated caller through its ownership check when a goal had no clinician ID.
+- Goal sibling checks differed from other child-access checks.
+- Generic updates accepted ownership fields from request bodies.
+- Parent-signup responses serialized child records without consistently stripping credential fields.
+
+Fix any issues still present.
+
+For file access:
+
+- Resolve files through an authorized file/document record.
+- Do not accept arbitrary client-provided filesystem paths.
+- Protect downloads as well as uploads.
+- Remove temporary files after rejected or failed uploads.
+- Validate allowed formats, sizes, and file content where appropriate.
+- Preserve compatibility with existing uploaded documents.
+- Make encryption format/version explicit when changing encryption handling.
+
+For AI:
+
+- Authenticate the request.
+- Authorize the selected child and every referenced document.
+- Construct sensitive child context server-side.
+- Validate structured outputs.
+- Keep extracted document text separate from application instructions.
+- Do not use open-ended generation for immediate-danger guidance.
+
+## 0C. Complete independent-parent access
+
+Preserve `/parent-signup` and its ability to create an account without a clinician.
+
+Allow an authenticated independent parent to:
+
+- Add and manage authorized children.
+- Select support areas.
+- Use starter support.
+- Use Help Now.
+- Create goals.
+- Upload and scan documents.
+- Use activities, history, preferences, routines, and AI Chat.
+
+Add a parent-authorized child-creation path if the existing `/add-child-to-family` endpoint is clinician-only.
+
+Do not assign the parent as a clinician to make an endpoint work.
+
+Do not confuse:
+
+- `individual`: a person using the app for themselves.
+- `independent`: an account without a clinician connection.
+
+Remove parent-facing empty states that imply the app cannot work until a clinician uploads a plan.
+
+## 0D. Correct source and approval labels
+
+Inspect:
+
+- `pages/HelpNow.jsx`
+- `components/support/BehaviorSelector.jsx`
+- `components/support/CrisisPlan.jsx`
+- The document extraction workflow.
+
+Do not label content “Clinician approved” simply because it was extracted from a document or associated with a clinician ID.
+
+Use truthful labels:
+
+- Starter support
+- Based on your uploaded document
+- Not clinician-reviewed
+- Clinician reviewed
+- Published by care team
+
+Reviewed labels require stored evidence of an authorized review tied to the exact content version.
+
+Legacy content with unknown review status stays unreviewed until verified.
+
+### Phase 0 acceptance
+
+- Independent signup and child access work.
+- Cross-family and cross-clinic requests are denied.
+- Null clinician IDs do not grant access.
+- Private downloads require authorization.
+- AI cannot access another child’s documents.
+- Credential fields never appear in ordinary responses.
+- Approval labels reflect stored review status.
+
+# Phase 1 — Simplify navigation, Home, and child selection
+
+## 1A. Establish shared child context
+
+Create or reuse a shared child context and data hook, for example:
+
+- `src/lib/ChildContext.jsx`
+- `src/hooks/useChildPortal.js`
+
+Use it across Home, Help Now, Practice, Goals, History, Documents, Preferences, and AI Chat.
+
+Selection rules:
+
+1. Honor an authorized child ID in a deep link.
+2. Otherwise use the current valid selection.
+3. Automatically select the only available child.
+4. Show a selector when multiple children exist and none is selected.
+
+Validate persisted selections against the current authorized child list.
+
+Scope cached data by authenticated identity and child ID.
+
+Clear user-specific state on logout. Prevent a late response for one child from appearing after switching to another.
+
+Do not persist authentication tokens as part of navigation preferences.
+
+## 1B. Implement the parent navigation
+
+Primary destinations:
+
+**Home | Help Now | Practice | Goals | Menu**
+
+Update `src/Layout.jsx` using one shared parent navigation definition for mobile and desktop.
+
+Preserve clinician navigation.
+
+Route mapping:
+
+- Home → `/ParentDashboard`
+- Help Now → `/HelpNow`
+- Practice → new `/Practice`
+- Goals → `/GoalsMilestones`
+- Menu → new `/Menu`
+
+Menu contains:
+
+- History
+- Behavior Support Library
+- Care Plan and Documents
+- Upload Plan
+- AI Chat
+- Things My Child Enjoys
+- Clinic Connection
+- Settings
+- Messages, when applicable
+
+Keep old routes operational, including:
+
+- `/LogBehavior`
+- `/DocumentCenter`
+- `/ParentUpload`
+- `/AIChat`
+- `/Messages`
+- `/ProgressReports`
+- `/RewardTracker`
+- Existing clinician and individual-client routes
+
+Preserve query parameters and child context through redirects.
+
+## 1C. Simplify Home
+
+Refactor `pages/ParentDashboard.jsx`.
+
+Show:
+
+**Support for [child name]**
+
+Subtitle:
+
+“Support, activities, and routines that fit your day.”
+
+Then:
+
+1. **I Need Help Now**
+2. **Practice Together**
+3. **Prepare for Something**
+4. **Continue Where You Left Off**, only when saved progress exists
+
+Help Now remains the most prominent action and uses its existing urgent-action color.
+
+Practice Together opens Practice.
+
+Prepare opens routines or preparation activities within Practice.
+
+Continue opens the exact saved activity or routine.
+
+Move detailed charts, streaks, goals, documents, and history out of Home.
+
+Do not fill Home with large cards or duplicate summaries.
+
+## 1D. Remove the automatic support interruption
+
+`SupportNowOverlay.jsx` previously opened automatically shortly after the dashboard loaded.
+
+Remove that automatic interruption.
+
+Make support explicitly accessible through:
+
+- The Home action.
+- The primary navigation.
+- Relevant contextual links.
+
+Reuse useful components from the overlay in the unified Help Now experience.
+
+## 1E. Introduce History
+
+Add `pages/History.jsx`.
+
+Aggregate existing records into chronological sections or filters:
+
+- Activities Tried
+- Support Events
+- Observations
+- Saved Notes
+
+Retain `/LogBehavior` as an observation-entry route.
+
+Do not copy existing records into a second history database.
+
+Keep informational usage events separate from reported behavior incidents.
+
+### Phase 1 acceptance
+
+- Navigation is consistent on mobile and desktop.
+- Child selection survives page changes and refreshes.
+- Old links still work.
+- Home is visibly simpler and more spacious.
+- Help Now is directly reachable.
+- No clinician is required.
+- Existing individual-client and clinician screens remain functional.
+
+# Phase 2 — Build the connected activity experience
+
+This is the main functional improvement.
+
+## 2A. Introduce one shared activity model
+
+Reuse existing entities where appropriate.
+
+Add only the missing entities and relationships:
+
+- Skills
+- Activities
+- Activity-to-goal links
+- Activity sessions
+- Bookmarks
+
+An activity should support:
+
+- Stable ID
+- Child ID where personalized
+- Related skill
+- Related goal links
+- Title
+- Short description
+- Materials
+- Estimated duration
+- Understand content
+- Demonstration/example content
+- Ordered practice steps
+- Communication options
+- Stop conditions
+- Source type
+- Source document/version
+- Review status
+- Content version
+- Created/updated timestamps
+
+Keep generic educational templates separate from child-specific private records.
+
+Initially link goals to existing `reward_tokens` IDs if that remains the current goal store. Do not replace goal records unnecessarily.
+
+## 2B. Create Practice
+
+Add `pages/Practice.jsx`.
+
+Title:
+
+**Practice With [child name]**
+
+Subtitle:
+
+“Simple things you can try together during everyday moments.”
+
+Provide four clear entrances:
+
+- Activities
+- Learn Why
+- My Routines
+- Saved for Later
+
+Do not render every activity’s full instructions on the landing page.
+
+Activity rows/cards show:
+
+- Title
+- Related skill or support area
+- Estimated time
+- One short description
+- Source label
+- Main action
+
+Activities must be specific enough to be useful. Avoid repeating generic instructions across unrelated support areas.
+
+Use curated low-risk educational templates as the baseline. Personalization may adapt interests and communication presentation without inventing individualized treatment procedures.
+
+## 2C. Create one activity detail/player
+
+Add or reuse:
+
+- `pages/ActivityDetail.jsx`
+- `components/practice/ActivityPlayer.jsx`
+- `components/practice/ActivityReflection.jsx`
+- `components/practice/SourceBadge.jsx`
+
+Use:
+
+**Understand → See → Try → Reflect**
+
+Understand:
+Two or three short sentences.
+
+See:
+An original illustration, text example, or legitimate demonstration asset. Do not fabricate videos or approval claims.
+
+Try:
+Short steps with Back, Next, Pause, and Exit.
+
+Reflect:
+Optional choices:
+
+- We tried it
+- We needed more support
+- We didn’t get a chance
+
+Allow an optional note.
+
+Parents may skip explanation, leave midway, or exit without logging.
+
+Save current position separately from a completed reflection.
+
+## 2D. Connect activities to Goals and History
+
+An activity opened from Goals must be the same saved activity shown in Practice.
+
+A saved reflection should appear in History through its existing relationship.
+
+Use idempotency keys or equivalent safeguards so:
+
+- Double-clicking Save does not duplicate entries.
+- Network retries do not duplicate entries.
+- A parent can deliberately start a separate session later.
+
+Activity participation must not automatically increment:
+
+- Goal mastery
+- Clinical progress
+- Reward tokens
+- Independent-performance counts
+
+## 2E. Improve Goals
+
+Refactor:
+
+- `pages/GoalsMilestones.jsx`
+- `components/parent/GoalWidget.jsx`
+- Related portions of `pages/ProgressReports.jsx`
+
+Show:
+
+- What we’re working toward
+- Why it matters
+- Related activities
+- Recent participation
+- Relevant observations
+- Explicit milestones
+- Parent notes
+
+Add a seven-day tracker based on recorded practice/check-ins in the appropriate timezone.
+
+Unrecorded days are neutral.
+
+Keep these categories separate:
+
+- Participation
+- Observation
+- Milestone
+- Clinical assessment/review
+
+Preserve legacy reward counters and history, but do not present them as clinical improvement.
+
+### Phase 2 acceptance
+
+A parent without a clinician can open an activity, view an example, try it, leave without logging, resume later, optionally save one reflection, and find the same activity under Goals and History.
+
+# Phase 3 — Improve Help Now and add everyday tools
+
+## 3A. Consolidate Help Now
+
+Reuse and refactor:
+
+- `pages/HelpNow.jsx`
+- `components/support/BehaviorSelector.jsx`
+- `components/support/CrisisPlan.jsx`
+- `components/support/CalmDownTool.jsx`
+- `components/help/HelpFeedback.jsx`
+
+Create one shared guidance renderer, such as:
+
+`components/support/SupportGuidance.jsx`
+
+Support these sections when supported by the source:
+
+- Why this may be happening
+- Do this right now
+- Things to avoid
+- Prevention tips
+
+Keep explanations brief and uncertain where appropriate. Do not infer a confirmed behavioral function.
+
+For stressful situations, show one appropriate action at a time.
+
+“This isn’t working” must lead to a different supported branch, a simpler step, or safety information.
+
+Keep emergency information available while data loads.
+
+Do not make urgent access wait for document scanning or AI generation.
+
+Do not create an incident automatically when guidance is opened.
+
+Feedback and logging remain optional. Always allow immediate exit.
+
+Remove fallback logic that links a behavior to every goal when no explicit relationship exists.
+
+## 3B. Add visual routines
+
+Create:
+
+- `pages/Routines.jsx`
+- `pages/RoutineEditor.jsx`
+- `pages/RoutinePlayer.jsx`
+
+Parents can:
+
+- Create and name routines.
+- Add, remove, and reorder steps.
+- Select icons or authorized private images.
+- Add optional times.
+- Save and reopen routines.
+- Pause and resume.
+- Mark steps finished.
+
+The player emphasizes:
+
+**Now**  
+Current step
+
+**Next**  
+Following step
+
+Controls:
+
+- Finished
+- Back
+- Pause
+- Exit
+
+Keep routine definitions separate from individual routine runs.
+
+Completing a routine does not establish independent child performance.
+
+## 3C. Add Things My Child Enjoys
+
+Create `pages/ChildPreferences.jsx`.
+
+Support:
+
+- Favorite activities
+- Favorite things
+- Communication methods
+- Comfort and sensory preferences
+- Optional dislikes
+
+Keep parent-entered preferences editable and separate from extracted clinical profile content.
+
+Document rescanning must not overwrite these preferences.
+
+Use preferences to make activities relevant. Do not automatically convert interests or comfort items into rewards that must be earned.
+
+## 3D. Add Learn Why
+
+Create short original lessons using:
+
+- A brief explanation
+- A simple example
+- Optional ungraded interaction
+- A related activity
+
+Parents can skip directly to the activity.
+
+Do not gate support behind lessons or quizzes.
+
+Do not copy proprietary curricula, videos, or worksheets.
+
+## 3E. Add optional reminders
+
+Allow:
+
+- Time and recurring days
+- Timezone
+- Snooze
+- Pause
+- Cancel
+- Quiet hours
+
+Reminders open the exact activity or routine.
+
+Keep notifications off until the parent opts in.
+
+Use generic lock-screen text without child names, diagnoses, or behavior details.
+
+Implement delivery only through an available, configured notification mechanism. If delivery requires missing infrastructure, complete the scheduling interface and persistence, clearly mark delivery unavailable, and document what remains. Do not simulate successful delivery.
+
+# Phase 4 — Strengthen optional clinic connection
+
+Reuse:
+
+- `pages/ClinicianDashboard.jsx`
+- `pages/FamilyDetail.jsx`
+- `pages/ClientDetail.jsx`
+- `components/clinician/ClientGoalsSection.jsx`
+- `components/clinician/EngagementPanel.jsx`
+- Existing documents and messages
+
+Add:
+
+- Explicit parent consent to connect/share.
+- Sharing scopes.
+- Revocation.
+- Reviewed activity assignment.
+- Review/publish actions tied to content versions.
+- Clinician feedback on shared observations.
+- Appropriate summaries.
+
+Connecting a clinic must not:
+
+- Recreate the child.
+- Replace parent-owned information.
+- Delete existing activities or logs.
+- Automatically share every historical record.
+- Disable independent features after disconnection.
+
+Verify invitation behavior. The reviewed API shim returned success for an unimplemented `sendInviteEmail`. Implement real delivery if configured, or provide an honest copy-link workflow.
+
+Never report that an invitation or message was sent when it was not.
+
+# 5. Database migration requirements
+
+Use additive, versioned migrations.
+
+Potential additions include:
+
+- Parent/family memberships
+- Document versions and review metadata
+- Skills
+- Activities and goal links
+- Activity sessions and bookmarks
+- Observation relationship fields
+- Routines, steps, and runs
+- Child preferences
+- Reminder schedules
+- Clinic-sharing grants
+
+Before creating these, check for equivalent existing structures.
+
+Requirements:
+
+- Preserve existing IDs and records.
+- Use foreign keys and indexes where appropriate.
+- Validate same-child relationships.
+- Make backfills repeatable.
+- Investigate orphaned references before enforcing constraints.
+- Never backfill “clinician reviewed” without evidence.
+- Preserve parent-entered data during document rescans.
+- Reconcile record counts before and after migration.
+- Document rollback and deployment order.
+- Keep older clients compatible during rollout.
+
+History should remain an aggregation of linked records, not a duplicate copy of them.
+
+# 6. Design system
+
+Do not change the existing color values in:
+
+- `artifacts/neuropath/src/index.css`
+- `artifacts/neuropath/tailwind.config.js`
+- `artifacts/neuropath-mobile/constants/colors.ts`
+
+Preserve the existing blue, teal, backgrounds, white surfaces, and urgent red treatment.
+
+Use layout changes to simplify the app:
+
+- Page titles around 26–30 px.
+- Body text around 15–16 px.
+- Larger gaps between sections.
+- Comfortable reading widths.
+- Simple rows and understated dividers.
+- Expandable secondary information.
+- One primary action per section.
+- Minimal nested cards.
+- No dense dashboard grids on parent screens.
+
+Keep existing icon conventions.
+
+Ensure:
+
+- At least 44 px touch targets.
+- No horizontal overflow.
+- Visible keyboard focus.
+- Screen-reader labels.
+- Logical heading order.
+- Adequate contrast using the existing palette.
+- Safe-area padding.
+- Content clear of bottom navigation.
+- Reduced-motion support.
+
+Do not use animation that delays Help Now.
+
+# 7. Native mobile implementation
+
+The Expo app is separate from the web app.
+
+Inspect and update:
+
+- `artifacts/neuropath-mobile/app/(tabs)/_layout.tsx`
+- `app/(tabs)/index.tsx`
+- `app/help.tsx`
+- `app/goals.tsx`
+- `app/(tabs)/more.tsx`
+- `context/AuthContext.tsx`
+- The mobile API client and backend routes.
+
+Update both native and classic tab layouts.
+
+Use the same backend activity, ownership, provenance, and observation rules as the web app.
+
+Preserve existing mobile deep links.
+
+Do not claim native-mobile parity based only on responsive web screenshots.
+
+# 8. Required testing
+
+Extend existing API tests and add rendered-interface tests.
+
+Test fixtures must include:
+
+- Independent parent with no documents or clinician.
+- Independent parent with multiple children.
+- Parent with uploaded documents.
+- Clinic-connected parent.
+- Unrelated parent and clinician.
+- Individual self-client.
+- Expired/revoked sessions.
+
+Test:
+
+1. Independent signup and adding a child.
+2. Immediate Help Now without prerequisites.
+3. Shared child selection across every destination.
+4. Activities, bookmarks, pause/resume, and optional reflection.
+5. Duplicate-save and retry protection.
+6. Goal participation remaining separate from mastery.
+7. Routine creation, editing, ordering, and completion.
+8. Preferences surviving document rescans.
+9. Upload, download, scan, and source labeling.
+10. Existing authentication, invitations, messages, AI Chat, and clinician dashboards.
+11. Clinic sharing, revocation, and preservation of parent data.
+12. Unauthorized record IDs and ownership-field tampering.
+13. Private-file and AI-document isolation.
+14. Null-clinician access cases.
+15. Notification opt-in, timezone/DST, quiet hours, and exact deep links.
+16. Old routes and saved links.
+17. Migration integrity and repeatability.
+
+For Help Now, verify that:
+
+- Opening guidance creates no behavior incident.
+- Leaving requires no feedback.
+- AI or scan failures do not block safety information.
+- Immediate-danger handling does not generate new intervention instructions.
+
+Visual testing:
+
+- 360 px
+- 390 px
+- Larger phone
+- Tablet
+- Desktop
+
+Check wrapping, whitespace, touch targets, text zoom, focus, screen-reader labels, reduced motion, and bottom navigation clearance.
+
+Run existing build/type checks and relevant automated tests. Distinguish tests actually run from tests merely added or planned.
+
+# 9. Final deliverables
+
+Provide:
+
+1. Completed phases and any blocked items.
+2. Updated navigation and workflow summary.
+3. Exact existing components reused.
+4. Exact new components and services.
+5. Database migrations and backfill instructions.
+6. Mobile screenshots of Home, Help Now, Practice, Activity Detail, Goals, and Routines.
+7. Functional, security, visual, and regression test results.
+8. Native-mobile implementation status.
+9. Remaining infrastructure dependencies.
+10. Features intentionally postponed.
+
+The target experience is:
+
+**Open the app → choose what you need → understand → try something together → optionally record what happened → see the connection to goals.**
+
+Help Now must always provide a direct shortcut.
+
+Keep the current colors. Use more empty space. Keep each screen focused. Make independent parent mode complete and useful.
