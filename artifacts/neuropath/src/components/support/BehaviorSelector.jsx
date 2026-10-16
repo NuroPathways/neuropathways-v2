@@ -60,6 +60,8 @@ function normalizeBehavior(value, index) {
     avoid: listItems(raw.avoid ?? raw.thingsToAvoid ?? raw.things_to_avoid ?? raw.avoid_this),
     prevention_tips: listItems(raw.prevention_tips ?? raw.preventionTips ?? raw.prevention),
     reinforcement_rewards: listItems(raw.reinforcement_rewards ?? raw.reinforcementRewards ?? raw.reinforcement),
+    replacement_skill: textValue(raw.replacement_skill ?? raw.replacementSkill ?? raw.replacement_skill_description),
+    track: listItems(raw.track ?? raw.what_to_track ?? raw.whatToTrack),
     when_to_contact_clinician: textValue(raw.when_to_contact_clinician ?? raw.whenToContactClinician ?? raw.seekHelp),
   };
 }
@@ -114,17 +116,23 @@ function normalizeBehaviorRows(value) {
 
 function Section({ title, items, colorClass }) {
   if (!items || items.length === 0) return null;
+  const visibleItems = items.slice(0, 5);
   return (
     <div className="mb-4">
       <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">{title}</h4>
       <div className="space-y-1.5">
-        {items.map((item, i) => (
+        {visibleItems.map((item, i) => (
           <div key={i} className={`flex items-start gap-2.5 p-3 rounded-xl border ${colorClass}`}>
             <span className="text-xs font-bold mt-0.5 flex-shrink-0">{i + 1}</span>
             <p className="text-sm leading-snug">{item}</p>
           </div>
         ))}
       </div>
+      {visibleItems.length < 3 && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Only {visibleItems.length} source-grounded {visibleItems.length === 1 ? "item is" : "items are"} available in this section. No extra steps have been added.
+        </p>
+      )}
     </div>
   );
 }
@@ -165,10 +173,11 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
             ? <p className="text-sm leading-relaxed text-orange-900">{simplerStep}</p>
             : immediateSteps.length
               ? <><p className="text-sm leading-relaxed text-orange-900">{immediateSteps[Math.min(stepIndex, immediateSteps.length - 1)]}</p>
-                {immediateSteps.length > 1 && <div className="mt-3 flex flex-wrap items-center gap-3">
-                  {stepIndex > 0 && <button type="button" onClick={() => setStepIndex((value) => Math.max(0, value - 1))} className="min-h-10 rounded-lg border border-orange-300 px-3 text-sm font-semibold text-orange-900">Back</button>}
-                  {stepIndex < immediateSteps.length - 1 && <button type="button" onClick={() => setStepIndex((value) => Math.min(immediateSteps.length - 1, value + 1))} className="min-h-10 rounded-lg border border-orange-300 px-3 text-sm font-semibold text-orange-900">Next step</button>}
-                </div>}
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button type="button" disabled={stepIndex === 0} onClick={() => setStepIndex((value) => Math.max(0, value - 1))} className="min-h-10 rounded-lg border border-orange-300 px-3 text-sm font-semibold text-orange-900 disabled:opacity-45">Back</button>
+                  <span className="text-xs text-orange-900" aria-live="polite">Step {stepIndex + 1} of {immediateSteps.length}</span>
+                  <button type="button" disabled={stepIndex >= immediateSteps.length - 1} onClick={() => setStepIndex((value) => Math.min(immediateSteps.length - 1, value + 1))} className="min-h-10 rounded-lg border border-orange-300 px-3 text-sm font-semibold text-orange-900 disabled:opacity-45">Next</button>
+                </div>
               </>
               : <p className="text-sm leading-relaxed text-orange-900">No immediate step is saved for this support area. Pause, reduce demands if possible, and use the safety information below.</p>}
           <button type="button" onClick={() => setShowSimpler((value) => !value)} className="mt-3 min-h-10 rounded-lg border border-orange-300 px-3 text-sm font-semibold text-orange-900">
@@ -184,16 +193,29 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
           <Section title="Encouragement" items={behavior.reinforcement_rewards} colorClass="bg-teal-50 border-teal-200 text-teal-800" />
         )}
 
+        {(behavior.replacement_skill || behavior.reinforcement_rewards?.length > 0) && (
+          <Section
+            title="Practice a helpful skill"
+            items={[behavior.replacement_skill, ...(behavior.reinforcement_rewards || [])].filter(Boolean)}
+            colorClass="bg-teal-50 border-teal-200 text-teal-800"
+          />
+        )}
+
+        {behavior.track?.length > 0 && (
+          <Section title="What to notice" items={behavior.track} colorClass="bg-indigo-50 border-indigo-200 text-indigo-800" />
+        )}
+
         {behavior.avoid && behavior.avoid.length > 0 && (
           <div className="mb-4">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Things to Avoid</h4>
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-1">
-              {behavior.avoid.map((a, i) => (
+              {behavior.avoid.slice(0, 5).map((a, i) => (
                 <p key={i} className="text-sm text-red-800 flex items-start gap-2">
                   <span className="text-red-500 font-bold mt-0.5 flex-shrink-0">✕</span> {a}
                 </p>
               ))}
             </div>
+            {behavior.avoid.length < 3 && <p className="mt-2 text-xs text-muted-foreground">Only {behavior.avoid.length} source-grounded {behavior.avoid.length === 1 ? "item is" : "items are"} available. No extra guidance has been added.</p>}
           </div>
         )}
 

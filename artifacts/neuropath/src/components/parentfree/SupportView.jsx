@@ -11,10 +11,14 @@ export function sourceLabel(card) {
 }
 
 function Steps({ items, dash, big }) {
+  const visible = (items || []).slice(0, 5);
   return (
-    <ol className={`pf-list pf-support-steps ${dash ? "dash" : ""} ${big ? "featured" : ""}`}>
-      {(items || []).map((t, i) => <li key={i} data-n={i + 1}><span>{t}</span></li>)}
-    </ol>
+    <>
+      <ol className={`pf-list pf-support-steps ${dash ? "dash" : ""} ${big ? "featured" : ""}`}>
+        {visible.map((t, i) => <li key={i} data-n={i + 1}><span>{t}</span></li>)}
+      </ol>
+      {visible.length > 0 && visible.length < 3 && <p className="pf-hint">Only {visible.length} source-grounded {visible.length === 1 ? "item is" : "items are"} available; no extra guidance has been added.</p>}
+    </>
   );
 }
 

@@ -116,8 +116,35 @@ describe("support guidance", () => {
     expect(screen.getByText("Try one step")).toBeTruthy();
     expect(screen.getByText("Move to a safer place")).toBeTruthy();
     expect(screen.queryByText("Offer a clear choice")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Next step" }));
+    expect(screen.getByRole("button", { name: "Back" }).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("Offer a clear choice")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back" }).disabled).toBe(false);
+    expect(screen.getByRole("button", { name: "Next" }).disabled).toBe(true);
+  });
+
+  it("shows available plan sections and does not fabricate missing source guidance", () => {
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Sam" }}
+        parentDirect
+        profile={{
+          behaviors: [{
+            name: "Transition difficulty",
+            parentDirectEligible: true,
+            sourceLabel: "Source: Behavior plan",
+            do_this_right_now: ["Give a calm warning"],
+            prevention_tips: ["Use the familiar visual schedule"],
+          }],
+        }}
+        onBack={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Transition difficulty/ }));
+    expect(screen.getByText("Use the familiar visual schedule")).toBeTruthy();
+    expect(screen.getByText(/Only 1 source-grounded item is available/)).toBeTruthy();
   });
 
   it("shows an empty state instead of crashing on a malformed behavior value", () => {

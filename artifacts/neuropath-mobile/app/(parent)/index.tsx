@@ -165,7 +165,7 @@ function SupportSection({ title, items, body, detail, tone, collapsible = false 
       <T weight="bold" size={16} color={readableAccent}>{title}</T>
       {body ? <T>{body}</T> : null}
       {detail ? <T size={14} color={c.secondary}>{detail}</T> : null}
-      {(items ?? []).map((it, i) => (
+      {(items ?? []).slice(0, 5).map((it, i) => (
         <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
           <View style={{ width: 23, height: 23, borderRadius: 12, backgroundColor: c.muted, alignItems: "center", justifyContent: "center" }}>
             <T weight="bold" size={12} color={readableAccent}>{i + 1}</T>
@@ -173,6 +173,7 @@ function SupportSection({ title, items, body, detail, tone, collapsible = false 
           <View style={{ flex: 1 }}><T size={14} style={{ lineHeight: 21 }}>{it}</T></View>
         </View>
       ))}
+      {!!items?.length && items.length < 3 ? <T size={12} color={c.secondary}>Only {items.length} source-grounded {items.length === 1 ? "item is" : "items are"} available; no extra guidance has been added.</T> : null}
     </>
   );
   if (collapsible) {

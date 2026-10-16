@@ -15,6 +15,24 @@ const SOURCE: Record<SupportCard["source"], string> = {
   clinician_reviewed: "Source: Behavior plan",
 };
 
+function GuidanceSection({ title, items }: { title: string; items: string[] }) {
+  const c = useColors();
+  if (!items.length) return null;
+  const visible = items.slice(0, 5);
+  return (
+    <Card>
+      <T weight="bold" size={16}>{title}</T>
+      {visible.map((item, index) => (
+        <View key={`${title}-${index}`} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+          <T weight="bold" color={c.primary}>{index + 1}.</T>
+          <View style={{ flex: 1 }}><T size={14}>{item}</T></View>
+        </View>
+      ))}
+      {visible.length < 3 ? <T size={12} color={c.secondary}>Only {visible.length} source-grounded {visible.length === 1 ? "item is" : "items are"} available here; no extra guidance has been added.</T> : null}
+    </Card>
+  );
+}
+
 export default function HelpNow() {
   const c = useColors();
   const { child, opts } = useParent();
@@ -46,9 +64,16 @@ export default function HelpNow() {
                 {selected.rightNow.length && !simpler ? <View style={{ flexDirection: "row", gap: 10 }}><T weight="bold" color={c.primary}>{stepIndex + 1}.</T><View style={{ flex: 1 }}><T>{selected.rightNow[stepIndex]}</T></View></View> : null}
                 {!selected.rightNow.length || simpler ? <T size={14} color={c.secondary}>{selected.seekHelp || "Move to a quieter, familiar place if safe. Give space, reduce demands, and contact your care team for guidance."}</T> : null}
                 {!simpler && selected.rightNow.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
-                  {stepIndex > 0 ? <Pressable accessibilityRole="button" onPress={() => setStepIndex((value) => Math.max(0, value - 1))}><T size={13} weight="semi" color={c.primary}>Back</T></Pressable> : null}
-                  {stepIndex < selected.rightNow.length - 1 ? <Pressable accessibilityRole="button" onPress={() => setStepIndex((value) => Math.min(selected.rightNow.length - 1, value + 1))}><T size={13} weight="semi" color={c.primary}>Next step</T></Pressable> : null}
+                  <Pressable accessibilityRole="button" accessibilityState={{ disabled: stepIndex === 0 }} disabled={stepIndex === 0} onPress={() => setStepIndex((value) => Math.max(0, value - 1))} style={{ minWidth: 72, minHeight: 44, justifyContent: "center" }}><T size={13} weight="semi" color={stepIndex === 0 ? c.mutedForeground : c.primary}>Back</T></Pressable>
+                  <T size={12} color={c.secondary} style={{ alignSelf: "center" }}>Step {stepIndex + 1} of {selected.rightNow.length}</T>
+                  <Pressable accessibilityRole="button" accessibilityState={{ disabled: stepIndex >= selected.rightNow.length - 1 }} disabled={stepIndex >= selected.rightNow.length - 1} onPress={() => setStepIndex((value) => Math.min(selected.rightNow.length - 1, value + 1))} style={{ minWidth: 72, minHeight: 44, justifyContent: "center" }}><T size={13} weight="semi" color={stepIndex >= selected.rightNow.length - 1 ? c.mutedForeground : c.primary}>Next</T></Pressable>
                 </View> : null}
+                <GuidanceSection title="What to avoid" items={selected.avoid} />
+                <GuidanceSection title="Prevention ideas" items={selected.prevention} />
+                <GuidanceSection title="What to notice" items={selected.track} />
+                <GuidanceSection title="Related goals from this source" items={selected.relatedGoals} />
+                {selected.whatMayBeHappening ? <Card><T weight="bold" size={16}>One possible explanation</T><T size={14}>{selected.whatMayBeHappening}</T></Card> : null}
+                {selected.replacementSkill ? <Card><T weight="bold" size={16}>Practice a helpful skill</T><T size={14}>{selected.replacementSkill}</T>{selected.reinforcementIdea ? <T size={14}><T weight="semi" size={14}>Reinforce: </T>{selected.reinforcementIdea}</T> : null}</Card> : null}
                 {selected.seekHelp ? <T size={14}><T weight="semi">When to get help: </T>{selected.seekHelp}</T> : null}
                 <Pressable accessibilityRole="button" onPress={() => setSimpler((value) => !value)} style={{ minHeight: 44, justifyContent: "center" }}><T color={c.primary} weight="semi">{simpler ? "Return to saved steps" : "This isn't working"}</T></Pressable>
                 <T size={12} color={c.secondary}>No behavior log is created by opening or using Help Now. Logging is optional elsewhere.</T>
