@@ -22,6 +22,7 @@ import DailySupportHome from "@/components/parentfree/DailySupportHome";
 import PracticePage from "@/components/parentfree/PracticePage";
 import { parentDirectBehaviors } from "@/components/parentfree/parentDirectSupport";
 import SupportNowOverlay, { clearSupportPopupSession } from "@/components/support/SupportNowOverlay";
+import UnifiedParentHome from "@/pages/UnifiedParentHome";
 import { AlertTriangle } from "lucide-react";
 
 const TABS = [["today", "Today's Support"], ["practice", "Practice"], ["steps", "Support Steps"], ["log", "Log What Happened"], ["docs", "Upload Plan"], ["ask", "Ask"], ["clinic", "Clinic"], ["edit", "Edit Child Profile"]];
@@ -262,7 +263,8 @@ export default function ParentHome() {
       behaviors: parentDirectBehaviors(dashboard.child || {}, dashboard.supportCards, starterLibrary),
     };
   }, []);
-  if (!isAuthenticated || user?.account_type !== "parent_free") return <Navigate to="/ParentLogin" replace />;
+  if (!isAuthenticated) return <Navigate to="/ParentLogin" replace />;
+  if (user?.account_type !== "parent_free") return <UnifiedParentHome />;
   if (children.length === 0 || (incomplete && incomplete.id === activeChild?.id)) return <Navigate to="/ParentQuickStart" replace />;
 
   const navGroups = createFreeCaregiverNavigation({

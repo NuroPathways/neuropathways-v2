@@ -120,10 +120,18 @@ const AuthenticatedApp = () => {
     return <Navigate to="/ParentHome" replace />;
   }
 
-  // Existing username/access-code accounts keep their credentials and records,
-  // but legacy dashboard bookmarks now enter the current client interface.
+  // Existing username/access-code client sessions retain their client portal.
   if (user?.invite_token && ['/ParentDashboard', '/ClientDashboard'].includes(location.pathname.replace(/\/+$/, ''))) {
     return <Navigate to="/ClientHome" replace />;
+  }
+
+  // Clinician-created parent accounts use the same parent home as independent
+  // accounts; their existing child and care-team records remain untouched.
+  if (!user?.invite_token
+    && user?.account_type !== "individual"
+    && (user?.app_role === "parent" || ["parent_family", "family"].includes(user?.account_type))
+    && location.pathname === "/ParentDashboard") {
+    return <Navigate to={`/ParentHome${location.search}`} replace />;
   }
 
   return (
@@ -173,7 +181,11 @@ const AuthenticatedApp = () => {
       <Route path="/ParentSignupUsername" element={<ParentSignupUsername />} />
       <Route path="/ParentQuickStart" element={<ParentQuickStart />} />
       <Route path="/ParentHome" element={<ParentHome />} />
-      <Route path="/Practice" element={<ParentLegacyDestination tab="practice" />} />
+      <Route path="/Practice" element={
+        user?.account_type === "parent_free"
+          ? <ParentLegacyDestination tab="practice" />
+          : <Navigate to={`/ParentHome?tab=practice${location.search ? `&${location.search.slice(1)}` : ""}`} replace />
+      } />
       <Route path="/Menu" element={<LayoutWrapper currentPageName="Menu"><ParentMenu /></LayoutWrapper>} />
       <Route path="/History" element={<LayoutWrapper currentPageName="History"><ParentHistory /></LayoutWrapper>} />
       <Route path="/ClientHome" element={<ClientHomeRoute />} />

@@ -10,6 +10,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
 
 const isDocumentGoal = (goal) => ["document", "parent_document"].includes(goal.source);
+const generatedGoalTitle = (title) =>
+  !title || /^(?:[a-z]\d+\s+)?goal\s+\d{1,2}:\d{2}(?::\d{2})?$/i.test(String(title).trim());
+
+function readableGoalTitle(goal) {
+  const current = goal.goal_title || goal.reward_description || goal.token_name;
+  if (!generatedGoalTitle(current)) return current;
+  const description = String(goal.goal_description || goal.description || "").trim();
+  if (!description) return "Goal details unavailable";
+  return description.split(/[.!?\n]/).map((part) => part.trim()).find(Boolean) || "Goal details unavailable";
+}
 
 const milestoneLines = (value) => String(value || "")
   .split(/\r?\n/)
@@ -131,7 +141,7 @@ export default function GoalsMilestones() {
   // Normalize old vs new field names
   const normalizeGoal = (g) => ({
     ...g,
-    goal_title: g.goal_title || g.reward_description || g.token_name || "Goal",
+    goal_title: readableGoalTitle(g),
     goal_description: g.goal_description || "",
     progress: g.progress ?? g.tokens_earned ?? 0,
     target: g.target ?? g.tokens_goal ?? 10,
@@ -256,7 +266,7 @@ export default function GoalsMilestones() {
                         <span className="ml-1 mt-1 inline-block text-xs bg-accent/20 text-accent-foreground px-2 py-0.5 rounded-full">Clinician goal</span>
                       )}
                     </div>
-                    {!documentGoal && !achieved && (
+                    {!documentGoal && !rawGoal.created_by_clinician && !achieved && (
                       <button onClick={() => incrementProgress(rawGoal)}
                         className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors shadow-md shadow-primary/20 flex-shrink-0">
                         <Plus className="w-4 h-4" />

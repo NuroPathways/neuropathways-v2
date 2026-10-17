@@ -15,7 +15,7 @@ Use a calm, light, mobile-first visual system with navy text, soft teal accents,
 
 **Why:** The user requested an app-wide redesign to reduce visual bulk and heavy blue while retaining the existing workflows.
 
-**How to apply:** Preserve the desktop sidebar and mobile navigation. For the phased redesign, cover web and native Expo plus independent parents, clinic-connected families, individual clients, and clinicians. Keep role-specific routes and capabilities intact while applying changes.
+**How to apply:** Preserve the desktop sidebar and mobile navigation. Independent parents and clinician-connected parents must use the same parent interface; account origin may change available data and capabilities, never the UI. Preserve their separate records, permissions, and auth paths. For the phased redesign, cover web and native Expo plus individual clients and clinicians, keeping role-specific routes and capabilities intact.
 
 Keep “I Need Help Right Now” separate from the Behavior Support Library.
 

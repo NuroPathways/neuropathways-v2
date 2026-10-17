@@ -91,31 +91,36 @@ export function createRoleNavigation(role, homePath, includeUploadPlan = false) 
 
   return [
     {
-      label: "Family",
+      label: "Today",
       items: [
-        { key: "home", label: "Home", icon: Home, to: homePath, pages: ["ParentDashboard", "ClientDashboard"] },
-        { key: "support", label: "Support Now", icon: LifeBuoy, to: "/HelpNow", support: true, pages: ["HelpNow"] },
-        { key: "practice", label: "Practice", icon: Activity, to: "/Practice", pages: ["Practice"] },
-        { key: "goals", label: "Goals", icon: Target, to: "/GoalsMilestones", pages: ["GoalsMilestones"] },
-        { key: "menu", label: "Menu", icon: MoreHorizontal, to: "/Menu", pages: ["Menu", "History"] },
+        { key: "home", label: "Home", icon: Home, to: homePath, pages: ["ParentDashboard", "ParentHome", "ClientDashboard"] },
+        { key: "support", label: "Help Now", icon: LifeBuoy, support: true, pages: ["HelpNow"] },
       ],
     },
     {
-      label: "More",
+      label: "Practice",
       items: [
+        { key: "practice", label: "Practice", icon: Activity, to: "/Practice", pages: ["Practice"] },
+      ],
+    },
+    {
+      label: "Goals",
+      items: [
+        { key: "goals", label: "Goals", icon: Target, to: "/GoalsMilestones", pages: ["GoalsMilestones"] },
+      ],
+    },
+    {
+      label: "Menu",
+      items: [
+        { key: "menu", label: "Menu", icon: MoreHorizontal, to: "/Menu", pages: ["Menu"] },
         { key: "history", label: "History", icon: ClipboardList, to: "/History", pages: ["History"] },
         { key: "library", label: "Support Library", icon: BookOpen, to: "/ParentHome?tab=today&section=library" },
-        { key: "documents", label: "Care plan & documents", icon: FileText, to: "/DocumentCenter", pages: ["DocumentCenter"] },
+        { key: "documents", label: "Document Center", icon: FileText, to: "/DocumentCenter", pages: ["DocumentCenter"] },
         { key: "ai-chat", label: "AI Chat", icon: Bot, to: "/AIChat", pages: ["AIChat"] },
-        { key: "profiles", label: "Child Profiles", icon: Users, to: "/ChildProfile", pages: ["ChildProfile"] },
+        { key: "profiles", label: "Family & Children", icon: Users, to: "/ChildProfile", pages: ["ChildProfile"] },
         ...(includeUploadPlan
           ? [{ key: "upload-plan", label: "Upload Plan", icon: Upload, to: "/UploadBehaviorPlan", pages: ["UploadBehaviorPlan"] }]
           : []),
-      ],
-    },
-    {
-      label: "Account",
-      items: [
         { key: "messages", label: "Messages", icon: Mail, to: "/Messages", pages: ["Messages"] },
         { key: "settings", label: "Settings", icon: Settings, to: "/Settings", pages: ["Settings"] },
       ],

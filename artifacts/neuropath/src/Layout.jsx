@@ -73,7 +73,7 @@ export default function Layout({ children, currentPageName }) {
   if (!user) return <>{children}</>;
 
   const role = resolveNavigationRole(user, isIndividualFallback);
-  const homePath = user.invite_token ? "/ClientHome" : "/ParentDashboard";
+  const homePath = user.invite_token ? "/ClientHome" : "/ParentHome";
   const requestedChildId = new URLSearchParams(location.search).get("child_id");
   let savedChildId = null;
   try { savedChildId = localStorage.getItem(`np-family-child:${user.id}`); } catch { /* Storage may be unavailable. */ }

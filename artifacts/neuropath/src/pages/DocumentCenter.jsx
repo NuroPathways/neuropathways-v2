@@ -161,7 +161,7 @@ export default function DocumentCenter() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-white">Document Center</h1>
-                <p className="text-white/60 text-xs">{documents.length} file{documents.length !== 1 ? "s" : ""} from your clinician</p>
+                <p className="text-white/80 text-xs">Keep your child's plans and important documents organized in one place.</p>
               </div>
             </div>
             <button onClick={() => navigate("/ParentUpload")} className="flex items-center gap-2 px-4 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-medium transition-colors">
@@ -213,7 +213,7 @@ export default function DocumentCenter() {
           <div className="text-center py-16 border-2 border-dashed border-border rounded-2xl">
             <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
             <p className="font-medium text-foreground mb-1">No documents yet</p>
-            <p className="text-sm text-muted-foreground">Your clinician will upload treatment plans and resources here.</p>
+            <p className="text-sm text-muted-foreground">Documents you upload or that your care team shares will appear here.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -243,6 +243,13 @@ export default function DocumentCenter() {
                           {CATEGORY_LABELS[doc.category] || doc.category}
                         </span>
                       )}
+                      <span className="text-xs text-muted-foreground">
+                        {doc.parent_id === user?.id || doc.uploaded_by_parent
+                          ? "Uploaded by Parent"
+                          : doc.clinician_id || doc.clinician_name || doc.shared_by_clinician
+                            ? "Shared by Clinician"
+                            : "In your account"}
+                      </span>
                       {!isIndividual && doc.child_id && childMap[doc.child_id] && (
                         <span className="text-xs text-muted-foreground">{childMap[doc.child_id]}</span>
                       )}
