@@ -35,7 +35,11 @@ export default function Layout({ children, currentPageName }) {
       base44.entities.Child.filter({ clinician_id: user.id })
         .then((children) => { if (!cancelled) setChildrenList(children); })
         .catch(() => {});
-    } else if (user.app_role === "parent") {
+    } else if (
+      ["parent", "caregiver"].includes(user.app_role) ||
+      ["parent", "caregiver"].includes(user.role) ||
+      ["parent", "parent_family", "family", "caregiver"].includes(user.account_type)
+    ) {
       Promise.all([
         base44.entities.Child.filter({ parent_id: user.id }).catch(() => []),
         user.email ? base44.entities.Child.filter({ parent_email: user.email }).catch(() => []) : Promise.resolve([]),
@@ -58,7 +62,7 @@ export default function Layout({ children, currentPageName }) {
       });
     }
     return () => { cancelled = true; };
-  }, [user?.id, user?.app_role, user?.role, user?.invite_token, user?.children, user?.email]);
+  }, [user?.id, user?.app_role, user?.role, user?.account_type, user?.invite_token, user?.children, user?.email]);
 
   if (noLayoutPages.includes(currentPageName)) return <>{children}</>;
 
@@ -79,9 +83,9 @@ export default function Layout({ children, currentPageName }) {
   try { savedChildId = localStorage.getItem(`np-family-child:${user.id}`); } catch { /* Storage may be unavailable. */ }
   const currentChildId = requestedChildId || (childrenList.some((child) => String(child.id) === String(savedChildId)) ? savedChildId : null)
     || (childrenList.some((child) => String(child.id) === String(user.child_id)) ? user.child_id : null)
-    || childrenList[0]?.id;
+    || (childrenList.length === 1 ? childrenList[0]?.id : null);
   const selectedChild = role === "caregiver" && childrenList.length
-    ? childrenList.find((child) => String(child.id) === String(currentChildId)) || childrenList[0]
+    ? childrenList.find((child) => String(child.id) === String(currentChildId)) || null
     : null;
   const hasPortalChildContext = role === "caregiver" && Boolean(user.invite_token);
   const accountName =

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Activity, ArrowRight, BookOpen, ClipboardList, LifeBuoy, Target } from "lucide-react";
+import { Activity, ArrowRight, BookOpen, ClipboardList, LifeBuoy, Mail, Settings, Target, UserRound } from "lucide-react";
 import { base44 } from "@/api/entities";
 import { useAuth } from "@/lib/AuthContext";
 import RoleAwareShell from "@/components/navigation/RoleAwareShell";
 import SupportNowOverlay from "@/components/support/SupportNowOverlay";
 import { clearSupportPopupSession } from "@/components/support/SupportNowOverlay";
+import GoalsMilestones from "@/pages/GoalsMilestones";
+import DocumentCenter from "@/pages/DocumentCenter";
 
 const childName = (child) => child?.child_name || child?.name || "your child";
 const routeWithChild = (path, childId) => {
@@ -23,7 +25,10 @@ export default function UnifiedParentHome() {
   const [children, setChildren] = useState([]);
   const [supportRequest, setSupportRequest] = useState(0);
   const requestedChildId = new URLSearchParams(location.search).get("child_id");
-  const showingPractice = new URLSearchParams(location.search).get("tab") === "practice";
+  const currentTab = new URLSearchParams(location.search).get("tab");
+  const showingPractice = currentTab === "practice";
+  const showingGoals = currentTab === "goals";
+  const showingDocuments = currentTab === "documents";
   const [storedChildId, setStoredChildId] = useState(null);
 
   useEffect(() => {
@@ -54,7 +59,7 @@ export default function UnifiedParentHome() {
   const selectedChild = useMemo(() =>
     children.find((child) => String(child.id) === String(requestedChildId))
     || children.find((child) => String(child.id) === String(storedChildId))
-    || children[0]
+    || (children.length === 1 ? children[0] : null)
     || null, [children, requestedChildId, storedChildId]);
   const firstName = (user?.display_name || user?.full_name || user?.primary_contact || "there").trim().split(/\s+/)[0];
   const setChild = (childId) => {
@@ -66,19 +71,24 @@ export default function UnifiedParentHome() {
   };
   const navGroups = [
     { label: "Today", items: [
-      { key: "home", label: "Home", icon: BookOpen, to: routeWithChild("/ParentHome", selectedChild?.id), active: true },
+      { key: "home", label: "Home", icon: BookOpen, to: routeWithChild("/ParentHome", selectedChild?.id), active: !showingPractice && !showingGoals && !showingDocuments },
       { key: "support", label: "Help Now", icon: LifeBuoy, support: true, onSelect: () => setSupportRequest((n) => n + 1) },
     ] },
     { label: "Practice", items: [
-      { key: "practice", label: "Practice", icon: Activity, to: routeWithChild("/Practice", selectedChild?.id) },
+      { key: "practice", label: "Practice", icon: Activity, to: routeWithChild("/ParentHome?tab=practice", selectedChild?.id), active: showingPractice },
     ] },
     { label: "Goals", items: [
-      { key: "goals", label: "Goals", icon: Target, to: routeWithChild("/GoalsMilestones", selectedChild?.id) },
+      { key: "goals", label: "Goals", icon: Target, to: routeWithChild("/ParentHome?tab=goals", selectedChild?.id), active: showingGoals },
     ] },
     { label: "Menu", items: [
       { key: "menu", label: "Menu", icon: ArrowRight, to: routeWithChild("/Menu", selectedChild?.id) },
       { key: "history", label: "History", icon: ClipboardList, to: routeWithChild("/History", selectedChild?.id) },
-      { key: "documents", label: "Document Center", icon: BookOpen, to: routeWithChild("/DocumentCenter", selectedChild?.id) },
+      { key: "documents", label: "Document Center", icon: BookOpen, to: routeWithChild("/ParentHome?tab=documents", selectedChild?.id), active: showingDocuments },
+      { key: "profiles", label: "Family & Children", icon: UserRound, to: routeWithChild("/ChildProfile", selectedChild?.id) },
+      { key: "messages", label: "Messages", icon: Mail, to: routeWithChild("/Messages", selectedChild?.id) },
+    ] },
+    { label: "Account", items: [
+      { key: "settings", label: "Settings", icon: Settings, to: "/Settings" },
     ] },
   ];
   const actions = [
@@ -90,8 +100,8 @@ export default function UnifiedParentHome() {
     <RoleAwareShell
       role="caregiver"
       roleLabel="Caregiver workspace"
-      currentLabel={showingPractice ? "Practice" : "Home"}
-      activeKey={showingPractice ? "practice" : "home"}
+      currentLabel={showingPractice ? "Practice" : showingGoals ? "Goals & Milestones" : showingDocuments ? "Document Center" : "Home"}
+      activeKey={showingPractice ? "practice" : showingGoals ? "goals" : showingDocuments ? "documents" : "home"}
       navGroups={navGroups}
       mobilePrimaryKeys={["home", "support", "practice", "goals"]}
       accountName={user?.first_name || user?.full_name || "Caregiver"}
@@ -102,7 +112,11 @@ export default function UnifiedParentHome() {
       onChildSelect={children.length > 1 ? setChild : undefined}
       onLogout={() => { clearSupportPopupSession(user?.id); logout?.(); }}
     >
-      <main className="pf-wrap wide" style={{ paddingTop: 28, paddingBottom: 48 }}>
+      {(showingGoals || showingDocuments) ? (
+        <div style={{ paddingTop: 12 }}>
+          {showingGoals ? <GoalsMilestones embedded /> : <DocumentCenter embedded />}
+        </div>
+      ) : <main className="pf-wrap wide" style={{ paddingTop: 28, paddingBottom: 48 }}>
         <header className="pf-hero">
           <p className="pf-eyebrow">{showingPractice ? "Practice together" : `Welcome, ${firstName}`}</p>
           <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>
@@ -133,11 +147,15 @@ export default function UnifiedParentHome() {
         </section>
         {!selectedChild && (
           <section className="pf-card" style={{ marginTop: 18 }}>
-            <h2>No child profile is linked yet</h2>
-            <p className="pf-hint">Your family tools will appear here when a child profile is linked to this account.</p>
+            <h2>{children.length > 1 ? "Choose which child needs support" : "No child profile is linked yet"}</h2>
+            <p className="pf-hint">
+              {children.length > 1
+                ? "Select a child from the selector above before opening child-specific activities, goals, documents, or support steps."
+                : "Your family tools will appear here when a child profile is linked to this account."}
+            </p>
           </section>
         )}
-      </main>
+      </main>}
       <SupportNowOverlay user={user} children={children} isIndividual={false} openRequest={supportRequest} autoOpen={false} />
     </RoleAwareShell>
   );

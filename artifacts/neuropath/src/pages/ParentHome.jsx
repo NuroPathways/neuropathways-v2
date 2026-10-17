@@ -264,8 +264,18 @@ export default function ParentHome() {
     };
   }, []);
   if (!isAuthenticated) return <Navigate to="/ParentLogin" replace />;
-  if (user?.account_type !== "parent_free") return <UnifiedParentHome />;
-  if (children.length === 0 || (incomplete && incomplete.id === activeChild?.id)) return <Navigate to="/ParentQuickStart" replace />;
+  if (user?.account_type === "parent_free") {
+  if (children.length === 0 || (activeChild && incomplete?.id === activeChild.id)) return <Navigate to="/ParentQuickStart" replace />;
+  } else if (
+    user?.app_role === "parent" || user?.role === "parent" || user?.app_role === "caregiver" ||
+    user?.role === "caregiver" || ["parent", "parent_family", "family", "caregiver"].includes(user?.account_type)
+  ) {
+    return <UnifiedParentHome />;
+  } else if (user?.app_role === "clinician" || user?.role === "clinician" || user?.role === "admin") {
+    return <Navigate to="/ClinicianDashboard" replace />;
+  } else {
+    return <Navigate to={user?.account_type === "individual" || user?.invite_token ? "/ClientHome" : "/ParentLogin"} replace />;
+  }
 
   const navGroups = createFreeCaregiverNavigation({
     activeTab,
@@ -304,10 +314,19 @@ export default function ParentHome() {
       <div className="pf">
       <main className="pf-wrap wide">
         <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
-        <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span style={{ color: "rgba(255,255,255,.75)", fontWeight: 400 }}>for {activeChild.name}</span></h1>
+        <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>
+          {activeChild
+            ? <>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span style={{ color: "rgba(255,255,255,.75)", fontWeight: 400 }}>for {activeChild.name}</span></>
+            : "Choose a child profile"}
+        </h1>
         <Link to="/DataRequests" className="text-sm underline underline-offset-4" style={{ color: "rgba(255,255,255,.88)" }}>Privacy &amp; data requests</Link></div>
-        {activeTab === "today" && !activeSection && <button type="button" className="pf-help-cta" onClick={() => setSupportRequest((request) => request + 1)} data-testid="button-dashboard-help-now"><span className="ico"><AlertTriangle size={20} /></span><span><strong>I Need Help Right Now</strong><small>Open support steps for a stressful moment</small></span></button>}
-        <Body key={activeChild.id} child={activeChild} />
+        {activeTab === "today" && !activeSection && <button type="button" className="pf-help-cta" disabled={!activeChild} onClick={() => setSupportRequest((request) => request + 1)} data-testid="button-dashboard-help-now"><span className="ico"><AlertTriangle size={20} /></span><span><strong>I Need Help Right Now</strong><small>{activeChild ? "Open support steps for a stressful moment" : "Choose which child needs support first"}</small></span></button>}
+        {activeChild ? <Body key={activeChild.id} child={activeChild} /> : (
+          <section className="pf-card" data-testid="choose-child-before-support">
+            <h2>Which child needs support?</h2>
+            <p className="pf-hint">Choose a child from the selector above to load the right activities, goals, documents, and support steps.</p>
+          </section>
+        )}
       </main>
       </div>
       <SupportNowOverlay

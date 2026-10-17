@@ -16,7 +16,9 @@ const generatedGoalTitle = (title) =>
 function readableGoalTitle(goal) {
   const current = goal.goal_title || goal.reward_description || goal.token_name;
   if (!generatedGoalTitle(current)) return current;
-  const description = String(goal.goal_description || goal.description || "").trim();
+  const description = [goal.goal_description, goal.description, goal.reward_description]
+    .map((value) => String(value || "").trim())
+    .find((value) => value && generatedGoalTitle(value) === false);
   if (!description) return "Goal details unavailable";
   return description.split(/[.!?\n]/).map((part) => part.trim()).find(Boolean) || "Goal details unavailable";
 }
@@ -28,7 +30,7 @@ const milestoneLines = (value) => String(value || "")
   .map((line) => line.replace(/^[•\-\d.)\s]+/, "").trim())
   .filter(Boolean);
 
-export default function GoalsMilestones() {
+export default function GoalsMilestones({ embedded = false }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [children, setChildren] = useState([]);
@@ -151,9 +153,9 @@ export default function GoalsMilestones() {
     <div className="legacy-goals min-h-[100dvh] bg-background font-inter text-foreground">
       <div className="bg-primary text-primary-foreground">
         <div className="px-5 pt-5 pb-6 max-w-3xl mx-auto">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-primary-foreground/75 hover:text-primary-foreground text-sm mb-4 transition-colors">
+          {!embedded && <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-primary-foreground/75 hover:text-primary-foreground text-sm mb-4 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back
-          </button>
+          </button>}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-primary-foreground/15 flex items-center justify-center">
@@ -176,7 +178,7 @@ export default function GoalsMilestones() {
       </div>
 
       <div className="px-4 py-4 sm:px-5 sm:py-5 max-w-3xl mx-auto space-y-3">
-        {children.length > 1 && (
+        {!embedded && children.length > 1 && (
           <div className="legacy-goals-child-select">
             <span className="text-xs font-semibold text-muted-foreground">Viewing progress for</span>
             <Select value={selectedChildId} onValueChange={changeChild}>

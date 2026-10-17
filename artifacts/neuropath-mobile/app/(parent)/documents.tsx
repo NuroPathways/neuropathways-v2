@@ -46,10 +46,10 @@ function DocRow({
       <T weight="semi">{doc.title}</T>
       <T size={13} color={c.secondary}>{doc.fileName}  |  {new Date(doc.createdAt).toLocaleDateString()}</T>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <T size={12} weight="semi" color={failed || doc.scanError ? c.destructive : c.primary}>
-          {rowReading ? "Reading now" : doc.scanError && isDone ? "Read with safety note" : doc.scanStatus}
+      <T size={12} weight="semi" color={failed || doc.scanError ? c.destructive : c.primary}>
+          {rowReading ? "Processing" : doc.scanError && isDone ? "Needs Review" : failed ? "Failed" : isDone ? "Ready" : doc.scanStatus}
         </T>
-        <T size={12} color={c.secondary}>{doc.shared ? "Shared with clinician" : "Private"}</T>
+        <T size={12} color={c.secondary}>Uploaded by Parent · {doc.shared ? "Shared with clinician" : "Private to your account"}</T>
       </View>
       {error ? <ErrorBox message={error} /> : null}
       <T size={12} weight="semi" color={doc.reviewed ? c.primary : c.secondary}>{doc.reviewed ? "Clinician reviewed" : "Uploaded plan · not clinician-reviewed"}</T>
@@ -133,7 +133,7 @@ export default function Documents() {
 
   return (
     <Screen>
-      <H sub="Plans and reports you upload personalize your Support Now card.">Documents</H>
+      <H sub="Keep your child's plans and important documents organized in one place.">Document Center</H>
       {child ? <UploadPanel key={child.id} childId={child.id} /> : null}
       {q.isLoading ? <Skeleton /> : q.isError ? <ErrorBox message={msg(q.error)} onRetry={() => q.refetch()} /> : q.data?.length ? (
         <>

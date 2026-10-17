@@ -104,7 +104,8 @@ export default function DocsPanel({ child, documents }) {
   return (
     <div className="pf-grid2">
       <div className="pf-card" style={{ display: "grid", gap: 12 }}>
-        <h2>Upload Plan</h2>
+        <h2>Document Center</h2>
+        <p className="pf-hint">Keep your child's plans and important documents organized in one place.</p>
         <ErrorBox error={error} />
         {documents.length > 1 && (
           <div style={{ display: "grid", gap: 8 }}>
@@ -123,7 +124,8 @@ export default function DocsPanel({ child, documents }) {
               <strong style={{ wordBreak: "break-word" }}>{d.title || d.fileName}</strong>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
                 <span className={`pf-tag ${st.kind}`} data-testid={`status-scan-${d.id}`}>{st.text}</span>
-                <span className="pf-tag">{d.shared ? "Shared with clinician" : "Private"}</span>
+                <span className="pf-tag">Uploaded by Parent</span>
+                <span className="pf-tag">{d.shared ? "Shared with clinician" : "Private to your account"}</span>
                 {d.reviewed && <span className="pf-tag">Clinician reviewed</span>}
               </div>
               {d.scanError && <p className="pf-hint" style={{ color: "#7a2d12" }}>{d.scanError}</p>}
@@ -137,7 +139,7 @@ export default function DocsPanel({ child, documents }) {
         })}
         {!child.clinicianId && documents.length > 0 && <p className="pf-hint">Sharing opens once you connect a clinic.</p>}
       </div>
-      <div className="pf-card"><h3 style={{ marginBottom: 12 }}>Upload plans</h3><UploadBox key={childId} childId={childId} /></div>
+      <div className="pf-card"><h3 style={{ marginBottom: 12 }}>Upload Document</h3><UploadBox key={childId} childId={childId} /></div>
     </div>
   );
 }

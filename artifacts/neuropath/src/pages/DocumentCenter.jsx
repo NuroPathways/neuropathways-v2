@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
 import { ArrowLeft, Search, FileText, Download, FolderOpen, Upload } from "lucide-react";
@@ -58,8 +58,9 @@ function scanDetails(doc) {
   return { label: "Not read yet", className: "bg-amber-100 text-amber-800", error: "" };
 }
 
-export default function DocumentCenter() {
+export default function DocumentCenter({ embedded = false }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +69,7 @@ export default function DocumentCenter() {
   const [children, setChildren] = useState([]);
   const [isIndividual, setIsIndividual] = useState(false);
   const [fileError, setFileError] = useState("");
+  const requestedChildId = searchParams.get("child_id");
 
   const loadDocuments = useCallback(async () => {
     if (!user) {
@@ -135,13 +137,16 @@ export default function DocumentCenter() {
   useEffect(() => { void loadDocuments(); }, [loadDocuments]);
 
   const childMap = Object.fromEntries(children.map(c => [c.id, c.child_name]));
+  const visibleDocuments = requestedChildId
+    ? documents.filter((doc) => !doc.child_id || String(doc.child_id) === String(requestedChildId))
+    : documents;
 
-  const filtered = documents.filter(doc => {
+  const filtered = visibleDocuments.filter(doc => {
     const matchSearch = search === "" || doc.title?.toLowerCase().includes(search.toLowerCase());
     const matchCat = filterCat === "all" || doc.category === filterCat;
     return matchSearch && matchCat;
   });
-  const categories = [...new Set(documents.map(d => d.category).filter(Boolean))];
+  const categories = [...new Set(visibleDocuments.map(d => d.category).filter(Boolean))];
 
   return (
     <div className="min-h-screen bg-background font-inter">
@@ -151,9 +156,9 @@ export default function DocumentCenter() {
           <div className="absolute top-2 right-8 w-24 h-24 rounded-full bg-white" />
         </div>
         <div className="relative px-5 pt-5 pb-7 max-w-2xl mx-auto">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-white/70 hover:text-white text-sm mb-5 transition-colors">
+          {!embedded && <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-white/70 hover:text-white text-sm mb-5 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back
-          </button>
+          </button>}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
@@ -161,7 +166,7 @@ export default function DocumentCenter() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-white">Document Center</h1>
-                <p className="text-white/80 text-xs">Keep your child's plans and important documents organized in one place.</p>
+                <p className="text-white/80 text-xs">Keep your child's plans and important documents organized in one place. {visibleDocuments.length} file{visibleDocuments.length !== 1 ? "s" : ""}.</p>
               </div>
             </div>
             <button onClick={() => navigate("/ParentUpload")} className="flex items-center gap-2 px-4 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl text-sm font-medium transition-colors">

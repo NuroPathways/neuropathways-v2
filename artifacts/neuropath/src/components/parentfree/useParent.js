@@ -16,7 +16,7 @@ export function useSelectedChild() {
     setStored({ userId: user.id, id });
   }, [user?.id]);
   const savedId = stored.userId === user?.id ? stored.id : null;
-  const selected = children.find((c) => c.id === savedId) || children[0] || null;
+  const selected = children.find((c) => c.id === savedId) || (children.length === 1 ? children[0] : null);
   const select = useCallback((id) => {
     try { localStorage.setItem(`${KEY}:${user?.id}`, id); } catch { /* ignore */ }
     setStored({ userId: user?.id, id });

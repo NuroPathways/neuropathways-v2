@@ -68,6 +68,7 @@ function ChildContext({ childrenOptions, selectedChild, contextLabel, onChildSel
             onChange={(event) => onChildSelect(event.target.value)}
             data-testid={`select-navigation-child-${compact ? "mobile" : "desktop"}`}
           >
+            {!selectedChild && <option value="" disabled>Select a child profile</option>}
             {childrenOptions.map((child) => (
               <option key={child.id} value={child.id}>{displayName(child)}</option>
             ))}

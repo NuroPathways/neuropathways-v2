@@ -45,7 +45,7 @@ import ParentMenu from '@/pages/ParentMenu';
 import ParentHistory from '@/pages/ParentHistory';
 
 // Free email parents only ever use the parent-owned screens, never legacy CRUD pages.
-const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/DataRequests', '/Settings', '/privacy', '/Practice', '/Menu', '/History', '/GoalsMilestones', '/Messages'];
+const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/DataRequests', '/Settings', '/privacy', '/Practice', '/Menu', '/History', '/GoalsMilestones', '/DocumentCenter', '/Messages'];
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -88,6 +88,9 @@ const AuthenticatedApp = () => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const previousIdentity = useRef();
+  const isParentAccount = user?.app_role === "parent" || user?.role === "parent"
+    || user?.app_role === "caregiver" || user?.role === "caregiver"
+    || ["parent", "parent_family", "family", "caregiver"].includes(user?.account_type);
 
   useEffect(() => {
     const identity = user?.id;
@@ -129,7 +132,7 @@ const AuthenticatedApp = () => {
   // accounts; their existing child and care-team records remain untouched.
   if (!user?.invite_token
     && user?.account_type !== "individual"
-    && (user?.app_role === "parent" || ["parent_family", "family"].includes(user?.account_type))
+    && isParentAccount
     && location.pathname === "/ParentDashboard") {
     return <Navigate to={`/ParentHome${location.search}`} replace />;
   }
@@ -166,7 +169,13 @@ const AuthenticatedApp = () => {
       <Route path="/DataRequests" element={<DataRequests />} />
       <Route path="/HelpNow" element={<HelpNow />} />
       <Route path="/LogBehavior" element={<LayoutWrapper currentPageName="LogBehavior"><LogBehavior /></LayoutWrapper>} />
-      <Route path="/DocumentCenter" element={<LayoutWrapper currentPageName="DocumentCenter"><DocumentCenter /></LayoutWrapper>} />
+      <Route path="/DocumentCenter" element={
+        user?.account_type === "parent_free"
+          ? <ParentLegacyDestination tab="docs" />
+          : isParentAccount
+            ? <Navigate to={`/ParentHome?tab=documents${location.search ? `&${location.search.slice(1)}` : ""}`} replace />
+            : <LayoutWrapper currentPageName="DocumentCenter"><DocumentCenter /></LayoutWrapper>
+      } />
       <Route path="/RewardTracker" element={<LayoutWrapper currentPageName="RewardTracker"><RewardTracker /></LayoutWrapper>} />
       <Route path="/Messages" element={<LayoutWrapper currentPageName="Messages"><Messages /></LayoutWrapper>} />
       <Route path="/InterventionBuilder" element={<LayoutWrapper currentPageName="InterventionBuilder"><InterventionBuilder /></LayoutWrapper>} />
@@ -189,7 +198,13 @@ const AuthenticatedApp = () => {
       <Route path="/Menu" element={<LayoutWrapper currentPageName="Menu"><ParentMenu /></LayoutWrapper>} />
       <Route path="/History" element={<LayoutWrapper currentPageName="History"><ParentHistory /></LayoutWrapper>} />
       <Route path="/ClientHome" element={<ClientHomeRoute />} />
-      <Route path="/GoalsMilestones" element={user?.account_type === "parent_free" ? <ParentLegacyDestination tab="edit" section="goals" /> : <LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>} />
+      <Route path="/GoalsMilestones" element={
+        user?.account_type === "parent_free"
+          ? <ParentLegacyDestination tab="edit" section="goals" />
+          : isParentAccount
+            ? <Navigate to={`/ParentHome?tab=goals${location.search ? `&${location.search.slice(1)}` : ""}`} replace />
+            : <LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>
+      } />
       <Route path="/DataImport" element={<DataImport />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>

@@ -71,10 +71,14 @@ describe("PracticePage", () => {
     renderPractice(<PracticePage childId="child-a" childName="Sam" child={{ behaviors: [{ behaviorKey: "transitions", goal: "Move between activities" }] }} actions={[action]} />);
 
     fireEvent.click(screen.getByTestId("practice-activity-action-a"));
+    fireEvent.click(screen.getByRole("button", { name: "Start Activity" }));
     expect(screen.getByText("A preview can make the next step more predictable.")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Try" }));
+    expect(screen.queryByRole("tab", { name: "Understand" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Skip to Try Together" }));
     expect(screen.getByText("Show the saved visual.")).toBeTruthy();
+    expect(screen.getByText(/Step 3 of 3/)).toBeTruthy();
     expect(screen.getByText(/Goal: Move between activities/)).toBeTruthy();
+    fireEvent.click(screen.getByTestId("button-exit-practice"));
     fireEvent.click(screen.getByTestId("practice-view-my-routines"));
     expect(screen.getByText("Create a visual routine")).toBeTruthy();
     expect(screen.getByText("No routines saved")).toBeTruthy();

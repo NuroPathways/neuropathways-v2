@@ -14,11 +14,11 @@ export default function FamilyGoals() {
   const query = useQuery({ queryKey: getGetParentDashboardQueryKey(child?.id ?? ""), queryFn: () => getParentDashboard(child!.id, opts), enabled: !!child });
   return (
     <Screen>
-      <H sub={child ? `Goals for ${child.name}` : undefined}>Goals</H>
+      <H sub={child ? `See what ${child.name} is working toward and the progress you've recorded.` : undefined}>Goals &amp; Milestones</H>
       <ChildSwitch />
       {query.isLoading ? <Skeleton lines={4} /> : query.isError ? <ErrorBox message={msg(query.error, "Goals could not load.")} onRetry={() => query.refetch()} /> : (
         <>
-          <T size={14} color={c.secondary}>Saved goals and goals found in plans remain clearly identified by their source.</T>
+          <T size={14} color={c.secondary}>Saved goals and plan milestones stay separate. Caregiver check-ins do not automatically change treatment progress.</T>
           {(query.data?.child.behaviors ?? []).length ? (query.data?.child.behaviors ?? []).map((behavior, index) => (
             <Card key={`${behavior.behaviorKey}-${index}`}>
               <T size={12} weight="semi" color={c.secondary}>{behavior.behaviorName}</T>

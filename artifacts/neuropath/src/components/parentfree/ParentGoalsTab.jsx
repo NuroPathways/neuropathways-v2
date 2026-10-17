@@ -169,10 +169,10 @@ export default function ParentGoalsTab({
   return (
     <div className="pf-goals-tab" data-testid="panel-goals">
       <section className="pf-card sage pf-goals-intro">
-        <p className="pf-eyebrow">Goals</p>
-        <h2 style={{ marginTop: 6 }}>How are the current goals going?</h2>
+        <p className="pf-eyebrow">Goals &amp; Milestones</p>
+        <h2 style={{ marginTop: 6 }}>See what {child?.name || "your child"} is working toward</h2>
         <p className="pf-hint" style={{ marginTop: 6 }}>
-          Check in on each goal. Your rating is caregiver feedback, not an automatic change to progress.
+          Review saved goals, plan milestones, and the progress you record. Caregiver check-ins do not automatically change treatment progress.
         </p>
       </section>
 
@@ -201,6 +201,14 @@ export default function ParentGoalsTab({
             <div className="pf-parent-goal-heading">
               <h3 style={{ margin: 0 }}>{behavior.behaviorName}</h3>
             </div>
+            {linkedCard?.source && (
+              <span className="pf-tag" style={{ marginTop: 8 }}>
+                {linkedCard.source === "clinician_reviewed" ? "Clinician reviewed"
+                  : linkedCard.source === "clinician_document" ? "Shared by your care team"
+                    : linkedCard.source === "parent_document" ? "Based on your uploaded document · not clinician-reviewed"
+                      : "Starter support"}
+              </span>
+            )}
             <div style={{ marginTop: 12 }}>
               <GoalLines card={goalCard} active />
             </div>
