@@ -14,3 +14,45 @@ mtime_ms = 1791393263924
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/95bcff8c-6696-4891-b999-c72f02a7f0d1/09ac829e-c820-4a94-bb68-d5cc53c3dd32"
 storage_version_token = "1791393292037421"
 content_type = "text/html"
+
+[[outputs]]
+id = "inV3HmB1E8myGakGfaQeO"
+uri = "file://generated-artifacts/neuropathways-latest.bundle"
+type = "unspecified"
+title = "NeuroPathways full-history Git bundle"
+description = "Complete Git bundle for feature/neuropathways-latest. Verified complete history; latest commit fdb4290f7fc714be173d029c675bf96b087270ee."
+logical_id = "12f7b348-d9c7-491b-ac52-f7c7ce22cdb1"
+content_hash = "sha256:7681c35e85fb2241af7c9dda08f49909741086e443b2a58bfbf06df7c1afb95f"
+size = 8684312
+mtime_ms = 1792256645503
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/12f7b348-d9c7-491b-ac52-f7c7ce22cdb1/26f5e075-bebd-4c6a-a546-2d694ae0b42d"
+storage_version_token = "1792256656674378"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "f6-lvgr4uPOS5am4SzlAA"
+uri = "file://generated-artifacts/working-tree-changes.patch"
+type = "unspecified"
+title = "Separate backup of local uncommitted changes"
+description = "Patch backup of the generated-artifacts ignore-rule changes; apply later with git apply."
+logical_id = "425455ca-1fd3-4471-b50a-942cc38d1c08"
+content_hash = "sha256:332a20ce33c60d2353e9acd3b8bd61ec993182499ee60ae16c90a18ceb1dbb63"
+size = 445
+mtime_ms = 1792256644431
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/425455ca-1fd3-4471-b50a-942cc38d1c08/c865d53a-96ae-43ec-b52e-62d41c936a77"
+storage_version_token = "1792256669669537"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "G3F_KUO5R67dhBpjTYZoA"
+uri = "file://generated-artifacts/untracked-project-files.txt"
+type = "text"
+title = "Untracked-file backup manifest"
+description = "Records that no untracked project files existed when the Git bundle was created."
+logical_id = "ca6e2245-8de8-4fab-b9e2-7de5448a4edf"
+content_hash = "sha256:0ef453b9b4968043ca0747637e0f0fa85d0a0da0fdb1c7257dec1de80c8e9385"
+size = 56
+mtime_ms = 1792256644442
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/ca6e2245-8de8-4fab-b9e2-7de5448a4edf/bdae90e3-f003-4a2f-944d-b76a6be47492"
+storage_version_token = "1792256670264859"
+content_type = "text/plain"
