@@ -1,0 +1,1104 @@
+# NeuroPathways — Unifying the Old and New Parent Interfaces
+
+After reviewing your screen recording and our previous redesign decisions, I agree that **the best solution is to combine the strongest parts of both interfaces into one consistent parent experience**.
+
+The recording shows two noticeably different experiences:
+
+- **Independent parent account:** The newer interface has a simpler Home page, daily activities, Practice, Help Now, and parent-focused navigation. However, Practice has overlapping navigation, and some pages have become unnecessarily complicated.
+- **Clinician-connected family account:** The older interface includes a family dashboard, child profiles, clinician-connected information, and the more structured Goals & Milestones presentation. However, the dashboard is too busy for everyday parent use.
+
+The older Goals & Milestones screen has several elements worth preserving: its clear title, child selector, progress information, milestone structure, and easy-to-identify actions. The newer Practice screen, by contrast, has page tabs for Activities, Learn Why, My Routines, and Saved for Later, followed by another set of Understand, See, Try, and Reflect controls inside activities. That creates unnecessary navigation complexity.
+
+### The most important fix
+
+**How a parent account was created should not determine which interface the parent sees.**
+
+A parent who signs up independently and a parent whose account was created by a clinician should use the same parent interface.
+
+The difference should be the information and permissions available to them, not the design.
+
+A clinician-connected parent may have additional approved plans, assignments, and care-team features. An independent parent may have starter support and their own uploaded documents. Both should have the same Home, Help Now, Practice, Goals & Milestones, and Document Center.
+
+I would keep the current NeuroPathways colors, desktop sidebar, and overall brand identity while making the parent experience more spacious and consistent.
+
+## The implementation prompt for Replit
+
+The following prompt is designed to **fix the underlying split between the two parent interfaces**, not just change their appearance.
+
+It allows Replit to make major workflow and UI changes while requiring it to preserve existing data, permissions, and working features.
+
+Copy this into Replit and attach the October 17 screen recording.
+
+---
+
+# Replit Agent Prompt: Unify NeuroPathways Parent Portals and Combine the Best Features of Both Designs
+
+## Primary Objective
+
+I want you to perform a substantial UI and workflow consolidation of the existing NeuroPathways application.
+
+Currently, NeuroPathways has two different parent-facing experiences depending on how the account was created.
+
+**Problem 1 — Clinician-created accounts**
+
+When a clinician creates a client or family account, the parent receives the older version of the NeuroPathways interface.
+
+This version includes a family dashboard, child profiles, document management, Goals & Milestones, and clinician-connected features.
+
+**Problem 2 — Independently created parent accounts**
+
+When a parent creates an account directly, without a clinician, they receive the newer NeuroPathways interface.
+
+This version includes the simplified Home page, Help Now, Practice, activities, Goals, and newer navigation.
+
+**I do not want two different parent interfaces anymore.**
+
+I want one unified parent-facing application that combines the best functionality and design choices from both versions.
+
+You are authorized to make major changes to the UI, routing, component structure, and navigation where necessary.
+
+However, preserve the existing backend functionality, data, authentication, document processing, and permissions.
+
+**Do not change the existing NeuroPathways color scheme.**
+
+Use the attached screen recording as a visual reference.
+
+---
+
+## PHASE 1 — Investigate the Existing Application Before Changing Anything
+
+Before modifying the application, inspect the codebase and identify why two different parent-facing interfaces exist.
+
+### Investigate the following
+
+1. How independent parent accounts are created.
+2. How clinician-created parent/family accounts are created.
+3. How account roles are assigned.
+4. How account type determines which dashboard loads.
+5. How linked children and families are retrieved.
+6. How clinic and clinician relationships are stored.
+7. Where the older parent UI components are located.
+8. Where the newer parent UI components are located.
+9. Whether the two interfaces use different API endpoints.
+10. Whether they use different data structures for documents, goals, activities, and logs.
+
+Pay particular attention to conditional routing involving account roles or origins.
+
+For example, investigate any existing distinctions equivalent to:
+
+- parent
+- caregiver
+- family
+- clinician
+- client
+- independent parent
+- clinic-connected parent
+- invited account
+- self-created account
+
+These distinctions may still matter for permissions and data access.
+
+**They should not determine whether the parent receives the old or new UI.**
+
+### Required architectural change
+
+Create or consolidate around one shared parent application interface.
+
+For example:
+
+`UnifiedParentPortal`
+
+The actual component name should follow the application's existing conventions.
+
+The architecture should conceptually work as follows:
+
+```text
+User logs in
+       |
+       v
+Identify effective user role
+       |
+       +------ Clinician
+       |          |
+       |          v
+       |     Clinician Portal
+       |
+       +------ Parent / Caregiver
+                  |
+                  v
+           Unified Parent Portal
+                  |
+          +-------+--------+
+          |                |
+     Parent-direct    Clinic-connected
+          |                |
+          +-------+--------+
+                  |
+             SAME UI
+                  |
+         Different data,
+         permissions and
+         optional features
+```
+
+The user interface should be shared.
+
+The account capabilities should remain appropriately different.
+
+Do not resolve this problem by removing role-based security or merging independent user records.
+
+---
+
+# PHASE 2 — Establish One Unified Parent Navigation System
+
+Use the newer navigation concept as the foundation.
+
+The primary parent navigation should be:
+
+| Destination | Purpose |
+|---|---|
+| Home | Everyday starting point |
+| Help Now | Immediate support |
+| Practice | Activities, learning, routines, preparation |
+| Goals | Goals and milestones |
+| Menu | Documents, history, support library, account tools |
+
+### Desktop
+
+Keep the left sidebar.
+
+Use one consistent sidebar design for independent and clinic-connected parents.
+
+Keep the existing NeuroPathways branding, colors, and icons.
+
+Do not create an entirely new visual identity.
+
+### Mobile
+
+Use a simple bottom navigation bar.
+
+Home | Help Now | Practice | Goals | Menu
+
+The selected child should always be visible and easy to change.
+
+### Important
+
+Do not show two parent navigation systems.
+
+Do not use one sidebar for independently created parents and another for clinician-created parents.
+
+Do not duplicate routes unnecessarily.
+
+If legacy routes are still used, redirect or map them to the unified parent pages without breaking existing links.
+
+---
+
+# PHASE 3 — Use the New Home Page for ALL Parent Accounts
+
+I prefer the simplified parent Home page over the older family dashboard.
+
+Currently, the old family dashboard displays multiple statistics, child cards, recent notes, and other information.
+
+This is useful information, but I do not want it dominating the parent's Home page.
+
+### New unified Home page
+
+Both parent-direct and clinic-connected parents should see:
+
+# Support for John
+
+Use the actual selected child's name.
+
+Underneath:
+
+**Support, activities, and routines that fit your day.**
+
+Then display the existing:
+
+## I Need Help Now
+
+This must remain highly visible and open the appropriate Support Now experience immediately.
+
+### Below Help Now
+
+Display two primary sections.
+
+**Practice Together**
+
+Find simple activities and skills to try with your child.
+
+Button: **Explore Activities**
+
+**Prepare for Something**
+
+Get ready for a routine, transition, or upcoming activity.
+
+Button: **Prepare**
+
+### Continue Where You Left Off
+
+If the parent has a saved activity or routine, show a compact continuation section.
+
+Example:
+
+**Getting Ready for School**
+
+3 steps · Last opened yesterday
+
+Button: **Continue**
+
+If there is no saved activity, hide this section.
+
+### Optional daily activity
+
+If useful, show one relevant suggested activity.
+
+Do not display five full-length activity cards on Home.
+
+The parent should be able to open Practice to browse additional activities.
+
+### Remove the old dashboard clutter from Home
+
+Move the following into more appropriate sections:
+
+- large child profile cards
+- multiple statistics
+- extensive recent notes
+- document counts
+- clinical summaries
+- long support explanations
+- detailed progress charts
+
+Do not delete these features.
+
+Relocate them.
+
+For example, child and family management can live under Menu → Family & Children.
+
+The Home page should remain simple.
+
+---
+
+# PHASE 4 — Use the OLD Document Center as the Foundation
+
+This is an important design preference.
+
+**I prefer the older Document Center structure and organization over the newer document interface.**
+
+Inspect both implementations and use the older version as the visual and functional foundation where appropriate.
+
+Both independent and clinic-connected parent accounts should access the same unified Document Center.
+
+## Unified Document Center
+
+Use the title:
+
+# Document Center
+
+Subtitle:
+
+**Keep your child's plans and important documents organized in one place.**
+
+### Recommended structure
+
+At the top, include a clearly visible:
+
+**Upload Document**
+
+button.
+
+Below this, display the user's documents in an organized list.
+
+Each document should show:
+
+**Document name**
+
+Example: John Smith Behavior Plan
+
+**Document type**
+
+Behavior Plan, Treatment Plan, Assessment, Session Notes, etc.
+
+**Source**
+
+Uploaded by Parent / Shared by Clinician
+
+**Processing status**
+
+Ready / Processing / Needs Review / Failed
+
+**Available actions**
+
+View | Details | Download
+
+Additional actions should be displayed only when the user has permission.
+
+### Document organization
+
+Reuse any working document grouping, filtering, or categorization already present in the older interface.
+
+Suggested categories include:
+
+- All Documents
+- Behavior Plans
+- Treatment Plans
+- Assessments
+- Session Notes
+- Other Documents
+
+Do not introduce unnecessary nested tabs or multiple competing document lists.
+
+### Parent-direct account
+
+Parents should be able to upload and manage their own permitted documents without clinician involvement.
+
+### Clinic-connected account
+
+Parents should see:
+
+- their own documents
+- documents explicitly shared by their care team
+
+Do not automatically give parents access to every clinician document.
+
+Do not automatically share parent-uploaded documents with a connected clinic.
+
+Respect existing permissions and consent.
+
+### Important
+
+Reuse the working document upload, storage, scanning, extraction, and retrieval functionality.
+
+Do not replace the entire backend document system merely to consolidate the interfaces.
+
+If old and new pages use different data sources, build an appropriate shared data-access layer or adapter.
+
+---
+
+# PHASE 5 — Restore the Better Goals & Milestones Structure
+
+I prefer the older **Goals & Milestones** interface over the current newer goals presentation.
+
+The older version has a clearer layout, with an identifiable goal section, progress information, and a more organized structure.
+
+Use that version as the foundation.
+
+However, incorporate useful newer features where appropriate.
+
+## Unified Goals Page
+
+Title:
+
+# Goals & Milestones
+
+Subtitle:
+
+**See what John is working toward and the progress you've recorded.**
+
+### Goal cards
+
+Each goal should have:
+
+- clear goal name
+- related behavior or skill
+- short explanation
+- source
+- current status
+- milestone information
+- related activities
+- progress information, when meaningful
+
+### Example
+
+**Asking for Help**
+
+Communication
+
+*Help John communicate when he needs assistance.*
+
+Related activity:
+
+**Make Help Easy to Ask For**
+
+Last practiced: Wednesday
+
+Button:
+
+**View Goal**
+
+### Milestones
+
+Preserve the older milestone structure.
+
+Where goals have actual defined steps or milestones, show those steps clearly.
+
+Example:
+
+**Getting Ready Independently**
+
+1. Put on shoes.
+2. Put on coat.
+3. Pick up backpack.
+4. Move toward the door.
+
+Track each milestone according to its actual completion or observation rules.
+
+### Progress bars
+
+I like the progress-bar concept from the older interface.
+
+Keep progress bars where a meaningful denominator or milestone structure exists.
+
+However, do not automatically calculate clinical progress from activity completion.
+
+For example:
+
+Completing five of ten routine steps can accurately show:
+
+**5 of 10 steps completed**
+
+But completing five activities should not automatically mean:
+
+**50% of treatment goal achieved**
+
+Keep those concepts separate.
+
+### Weekly activity tracker
+
+You may incorporate the newer weekly tracker, but it should be visually secondary to the actual goals.
+
+Use it to show recorded practice days or check-ins.
+
+Do not make missed days appear like failures.
+
+### Parent-direct support
+
+Parents without clinicians must still be able to:
+
+- add appropriate personal goals
+- choose relevant skills
+- connect activities to goals
+- record observations
+- view their progress
+
+### Clinic-connected support
+
+Keep clinician-defined goals intact.
+
+Allow parents to view assigned goals and related activities.
+
+Do not allow parent interactions to silently modify clinician-authored treatment goals.
+
+---
+
+# PHASE 6 — Completely Reorganize the Practice Area
+
+The Practice area is currently one of the biggest usability problems.
+
+In the recording, Practice includes top-level tabs:
+
+- Activities
+- Learn Why
+- My Routines
+- Saved for Later
+
+Then, inside individual activities, it introduces another navigation system:
+
+- Understand
+- See
+- Try
+- Reflect
+
+This creates a confusing tabs-within-tabs experience.
+
+**Remove this nested navigation structure.**
+
+The feature itself is useful.
+
+The way it is organized needs to change.
+
+## New Practice landing page
+
+Title:
+
+# Practice With John
+
+Subtitle:
+
+**Simple activities and routines you can try together.**
+
+Display four clearly separated navigation options.
+
+### Activities
+
+Browse things to try together.
+
+### My Routines
+
+Create and use visual routines.
+
+### Learn Why
+
+Short explanations and practical examples.
+
+### Saved for Later
+
+Continue previously saved activities.
+
+Use spacious clickable rows or modest cards.
+
+Do not create several overlapping tab bars.
+
+The parent should immediately understand that these are four different destinations.
+
+---
+
+# PHASE 7 — Redesign Individual Activity Pages
+
+This is where the newer Practice experience should become significantly better.
+
+Instead of placing another row of tabs inside the activity, use a clear sequential experience.
+
+## Example: First-Then Practice
+
+**Activity title**
+
+First-Then Practice
+
+**Related skill**
+
+Making transitions easier
+
+**Estimated time**
+
+5 minutes
+
+Button:
+
+**Start Activity**
+
+### Activity experience
+
+Organize the activity as:
+
+**1. Understand**
+
+A brief explanation.
+
+**2. See an Example**
+
+A simple visual or written example.
+
+**3. Try Together**
+
+Practical steps the parent can follow.
+
+**4. Reflect**
+
+Optional feedback.
+
+### Important layout change
+
+Do not display all four stages as competing tabs.
+
+Use one clear step at a time, with:
+
+Back | Continue
+
+Parents should also be able to skip directly to **Try Together**.
+
+Lessons must not be mandatory.
+
+### Example
+
+**First-Then Practice**
+
+Step 1 of 3
+
+**Show John what comes first and what comes next.**
+
+Example:
+
+First: Shoes
+
+Then: Music
+
+Button:
+
+**Continue**
+
+### When the activity is finished
+
+Ask:
+
+**How did it go?**
+
+Options:
+
+- We tried it
+- We needed support
+- Didn't get a chance
+
+Optional note.
+
+Button:
+
+**Save**
+
+Parents must be able to leave without logging.
+
+Do not automatically treat completion as clinical improvement.
+
+---
+
+# PHASE 8 — Connect Practice, Goals, and History
+
+I want the application's features to work together.
+
+Currently, some parts of the application feel disconnected.
+
+The same activity should not exist as three unrelated objects simply because it appears on different pages.
+
+Create or reuse shared relationships between:
+
+**Child → Skill → Goal → Activity → History**
+
+### Example
+
+John's goal:
+
+**Practice asking for help**
+
+Related activity:
+
+**Make Help Easy to Ask For**
+
+The activity appears in Practice.
+
+It also appears under the related Goal.
+
+When the parent completes the activity, an optional history entry is created.
+
+The Goals page then displays the relevant participation or observation.
+
+The parent should not have to enter the same information repeatedly.
+
+### Preserve data integrity
+
+Reuse existing IDs and records wherever possible.
+
+Do not duplicate activities, logs, or goals during the migration.
+
+Do not delete older saved records.
+
+If the old and new systems have different representations, migrate carefully or introduce an adapter with a documented mapping.
+
+---
+
+# PHASE 9 — Preserve Family and Child Management
+
+The older clinician-connected interface has a useful family-management experience.
+
+I do not want to lose it.
+
+However, it should not dominate Home.
+
+Move family management into an appropriately named area such as:
+
+**Menu → Family & Children**
+
+Allow parents to:
+
+- view linked children
+- switch children
+- access a child's profile
+- see care-team connections where relevant
+- update permitted profile information
+- add children when allowed
+
+For families with multiple children, every activity, document, goal, and log must remain attached to the correct child.
+
+Do not randomly select a child when Help Now is opened.
+
+If multiple children exist and none is selected, ask which child needs support.
+
+---
+
+# PHASE 10 — Preserve Parent-Direct and Clinic-Connected Capabilities
+
+Both account types should use the exact same parent UI.
+
+However, differences in permissions and source information must remain accurate.
+
+### Parent-direct account
+
+The parent should be able to independently use:
+
+- Home
+- Help Now
+- Practice
+- Goals & Milestones
+- Document Center
+- History
+- AI Chat
+- Routines
+- Child Profiles
+- Behavior Support Library
+
+No clinician approval should be required to access the general educational features.
+
+No clinic connection should be required for account setup or daily use.
+
+### Clinic-connected account
+
+The parent receives the same interface.
+
+Additional capabilities may include:
+
+- clinician-shared documents
+- clinician-approved strategies
+- clinician-assigned activities
+- care-team messages
+- clinician-defined goals
+- care-team feedback
+
+Show those features conditionally when the account has the necessary permissions.
+
+Do not show empty or broken clinician sections to independent parents.
+
+### Source labels
+
+Keep these labels accurate:
+
+- Starter support
+- Based on your uploaded document
+- Not clinician-reviewed
+- Clinician reviewed
+- Shared by your care team
+
+Do not mark uploaded documents as clinician-reviewed solely because they came from a clinical document.
+
+---
+
+# PHASE 11 — Keep the Clinician Dashboard Separate
+
+This redesign is primarily for parent and caregiver accounts.
+
+The clinician dashboard should remain a professional workspace.
+
+Do not replace the clinician dashboard with the simplified parent UI.
+
+Clinicians should retain access to their existing:
+
+- client/family management
+- document management
+- treatment plans
+- goal management
+- client observations
+- behavior logs
+- approved support strategies
+- caregiver assignments
+- messaging
+- other working clinical features
+
+The key change is that **a parent linked to a clinician should no longer receive the old parent dashboard**.
+
+When the clinician creates or invites a parent, that parent should enter the unified parent interface.
+
+---
+
+# PHASE 12 — Preserve the Current Design Language
+
+Do not change the existing NeuroPathways color scheme.
+
+I want to preserve the current:
+
+- brand colors
+- logo
+- general typography
+- blue/teal styling
+- urgent Help Now color
+- consistent iconography
+
+### Design priorities
+
+The application should be:
+
+1. Simple
+2. Spacious
+3. Easy to navigate
+4. Easy to read
+5. Consistent
+6. Visually organized
+
+**More empty space is preferred.**
+
+Avoid:
+
+- tabs inside tabs
+- oversized blocks
+- unnecessary dashboards
+- huge source badges
+- repeated information
+- excessive text
+- overlapping navigation
+- large numbers of cards on one screen
+
+Use:
+
+- clear page titles
+- clean navigation
+- generous spacing
+- short explanations
+- recognizable icons
+- expandable details
+- focused activity screens
+
+### UI consistency
+
+Use the same shared components across both parent account types.
+
+This should include:
+
+- page headers
+- child selector
+- navigation
+- source badges
+- document cards
+- goal cards
+- activity cards
+- buttons
+- empty states
+- dialogs
+
+Do not create duplicate design systems for different parent account origins.
+
+---
+
+# PHASE 13 — Improve Navigation and State Management
+
+Fix the problems that could cause the app to appear inconsistent after login or refresh.
+
+### Required behavior
+
+When a parent logs in, the system should:
+
+1. Identify the authenticated user.
+2. Determine their effective role.
+3. Load the unified parent interface.
+4. Retrieve their permitted children.
+5. Restore the selected child when appropriate.
+6. Load only the information that account can access.
+
+If the parent refreshes the page, they should not be redirected into an older interface.
+
+If the parent switches children, all child-specific data should update correctly.
+
+If a parent links their independent account to a clinic later, their existing information should remain available.
+
+Do not duplicate the parent account or discard the parent-created workspace during linking.
+
+Make sure clinician permissions are checked on the backend rather than inferred from the visible UI.
+
+---
+
+# PHASE 14 — Test Both Account Creation Paths
+
+This is one of the most important requirements.
+
+Create automated tests and perform practical UI testing for both scenarios.
+
+## Test A — Independent parent account
+
+1. Create a parent account without a clinician.
+2. Add a child.
+3. Open Home.
+4. Confirm the unified interface appears.
+5. Open Help Now.
+6. Open Practice.
+7. Complete an activity.
+8. Open Goals & Milestones.
+9. Open Document Center.
+10. Upload a permitted document.
+11. Refresh the app.
+12. Verify data and navigation remain correct.
+
+## Test B — Clinician-created family account
+
+1. Create a clinician account.
+2. Create a family/client relationship.
+3. Create or invite the parent account.
+4. Sign in as the parent.
+5. Confirm that the **same unified parent interface** appears.
+6. Open Home.
+7. Open Help Now.
+8. Open Practice.
+9. Open Goals & Milestones.
+10. Open Document Center.
+11. Confirm that shared documents appear only as authorized.
+12. Verify parent-created records remain correctly scoped.
+13. Refresh the app.
+14. Confirm it does not revert to the old dashboard.
+
+## Test C — Existing accounts
+
+Test at least one existing parent account from each creation path.
+
+Do not test only newly created accounts.
+
+Existing accounts must also transition to the unified interface.
+
+## Test D — Multiple children
+
+Test a family with two children.
+
+Confirm that:
+
+- switching children works
+- documents remain child-specific
+- goals remain child-specific
+- activities remain child-specific
+- logs remain child-specific
+- Help Now opens for the correct child
+
+## Test E — Clinician account
+
+Confirm that clinician accounts still receive their clinician dashboard.
+
+Do not accidentally route clinicians to the parent portal.
+
+## Test F — Independent parent-to-clinic connection
+
+Verify that connecting an existing independent parent account to a clinic does not:
+
+- change the parent UI
+- delete existing documents
+- duplicate goals
+- create duplicate children
+- expose private records without permission
+
+---
+
+# PHASE 15 — Implementation Strategy
+
+Make the changes in this order.
+
+### Stage 1 — Architecture and routing
+
+- Identify both existing parent interfaces.
+- Determine the shared data and permission model.
+- Consolidate parent routing.
+- Preserve clinician routing.
+
+### Stage 2 — Shared parent layout
+
+- Implement unified navigation.
+- Implement consistent child selection.
+- Preserve the current design system.
+
+### Stage 3 — Unified Home
+
+- Use the newer simplified Home.
+- Keep I Need Help Now.
+- Preserve Practice and Prepare entrances.
+- Relocate old dashboard information.
+
+### Stage 4 — Unified Document Center
+
+- Use the older preferred Document Center layout as the foundation.
+- Combine relevant functionality from both systems.
+- Preserve document ownership and permissions.
+
+### Stage 5 — Unified Goals & Milestones
+
+- Restore the stronger older goal layout.
+- Integrate useful newer participation and activity information.
+- Preserve existing goal records.
+
+### Stage 6 — Practice redesign
+
+- Remove nested tabs.
+- Introduce clear Practice destinations.
+- Simplify the activity experience.
+- Connect activities to goals and history.
+
+### Stage 7 — Regression testing
+
+- Test existing users.
+- Test both signup methods.
+- Test clinician access.
+- Test parent-direct independence.
+- Test multi-child accounts.
+- Verify data isolation.
+- Test mobile and desktop.
+
+Do not replace stable backend systems unnecessarily.
+
+Prefer reuse, consolidation, and careful migration.
+
+---
+
+# PHASE 16 — Final Report
+
+After implementation, provide a detailed summary.
+
+Include:
+
+1. Why the application previously displayed two parent interfaces.
+2. Which routing conditions caused the difference.
+3. Which old components were retained.
+4. Which new components were retained.
+5. Which components were consolidated.
+6. Which legacy components are no longer used.
+7. What changed in Home.
+8. What changed in Practice.
+9. What changed in Goals & Milestones.
+10. What changed in Document Center.
+11. Any database changes.
+12. How existing accounts and data were preserved.
+13. How parent-direct and clinician-connected access was tested.
+14. Screenshots showing the same unified interface for both account types.
+15. Any unresolved bugs.
+
+Do not claim tests passed unless they were actually executed.
+
+---
+
+## Final Objective
+
+**NeuroPathways should have ONE parent-facing application, not two.**
+
+Both independently created parents and clinician-connected parents should use the same interface.
+
+Use:
+
+- **Newer Home design**
+- **Existing I Need Help Now functionality**
+- **Better older Document Center**
+- **Better older Goals & Milestones structure**
+- **Reorganized Practice experience**
+- **Shared child profiles and navigation**
+- **Existing NeuroPathways colors**
+- **More empty space and cleaner layouts**
+
+Clinicians should continue to have their own professional dashboard.
+
+The parent experience should no longer depend on how the account was created.
+
+**Actually implement the consolidation in the existing codebase. Do not simply create another parent portal.**
+
+---
+
+## Two additional issues I noticed in the recording
+
+**1. The old Goals page has a good layout, but some goal names need fixing.** In the clinician-connected version, I can see a goal displayed as something like `F4 goal 13:32:51`. That is not meaningful to a parent. Keep the milestone layout, but display a readable goal title derived from an actual goal description. Don't invent a new clinical objective to replace a missing title.
+
+**2. The current Practice page is trying to do too many things on the same screen.** It combines category navigation, a running activity, learning stages, and activity controls. These should become separate levels of navigation: Practice → Activity → Guided Steps. That will make the experience feel much less confusing.
+
+### What I would prioritize
+
+I would have Replit fix the **two-parent-interface problem first**, before making further cosmetic changes.
+
+Once both account types use the same parent application, changes to Home, Practice, Goals, and Documents will be much easier to maintain. Otherwise, you'll continue improving one experience while the other remains outdated.
+
+One limitation: the recording lets me compare the interfaces, but I haven't verified the underlying repository code, so the exact route and component names in the prompt are implementation instructions rather than confirmed findings.
