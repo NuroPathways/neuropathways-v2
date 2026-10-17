@@ -1,0 +1,1057 @@
+# NeuroPathways — Complete Parent Experience Unification, Legacy Login Bridge, and UI Consolidation
+
+## IMPORTANT: CONTINUE FROM THE CURRENT CHECKPOINT
+
+You have already started implementing the NeuroPathways parent-portal consolidation.
+
+Your latest report confirmed:
+
+1. The mobile application supports the newer parent-account login and clinician invitation workflow.
+2. Multiple-child selection was improved so parents with multiple children are asked to select a child instead of automatically using the first child.
+3. Mobile TypeScript checks passed.
+4. The legacy username-and-access-code family login bridge has NOT been implemented.
+5. Legacy family logins currently produce child-scoped sessions, while the newer parent interface uses parent-account sessions and a different data API.
+6. You intentionally preserved the old authentication behavior rather than introduce unsafe permissions.
+
+I approve that cautious approach.
+
+However, I now want you to FINISH THE ENTIRE IMPLEMENTATION.
+
+Do not stop after the legacy bridge.
+
+Do not simply produce another design proposal.
+
+Complete the parent experience consolidation, integrate the strongest features from the old and new interfaces, update the required backend and frontend code, and test the actual workflows.
+
+Use your latest checkpoint as the starting point.
+
+Preserve all recent working changes.
+
+---
+
+# 1. OVERALL OBJECTIVE
+
+NeuroPathways currently has different parent-facing experiences depending on account creation and authentication.
+
+The goal is:
+
+**ONE PARENT APPLICATION WITH MULTIPLE SECURE ACCOUNT ACCESS METHODS.**
+
+These account pathways must all support the unified parent experience:
+
+A. Independent parent registration.
+
+B. Parent account connected to a clinician through an invitation.
+
+C. Legacy family login created by a clinician using a username and access code.
+
+D. Existing family accounts created before the redesign.
+
+These accounts should share the same parent-facing interface.
+
+They may have different authorized records and features depending on their relationships and permissions.
+
+Individual self-managed clients must retain their appropriate client experience.
+
+Clinicians must retain their clinician dashboard.
+
+Do not create another separate parent portal.
+
+---
+
+# 2. FIRST: INSPECT THE CURRENT WORKING CODE
+
+The GitHub repository is:
+
+https://github.com/NuroPathways/neuropathways-v2
+
+However, the GitHub main branch may be older than the code currently running in Replit.
+
+Before implementing:
+
+- Inspect the current Replit working tree.
+- Review the changes made since the latest checkpoint.
+- Confirm which improvements have already been implemented.
+- Identify the current parent-account mobile API.
+- Identify the current legacy client-session API.
+- Identify the current parent web routes and page components.
+- Identify the newer Practice components, which may not exist in the older GitHub version.
+- Identify all existing activity, routine, goal, preference, and document models.
+
+Do not overwrite current Replit features with older GitHub files.
+
+Reuse the current working implementation.
+
+Create a recovery checkpoint before structural changes.
+
+---
+
+# 3. IMPLEMENT THE LEGACY FAMILY-SCOPED BRIDGE
+
+## This is the first major unfinished feature.
+
+I explicitly approve:
+
+**YES — Add a family-scoped bridge for legacy username-and-access-code family logins.**
+
+The existing username/access-code flow should continue working.
+
+Parents must NOT have to create a second account simply to access the newer parent interface.
+
+Do not copy existing clinical records into newer parent tables just to make the UI work.
+
+## Required authentication behavior
+
+When a legacy username-and-access-code user logs in:
+
+1. Validate the credentials using the existing secure login process.
+2. Validate the resulting server-backed session.
+3. Identify the child account associated with that login.
+4. Retrieve its family relationship.
+5. Determine the family account type from trusted server-side data.
+6. Check whether this is a family/caregiver account or an individual self-managed client account.
+7. If it is a family/caregiver account, create an authorized family-scoped parent-session context.
+8. Retrieve only the children that the authenticated session is permitted to access.
+9. Load the unified parent application.
+10. Preserve the existing username/access-code authentication method.
+
+If the account is an individual self-managed client, keep that user in the appropriate client experience.
+
+If the account type is unclear, do not guess or automatically grant family access. Use a safe fallback and surface the account-classification issue for correction.
+
+## Family authorization
+
+The bridge must enforce:
+
+- verified family membership
+- the applicable clinician/tenant boundary
+- valid session credentials
+- session expiration
+- child-level access
+- record-level permissions
+
+Only family members and children authorized for that session may be returned.
+
+Do not use family IDs, clinician IDs, or child IDs supplied by the frontend as proof of authorization.
+
+Do not grant access to every child who shares a clinician.
+
+Do not grant access to other families under the same clinician.
+
+Do not rely on client-side routing for security.
+
+## Important distinction
+
+A legacy child-scoped session is NOT automatically a parent account.
+
+The bridge must establish an appropriately restricted family capability on the server.
+
+It must not:
+
+- forge a parent-account cookie
+- convert a child session into a clinician session
+- impersonate another user
+- grant clinician permissions
+- copy clinical records unnecessarily
+- expose sibling records without authorization
+
+## Session persistence
+
+When a legacy family account refreshes the app:
+
+- preserve the valid authenticated session
+- restore the unified parent experience
+- restore the selected child if still authorized
+- prevent redirecting into the older dashboard
+
+When a session expires, use the existing reauthentication process.
+
+Do not silently substitute another stored account session.
+
+---
+
+# 4. CREATE SHARED FAMILY DATA ADAPTERS
+
+The authentication bridge is only useful if legacy families can actually use the new parent features.
+
+The current problem is that the old session and new parent account use different data-access paths.
+
+Implement shared server-side adapters that expose authorized family data in a consistent format.
+
+Conceptual architecture:
+
+Legacy Family Login
+        |
+        v
+Validated Legacy Session
+        |
+        v
+Family-Scoped Authorization
+        |
+        v
+Shared Parent Data Adapter
+        |
+        v
+Unified Parent Experience
+
+The new parent-account login should also use the same normalized parent data interface wherever practical.
+
+## Required shared data
+
+Support:
+
+- family information
+- authorized children
+- selected child
+- uploaded documents
+- clinician-shared documents
+- behavior plans
+- approved support strategies
+- child goals
+- parent goals
+- milestones
+- activities
+- routine data
+- logs
+- observations
+- messages
+- progress information
+
+Reuse existing data records.
+
+Do not create duplicate children, duplicate goals, or duplicate documents.
+
+## Backend implementation
+
+Inspect the current versions of:
+
+- `artifacts/api-server/src/routes/entities.ts`
+- `artifacts/api-server/src/routes/mobile.ts`
+- `artifacts/api-server/src/routes/auth.ts`
+- `lib/db/src/schema/entities.ts`
+
+The older repository includes `/client-portal-data` and related client-session endpoints.
+
+Determine what the newer mobile API already exposes.
+
+Extend those systems safely rather than creating redundant APIs.
+
+Use one consistent authorization strategy for family-access endpoints.
+
+For writes, explicitly authorize the action and target record.
+
+Do not assume read permission automatically grants edit or delete permission.
+
+## Data access errors
+
+Differentiate:
+
+- no records exist
+- permission denied
+- authentication expired
+- temporary server error
+- processing still underway
+
+Never display an empty Document Center or Goals page merely because an API call failed.
+
+---
+
+# 5. UNIFY THE PARENT WEB AND MOBILE EXPERIENCE
+
+The repository includes a React web frontend and a separate mobile application.
+
+The older web frontend is under:
+
+`artifacts/neuropath/src/`
+
+The mobile application is under:
+
+`artifacts/neuropath-mobile/`
+
+Inspect both current implementations.
+
+Determine which one serves the experience shown in the October 17 screen recording.
+
+Do not implement the redesign only in the mobile app while leaving the web application inconsistent.
+
+The parent experience should be functionally consistent across supported platforms.
+
+Shared backend behavior and data contracts should be reused.
+
+Platform-specific navigation components may remain separate where appropriate.
+
+## Web routing
+
+Inspect:
+
+- `App.jsx`
+- `Layout.jsx`
+- `ParentDashboard.jsx`
+- `ClientDashboard.jsx`
+- `AuthContext.jsx`
+- `clientSession.js`
+
+The older web application has multiple dashboard routes.
+
+Consolidate family and caregiver navigation into one unified parent route structure.
+
+Maintain legacy route compatibility.
+
+## Mobile routing
+
+Inspect:
+
+- `app/_layout.tsx`
+- `app/(tabs)/_layout.tsx`
+- `app/login.tsx`
+- `context/AuthContext.tsx`
+- `lib/api.ts`
+
+Preserve the mobile child-selection correction already completed.
+
+Connect the legacy family bridge to the existing parent navigation.
+
+Do not regress current mobile authentication.
+
+---
+
+# 6. ONE UNIFIED PARENT NAVIGATION
+
+All parent and family accounts should see:
+
+**Home | Help Now | Practice | Goals | Menu**
+
+Use the current NeuroPathways colors and icons.
+
+## Desktop
+
+Keep the existing left sidebar.
+
+Do not create different sidebars for clinician-connected and independent parents.
+
+## Mobile
+
+Use a simple bottom navigation.
+
+Make Help Now easy to reach.
+
+## Menu
+
+Include:
+
+- Document Center
+- History & Logs
+- Behavior Support Library
+- Family & Children
+- AI Chat
+- Messages, when available
+- Things My Child Enjoys
+- Upload Plan
+- Settings
+- Clinic Connection, when applicable
+
+Do not use tabs inside tabs.
+
+Do not repeat the same navigation controls on multiple levels.
+
+---
+
+# 7. UNIFIED HOME — USE THE NEWER DESIGN
+
+I prefer the newer, simpler Home screen.
+
+Use this layout for ALL parent accounts.
+
+## Header
+
+**Support for [Child Name]**
+
+Subtitle:
+
+**Support, activities, and routines that fit your day.**
+
+Display a clear child selector.
+
+## Primary action
+
+**I Need Help Now**
+
+This should be the most prominent action.
+
+It must work without uploaded documents or clinician connection.
+
+## Main sections
+
+### Practice Together
+
+Find short activities and skills to try together.
+
+Button: Explore Activities
+
+### Prepare for Something
+
+Get ready for a routine or transition.
+
+Button: Prepare
+
+### Continue Where You Left Off
+
+Only show if a saved activity or routine exists.
+
+## Remove dashboard clutter
+
+Do not show large amounts of:
+
+- statistics
+- document counts
+- clinical summaries
+- progress charts
+- repeated goal cards
+- long lists of logs
+
+Move those features into Goals, History, Document Center, or Family & Children.
+
+The Home screen should remain simple.
+
+---
+
+# 8. DOCUMENT CENTER — REUSE THE BETTER OLD INTERFACE
+
+Use the older Document Center layout as the foundation.
+
+Inspect the existing component:
+
+`artifacts/neuropath/src/pages/DocumentCenter.jsx`
+
+Preserve the useful features:
+
+- organized document rows
+- document icons
+- categories
+- search
+- upload button
+- clear document names
+- compact visual layout
+
+Then connect it to the shared parent data layer.
+
+## Required behavior
+
+Both parent-direct and legacy clinician-connected families should see their authorized documents in the same interface.
+
+Display:
+
+- document name
+- category
+- related child
+- source
+- scan status
+- view/download actions when authorized
+
+## Important
+
+Do not show:
+
+"Your clinician will upload documents here"
+
+for independent parents.
+
+Use neutral language.
+
+Example:
+
+**No documents yet. Upload a plan when you're ready, or continue using starter support.**
+
+## Access permissions
+
+Parent-uploaded documents stay private unless deliberately shared.
+
+Clinician-shared documents should be displayed only when authorized.
+
+Keep scanning and document extraction working.
+
+Do not expose protected files through unrestricted URLs.
+
+---
+
+# 9. GOALS & MILESTONES — USE THE BETTER OLD STRUCTURE
+
+Inspect:
+
+`artifacts/neuropath/src/pages/GoalsMilestones.jsx`
+
+Use the older goal and milestone layout as the foundation.
+
+Preserve:
+
+- goal titles
+- progress bars
+- milestone organization
+- child selector
+- add-goal functionality
+- clear goal cards
+
+## Improve the progress model
+
+Separate:
+
+1. Activity participation
+2. Parent observations
+3. Milestone completion
+4. Clinically established progress
+
+Do not automatically advance clinical goals just because an activity was attempted.
+
+The old `reward_tokens` model may still be used by existing goals.
+
+Preserve those records.
+
+Add adapters or new fields only when necessary.
+
+## Fix poor goal names
+
+Do not display technical labels such as:
+
+`F4 goal 13:32:51`
+
+Display a readable title drawn from the actual saved goal information.
+
+If the title is missing, provide a neutral fallback without inventing a clinical objective.
+
+## Connect goals to activities
+
+Every relevant goal should offer:
+
+**Related Activities**
+
+Selecting an activity should open the same activity that appears under Practice.
+
+Do not duplicate it.
+
+---
+
+# 10. PRACTICE — REMOVE NESTED TABS
+
+The newer Practice area currently feels awkward because it has tabs inside other tabs.
+
+Fix this.
+
+## Practice landing page
+
+Title:
+
+**Practice With [Child Name]**
+
+Subtitle:
+
+**Simple activities and routines you can try together.**
+
+Show four clear destinations:
+
+### Activities
+Browse behavior-specific activities.
+
+### My Routines
+Create and use visual routines.
+
+### Learn Why
+Short explanations and practical examples.
+
+### Saved for Later
+Return to saved activities.
+
+These should be separate views or pages, not nested tab systems.
+
+## Individual activity
+
+Use the sequence:
+
+**Understand → See → Try → Reflect**
+
+But do not display this as another tab bar.
+
+Use a focused guided flow.
+
+Provide:
+
+- Back
+- Continue
+- Skip to Activity
+
+## Example
+
+**First-Then Practice**
+
+Understand:
+Show what happens now and next.
+
+See:
+First shoes, then music.
+
+Try:
+Guide the parent through the routine in a few short steps.
+
+Reflect:
+Optionally record whether they tried the activity and how it went.
+
+Do not require feedback to finish.
+
+---
+
+# 11. IMPROVE ACTIVITY PERSONALIZATION
+
+Do not return to generic activities.
+
+The current application should generate meaningful activities based on:
+
+- selected child
+- target skill
+- relevant behavior
+- saved goals
+- uploaded plans
+- communication preferences
+- preferred interests
+- existing approved strategies
+
+## Examples
+
+### Elopement / Running Away
+
+Suggest appropriate low-risk preparation or supervised skill-building activities, such as:
+
+- staying near a caregiver during a preferred tabletop activity
+- practicing stop/go cues in a safe enclosed space
+- supervised walking together
+- visual boundary activities
+
+Do not present sitting through a movie or staying seated as a treatment for elopement.
+
+These are only possible practice contexts, not substitutes for individualized safety planning.
+
+### Task Refusal
+
+Examples:
+
+- one-step start
+- choice between two acceptable tasks
+- first-then routine
+- asking for help
+- practicing a familiar break request
+
+### Transitions
+
+Examples:
+
+- visual schedule practice
+- timer-supported transitions
+- showing now and next
+- moving between two familiar activities
+
+### Communication
+
+Examples:
+
+- asking for help using AAC
+- requesting more during play
+- taking turns with a preferred toy
+- choosing between two activities
+
+### Daily Living Skills
+
+Examples:
+
+- one step of brushing teeth
+- handwashing routine
+- putting on shoes
+- putting away a toy
+
+Every activity should explain:
+
+- what to do
+- what skill it supports
+- when to try it
+- what to do if the child becomes uncomfortable
+- where the suggestion came from
+
+Keep explanations short.
+
+Do not invent individualized crisis procedures.
+
+---
+
+# 12. PRESERVE LEARNING, ROUTINES, AND PREFERENCES
+
+Reuse the newer features that already exist.
+
+These may include:
+
+- Learn Why
+- visual routines
+- Saved for Later
+- preferred activities
+- communication preferences
+- sensory preferences
+- optional reminders
+
+Do not remove them during consolidation.
+
+Connect them to the selected child and relevant activities.
+
+If a feature is incomplete, finish its core workflow before adding decorative UI.
+
+Parents should be able to create a routine, save it, reopen it, and use it without a clinician.
+
+---
+
+# 13. HELP NOW MUST REMAIN INDEPENDENT
+
+Help Now must work for:
+
+- independent parents
+- invited parents
+- legacy family accounts
+- clinician-connected parents
+
+It should open the support relevant to the selected child.
+
+Do not require:
+
+- completing Practice
+- uploading a plan
+- clinician approval
+- completing a log
+
+## Active support
+
+Keep the useful structure:
+
+- Why this may be happening
+- Do this right now
+- Things to avoid
+- Prevention tips
+
+When distress is high, prioritize one short action at a time.
+
+Use a dedicated safety branch for potentially dangerous situations.
+
+Do not generate novel restraint, extinction, or crisis protocols.
+
+If there is immediate danger, show:
+
+**If there is immediate danger, call 911 or emergency services.**
+
+---
+
+# 14. CONNECT PRACTICE, GOALS, AND HISTORY
+
+Use one connected data model.
+
+Conceptually:
+
+**Child → Skill → Goal → Activity → Observation**
+
+When a parent opens an activity from Goals or Practice, it should be the same activity record.
+
+When feedback is saved, create one appropriate record.
+
+Do not create duplicate logs.
+
+Opening Help Now should not automatically count as a behavior incident.
+
+Completing an activity should not automatically prove clinical goal mastery.
+
+Keep historical data intact.
+
+---
+
+# 15. PRESERVE THE CLINICIAN EXPERIENCE
+
+The clinician dashboard must remain separate.
+
+Clinicians should retain:
+
+- client management
+- family management
+- documents
+- treatment plans
+- goals
+- behavior logs
+- progress reporting
+- care-team communication
+- approved support strategies
+
+The redesign should change the interface clinicians' families receive, not remove the clinician workspace.
+
+---
+
+# 16. PRESERVE INDIVIDUAL CLIENT ACCOUNTS
+
+This requirement is essential.
+
+Not every username-and-access-code account is a family/caregiver account.
+
+If the server confirms an individual self-managed client account, retain the appropriate client experience.
+
+Do not:
+
+- automatically classify all legacy logins as parents
+- show "your child" to individual clients
+- grant family permissions to individual clients
+- expose sibling records through individual accounts
+
+The bridge must be explicitly family-scoped.
+
+---
+
+# 17. PRESERVE EXISTING COLORS AND IMPROVE USABILITY
+
+Do not change the current NeuroPathways color scheme.
+
+Maintain:
+
+- brand colors
+- existing logo
+- current typography direction
+- existing icons
+- urgent Help Now styling
+
+Use more:
+
+- empty space
+- clean page separation
+- simple lists
+- concise instructions
+- readable headings
+- clear primary actions
+
+Use fewer:
+
+- oversized cards
+- nested tabs
+- giant badges
+- repeated explanations
+- dashboard statistics
+- unnecessary buttons
+
+Normal buttons should not show random radio circles or checkmarks.
+
+Fix text wrapping and overflow across cards and chat messages.
+
+---
+
+# 18. TEST EVERY ACCOUNT PATHWAY
+
+Do not treat passing TypeScript checks as proof that the application works.
+
+Perform real integration and UI tests.
+
+## Scenario A — Independent parent
+
+Create an account without a clinician.
+
+Verify all parent features.
+
+## Scenario B — New clinic-connected parent
+
+Create a parent account and link it through the clinician invitation flow.
+
+Verify the unified interface.
+
+## Scenario C — Legacy family login
+
+Use existing username/access-code credentials.
+
+Verify the family-scoped bridge.
+
+Confirm the unified interface loads.
+
+Confirm existing documents, goals, and plans are accessible according to permissions.
+
+## Scenario D — Legacy individual client
+
+Log in with an individual account.
+
+Confirm it remains in the appropriate client experience.
+
+## Scenario E — Multiple children
+
+Log in as a family with two children.
+
+Verify child selection and data isolation.
+
+If no valid selected child is saved, require a selection.
+
+## Scenario F — Cross-family authorization
+
+Attempt access to a child from another family.
+
+Expected result: access denied.
+
+## Scenario G — Cross-clinician authorization
+
+Attempt access to another clinician's unauthorized family records.
+
+Expected result: access denied.
+
+## Scenario H — Expired session
+
+Verify an expired legacy session cannot continue accessing records.
+
+## Scenario I — Existing account refresh
+
+Refresh during Home, Goals, Practice, and Documents.
+
+Verify the correct experience and selected-child context persist.
+
+## Scenario J — Parent-to-clinic linking
+
+Connect an existing independent parent to a clinician.
+
+Verify records are not duplicated or lost.
+
+Verify private documents are not automatically shared.
+
+## Scenario K — Clinician dashboard
+
+Confirm the clinician workspace remains functional.
+
+## Scenario L — Mobile and web parity
+
+Test the parent experience on both supported platforms.
+
+Check navigation, document access, goals, activities, and Help Now.
+
+---
+
+# 19. IMPLEMENTATION ORDER
+
+Complete the project in the following order.
+
+## Stage 1 — Finish authentication and family bridge
+
+- Confirm family classification.
+- Implement verified family-scoped context.
+- Add secure backend adapters.
+- Preserve individual clients.
+- Test family and tenant boundaries.
+
+## Stage 2 — Unify parent routing and data
+
+- Consolidate parent navigation.
+- Connect independent and legacy data sources.
+- Implement shared child selection.
+- Preserve account sessions.
+
+## Stage 3 — Complete the unified Home
+
+- Use the newer Home design.
+- Keep Help Now.
+- Keep Practice and Prepare.
+- Remove dashboard clutter.
+
+## Stage 4 — Complete Document Center
+
+- Reuse the preferred older layout.
+- Support both account modes.
+- Preserve scan/upload workflows.
+
+## Stage 5 — Complete Goals & Milestones
+
+- Restore the preferred old layout.
+- Fix title formatting.
+- Connect goals with activities.
+- Preserve existing goal records.
+
+## Stage 6 — Complete Practice
+
+- Remove nested tabs.
+- Implement focused activity navigation.
+- Connect learning, activity, reflection, and history.
+- Preserve visual routines and saved activities.
+
+## Stage 7 — Quality assurance
+
+- Run typechecks.
+- Run builds.
+- Run integration tests.
+- Test authentication.
+- Test authorization.
+- Test both mobile and web interfaces.
+- Check existing accounts.
+- Check multi-child families.
+- Check data integrity.
+
+Do not stop after Stage 1.
+
+If you encounter a blocker, isolate it, preserve the working application, document the problem, and continue with independent safe work where possible.
+
+Do not claim an unfinished stage is complete.
+
+Do not bypass security to make a feature appear functional.
+
+---
+
+# 20. REQUIRED FINAL REPORT
+
+When finished, provide:
+
+1. What was already completed before this prompt.
+2. What new work you completed.
+3. How the legacy family-scoped bridge works.
+4. How family authorization is enforced.
+5. Which parent interfaces were consolidated.
+6. Which backend APIs changed.
+7. Which frontend components changed.
+8. Which database tables or migrations changed.
+9. How Document Center was integrated.
+10. How Goals & Milestones was integrated.
+11. How Practice navigation was simplified.
+12. Which features work for independent parents.
+13. Which features work for clinician-connected parents.
+14. Which features work for legacy family accounts.
+15. Confirmation that individual clients retain correct access.
+16. Confirmation that clinicians retain their dashboard.
+17. Tests executed and actual results.
+18. Screenshots from both account pathways.
+19. Remaining issues, if any.
+
+Include exact filenames and routes where changes were made.
+
+Do not report a successful bridge based only on a TypeScript check.
+
+Do not report successful account unification without testing real login and data retrieval.
+
+---
+
+# FINAL OBJECTIVE
+
+I want NeuroPathways to function as ONE connected, simple, parent-facing application.
+
+The parent should receive the same experience whether they:
+
+- sign up independently
+- receive a clinician invitation
+- use existing family credentials
+- already have a legacy family account
+
+The difference between these accounts should be their authorized information and capabilities, not the UI.
+
+Use the newer simplified Home.
+
+Keep the existing Help Now system.
+
+Use the better older Document Center.
+
+Use the better older Goals & Milestones layout.
+
+Fix the confusing Practice navigation.
+
+Connect activities, goals, and observations.
+
+Maintain parent independence.
+
+Keep clinicians and individual clients in their appropriate experiences.
+
+Preserve existing records and the NeuroPathways color scheme.
+
+**Finish the implementation in the existing application. Do not create another separate parent portal.**
