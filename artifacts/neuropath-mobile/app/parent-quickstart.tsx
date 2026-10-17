@@ -137,7 +137,7 @@ export default function QuickStart() {
       {notice ? <T size={14}>{notice}</T> : null}
       {step === 1 ? <Btn testID="qs-next" label="Continue" onPress={saveName} loading={busy} /> : null}
       {step === 2 ? <><Btn label="Build my cards" onPress={saveBehaviors} loading={busy} /><Btn kind="ghost" label="Save and finish later" onPress={saveDraft} disabled={busy || !sels.length} /><Btn kind="ghost" label="Back" onPress={() => setStep(1)} disabled={busy} /></> : null}
-      {step === 3 && !more ? <Btn testID="qs-open" label={showUpload ? "Continue to Today's Support" : "Skip for Now"} onPress={() => router.replace("/(parent)" as never)} /> : null}
+      {step === 3 && !more ? <Btn testID="qs-open" label={showUpload ? "Continue to Today's Support" : "Skip for Now"} onPress={() => router.replace("/(parent)/home" as never)} /> : null}
       {step < 3 ? <Btn kind="ghost" label="Sign out" onPress={signout} /> : null}
     </Screen>
   );

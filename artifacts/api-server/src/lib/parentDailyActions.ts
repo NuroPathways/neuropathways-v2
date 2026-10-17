@@ -43,7 +43,7 @@ export type ParentPlanGoal = {
   title: string;
   description: string;
   milestones: string[];
-  sourceType: "clinician_uploaded_plan" | "parent_uploaded_plan";
+  sourceType: "clinician_uploaded_plan" | "parent_uploaded_plan" | "selected_behavior";
 };
 
 const UNSAFE_PLAN_PRACTICE =
@@ -247,13 +247,14 @@ function parentFacingGoalText(goal: string): string {
   return goal.trim();
 }
 
-export async function getParentPlanGoals(childId: string): Promise<ParentPlanGoal[]> {
+export async function getParentPlanGoals(childId: string, ownerId?: string): Promise<ParentPlanGoal[]> {
   const rows = await db.select().from(rewardTokensTable).where(and(
     eq(rewardTokensTable.childId, childId),
     inArray(rewardTokensTable.source, ["document", "parent_document"]),
   )).orderBy(desc(rewardTokensTable.createdDate));
   const seen = new Set<string>();
   return rows.flatMap((row) => {
+    if (ownerId?.startsWith("legacy-family:") && row.source === "parent_document" && row.parentId !== ownerId) return [];
     const title = row.goalTitle?.trim().slice(0, 500) || "";
     const key = title.normalize("NFKC").toLowerCase().replace(/\s+/g, " ");
     if (!title || seen.has(key)) return [];
@@ -620,7 +621,9 @@ function documentGoalDrafts(goal: ParentPlanGoal, date: string, childName: strin
       sourceType: goal.sourceType,
       sourceDocumentId: null,
       title: `Practice: ${shortTitle(cleanStep === goalText ? displayGoal : cleanStep, displayGoal)}`,
-      description: goal.milestones.length
+      description: goal.sourceType === "selected_behavior"
+        ? "This activity supports a saved goal. Participation does not establish clinical mastery. Try one small step during a calm, safe, naturally occurring opportunity."
+        : goal.milestones.length
         ? `This is a milestone read from the plan. Try it only in a calm, naturally occurring opportunity; do not create a difficult situation to practice.`
         : `Use a calm, naturally occurring opportunity to work toward this goal. Follow any specific steps in the uploaded plan; do not create a difficult situation to practice.`,
       whyItMayHelp: `Supports ${childName}'s plan goal: ${displayGoal}`,

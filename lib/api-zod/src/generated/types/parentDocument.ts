@@ -8,6 +8,8 @@
 import type { ParentDocumentUploadedBy } from './parentDocumentUploadedBy';
 
 export interface ParentDocument {
+  canShare?: boolean;
+  canScan?: boolean;
   id: string;
   childId: string;
   title: string;

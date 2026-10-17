@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
-import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import {
   behaviorLogsTable,
   auditLogsTable,
@@ -20,6 +20,9 @@ import {
   parentSessionsTable,
   userProfilesTable,
   usersTable,
+  rewardTokensTable,
+  mobileTokensTable,
+  clientSessionsTable,
 } from "@workspace/db";
 import {
   LogParentDailyActionBody,
@@ -46,6 +49,7 @@ import {
 } from "../lib/accountAuthority";
 import { getParentSupportCards, listParentDocuments } from "../lib/parentDocuments";
 import { parentLoginAccountKey } from "../lib/parentAuthRateLimit";
+import { familyIdForOwner, familyChildrenForOwner, parentGoalOwnerIds, saveFamilySettings } from "../lib/familyParentAuth";
 import {
   hashParentPassword,
   hashParentSessionToken,
@@ -167,11 +171,18 @@ function serializeParent(parent: ParentIdentity): ParentIdentity {
     firstName: parent.firstName,
     email: parent.email,
     workspaceId: parent.workspaceId,
-    accountType: "parent_free",
+    accountType: parent.accountType,
   };
 }
 
 async function listParentChildren(parentId: string) {
+  if (familyIdForOwner(parentId)) {
+    const children = await familyChildrenForOwner(parentId);
+    return Promise.all(children.map(async child => {
+      const owned = await ownedParentChild(parentId, child.id);
+      return { ...serializeParentChild(child, owned!.settings), parentId };
+    }));
+  }
   const rows = await db
     .select({ child: childrenTable, settings: parentChildSettingsTable })
     .from(childrenTable)
@@ -458,8 +469,38 @@ export async function getParentDashboardData(parentId: string, childId: string, 
       .from(parentLogsTable)
       .where(and(eq(parentLogsTable.parentId, parentId), eq(parentLogsTable.childId, childId)))
       .orderBy(desc(parentLogsTable.createdAt)),
-    getParentPlanGoals(childId),
+    getParentPlanGoals(childId, parentId),
   ]);
+  const historical = await db.select().from(behaviorLogsTable).where(and(
+    eq(behaviorLogsTable.childId, childId),
+    owned.clinicianId ? eq(behaviorLogsTable.clinicianId, owned.clinicianId) : eq(behaviorLogsTable.tenantId, owned.settings.workspaceId),
+  )).orderBy(desc(behaviorLogsTable.createdDate));
+  const ownLogIds = new Set(storedLogs.map(l => l.id));
+  const [directOwner] = owned.parentId && owned.parentId !== parentId ? await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, owned.parentId)) : [];
+  const [observationConsent] = directOwner && owned.clinicianId ? await db.select().from(parentClinicConsentsTable).where(and(
+    eq(parentClinicConsentsTable.parentId, directOwner.id), eq(parentClinicConsentsTable.childId, childId),
+    eq(parentClinicConsentsTable.clinicianId, owned.clinicianId), isNull(parentClinicConsentsTable.revokedAt),
+  )) : [];
+  const legacyLogs = historical.filter(l => !ownLogIds.has(l.id) &&
+    (!directOwner || l.parentId !== directOwner.id || observationConsent?.scopes.includes("observations")) &&
+    (!l.eventCategory || l.eventCategory === "behavior")).map(l => ({
+    id: l.id, childId, behaviorKey: l.behaviorType || null, customBehavior: null, goal: null,
+    happened: l.parentFeedback !== "Behavior did not happen",
+    intensity: (["low", "medium", "high"].includes(l.intensity || "") ? l.intensity : "medium") as "low" | "medium" | "high",
+    duration: 0, trigger: l.context, whatHelped: l.strategyUsed, notes: l.notes,
+    clinicianFeedback: null, clinicianFeedbackBy: null, clinicianFeedbackAt: null,
+    createdAt: (l.createdDate || new Date(0)).toISOString(),
+  }));
+  const goalOwners = await parentGoalOwnerIds(parentId);
+  const manualGoals = await db.select().from(rewardTokensTable).where(and(
+    eq(rewardTokensTable.childId, childId), eq(rewardTokensTable.source, "manual"),
+    or(and(inArray(rewardTokensTable.parentId, goalOwners), eq(rewardTokensTable.createdByClinician, false)),
+      owned.clinicianId ? and(eq(rewardTokensTable.createdByClinician, true), eq(rewardTokensTable.clinicianId, owned.clinicianId)) : undefined),
+  ));
+  const activityGoals = [...planGoals, ...manualGoals.map(g => ({
+    id: g.id, title: g.goalTitle || g.goalName || "Practice goal", description: g.goalDescription || "",
+    milestones: [] as string[], sourceType: "selected_behavior" as const,
+  }))];
   const selectedBehaviors = parentBehaviorsFromSettings(owned.settings);
   const dailyActions = await getOrCreateParentDailyActions({
     parentId,
@@ -470,7 +511,7 @@ export async function getParentDashboardData(parentId: string, childId: string, 
     date: actionDate,
     selectedBehaviors,
     supportCards,
-    planGoals,
+    planGoals: activityGoals,
     logs: storedLogs.slice(0, 100).map((log) => ({
       behaviorKey: log.behaviorKey,
       customBehavior: log.customBehavior,
@@ -483,15 +524,28 @@ export async function getParentDashboardData(parentId: string, childId: string, 
     eq(parentPracticeProgressTable.childId, childId),
   ));
   const progressByKey = new Map(progressRows.map((progress) => [progress.actionKey, progress]));
+  const [tools] = await db.select().from(parentFamilyToolsTable).where(and(
+    eq(parentFamilyToolsTable.parentId, parentId), eq(parentFamilyToolsTable.childId, childId),
+  ));
+  const preferences = (tools?.state.preferences || {}) as Record<string, unknown>;
+  const preference = (key: string) => Array.isArray(preferences[key])
+    ? (preferences[key] as unknown[]).filter((x): x is string => typeof x === "string").map(x => x.trim().slice(0, 100)).filter(Boolean).slice(0, 3).join(", ") : "";
   return {
     child: serializeParentChild(owned, owned.settings),
     supportCards,
     documents,
-    logs: storedLogs.map(serializeParentLog),
+    logs: [...storedLogs.map(serializeParentLog), ...legacyLogs].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     dailyActions: dailyActions.map((action) => {
       const progress = progressByKey.get(action.actionKey);
       return {
         ...action,
+        goalId: activityGoals.find(g => action.actionKey.startsWith(`task:plan-goal-${g.id.toLowerCase().replace(/[^a-z0-9]+/g, "-")}:`))?.id ?? null,
+        description: [
+          action.description,
+          preference("favoriteActivities") ? `Your family's preferred activities: ${preference("favoriteActivities")}. Choose a safe, familiar setting; the interest itself is not treatment.` : "",
+          preference("communicationMethods") ? `Use a communication method already familiar to your child (${preference("communicationMethods")}).` : "",
+          preference("comfortSensoryPreferences") ? `Offer familiar comfort choices: ${preference("comfortSensoryPreferences")}. Respect refusal and pause if uncomfortable.` : "",
+        ].filter(Boolean).join(" "),
         currentStep: progress?.currentStep ?? 0,
         bookmarked: progress?.bookmarked ?? action.status === "saved_for_later",
       };
@@ -700,6 +754,10 @@ router.post("/parent/auth/login", parentLoginIpLimiter, parentLoginAccountLimite
 
 router.post("/parent/auth/logout", async (req: Request, res: Response) => {
   try {
+    const familyToken = req.headers["x-family-token"];
+    const mobileToken = req.headers["x-mobile-token"];
+    if (typeof familyToken === "string") await db.delete(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, familyToken));
+    if (typeof mobileToken === "string") await db.delete(mobileTokensTable).where(eq(mobileTokensTable.token, mobileToken));
     await revokeParentSession(getParentToken(req));
     res.clearCookie(PARENT_SESSION_COOKIE, { path: "/" });
     res.json({ ok: true });
@@ -709,6 +767,7 @@ router.post("/parent/auth/logout", async (req: Request, res: Response) => {
 });
 
 router.post("/parent/auth/change-password", passwordChangeLimiter, requireParent, async (req: Request, res: Response): Promise<void> => {
+  if (req.familyParent) { res.status(403).json({ error: "Use your existing family access-code settings" }); return; }
   const parsed = ChangeParentPasswordBody.safeParse(req.body);
   if (!parsed.success || !hasOnlyKeys(req.body, ["currentPassword", "newPassword"])) {
     res.status(400).json({ error: "Enter your current password and a new password of 8 to 128 characters." });
@@ -853,6 +912,7 @@ router.post("/parent/data-requests", requireParent, async (req: any, res: Respon
 });
 
 router.post("/parent/children", requireParent, async (req: Request, res: Response) => {
+  if (req.familyParent) { res.status(403).json({ error: "Your clinic manages which children belong to this family" }); return; }
   const checked = validateChildInput(req.body, "create");
   if (!checked.ok) {
     res.status(400).json({ error: checked.error });
@@ -979,6 +1039,16 @@ router.patch("/parent/children/:childId/goal-feedback", requireParent, async (re
       customBehavior,
       behaviorName: customBehavior || behaviorKey,
     });
+    if (req.familyParent) {
+      const behaviors = parentBehaviorsFromSettings(owned.settings);
+      const index = behaviors.findIndex(b => parentBehaviorIdentity(b) === identity);
+      if (index < 0) { res.status(400).json({ error: "Choose one of this child's active behaviors" }); return; }
+      if (behaviors[index].goal !== goal) { res.status(409).json({ error: "This goal changed. Reload before checking in." }); return; }
+      behaviors[index] = { ...behaviors[index], goalRating: checked.data.rating, goalRatingAt: new Date().toISOString() };
+      await saveFamilySettings(parent.id, childId, { behaviors });
+      res.json(RecordParentGoalFeedbackResponse.parse(behaviors[index]));
+      return;
+    }
     const result = await db.transaction(async (tx) => {
       const [settings] = await tx
         .select()
@@ -1077,6 +1147,23 @@ router.patch("/parent/children/:childId", requireParent, async (req: Request, re
       return;
     }
 
+    if (req.familyParent) {
+      const primary = nextBehaviors[0];
+      if ((input.name && input.name !== (owned.childName || owned.firstName)) ||
+          (hasOwn(req.body, "age") && input.age !== owned.age)) {
+        res.status(403).json({ error: "Your clinic manages this child's name and age. Preferences and support selections can still be saved." });
+        return;
+      }
+      await saveFamilySettings(parent.id, childId, {
+        behaviorKey: primary?.behaviorKey ?? null, customBehavior: primary?.customBehavior ?? null,
+        goal: primary?.goal ?? null, behaviors: nextBehaviors,
+        supportCards: starterCardsAfterEdit(owned.settings.supportCards, nextBehaviors),
+        ...(hasOwn(req.body, "notes") ? { profileNotes: input.notes ?? "" } : {}),
+      });
+      const refreshed = await ownedParentChild(parent.id, childId);
+      res.json({ ...serializeParentChild(refreshed!, refreshed!.settings), parentId: parent.id });
+      return;
+    }
     const updated = await db.transaction(async (tx) => {
       const childChanges: Partial<typeof childrenTable.$inferInsert> = {};
       if (hasOwn(req.body, "name")) {
@@ -1206,7 +1293,7 @@ router.put("/parent/children/:childId/family-tools", requireParent, async (req: 
   const [saved] = await db.insert(parentFamilyToolsTable).values({ parentId, childId, state })
     .onConflictDoUpdate({
       target: [parentFamilyToolsTable.parentId, parentFamilyToolsTable.childId],
-      set: { state, updatedAt: new Date() },
+      set: { state: sql`${parentFamilyToolsTable.state} || ${JSON.stringify(state)}::jsonb`, updatedAt: new Date() },
     }).returning();
   res.json({ ...saved.state, reminderDelivery: "unavailable" });
 });

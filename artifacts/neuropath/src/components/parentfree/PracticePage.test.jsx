@@ -83,4 +83,20 @@ describe("PracticePage", () => {
     expect(screen.getByText("Create a visual routine")).toBeTruthy();
     expect(screen.getByText("No routines saved")).toBeTruthy();
   });
+  it("shows a closed activity as read-only review without saving progress", async () => {
+    const api = await import("@workspace/api-client-react");
+    api.updateParentPracticeProgress.mockClear();
+    const action = { id: "a1", title: "Calm corner", description: "d", whyItMayHelp: "w", steps: ["one", "two"], status: "done", currentStep: 4, estimatedMinutes: 5, sourceType: "starter_template", behaviorName: "Transitions", bookmarked: false };
+    renderPractice(<PracticePage childId="c1" childName="River" actions={[action]} initialActionId="a1" />);
+    expect(screen.getByTestId("practice-closed-review")).toBeTruthy();
+    expect(screen.queryByTestId("button-pause-practice")).toBeNull();
+    fireEvent.click(screen.getByTestId("button-back-closed-practice"));
+    expect(api.updateParentPracticeProgress).not.toHaveBeenCalled();
+    expect(screen.getByTestId("practice-activity-a1")).toBeTruthy();
+  });
+
+  it("opens Preferences directly when requested", () => {
+    renderPractice(<PracticePage childId="c1" childName="River" actions={[]} initialView="My Routines" />);
+    expect(screen.getByText("River's preferences")).toBeTruthy();
+  });
 });

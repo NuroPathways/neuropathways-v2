@@ -13,7 +13,9 @@ import {
   dailyCheckInsTable,
   aiConversationsTable,
   mobileTokensTable,
+  familiesTable,
 } from "@workspace/db";
+import { classifyFamilyAccount, familyChildrenForOwner, familyOwnerId } from "../lib/familyParentAuth";
 import { eq, and, gt, isNull } from "drizzle-orm";
 
 function scryptHash(input: string, salt: string): Promise<string> {
@@ -57,22 +59,29 @@ export async function requireMobileAuth(req: any, res: any, next: any) {
     if (!row) return res.status(401).json({ error: "Invalid or expired token" });
     const [anchor] = await db.select().from(childrenTable).where(eq(childrenTable.id, row.childId));
     if (!anchor) return res.status(401).json({ error: "Account no longer available" });
+    const [family] = anchor.familyId ? await db.select().from(familiesTable).where(eq(familiesTable.id, anchor.familyId)) : [];
+    const classification = anchor.accountType === "individual" ? "individual" : classifyFamilyAccount(family?.accountType);
+    if (classification === "unknown") return res.status(409).json({ error: "Your clinic needs to correct this account's family type" });
+    if (!family || family.clinicianId !== anchor.clinicianId) return res.status(403).json({ error: "Family relationship is not authorized" });
+    const familyChildren = classification === "family" ? await familyChildrenForOwner(familyOwnerId(family.id)) : [anchor];
+    if (!familyChildren.some(c => c.id === anchor.id)) return res.status(403).json({ error: "Family membership or clinic consent is no longer valid" });
     // Selection changes the record being used, never the token's authenticated identity.
     // Lists and logout must remain accessible if a previously selected sibling was reassigned.
-    const requested = req.path === "/mobile/children" || req.path === "/mobile/auth/logout"
+    const requested = ["/mobile/children", "/mobile/auth/logout", "/mobile/session"].includes(req.path)
       ? undefined : req.headers["x-mobile-child-id"];
     let selected = anchor;
     if (requested !== undefined) {
       if (typeof requested !== "string" || !requested) return res.status(400).json({ error: "Invalid child selection" });
       if (requested !== anchor.id) {
+        if (classification !== "family") return res.status(403).json({ error: "Individual accounts cannot select another client" });
         const [target] = await db.select().from(childrenTable).where(eq(childrenTable.id, requested));
-        if (!target || !anchor.familyId || target.familyId !== anchor.familyId || target.clinicianId !== anchor.clinicianId) {
+        if (!target || !familyChildren.some(c => c.id === target.id)) {
           return res.status(403).json({ error: "This child is not available to your account" });
         }
         selected = target;
       }
     }
-    req.mobileUser = { childId: selected.id, authenticatedChildId: anchor.id };
+    req.mobileUser = { childId: selected.id, authenticatedChildId: anchor.id, experience: classification === "family" ? "parent" : "client" };
     next();
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
@@ -101,11 +110,17 @@ router.post("/mobile/auth/login", async (req, res) => {
     if (!valid) {
       return res.status(401).json({ error: "Invalid username or access code" });
     }
+    const [family] = child.familyId ? await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId)) : [];
+    const classification = child.accountType === "individual" ? "individual" : classifyFamilyAccount(family?.accountType);
+    if (classification === "unknown") return res.status(409).json({ error: "Your clinic needs to correct this account's family type" });
+    if (!family || family.clinicianId !== child.clinicianId) return res.status(403).json({ error: "Family relationship is not authorized" });
+    if (classification === "family" && !(await familyChildrenForOwner(familyOwnerId(family.id))).some(c => c.id === child.id)) return res.status(403).json({ error: "Family membership or clinic consent is no longer valid" });
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
     await db.insert(mobileTokensTable).values({ token, childId: child.id, expiresAt });
     return res.json({
       token,
+      experience: classification === "family" ? "parent" : "client",
       child: {
         id: child.id,
         child_name: child.childName,
@@ -125,6 +140,10 @@ router.delete("/mobile/auth/logout", requireMobileAuth, async (req: any, res) =>
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }
+});
+router.get("/mobile/session", requireMobileAuth, async (req: any, res) => {
+  const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.authenticatedChildId));
+  return res.json({ experience: req.mobileUser.experience, child: { id: child.id, child_name: child.childName, username: child.username } });
 });
 
 router.post("/mobile/auth/change-access-code", requireMobileAuth, async (req: any, res) => {
@@ -181,11 +200,8 @@ router.get("/mobile/children", requireMobileAuth, async (req: any, res) => {
       .from(childrenTable)
       .where(eq(childrenTable.id, req.mobileUser.authenticatedChildId));
     if (!child) return res.json([]);
-    const siblings = child.familyId
-      ? await db.select().from(childrenTable).where(and(
-          eq(childrenTable.familyId, child.familyId),
-          child.clinicianId ? eq(childrenTable.clinicianId, child.clinicianId) : isNull(childrenTable.clinicianId),
-        ))
+    const siblings = child.familyId && req.mobileUser.experience === "parent"
+      ? await familyChildrenForOwner(familyOwnerId(child.familyId))
       : [child];
     siblings.sort((a, b) => a.id === child.id ? -1 : b.id === child.id ? 1 : (a.childName ?? "").localeCompare(b.childName ?? ""));
     return res.json(siblings.map(({ accessCode: _accessCode, ...publicChild }) => publicChild));

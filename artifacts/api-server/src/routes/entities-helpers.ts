@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { db } from "@workspace/db";
-import { clientSessionsTable, childrenTable } from "@workspace/db";
+import { clientSessionsTable, childrenTable, familiesTable } from "@workspace/db";
+import { classifyFamilyAccount } from "../lib/familyParentAuth";
 import { eq } from "drizzle-orm";
 
 export async function validateClientSession(token: string | undefined | null): Promise<{ childId: string } | null> {
@@ -18,6 +19,9 @@ export async function sessionMayAccessChild(sessionChildId: string, targetChildI
   const [target] = await db.select().from(childrenTable).where(eq(childrenTable.id, targetChildId));
   if (!auth?.familyId || auth.familyId !== target?.familyId) return false;
   if (auth.clinicianId !== target.clinicianId) return false;
+  const [family] = await db.select().from(familiesTable).where(eq(familiesTable.id, auth.familyId));
+  if (classifyFamilyAccount(family?.accountType) !== "family" || auth.accountType === "individual") return false;
+  if (family?.clinicianId !== auth.clinicianId || auth.tenantId !== target.tenantId) return false;
   return true;
 }
 

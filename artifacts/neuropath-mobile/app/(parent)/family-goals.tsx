@@ -6,6 +6,7 @@ import { getGetParentDashboardQueryKey, getParentDashboard } from "@workspace/ap
 import { ChildSwitch } from "@/components/ChildSwitch";
 import { Btn, Card, ErrorBox, H, Screen, Skeleton, T, msg } from "@/components/ParentUi";
 import { useParent } from "@/context/ParentContext";
+import { ParentGoalsSection } from "@/components/ParentGoalsMessages";
 import { useColors } from "@/hooks/useColors";
 
 export default function FamilyGoals() {
@@ -19,6 +20,8 @@ export default function FamilyGoals() {
       {query.isLoading ? <Skeleton lines={4} /> : query.isError ? <ErrorBox message={msg(query.error, "Goals could not load.")} onRetry={() => query.refetch()} /> : (
         <>
           <T size={14} color={c.secondary}>Saved goals and plan milestones stay separate. Caregiver check-ins do not automatically change treatment progress.</T>
+          <ParentGoalsSection actions={query.data?.dailyActions ?? []} />
+          <T size={17} weight="bold">Behavior goals and plan milestones</T>
           {(query.data?.child.behaviors ?? []).length ? (query.data?.child.behaviors ?? []).map((behavior, index) => (
             <Card key={`${behavior.behaviorKey}-${index}`}>
               <T size={12} weight="semi" color={c.secondary}>{behavior.behaviorName}</T>

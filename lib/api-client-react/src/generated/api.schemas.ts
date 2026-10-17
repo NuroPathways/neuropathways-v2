@@ -5,6 +5,70 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface ParentGoal {
+  id: string;
+  childId: string;
+  title: string;
+  description: string;
+  progress: number;
+  target: number;
+  source: string;
+  createdByClinician: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
+export interface ParentGoalInput {
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  title: string;
+  /** @maxLength 3000 */
+  description?: string;
+  /**
+     * @minimum 1
+     * @maximum 10000
+     */
+  target?: number;
+}
+
+export interface ParentGoalUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  title?: string;
+  /** @maxLength 3000 */
+  description?: string;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  progress?: number;
+  /**
+     * @minimum 1
+     * @maximum 10000
+     */
+  target?: number;
+}
+
+export interface ParentMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  content: string;
+}
+
+export interface ParentMessage {
+  id: string;
+  childId: string;
+  content: string;
+  senderRole: string;
+  createdAt: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -34,12 +98,20 @@ export const OkResultValue = {
 } as const;
 export type OkResult = typeof OkResultValue;
 
+export type ParentAccountType = typeof ParentAccountType[keyof typeof ParentAccountType];
+
+
+export const ParentAccountType = {
+  parent_free: 'parent_free',
+  legacy_family: 'legacy_family',
+} as const;
+
 export interface Parent {
   id: string;
   firstName: string;
   email: string;
   workspaceId: string;
-  accountType: 'parent_free';
+  accountType: ParentAccountType;
 }
 
 /**
@@ -302,6 +374,8 @@ export const ParentDocumentUploadedBy = {
 } as const;
 
 export interface ParentDocument {
+  canShare?: boolean;
+  canScan?: boolean;
   id: string;
   childId: string;
   title: string;
@@ -358,6 +432,7 @@ export type ParentPlanGoalSourceType = typeof ParentPlanGoalSourceType[keyof typ
 export const ParentPlanGoalSourceType = {
   clinician_uploaded_plan: 'clinician_uploaded_plan',
   parent_uploaded_plan: 'parent_uploaded_plan',
+  selected_behavior: 'selected_behavior',
 } as const;
 
 export interface ParentPlanGoal {
@@ -455,6 +530,8 @@ export interface ParentDailyActionLog {
 }
 
 export interface ParentDailyAction {
+  /** @nullable */
+  goalId?: string | null;
   id: string;
   childId: string;
   actionDate: string;

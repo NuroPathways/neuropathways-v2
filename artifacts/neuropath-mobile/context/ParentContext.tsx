@@ -5,8 +5,10 @@ import { getParentSession, loginParent, logoutParent, registerParent } from "@wo
 import { getParentBehaviors } from "@workspace/api-client-react";
 import type { ParentChild, Parent } from "@workspace/api-client-react";
 import { PARENT_CHILD_KEY, PARENT_TOKEN_KEY, clearParentStorage, clearShareCache, parentOpts } from "@/lib/parent";
+import { useAuth } from "@/context/AuthContext";
 
 interface ParentCtx {
+  error: string | null;
   ready: boolean;
   token: string | null;
   parent: Parent | null;
@@ -39,45 +41,64 @@ export const isSetupComplete = (c: ParentChild | null) => {
 };
 
 export function ParentProvider({ children: kids }: { children: React.ReactNode }) {
+  const auth = useAuth();
+  const identityKey = auth.user ? `${auth.user.role}:${auth.user.id}` : "parent-account";
+  const [loadedIdentity, setLoadedIdentity] = useState<string | null>(null);
   const qc = useQueryClient();
   const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [parent, setParent] = useState<Parent | null>(null);
   const [children, setChildren] = useState<ParentChild[]>([]);
   const [childId, setChildId] = useState<string | null>(null);
 
   const apply = useCallback(async (p: Parent, list: ParentChild[]) => {
-    const saved = await AsyncStorage.getItem(PARENT_CHILD_KEY);
+    const selectionKey = `${PARENT_CHILD_KEY}:${p.id}`;
+    const saved = await AsyncStorage.getItem(selectionKey);
     const pick = list.find((c) => c.id === saved) ?? (list.length === 1 ? list[0] : null);
     setParent(p);
     setChildren(list);
     setChildId(pick?.id ?? null);
-    if (pick) await AsyncStorage.setItem(PARENT_CHILD_KEY, pick.id);
-    else await AsyncStorage.removeItem(PARENT_CHILD_KEY);
+    if (pick) await AsyncStorage.setItem(selectionKey, pick.id);
+    else await AsyncStorage.removeItem(selectionKey);
   }, []);
 
   useEffect(() => {
+    if (auth.isLoading) return;
+    let active = true;
+    setReady(false);
+    setError(null);
     (async () => {
       try {
-        const t = await AsyncStorage.getItem(PARENT_TOKEN_KEY);
+        const familyToken = auth.user?.role === "family" ? await AsyncStorage.getItem("np_mobile_token") : null;
+        const t = familyToken ? `family-mobile:${familyToken}` : auth.user ? null : await AsyncStorage.getItem(PARENT_TOKEN_KEY);
         if (t) {
           const s = await getParentSession(parentOpts(t));
+          if (!active) return;
           setToken(t);
           await apply(s.parent, s.children);
+        } else if (active) {
+          setToken(null); setParent(null); setChildren([]); setChildId(null);
         }
       } catch (e) {
+        if (active) setError(e instanceof Error ? e.message : "The family session could not be verified");
+        if (active) { setToken(null); setParent(null); setChildren([]); setChildId(null); }
         if (e instanceof Error && /401|expired|token|auth|session/i.test(e.message)) await clearParentStorage();
       }
-      setReady(true);
+      if (active) { setLoadedIdentity(identityKey); setReady(true); }
     })();
-  }, [apply]);
+    return () => { active = false; };
+  }, [apply, auth.isLoading, auth.user?.id, auth.user?.role]);
 
   const finishAuth = async (t: string, p: Parent, list: ParentChild[]) => {
+    if (auth.user) await auth.logout();
     await AsyncStorage.setItem(PARENT_TOKEN_KEY, t);
     await clearShareCache();
     qc.clear();
     setToken(t);
     await apply(p, list);
+    setLoadedIdentity("parent-account");
+    setReady(true);
   };
 
   const signup: ParentCtx["signup"] = async (v) => {
@@ -100,16 +121,18 @@ export function ParentProvider({ children: kids }: { children: React.ReactNode }
     await finishAuth(r.token, r.parent, r.children);
   };
   const signout = async () => {
+    if (parent?.accountType === "legacy_family" || auth.user?.role === "family") await auth.logout();
     try { await logoutParent(parentOpts(token)); } catch { /* local credentials are always removed */ }
     await clearParentStorage();
     qc.clear();
     setToken(null); setParent(null); setChildren([]); setChildId(null);
   };
   const selectChild = async (id: string) => {
+    if (!children.some(c => c.id === id)) throw new Error("This child is not available to your family");
     if (id === childId) return;
     await qc.cancelQueries();
     await clearShareCache();
-    await AsyncStorage.setItem(PARENT_CHILD_KEY, id);
+    await AsyncStorage.setItem(`${PARENT_CHILD_KEY}:${parent?.id}`, id);
     qc.clear();
     setChildId(id);
   };
@@ -120,21 +143,21 @@ export function ParentProvider({ children: kids }: { children: React.ReactNode }
     if (!s.children.some((c) => c.id === childId)) {
       const nextChild = s.children.length === 1 ? s.children[0] : null;
       setChildId(nextChild?.id ?? null);
-      if (nextChild) await AsyncStorage.setItem(PARENT_CHILD_KEY, nextChild.id);
-      else await AsyncStorage.removeItem(PARENT_CHILD_KEY);
+      if (nextChild) await AsyncStorage.setItem(`${PARENT_CHILD_KEY}:${s.parent.id}`, nextChild.id);
+      else await AsyncStorage.removeItem(`${PARENT_CHILD_KEY}:${s.parent.id}`);
     }
   };
   const upsertChild = (c: ParentChild) => {
     setChildren((prev) => (prev.some((x) => x.id === c.id) ? prev.map((x) => (x.id === c.id ? c : x)) : [...prev, c]));
     setChildId((cur) => cur ?? c.id);
-    AsyncStorage.setItem(PARENT_CHILD_KEY, c.id).catch(() => undefined);
+    AsyncStorage.setItem(`${PARENT_CHILD_KEY}:${parent?.id}`, c.id).catch(() => undefined);
   };
 
   const child = children.find((c) => c.id === childId) ?? null;
   const value = useMemo<ParentCtx>(
-    () => ({ ready, token, parent, children, child, setupComplete: isSetupComplete(child), opts: parentOpts(token), signup, signin, signout, selectChild, refresh, upsertChild }),
+    () => ({ ready: ready && loadedIdentity === identityKey, error, token, parent, children, child, setupComplete: parent?.accountType === "legacy_family" ? !!child : isSetupComplete(child), opts: parentOpts(token), signup, signin, signout, selectChild, refresh, upsertChild }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ready, token, parent, children, childId],
+    [ready, loadedIdentity, identityKey, error, token, parent, children, childId],
   );
   return <Ctx.Provider value={value}>{kids}</Ctx.Provider>;
 }

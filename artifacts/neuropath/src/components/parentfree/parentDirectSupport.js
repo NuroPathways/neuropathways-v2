@@ -2,10 +2,10 @@ import { getParentBehaviors, parentBehaviorIdentity } from "@workspace/api-clien
 
 const sourceLabel = (source) => {
   switch (source) {
-    case "starter": return "Source: Pre-programmed library";
-    case "clinician_reviewed":
-    case "clinician_document":
-    case "parent_document": return "Source: Behavior plan";
+    case "starter": return "General support · not individualized";
+    case "clinician_reviewed": return "Source: Clinician-reviewed plan";
+    case "clinician_document": return "Source: Plan shared by your care team";
+    case "parent_document": return "Source: Your uploaded plan · not clinician-reviewed";
     default: return "Source not available";
   }
 };
@@ -73,5 +73,14 @@ export function parentDirectBehaviors(child, supportCards, starterLibrary) {
       card.source,
     ));
 
-  return [...active, ...discoveries];
+  const starters = active.length === 0
+    ? cards
+      .filter((card) => card.source === "starter" && card.conflict !== true)
+      .map((card) => toBehavior(card, parentBehaviorIdentity(card), card.behaviorName || card.name || "General support", "starter"))
+    : [];
+  const result = [...active, ...discoveries, ...starters];
+  if (result.length === 0) {
+    return [toBehavior(genericStarter, "general-support", "General support for a hard moment", "starter")];
+  }
+  return result;
 }

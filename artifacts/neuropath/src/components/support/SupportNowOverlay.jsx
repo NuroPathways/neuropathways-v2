@@ -186,6 +186,8 @@ export default function SupportNowOverlay({
   logEngagement = true,
   openRequest = 0,
   autoOpen = true,
+  parentDirect,
+  initialChildId = null,
 }) {
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState("child_select"); // "child_select" | "menu" | "behavior" | "crisis" | "calm"
@@ -301,10 +303,19 @@ export default function SupportNowOverlay({
 
   useEffect(() => {
     if (!visible) return;
+    const preselected = initialChildId ? children.find((item) => String(item.id) === String(initialChildId)) : null;
+    if (preselected) {
+      setProfile(null);
+      setProfileLoadError(false);
+      setSelectedChild(preselected);
+      setPendingChildId(preselected.id);
+      setStep("menu");
+      return;
+    }
     setSelectedChild(null);
     setPendingChildId(children.length === 1 ? children[0].id : "");
     setStep("child_select");
-  }, [visible, children.length]);
+  }, [visible, children.length, initialChildId, openRequest]);
 
   useEffect(() => {
     if (!selectedChild) return;
@@ -412,7 +423,7 @@ export default function SupportNowOverlay({
               onOpenSafety={() => setStep("crisis")}
               onDismiss={handleDismiss}
               isIndividual={isIndividual}
-              parentDirect={user?.account_type === "parent_free"}
+              parentDirect={parentDirect ?? user?.account_type === "parent_free"}
               logEngagement={logEngagement}
             />
           )}

@@ -9,10 +9,10 @@ import { useParent } from "@/context/ParentContext";
 import { useColors } from "@/hooks/useColors";
 
 const SOURCE: Record<SupportCard["source"], string> = {
-  starter: "Source: Pre-programmed library",
-  parent_document: "Source: Behavior plan",
-  clinician_document: "Source: Behavior plan",
-  clinician_reviewed: "Source: Behavior plan",
+  starter: "General support · not individualized",
+  parent_document: "Source: Your uploaded plan · not clinician-reviewed",
+  clinician_document: "Source: Plan shared by your care team",
+  clinician_reviewed: "Source: Clinician-reviewed plan",
 };
 
 function GuidanceSection({ title, items }: { title: string; items: string[] }) {
@@ -37,6 +37,7 @@ export default function HelpNow() {
   const c = useColors();
   const { child, opts } = useParent();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [safetyOpen, setSafetyOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [simpler, setSimpler] = useState(false);
   const query = useQuery({ queryKey: ["parent-dashboard", child?.id], queryFn: () => getParentDashboard(child!.id, opts), enabled: !!child });
@@ -45,6 +46,25 @@ export default function HelpNow() {
   const activeIds = new Set(behaviors.map(parentBehaviorIdentity));
   const discoveredCards = cards.filter((card) => !activeIds.has(parentBehaviorIdentity(card)) && card.source !== "starter");
   const selected = cards.find((card) => parentBehaviorIdentity(card) === selectedId);
+  if (safetyOpen) {
+    return (
+      <Screen>
+        <H sub="Safety and emergency help">Safety / Crisis Plan</H>
+        <Card tone="warn">
+          <T weight="bold" size={18} style={{ color: c.destructive }}>If there is immediate danger, call 911 or emergency services.</T>
+        </Card>
+        <Card>
+          <T weight="bold" size={16}>If no one is in immediate danger</T>
+          <T size={14}>Follow the safety plan your clinician has already given you, if you have one.</T>
+          <T size={14}>Contact your care team for guidance specific to your child.</T>
+          <T size={13} color={c.secondary}>This screen does not create a new crisis plan, place a call for you, or record an incident.</T>
+        </Card>
+        <Pressable accessibilityRole="button" testID="safety-back" onPress={() => setSafetyOpen(false)} style={({ pressed }) => ({ minHeight: 48, justifyContent: "center", opacity: pressed ? 0.85 : 1 })}>
+          <T weight="semi" color={c.primary}>Back to behavior support</T>
+        </Pressable>
+      </Screen>
+    );
+  }
   return (
     <Screen>
       <H sub={child ? `Saved guidance for ${child.name}` : undefined}>Help Now</H>
@@ -53,6 +73,9 @@ export default function HelpNow() {
         <T weight="bold" size={16}>If anyone is in immediate danger or hurt</T>
         <T size={14}>Call your local emergency number now. Emergency help is available even while saved guidance is loading.</T>
       </Card>
+      <Pressable accessibilityRole="button" testID="help-now-safety" accessibilityLabel="Safety and emergency help" onPress={() => setSafetyOpen(true)} style={({ pressed }) => ({ minHeight: 52, borderRadius: 14, paddingHorizontal: 16, justifyContent: "center", backgroundColor: c.destructive, opacity: pressed ? 0.88 : 1 })}>
+        <T weight="bold" size={16} color={c.destructiveForeground}>Safety / emergency help</T>
+      </Pressable>
       <T size={14} color={c.secondary}>Choose saved guidance from its labeled source. Take one step at a time, and stop if it does not feel safe.</T>
       {query.isLoading ? <Skeleton lines={4} /> : query.isError ? <ErrorBox message={msg(query.error, "Saved support could not load.")} onRetry={() => query.refetch()} /> : (
         <>
@@ -96,7 +119,17 @@ export default function HelpNow() {
                 <Card><T weight="bold" size={16}>{behavior.behaviorName}</T><T size={13} color={c.secondary}>{card ? SOURCE[card.source] : "No saved steps are available yet"}</T><T size={13} color={c.primary}>View support steps</T></Card>
               </Pressable>
             );
-          }) : (
+          }) : cards.some((card) => card.source === "starter") ? (
+            <>
+              <T weight="bold" size={16}>Starter support</T>
+              <T size={13} color={c.secondary}>General steps you can use now while no support areas are saved.</T>
+              {cards.filter((card) => card.source === "starter").map((card) => (
+                <Pressable key={card.id} accessibilityRole="button" testID={`help-starter-${card.id}`} onPress={() => { setSelectedId(parentBehaviorIdentity(card)); setStepIndex(0); setSimpler(false); }}>
+                  <Card><T weight="bold" size={16}>{card.behaviorName}</T><T size={13} color={c.secondary}>{SOURCE[card.source]}</T><T size={13} color={c.primary}>View support steps</T></Card>
+                </Pressable>
+              ))}
+            </>
+          ) : (
             <Card><T weight="bold" size={17}>No saved support areas yet</T><T size={14} color={c.secondary}>Contact your care team or add a support area to see child-specific steps here.</T></Card>
           )}
           {discoveredCards.length ? (

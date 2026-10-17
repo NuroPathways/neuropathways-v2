@@ -54,10 +54,15 @@ import type {
   ParentDocumentUploadInput,
   ParentFamilyTools,
   ParentFamilyToolsInput,
+  ParentGoal,
   ParentGoalFeedbackInput,
+  ParentGoalInput,
+  ParentGoalUpdate,
   ParentLog,
   ParentLogInput,
   ParentLoginInput,
+  ParentMessage,
+  ParentMessageInput,
   ParentPasswordChangeInput,
   ParentPracticeProgress,
   ParentPracticeProgressInput,
@@ -97,6 +102,517 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetParentGoalsUrl = (childId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/goals`
+}
+
+export const getParentGoals = async (childId: string, options?: Parameters<typeof customFetch>[1]): Promise<ParentGoal[]> => {
+
+  return customFetch<ParentGoal[]>(getGetParentGoalsUrl(childId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetParentGoalsQueryKey = (childId: string,) => {
+    return [
+    `/api/parent/children/${childId}/goals`
+    ] as const;
+    }
+
+
+export const getGetParentGoalsQueryOptions = <TData = Awaited<ReturnType<typeof getParentGoals>>, TError = ErrorType<unknown>>(childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentGoals>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetParentGoalsQueryKey(childId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getParentGoals>>> = ({ signal }) => getParentGoals(childId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: childId !== null && childId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getParentGoals>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetParentGoalsQueryResult = NonNullable<Awaited<ReturnType<typeof getParentGoals>>>
+export type GetParentGoalsQueryError = ErrorType<unknown>
+
+
+export function useGetParentGoals<TData = Awaited<ReturnType<typeof getParentGoals>>, TError = ErrorType<unknown>>(
+ childId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentGoals>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getParentGoals>>,
+          TError,
+          Awaited<ReturnType<typeof getParentGoals>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetParentGoals<TData = Awaited<ReturnType<typeof getParentGoals>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentGoals>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getParentGoals>>,
+          TError,
+          Awaited<ReturnType<typeof getParentGoals>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetParentGoals<TData = Awaited<ReturnType<typeof getParentGoals>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentGoals>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetParentGoals<TData = Awaited<ReturnType<typeof getParentGoals>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentGoals>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetParentGoalsQueryOptions(childId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateParentGoalUrl = (childId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/goals`
+}
+
+export const createParentGoal = async (childId: string,
+    parentGoalInput: ParentGoalInput, options?: Parameters<typeof customFetch>[1]): Promise<ParentGoal> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ParentGoal>(getCreateParentGoalUrl(childId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(parentGoalInput)
+  }
+);}
+
+
+
+
+
+export const getCreateParentGoalMutationKey = () => ['createParentGoal'] as const;
+
+export const getCreateParentGoalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createParentGoal>>, TError,CreateParentGoalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createParentGoal>>, TError,CreateParentGoalMutationVariables, TContext> => {
+
+const mutationKey = getCreateParentGoalMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createParentGoal>>, CreateParentGoalMutationVariables> = (props) => {
+          const {childId,data} = props ?? {};
+
+          return  createParentGoal(childId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateParentGoalMutationResult = NonNullable<Awaited<ReturnType<typeof createParentGoal>>>
+    export type CreateParentGoalMutationBody = BodyType<ParentGoalInput>
+    export type CreateParentGoalMutationError = ErrorType<unknown>
+    export type CreateParentGoalMutationVariables = {childId: string;data: BodyType<ParentGoalInput>}
+
+    export const useCreateParentGoal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createParentGoal>>, TError,CreateParentGoalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createParentGoal>>,
+        TError,
+        CreateParentGoalMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateParentGoalMutationOptions(options), queryClient);
+    }
+
+export const getUpdateParentGoalUrl = (childId: string,
+    goalId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/goals/${goalId}`
+}
+
+export const updateParentGoal = async (childId: string,
+    goalId: string,
+    parentGoalUpdate: ParentGoalUpdate, options?: Parameters<typeof customFetch>[1]): Promise<ParentGoal> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ParentGoal>(getUpdateParentGoalUrl(childId,goalId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(parentGoalUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateParentGoalMutationKey = () => ['updateParentGoal'] as const;
+
+export const getUpdateParentGoalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateParentGoal>>, TError,UpdateParentGoalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateParentGoal>>, TError,UpdateParentGoalMutationVariables, TContext> => {
+
+const mutationKey = getUpdateParentGoalMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateParentGoal>>, UpdateParentGoalMutationVariables> = (props) => {
+          const {childId,goalId,data} = props ?? {};
+
+          return  updateParentGoal(childId,goalId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateParentGoalMutationResult = NonNullable<Awaited<ReturnType<typeof updateParentGoal>>>
+    export type UpdateParentGoalMutationBody = BodyType<ParentGoalUpdate>
+    export type UpdateParentGoalMutationError = ErrorType<unknown>
+    export type UpdateParentGoalMutationVariables = {childId: string;goalId: string;data: BodyType<ParentGoalUpdate>}
+
+    export const useUpdateParentGoal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateParentGoal>>, TError,UpdateParentGoalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateParentGoal>>,
+        TError,
+        UpdateParentGoalMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateParentGoalMutationOptions(options), queryClient);
+    }
+
+export const getDeleteParentGoalUrl = (childId: string,
+    goalId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/goals/${goalId}`
+}
+
+export const deleteParentGoal = async (childId: string,
+    goalId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteParentGoalUrl(childId,goalId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteParentGoalMutationKey = () => ['deleteParentGoal'] as const;
+
+export const getDeleteParentGoalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteParentGoal>>, TError,DeleteParentGoalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteParentGoal>>, TError,DeleteParentGoalMutationVariables, TContext> => {
+
+const mutationKey = getDeleteParentGoalMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteParentGoal>>, DeleteParentGoalMutationVariables> = (props) => {
+          const {childId,goalId} = props ?? {};
+
+          return  deleteParentGoal(childId,goalId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteParentGoalMutationResult = NonNullable<Awaited<ReturnType<typeof deleteParentGoal>>>
+
+    export type DeleteParentGoalMutationError = ErrorType<unknown>
+    export type DeleteParentGoalMutationVariables = {childId: string;goalId: string}
+
+    export const useDeleteParentGoal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteParentGoal>>, TError,DeleteParentGoalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteParentGoal>>,
+        TError,
+        DeleteParentGoalMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteParentGoalMutationOptions(options), queryClient);
+    }
+
+export const getGetParentMessagesUrl = (childId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/messages`
+}
+
+export const getParentMessages = async (childId: string, options?: Parameters<typeof customFetch>[1]): Promise<ParentMessage[]> => {
+
+  return customFetch<ParentMessage[]>(getGetParentMessagesUrl(childId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetParentMessagesQueryKey = (childId: string,) => {
+    return [
+    `/api/parent/children/${childId}/messages`
+    ] as const;
+    }
+
+
+export const getGetParentMessagesQueryOptions = <TData = Awaited<ReturnType<typeof getParentMessages>>, TError = ErrorType<unknown>>(childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetParentMessagesQueryKey(childId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getParentMessages>>> = ({ signal }) => getParentMessages(childId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: childId !== null && childId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getParentMessages>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetParentMessagesQueryResult = NonNullable<Awaited<ReturnType<typeof getParentMessages>>>
+export type GetParentMessagesQueryError = ErrorType<unknown>
+
+
+export function useGetParentMessages<TData = Awaited<ReturnType<typeof getParentMessages>>, TError = ErrorType<unknown>>(
+ childId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentMessages>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getParentMessages>>,
+          TError,
+          Awaited<ReturnType<typeof getParentMessages>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetParentMessages<TData = Awaited<ReturnType<typeof getParentMessages>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentMessages>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getParentMessages>>,
+          TError,
+          Awaited<ReturnType<typeof getParentMessages>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetParentMessages<TData = Awaited<ReturnType<typeof getParentMessages>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetParentMessages<TData = Awaited<ReturnType<typeof getParentMessages>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetParentMessagesQueryOptions(childId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendParentMessageUrl = (childId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/messages`
+}
+
+export const sendParentMessage = async (childId: string,
+    parentMessageInput: ParentMessageInput, options?: Parameters<typeof customFetch>[1]): Promise<ParentMessage> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ParentMessage>(getSendParentMessageUrl(childId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(parentMessageInput)
+  }
+);}
+
+
+
+
+
+export const getSendParentMessageMutationKey = () => ['sendParentMessage'] as const;
+
+export const getSendParentMessageMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendParentMessage>>, TError,SendParentMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendParentMessage>>, TError,SendParentMessageMutationVariables, TContext> => {
+
+const mutationKey = getSendParentMessageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendParentMessage>>, SendParentMessageMutationVariables> = (props) => {
+          const {childId,data} = props ?? {};
+
+          return  sendParentMessage(childId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendParentMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendParentMessage>>>
+    export type SendParentMessageMutationBody = BodyType<ParentMessageInput>
+    export type SendParentMessageMutationError = ErrorType<unknown>
+    export type SendParentMessageMutationVariables = {childId: string;data: BodyType<ParentMessageInput>}
+
+    export const useSendParentMessage = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendParentMessage>>, TError,SendParentMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendParentMessage>>,
+        TError,
+        SendParentMessageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendParentMessageMutationOptions(options), queryClient);
+    }
 
 export const getHealthCheckUrl = () => {
 

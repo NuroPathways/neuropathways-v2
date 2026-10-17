@@ -34,7 +34,7 @@ const lines = (value: string) => value.split("\n").map((item) => item.trim()).fi
 const textLines = (value?: string[]) => (value ?? []).join("\n");
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function FamilyTools({ actions, onActivities }: { actions: { id: string; title: string; status: string }[]; onActivities?: () => void }) {
+export function FamilyTools({ actions, onActivities, initialTab = "Routines" }: { actions: { id: string; title: string; status: string }[]; onActivities?: () => void; initialTab?: string }) {
   const c = useColors();
   const { child, opts } = useParent();
   const cache = useQueryClient();
@@ -43,7 +43,7 @@ export function FamilyTools({ actions, onActivities }: { actions: { id: string; 
     query: { queryKey: getGetParentFamilyToolsQueryKey(childId), enabled: Boolean(childId), staleTime: 0, refetchOnMount: "always" },
     request: opts,
   });
-  const [tab, setTab] = useState("Routines");
+  const [tab, setTab] = useState(initialTab);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [name, setName] = useState("");

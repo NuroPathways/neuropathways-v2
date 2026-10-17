@@ -258,7 +258,7 @@ export function createFreeCaregiverNavigation({ activeTab, activeSection, goToTa
         { key: "care-plan", label: "Care plan & documents", icon: FileText, active: activeTab === "docs", onSelect: () => goToTab("docs") },
         { key: "upload", label: "Upload a plan", icon: Upload, active: activeTab === "docs", onSelect: () => goToTab("docs") },
         { key: "ask", label: "AI Chat", icon: Sparkles, active: activeTab === "ask", onSelect: () => goToTab("ask") },
-        { key: "preferences", label: "Enjoyment & preferences", icon: UserRound, active: activeTab === "edit" && activeSection !== "goals", onSelect: () => goToTab("edit", "profile") },
+        { key: "preferences", label: "Enjoyment & preferences", icon: UserRound, active: activeTab === "practice" && activeSection === "preferences", onSelect: () => goToTab("practice", "preferences") },
         { key: "profiles", label: "Child profile", icon: UserRound, active: false, onSelect: () => goToTab("edit", "profile") },
         { key: "clinic", label: "Clinic connection", icon: Heart, active: activeTab === "clinic", onSelect: () => goToTab("clinic") },
         { key: "messages", label: "Messages", icon: Mail, to: "/Messages", pages: ["Messages"] },

@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Redirect, Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
+import { View, Text, Pressable } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -30,16 +31,17 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (isLoading || !parent.ready) return;
+    if (user?.role === "family" && !parent.parent) return;
     const seg = segments[0] as string;
     const parentRoutes = ["(parent)", "parent-quickstart", "parent-edit", "parent-connect", "parent-add-child", "privacy", "+not-found"];
     if (parent.parent) {
       if (parent.children.length === 0) {
         if (seg !== "parent-quickstart" && seg !== "privacy") router.replace("/parent-quickstart" as never);
       } else if (!parent.child && parent.children.length > 1) {
-        if (seg !== "(parent)" && seg !== "privacy") router.replace("/(parent)" as never);
+        if (seg !== "(parent)" && seg !== "privacy") router.replace("/(parent)/home" as never);
       } else if (!parent.setupComplete) {
         if (seg !== "parent-quickstart" && seg !== "privacy") router.replace("/parent-quickstart" as never);
-      } else if (!parentRoutes.includes(seg)) router.replace("/(parent)" as never);
+      } else if (!parentRoutes.includes(seg)) router.replace("/(parent)/home" as never);
       return;
     }
     if (!isAuthenticated && seg === "parent-welcome") return;
@@ -59,6 +61,12 @@ function RootLayoutNav() {
     }
   }, [isAuthenticated, isLoading, segments, user?.role, parent.ready, parent.parent, parent.children, parent.child, parent.setupComplete]);
 
+  if (isLoading || !parent.ready) {
+    return <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}><Text accessibilityLiveRegion="polite">Loading your account…</Text></View>;
+  }
+  if (user?.role === "family" && parent.ready && !parent.parent) {
+    return <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 16 }}><Text accessibilityRole="header" style={{ fontSize: 24, fontWeight: "600" }}>Family sign-in needs attention</Text><Text>{parent.error || "Your family session could not be verified. Sign in again or ask your clinic to correct the family relationship."}</Text><Pressable accessibilityRole="button" onPress={() => void parent.signout()}><Text style={{ color: "#0f766e", fontSize: 18 }}>Sign out and try again</Text></Pressable></View>;
+  }
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

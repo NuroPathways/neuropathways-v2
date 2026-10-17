@@ -75,7 +75,7 @@ const ClientHomeRoute = () => {
 const ParentLegacyDestination = ({ tab, section }) => {
   const { user } = useAuth();
   const location = useLocation();
-  if (user?.account_type !== "parent_free") return <Navigate to={`/ParentDashboard${location.search}`} replace />;
+  if (!["parent_free", "legacy_family"].includes(user?.account_type)) return <Navigate to={`/ParentDashboard${location.search}`} replace />;
   const params = new URLSearchParams(location.search);
   params.set("tab", tab);
   if (section) params.set("section", section);
@@ -118,8 +118,11 @@ const AuthenticatedApp = () => {
   if (authError?.type === 'user_not_registered') {
     return <UserNotRegisteredError />;
   }
+  if (authError?.type === "family_session") {
+    return <main className="min-h-screen flex items-center justify-center bg-slate-50 p-6"><section role="alert" className="max-w-md rounded-2xl bg-white border p-6 space-y-4"><h1 className="text-xl font-semibold">Family sign-in needs attention</h1><p>{authError.message}</p><a className="inline-flex rounded-xl bg-teal-700 px-4 py-3 text-white" href="/UsernameLogin">Sign in again</a></section></main>;
+  }
 
-  if (user?.account_type === 'parent_free' && !PARENT_FREE_PATHS.includes(location.pathname.replace(/\/+$/, ''))) {
+  if (['parent_free', 'legacy_family'].includes(user?.account_type) && !PARENT_FREE_PATHS.includes(location.pathname.replace(/\/+$/, ''))) {
     return <Navigate to="/ParentHome" replace />;
   }
 
@@ -170,7 +173,7 @@ const AuthenticatedApp = () => {
       <Route path="/HelpNow" element={<HelpNow />} />
       <Route path="/LogBehavior" element={<LayoutWrapper currentPageName="LogBehavior"><LogBehavior /></LayoutWrapper>} />
       <Route path="/DocumentCenter" element={
-        user?.account_type === "parent_free"
+        ["parent_free", "legacy_family"].includes(user?.account_type)
           ? <ParentLegacyDestination tab="docs" />
           : isParentAccount
             ? <Navigate to={`/ParentHome?tab=documents${location.search ? `&${location.search.slice(1)}` : ""}`} replace />
@@ -191,7 +194,7 @@ const AuthenticatedApp = () => {
       <Route path="/ParentQuickStart" element={<ParentQuickStart />} />
       <Route path="/ParentHome" element={<ParentHome />} />
       <Route path="/Practice" element={
-        user?.account_type === "parent_free"
+        ["parent_free", "legacy_family"].includes(user?.account_type)
           ? <ParentLegacyDestination tab="practice" />
           : <Navigate to={`/ParentHome?tab=practice${location.search ? `&${location.search.slice(1)}` : ""}`} replace />
       } />
@@ -199,7 +202,7 @@ const AuthenticatedApp = () => {
       <Route path="/History" element={<LayoutWrapper currentPageName="History"><ParentHistory /></LayoutWrapper>} />
       <Route path="/ClientHome" element={<ClientHomeRoute />} />
       <Route path="/GoalsMilestones" element={
-        user?.account_type === "parent_free"
+        ["parent_free", "legacy_family"].includes(user?.account_type)
           ? <ParentLegacyDestination tab="edit" section="goals" />
           : isParentAccount
             ? <Navigate to={`/ParentHome?tab=goals${location.search ? `&${location.search.slice(1)}` : ""}`} replace />

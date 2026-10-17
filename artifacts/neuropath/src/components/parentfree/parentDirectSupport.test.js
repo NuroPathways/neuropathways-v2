@@ -20,7 +20,7 @@ describe("parentDirectBehaviors", () => {
     expect(behaviors[0]).toMatchObject({
       name: "Task refusal",
       parentDirectEligible: true,
-      sourceLabel: "Source: Pre-programmed library",
+      sourceLabel: "General support · not individualized",
       do_this_right_now: ["Offer a brief, familiar choice."],
     });
   });
@@ -39,7 +39,7 @@ describe("parentDirectBehaviors", () => {
       [{ key: "task_refusal", rightNow: ["Use the safe starter step."] }],
     );
 
-    expect(behaviors[0].sourceLabel).toBe("Source: Pre-programmed library");
+    expect(behaviors[0].sourceLabel).toBe("General support · not individualized");
     expect(behaviors[0].do_this_right_now).toEqual(["Use the safe starter step."]);
   });
 
@@ -54,7 +54,7 @@ describe("parentDirectBehaviors", () => {
     );
 
     expect(behaviors.map((behavior) => behavior.name)).toEqual(["Task refusal", "Elopement"]);
-    expect(behaviors[1].sourceLabel).toBe("Source: Behavior plan");
+    expect(behaviors[1].sourceLabel).toBe("Source: Your uploaded plan · not clinician-reviewed");
   });
 
   it("preserves available plan strategies, escalation, prevention, and reinforcement details", () => {

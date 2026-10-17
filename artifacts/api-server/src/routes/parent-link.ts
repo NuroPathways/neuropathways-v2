@@ -218,6 +218,7 @@ router.post("/parent/clinic-invites", async (req: any, res) => {
 });
 
 router.post("/parent/children/:childId/link-preview", requireParent, async (req: any, res) => {
+  if (req.familyParent) return res.status(403).json({ error: "This family is already managed by its clinic" });
   const parentId = req.parentAccount?.id;
   if (!parentId) return res.status(401).json({ error: "Parent authentication required" });
   try {
@@ -255,6 +256,7 @@ router.post("/parent/children/:childId/link-preview", requireParent, async (req:
 });
 
 router.delete("/parent/children/:childId/clinic-link", requireParent, async (req: any, res) => {
+  if (req.familyParent) return res.status(403).json({ error: "Your clinic manages this family relationship" });
   const parentId = req.parentAccount?.id;
   if (!parentId) return res.status(401).json({ error: "Parent authentication required" });
   try {
@@ -394,6 +396,7 @@ async function moveAuthorizedChildData(
 }
 
 router.post("/parent/children/:childId/connect", requireParent, async (req: any, res) => {
+  if (req.familyParent) return res.status(403).json({ error: "This family is already managed by its clinic" });
   const parentId = req.parentAccount?.id;
   if (!parentId) return res.status(401).json({ error: "Parent authentication required" });
 

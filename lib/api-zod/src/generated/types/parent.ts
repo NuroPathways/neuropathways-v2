@@ -5,11 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ParentAccountType } from './parentAccountType';
 
 export interface Parent {
   id: string;
   firstName: string;
   email: string;
   workspaceId: string;
-  accountType: 'parent_free';
+  accountType: ParentAccountType;
 }

@@ -12,4 +12,5 @@ export type ParentPlanGoalSourceType = typeof ParentPlanGoalSourceType[keyof typ
 export const ParentPlanGoalSourceType = {
   clinician_uploaded_plan: 'clinician_uploaded_plan',
   parent_uploaded_plan: 'parent_uploaded_plan',
+  selected_behavior: 'selected_behavior',
 } as const;

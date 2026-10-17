@@ -21,6 +21,14 @@ export default function Layout({ children, currentPageName }) {
     setChildrenList([]);
     setIsIndividualFallback(false);
     if (!user) return () => { cancelled = true; };
+    if (["parent_free", "legacy_family"].includes(user.account_type || user.accountType)) {
+      // These children were authorized by /parent/session. Never look them up
+      // through clinician-cookie legacy endpoints using a capability namespace.
+      setChildrenList((user.parent_children || []).map(child => ({
+        ...child, child_name: child.name || child.child_name,
+      })));
+      return () => { cancelled = true; };
+    }
 
     if (user.invite_token) {
       setChildrenList(

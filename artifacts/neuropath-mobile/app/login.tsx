@@ -38,7 +38,8 @@ export default function LoginScreen() {
     try {
       await login(username.trim(), accessCode.trim());
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace("/(tabs)");
+      // RootLayout routes after the verified parent context is ready; an
+      // immediate replacement races its temporarily unmounted navigator.
     } catch (e: any) {
       setError(e.message || "Invalid username or access code");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

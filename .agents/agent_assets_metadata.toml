@@ -56,3 +56,45 @@ mtime_ms = 1792256644442
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/ca6e2245-8de8-4fab-b9e2-7de5448a4edf/bdae90e3-f003-4a2f-944d-b76a6be47492"
 storage_version_token = "1792256670264859"
 content_type = "text/plain"
+
+[[outputs]]
+id = "ZUYkahTFG-batJjs2Gv03"
+uri = "file://generated-artifacts/parent-unification-git-history.zip"
+type = "unspecified"
+title = "Git history recovery backup"
+description = "Verified full-history Git bundle, kept separate from the implementation changes. Original branch: main; recovery commit: 08cc8eaa5a8ff9b48ea2289808f0bccb96eacc38."
+logical_id = "18df90dc-0c1f-4a75-835b-b7276180420a"
+content_hash = "sha256:f8aa68be1c12294169358a52414e83a41570a8f711bdb424b321f4d8bbdee8cd"
+size = 10887599
+mtime_ms = 1792263923163
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/18df90dc-0c1f-4a75-835b-b7276180420a/1fcc8590-a0ff-4764-9370-0968f305f913"
+storage_version_token = "1792264195557517"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "4HStZNQD8_x1U1pVt_hGd"
+uri = "file://generated-artifacts/parent-unification-working-changes.zip"
+type = "unspecified"
+title = "Final uncommitted implementation backup"
+description = "Updated patch, manifest and working copies of all 71 modified/untracked project files. Existing Git history remains separate and intact; no environment secrets or temporary test credentials included."
+logical_id = "53b7c09c-ef35-4e9e-866e-4a3678d35763"
+content_hash = "sha256:ad0b69d6013b3eeb24d7583ff501ea72d1ecde907d3a36524b9b1dcf901ff3c4"
+size = 289164
+mtime_ms = 1792265020195
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/53b7c09c-ef35-4e9e-866e-4a3678d35763/c854f4ff-9833-462a-9d5f-cb71a6135de0"
+storage_version_token = "1792265083873034"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "dDVJ_M5krzEmHwOBaipaC"
+uri = "file://generated-artifacts/parent-experience-unification-report.html"
+type = "html"
+title = "Parent experience implementation and verification report"
+description = "All 19 requested report sections: exact files and routes, family authorization, preserved features, 20 API results, screenshot references and verification limits."
+logical_id = "b738b5fe-0402-40a9-b7dd-c70fd6322760"
+content_hash = "sha256:2965f0646fc7f137af559d65d8fba7c9cca723a0d912971c3dae90b742696a86"
+size = 20814
+mtime_ms = 1792265082731
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/b738b5fe-0402-40a9-b7dd-c70fd6322760/3755ed6c-bc23-4da3-9441-b807a67816c0"
+storage_version_token = "1792265083244059"
+content_type = "text/html"

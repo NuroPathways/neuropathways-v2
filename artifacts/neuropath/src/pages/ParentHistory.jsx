@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useGetParentDashboard, getGetParentDashboardQueryKey } from "@workspace/api-client-react";
+import { useGetParentDashboard, getGetParentDashboardQueryKey, useGetParentFamilyTools, getGetParentFamilyToolsQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import { useSelectedChild } from "@/components/parentfree/useParent";
 import { base44 } from "@/api/entities";
-import { Activity, CalendarDays, ClipboardList } from "lucide-react";
+import { Activity, CalendarDays, ClipboardList, ListChecks } from "lucide-react";
 
 function DateLabel({ value }) {
   if (!value) return "Date unavailable";
@@ -21,13 +21,19 @@ export default function ParentHistory() {
   const [legacyEvents, setLegacyEvents] = useState([]);
   const [legacyLoading, setLegacyLoading] = useState(false);
   const [legacyError, setLegacyError] = useState(false);
-  const isFree = user?.account_type === "parent_free";
+  const isFree = ["parent_free", "legacy_family"].includes(user?.accountType || user?.account_type);
   const allowedChild = freeChildren.find((child) => String(child.id) === params.get("child_id")) || freeSelected;
   const parentRequestOptions = parentRequest();
   const freeQuery = useGetParentDashboard(allowedChild?.id || "", {
     query: { queryKey: getGetParentDashboardQueryKey(allowedChild?.id || ""), enabled: isFree && !!allowedChild?.id },
     request: parentRequestOptions,
   });
+  const toolsQuery = useGetParentFamilyTools(String(allowedChild?.id || ""), {
+    query: { queryKey: getGetParentFamilyToolsQueryKey(String(allowedChild?.id || "")), enabled: isFree && !!allowedChild?.id, retry: false },
+    request: parentRequestOptions,
+  });
+  const routines = isFree ? toolsQuery.data?.routines || [] : [];
+  const routineRuns = isFree ? toolsQuery.data?.routineRuns || [] : [];
 
   useEffect(() => {
     if (isFree || !user) return;
@@ -64,8 +70,10 @@ export default function ParentHistory() {
   const timeline = useMemo(() => [
     ...logs.map((log) => ({ kind: "behavior", at: log.createdAt || log.created_date, id: `log-${log.id}`, log })),
     ...actions.flatMap((action) => (action.logs || []).map((event) => ({ kind: "activity", at: event.createdAt, id: `action-${action.id}-${event.id}`, action, event }))),
+    ...routineRuns.map((run) => ({ kind: "routine", at: run.updatedAt || run.createdAt, id: `routine-${run.id}`, run, routine: routines.find((r) => r.id === run.routineId) })),
     ...(!isFree ? legacyEvents.map((event) => ({ kind: "information", at: event.created_date || event.createdAt, id: `event-${event.id}`, event })) : []),
-  ].sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0)), [logs, actions, isFree, legacyEvents]);
+  ].filter((item, index, all) => all.findIndex((other) => other.id === item.id) === index)
+    .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0)), [logs, actions, isFree, legacyEvents, routineRuns, routines]);
 
   return (
     <main className="np-parent-history">
@@ -85,6 +93,10 @@ export default function ParentHistory() {
                <span className="np-history-symbol"><Activity size={17} /></span><div><span className="np-history-kind">Practice activity</span><h2>{item.action.title}</h2><p>{item.event.outcome || item.event.rating || item.event.eventType || "Activity updated"}</p>
                  {isFree && allowedChild?.id && <a data-testid={`link-practice-history-${item.action.id}`} href={`/ParentHome?tab=practice&activity_id=${encodeURIComponent(item.action.id)}&child_id=${encodeURIComponent(allowedChild.id)}`}>Open this activity</a>}
                </div><time><DateLabel value={item.at} /></time>
+            </article>
+          ) : item.kind === "routine" ? (
+            <article className="np-history-row activity" key={item.id} data-testid={`history-routine-${item.run.id}`}>
+              <span className="np-history-symbol"><ListChecks size={17} /></span><div><span className="np-history-kind">Routine</span><h2>{item.routine?.title || item.routine?.name || "Family routine"}</h2><p>{item.run.status === "completed" ? "Completed" : item.run.status === "paused" ? `Paused at step ${(Number(item.run.currentStep) || 0) + 1}` : String(item.run.status || "Started")}</p></div><time><DateLabel value={item.at} /></time>
             </article>
           ) : (
             <article className="np-history-row information" key={item.id} data-testid={`history-information-${item.event.id}`}>

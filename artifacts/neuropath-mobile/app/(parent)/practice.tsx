@@ -35,7 +35,7 @@ const phases = ["Understand", "See an Example", "Try Together", "Reflect"] as co
 export default function Practice() {
   const c = useColors();
   const { child, opts } = useParent();
-  const params = useLocalSearchParams<{ activityId?: string }>();
+  const params = useLocalSearchParams<{ activityId?: string; view?: string }>();
   const cache = useQueryClient();
   const q = useQuery({
     queryKey: getGetParentDashboardQueryKey(child?.id ?? ""),
@@ -43,7 +43,8 @@ export default function Practice() {
     enabled: !!child,
   });
   useFocusEffect(useCallback(() => { if (child) void q.refetch(); }, [child?.id, q.refetch]));
-  const [view, setView] = useState<PracticeView>("Activities");
+  const [view, setView] = useState<PracticeView>(params.view === "preferences" ? "My Routines" : "Activities");
+  const [toolsTab, setToolsTab] = useState(params.view === "preferences" ? "Preferences" : "Routines");
   const [actionId, setActionId] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
   const [phase, setPhase] = useState(0);
@@ -53,6 +54,10 @@ export default function Practice() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const action = q.data?.dailyActions.find((item) => item.id === actionId);
+  const closed = isClosed(action?.status);
+  React.useEffect(() => {
+    if (params.view === "preferences") { setActionId(null); setView("My Routines"); setToolsTab("Preferences"); }
+  }, [params.view]);
   React.useEffect(() => {
     if (!action) return;
     const position = action.currentStep ?? 0;
@@ -75,7 +80,7 @@ export default function Practice() {
     return `${SOURCE[sourceType] || "Source not available"}${title ? ` · ${title}` : ""}`;
   };
   const actions = useMemo(() => (q.data?.dailyActions ?? []).filter((item) =>
-    view === "Saved for Later" ? item.bookmarked || item.status === "saved_for_later" : view === "Activities" || view === "Learn Why"),
+    view === "Saved for Later" ? !isClosed(item.status) && (item.bookmarked || item.status === "saved_for_later") : view === "Activities" || view === "Learn Why"),
   [q.data?.dailyActions, view]);
 
   const open = (id: string) => {
@@ -100,7 +105,7 @@ export default function Practice() {
     setStarted(true);
     const nextTryStep = nextPhase === 2 ? 0 : tryStep;
     setTryStep(nextTryStep);
-    if (!child || !action) return;
+    if (!child || !action || closed) return;
     void updateParentPracticeProgress(child.id, action.id, {
       currentStep: currentPosition(nextPhase, nextTryStep),
       bookmarked: Boolean(action.bookmarked || action.status === "saved_for_later"),
@@ -109,18 +114,19 @@ export default function Practice() {
   const moveTryStep = (nextTryStep: number) => {
     setPhase(2);
     setTryStep(nextTryStep);
-    if (!child || !action) return;
+    if (!child || !action || closed) return;
     void updateParentPracticeProgress(child.id, action.id, {
       currentStep: currentPosition(2, nextTryStep),
       bookmarked: Boolean(action.bookmarked || action.status === "saved_for_later"),
     }, opts).catch((e) => setError(msg(e, "Your place could not be saved.")));
   };
-  const exit = () => { setActionId(null); setStarted(false); setError(""); if (params.activityId) router.setParams({ activityId: undefined }); };
+  const exit = () => { setActionId(null); setStarted(false); setError(""); if (params.activityId || params.view) router.setParams({ activityId: undefined, view: undefined }); };
   const invalidate = async () => {
     if (child) await cache.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(child.id) });
   };
   const pause = async () => {
     if (!child || !action) return;
+    if (closed) { exit(); return; }
     setBusy(true); setError("");
     try {
       await updateParentPracticeProgress(child.id, action.id, { currentStep: currentPosition(), bookmarked: true }, opts);
@@ -129,7 +135,7 @@ export default function Practice() {
     finally { setBusy(false); }
   };
   const reflect = async () => {
-    if (!child || !action || (!outcome && !note.trim())) return;
+    if (!child || !action || closed || (!outcome && !note.trim())) return;
     setBusy(true); setError("");
     try {
       const selected = OUTCOMES.find((item) => item.value === outcome);
@@ -154,7 +160,7 @@ export default function Practice() {
       <T size={14} color={c.secondary}>Use only the saved activity steps. Pause or leave whenever you need.</T>
       {!action && <View style={{ gap: 9 }}>
         {VIEWS.map((name) => <Pressable key={name} accessibilityRole="button" accessibilityState={{ selected: view === name }}
-          onPress={() => { setView(name); exit(); }} style={{ padding: 15, borderRadius: 14, borderWidth: 1, borderColor: view === name ? c.primary : c.border, backgroundColor: view === name ? c.accent : c.card }}>
+          onPress={() => { setView(name); setToolsTab("Routines"); exit(); }} style={{ padding: 15, borderRadius: 14, borderWidth: 1, borderColor: view === name ? c.primary : c.border, backgroundColor: view === name ? c.accent : c.card }}>
           <T size={15} weight="semi" color={c.foreground}>{name}</T>
           <T size={12} color={c.secondary}>{VIEW_HELP[name]}</T>
         </Pressable>)}
@@ -164,14 +170,22 @@ export default function Practice() {
         <Card>
           <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
             <TextAction label="Exit activity" color={c.secondary} onPress={exit} />
-            <TextAction label={busy ? "Saving…" : "Pause · Save for later"} color={c.primary} onPress={() => void pause()} disabled={busy} />
+            {!closed ? <TextAction label={busy ? "Saving…" : "Pause · Save for later"} color={c.primary} onPress={() => void pause()} disabled={busy} /> : null}
           </View>
           <T size={12} weight="semi" color={c.primary}>{action.estimatedMinutes} min · {sourceFor(action.sourceType, action.sourceDocumentId)}</T>
           <T size={20} weight="bold">{action.title}</T>
           <T size={14} color={c.secondary}>{action.description}</T>
           <T size={12} color={c.secondary}>Behavior: {action.behaviorName} · Goal: {goalFor(action.behaviorKey) || "No linked goal"}</T>
-          {action.currentStep > 0 ? <T size={12} color={c.secondary}>Your place in this activity is saved.</T> : null}
-          {!started ? <View style={{ gap: 10, paddingTop: 6 }}>
+          {!closed && action.currentStep > 0 ? <T size={12} color={c.secondary}>Your place in this activity is saved.</T> : null}
+          {closed ? <View style={{ gap: 9, paddingTop: 6 }} testID="practice-closed-review">
+            <T size={12} weight="semi" color={c.primary}>{action.status === "skipped" ? "Closed" : "Completed"} · review only</T>
+            <T size={14} color={c.secondary}>Progress and reflections are not changed for a closed activity.</T>
+            {action.whyItMayHelp ? <><T size={15} weight="bold">Why it may help</T><T size={14}>{action.whyItMayHelp}</T></> : null}
+            {action.steps.map((stepText, index) => <T key={index} size={14}>{index + 1}. {stepText}</T>)}
+            <Pressable accessibilityRole="button" testID="practice-closed-back" onPress={exit} style={{ padding: 12, borderRadius: 12, backgroundColor: c.primary, minHeight: 44, justifyContent: "center" }}>
+              <T weight="semi" color={c.primaryForeground}>Back to activities</T>
+            </Pressable>
+          </View> : !started ? <View style={{ gap: 10, paddingTop: 6 }}>
             <T size={16} weight="bold">Ready to try it?</T>
             <T size={13} color={c.secondary}>Move through the guide one step at a time, or go straight to trying the saved steps.</T>
             <TextAction label="Start Activity" color={c.primary} onPress={() => { setStarted(true); movePhase(0); }} />
@@ -209,10 +223,11 @@ export default function Practice() {
           </View>
         </Card>
       ) : view === "My Routines" ? (
-        <FamilyTools actions={(q.data?.dailyActions ?? []).map((item) => ({ id: item.id, title: item.title, status: item.status }))} onActivities={() => setView("Activities")} />
+        <FamilyTools key={toolsTab} initialTab={toolsTab} actions={(q.data?.dailyActions ?? []).map((item) => ({ id: item.id, title: item.title, status: item.status }))} onActivities={() => setView("Activities")} />
       ) : actions.length ? actions.map((item) => <Pressable key={item.id} accessibilityRole="button" testID={`practice-activity-${item.id}`} onPress={() => open(item.id)}>
         <Card>
           <T size={12} weight="semi" color={c.primary}>{item.estimatedMinutes} min · {sourceFor(item.sourceType, item.sourceDocumentId)}</T>
+          {isClosed(item.status) ? <T size={12} weight="semi" color={c.secondary}>{item.status === "skipped" ? "Closed" : "Completed"}</T> : null}
           <T size={17} weight="bold">{item.title}</T>
           <T size={14} color={c.secondary}>{view === "Learn Why" ? item.whyItMayHelp || item.description : item.description}</T>
           <T size={12} color={c.secondary}>Behavior: {item.behaviorName} · Goal: {goalFor(item.behaviorKey) || "No linked goal"}</T>
@@ -224,6 +239,8 @@ export default function Practice() {
     </Screen>
   );
 }
+
+const isClosed = (status?: string) => status === "done" || status === "logged" || status === "skipped";
 
 function TextAction({ label, color, onPress, disabled = false }: { label: string; color: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={{ minHeight: 40, justifyContent: "center", opacity: disabled ? 0.55 : 1 }}>

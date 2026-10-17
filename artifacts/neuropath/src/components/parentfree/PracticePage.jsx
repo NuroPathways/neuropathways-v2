@@ -25,11 +25,14 @@ const VIEW_DETAILS = {
   "Learn Why": "Read short explanations and examples.",
   "Saved for Later": "Continue an activity you paused.",
 };
+const CLOSED = new Set(["done", "logged", "skipped"]);
+export const isClosedAction = (action) => CLOSED.has(String(action?.status || ""));
 const PHASE_LABELS = ["Understand", "See an Example", "Try Together", "Reflect"];
 
-export default function PracticePage({ childId, childName = "your child", actions = [], child, documents = [], onOpenSteps, onAddBehavior, card, initialActionId, onGoals, onHistory, onExitRoute }) {
+export default function PracticePage({ childId, childName = "your child", actions = [], child, documents = [], onOpenSteps, onAddBehavior, card, initialActionId, initialView, onGoals, onHistory, onExitRoute }) {
   const queryClient = useQueryClient();
-  const [view, setView] = useState("Activities");
+  const [view, setView] = useState(initialView && VIEWS.includes(initialView) ? initialView : "Activities");
+  const [toolsTab, setToolsTab] = useState(initialView === "My Routines" ? "Preferences" : "Routines");
   const [activeId, setActiveId] = useState(initialActionId || null);
   const [started, setStarted] = useState(false);
   const [phase, setPhase] = useState(0);
@@ -39,6 +42,7 @@ export default function PracticePage({ childId, childName = "your child", action
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const activeAction = actions.find((action) => action.id === activeId);
+  const closed = isClosedAction(activeAction);
   useEffect(() => {
     if (!activeAction) return;
     const position = activeAction.currentStep ?? 0;
@@ -50,7 +54,7 @@ export default function PracticePage({ childId, childName = "your child", action
   }, [activeId, activeAction?.currentStep]);
   const goalFor = (action) => child?.behaviors?.find((behavior) => behavior.behaviorKey === action.behaviorKey)?.goal || null;
   const visibleActions = actions.filter((action) => view === "Saved for Later"
-    ? action.bookmarked || action.status === "saved_for_later"
+    ? !isClosedAction(action) && (action.bookmarked || action.status === "saved_for_later")
     : view === "Activities" || view === "Learn Why");
   const start = (action) => {
     setActiveId(action.id);
@@ -71,6 +75,7 @@ export default function PracticePage({ childId, childName = "your child", action
         : (activeAction?.steps?.length ?? 0) + 2;
   const saveForLater = async () => {
     if (!activeAction || !childId) return;
+    if (closed) { leave(); return; }
     setBusy(true); setError("");
     try {
       await updateParentPracticeProgress(childId, activeAction.id, { currentStep: currentPosition(), bookmarked: true }, parentRequest());
@@ -80,7 +85,7 @@ export default function PracticePage({ childId, childName = "your child", action
     finally { setBusy(false); }
   };
   const saveReflection = async () => {
-    if (!activeAction || !childId || (!outcome && !note.trim())) return;
+    if (!activeAction || !childId || closed || (!outcome && !note.trim())) return;
     setBusy(true); setError("");
     try {
       const selected = OUTCOMES.find(([value]) => value === outcome);
@@ -100,7 +105,7 @@ export default function PracticePage({ childId, childName = "your child", action
     setStarted(true);
     const nextTryStep = nextPhase === 2 ? 0 : tryStep;
     setTryStep(nextTryStep);
-    if (!activeAction || !childId) return;
+    if (!activeAction || !childId || closed) return;
     void updateParentPracticeProgress(childId, activeAction.id, {
       currentStep: currentPosition(nextPhase, nextTryStep),
       bookmarked: Boolean(activeAction.bookmarked || activeAction.status === "saved_for_later"),
@@ -109,7 +114,7 @@ export default function PracticePage({ childId, childName = "your child", action
   const moveTryStep = (nextTryStep) => {
     setTryStep(nextTryStep);
     setPhase(2);
-    if (!activeAction || !childId) return;
+    if (!activeAction || !childId || closed) return;
     void updateParentPracticeProgress(childId, activeAction.id, {
       currentStep: currentPosition(2, nextTryStep),
       bookmarked: Boolean(activeAction.bookmarked || activeAction.status === "saved_for_later"),
@@ -129,7 +134,7 @@ export default function PracticePage({ childId, childName = "your child", action
       </header>
       {!activeAction && <nav className="np-practice-destinations" aria-label="Practice destinations">
         {VIEWS.map((item) => <button key={item} type="button" aria-current={view === item && !activeAction ? "page" : undefined}
-          data-testid={`practice-view-${item.toLowerCase().replaceAll(" ", "-")}`} onClick={() => { setView(item); leave(); }}>
+          data-testid={`practice-view-${item.toLowerCase().replaceAll(" ", "-")}`} onClick={() => { setView(item); setToolsTab("Routines"); leave(); }}>
           <strong>{item}</strong><span>{VIEW_DETAILS[item]}</span>
         </button>)}
       </nav>}
@@ -138,14 +143,23 @@ export default function PracticePage({ childId, childName = "your child", action
         <article className="np-practice-detail" data-testid={`practice-detail-${activeAction.id}`}>
           <div className="np-practice-controls">
             <button type="button" onClick={leave} data-testid="button-exit-practice">Exit activity</button>
-            <button type="button" onClick={saveForLater} disabled={busy} data-testid="button-pause-practice">Pause · Save for later</button>
+            {!closed && <button type="button" onClick={saveForLater} disabled={busy} data-testid="button-pause-practice">Pause · Save for later</button>}
           </div>
           <div><span className="np-practice-chip">{activeAction.estimatedMinutes} min · {source(activeAction)}</span>
             <h3>{activeAction.title}</h3><p>{activeAction.description}</p>
             <p className="np-practice-meta">Behavior: {activeAction.behaviorName || childName} · Goal: {goalFor(activeAction) || "No linked goal"}</p>
-            {activeAction.currentStep > 0 && <p className="np-practice-meta">Your place in this activity is saved.</p>}
+            {closed && <p className="np-practice-chip" role="status" data-testid="status-practice-closed">{activeAction.status === "skipped" ? "Closed" : "Completed"} · review only</p>}
+            {!closed && activeAction.currentStep > 0 && <p className="np-practice-meta">Your place in this activity is saved.</p>}
           </div>
-          {!started ? (
+          {closed ? (
+            <section className="np-practice-stage" data-testid="practice-closed-review">
+              <h3>This activity is {activeAction.status === "skipped" ? "closed" : "completed"}</h3>
+              <p>You can read it again below. Progress and reflections are not changed for a closed activity.</p>
+              {activeAction.whyItMayHelp && <><h4>Why it may help</h4><p>{activeAction.whyItMayHelp}</p></>}
+              {activeAction.steps?.length > 0 && <ol>{activeAction.steps.map((stepText, index) => <li key={index}>{stepText}</li>)}</ol>}
+              <div className="np-practice-controls"><button type="button" className="primary" onClick={leave} data-testid="button-back-closed-practice">Back to activities</button></div>
+            </section>
+          ) : !started ? (
             <section className="np-practice-start">
               <h3>Ready to try it?</h3>
               <p>Move through the short guide one step at a time, or go straight to trying the saved steps.</p>
@@ -183,13 +197,14 @@ export default function PracticePage({ childId, childName = "your child", action
           </div>}
         </article>
        ) : view === "My Routines" ? (
-        <FamilyTools childId={childId} childName={childName} actions={actions} onActivities={() => setView("Activities")} />
+        <FamilyTools key={toolsTab} childId={childId} childName={childName} actions={actions} initialTab={toolsTab} onActivities={() => setView("Activities")} />
       ) : visibleActions.length ? (
         <div className="np-practice-grid">
           {visibleActions.map((action) => <button type="button" className="np-practice-action" key={action.id}
             data-testid={`practice-activity-${action.id}`} onClick={() => start(action)}>
             <span className="np-practice-chip">{action.estimatedMinutes} min · {source(action)}</span>
             <h3>{action.title}</h3><span>{view === "Learn Why" ? action.whyItMayHelp || action.description : action.description}</span>
+            {isClosedAction(action) && <span className="np-practice-chip">{action.status === "skipped" ? "Closed" : "Completed"}</span>}
             <span className="np-practice-meta">Behavior: {action.behaviorName} · Goal: {goalFor(action) || "No linked goal"} · Open guide</span>
           </button>)}
         </div>

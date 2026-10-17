@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { getClientSession, clearClientSession } from '@/lib/clientSession';
+import { getClientSession, clearClientSession, requireFamilyLogin, isFamilyLoginRequired, clearFamilyLoginRequirement } from '@/lib/clientSession';
 import { getParentToken, saveParentToken, clearParentToken, parentRequest } from '@/lib/parentSession';
 import { getParentSession, logoutParent } from '@workspace/api-client-react';
 
@@ -11,8 +11,8 @@ function toParentUser(session) {
     first_name: p.firstName,
     full_name: p.firstName,
     display_name: p.firstName,
-    account_type: 'parent_free',
-    app_role: 'parent_free',
+    account_type: p.accountType,
+    app_role: p.accountType === 'legacy_family' ? 'parent' : 'parent_free',
     workspace_id: p.workspaceId,
     parent_children: session.children || [],
   };
@@ -77,10 +77,33 @@ export const AuthProvider = ({ children }) => {
         clientSession = null;
       }
       if (clientSession) {
-        setUser(clientSession);
+        const response = await fetch("/api/parent/session", {
+          credentials: "include", headers: { "X-Family-Token": clientSession.invite_token },
+        });
+        const session = await response.json();
+        if (response.ok) setUser(toParentUser(session));
+        else if (response.status === 409 && session.code === "individual_client") setUser(clientSession);
+        else {
+          if ([401, 403, 409].includes(response.status)) {
+            clearClientSession();
+            requireFamilyLogin();
+          }
+          setUser(null);
+          setIsAuthenticated(false);
+          setAuthError({ type: "family_session", message: session.error || "Your family session could not be verified. Sign in again." });
+          setIsLoadingAuth(false);
+          setAuthChecked(true);
+          return;
+        }
         setIsAuthenticated(true);
         setIsLoadingAuth(false);
         setAuthChecked(true);
+        return;
+      }
+      // A rejected family session must not silently resurrect an unrelated
+      // parent or clinician cookie. Only a subsequent explicit login clears it.
+      if (isFamilyLoginRequired()) {
+        setUser(null); setIsAuthenticated(false); setIsLoadingAuth(false); setAuthChecked(true);
         return;
       }
 
@@ -129,6 +152,7 @@ export const AuthProvider = ({ children }) => {
       const currentUser = await fetchCurrentUser();
       // A server session supersedes any leftover localStorage client session.
       clearClientSession();
+      clearFamilyLoginRequirement();
       setUser(currentUser);
       setIsAuthenticated(true);
     } catch {
@@ -150,6 +174,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const setParentAuth = (result) => {
+    clearFamilyLoginRequirement();
     if (result.token) saveParentToken(result.token);
     clearClientSession();
     setUser(toParentUser(result));
@@ -170,13 +195,15 @@ export const AuthProvider = ({ children }) => {
   const logoutParentAccount = async () => {
     try { await logoutParent(parentRequest({ method: 'POST' })); } catch { /* token is cleared locally regardless */ }
     clearParentToken();
+    clearClientSession();
+    if (user?.account_type === "legacy_family") requireFamilyLogin();
     setUser(null);
     setIsAuthenticated(false);
     window.location.href = "/";
   };
 
   const logout = () => {
-    if (user?.account_type === 'parent_free') { logoutParentAccount(); return; }
+    if (['parent_free', 'legacy_family'].includes(user?.account_type)) { logoutParentAccount(); return; }
     clearClientSession();
     setUser(null);
     setIsAuthenticated(false);

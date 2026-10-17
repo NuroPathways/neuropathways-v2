@@ -3,7 +3,8 @@ import multer from "multer";
 import path from "node:path";
 import { db, documentsTable, parentDocumentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireParent, resolveParent } from "../lib/parentAuth";
+import { requireParent, resolveParentActor } from "../lib/parentAuth";
+import { FamilyAccessError } from "../lib/familyParentAuth";
 import { requireMobileAuth } from "./mobile";
 import { starterLibrary } from "../lib/parentStarterLibrary";
 import {
@@ -99,7 +100,21 @@ async function sendParentDocumentContent(req: any, res: Response) {
   try {
     const [metadata] = await db.select().from(parentDocumentsTable)
       .where(eq(parentDocumentsTable.documentId, req.params.documentId));
-    if (!metadata) return res.status(404).json({ error: "Document not found" });
+    if (!metadata) {
+      if (!req.parentAccount) return res.status(404).json({ error: "Document not found" });
+      const [legacy] = await db.select().from(documentsTable).where(eq(documentsTable.id, String(req.params.documentId)));
+      if (!legacy?.childId) return res.status(404).json({ error: "Document not found" });
+      const visible = await listParentDocuments(req.parentAccount.id, legacy.childId);
+      if (!visible.some(d => d.id === legacy.id)) return res.status(403).json({ error: "Access denied" });
+      const bytes = await readParentDocumentBytes(legacy.id);
+      const ext = path.extname(legacy.fileName || "").toLowerCase();
+      const mime: Record<string, string> = { ".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".txt": "text/plain; charset=utf-8", ".doc": "application/msword", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+      res.setHeader("Content-Type", mime[ext] || "application/octet-stream");
+      res.setHeader("Content-Disposition", disposition(safeFilename(legacy.fileName || "document")));
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      return res.send(bytes);
+    }
     if (!(await canReadParentDocument(req, metadata))) {
       return res.status(req.parentAccount || req.user || req.mobileUser || req.headers["x-client-token"] ? 403 : 401)
         .json({ error: "Access denied" });
@@ -121,8 +136,9 @@ async function sendParentDocumentContent(req: any, res: Response) {
 
 router.get("/parent/documents/:documentId/content", async (req: any, res: Response) => {
   try {
-    req.parentAccount = await resolveParent(req);
-  } catch {
+    req.parentAccount = await resolveParentActor(req);
+  } catch (error) {
+    if (error instanceof FamilyAccessError) return res.status(error.status).json({ error: error.message });
     return res.status(500).json({ error: "Document content could not be loaded" });
   }
   if (

@@ -9,6 +9,7 @@ import {
   parentSessionsTable,
 } from "@workspace/db";
 import { starterLibrary } from "./parentStarterLibrary";
+import { FamilyAccessError, hasFamilyCredential, resolveFamilyParent, resolveCookieFamilyParent, familyIdForOwner, familyChildrenForOwner, readFamilySettings, saveFamilySettings } from "./familyParentAuth";
 
 export const PARENT_SESSION_COOKIE = "np_parent_sid";
 export const PARENT_SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
@@ -20,7 +21,7 @@ export interface ParentIdentity {
   firstName: string;
   email: string;
   workspaceId: string;
-  accountType: "parent_free";
+  accountType: "parent_free" | "legacy_family";
 }
 
 export type ParentBehavior = {
@@ -79,6 +80,7 @@ declare global {
   namespace Express {
     interface Request {
       parentAccount?: ParentIdentity;
+      familyParent?: ParentIdentity;
     }
   }
 }
@@ -227,6 +229,12 @@ export async function resolveParent(req: Request): Promise<ParentIdentity | null
 }
 
 export async function ownedParentChild(parentId: string, childId: string) {
+  if (familyIdForOwner(parentId)) {
+    const child = (await familyChildrenForOwner(parentId)).find(c => c.id === childId);
+    if (!child) return null;
+    const settings = await readFamilySettings(parentId, childId, child.tenantId || child.clinicianId || child.familyId!);
+    return { ...child, child, settings };
+  }
   const [owned] = await db
     .select({ child: childrenTable, settings: parentChildSettingsTable })
     .from(childrenTable)
@@ -243,7 +251,7 @@ export async function ownedParentChild(parentId: string, childId: string) {
 
 export function serializeParentChild(
   child: typeof childrenTable.$inferSelect,
-  settings: typeof parentChildSettingsTable.$inferSelect | null,
+  settings: (typeof parentChildSettingsTable.$inferSelect & { profileNotes?: string }) | null,
 ) {
   const behaviors = parentBehaviorsFromSettings(settings);
   const primary = behaviors[0];
@@ -256,13 +264,13 @@ export function serializeParentChild(
     id: child.id,
     name: child.childName?.trim() || [child.firstName, child.lastName].filter(Boolean).join(" ").trim(),
     age: child.age ?? null,
-    notes: child.notes ?? "",
+    notes: settings?.profileNotes ?? child.notes ?? "",
     behaviorKey,
     behaviorName: behaviorName || null,
     goal: primary?.goal ?? settings?.goal ?? null,
     behaviors,
     workspaceId: settings?.workspaceId ?? child.tenantId ?? child.familyId ?? "",
-    parentId: child.parentId ?? "",
+    parentId: settings?.parentId ?? child.parentId ?? "",
     familyId: child.familyId ?? "",
     clinicianId: child.clinicianId ?? null,
   };
@@ -270,14 +278,41 @@ export function serializeParentChild(
 
 export async function requireParent(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const parent = await resolveParent(req);
+    if (hasFamilyCredential(req)) {
+      req.familyParent = await resolveFamilyParent(req);
+      // Compatibility projection for the shared adapters, not a parent-account
+      // record or cookie. The legacy_family discriminator and owner namespace
+      // remain intact; direct-account-only operations explicitly reject it.
+      req.parentAccount = req.familyParent;
+      next();
+      return;
+    }
+    const parent = await resolveParent(req) || (!readParentToken(req) ? await resolveCookieFamilyParent(req) : null);
     if (!parent) {
       res.status(401).json({ error: "Parent authentication required" });
       return;
     }
     req.parentAccount = parent;
+    if (parent.accountType === "legacy_family") req.familyParent = parent;
     next();
   } catch (error) {
+    if (error instanceof FamilyAccessError) { res.status(error.status).json({ error: error.message, code: error.code }); return; }
     next(error);
   }
+}
+
+export function parentActor(req: Request): ParentIdentity {
+  const actor = req.familyParent || req.parentAccount;
+  if (!actor) throw new Error("Parent capability required");
+  return actor;
+}
+export async function resolveParentActor(req: Request) {
+  if (hasFamilyCredential(req)) return resolveFamilyParent(req);
+  return await resolveParent(req) || (!readParentToken(req) ? await resolveCookieFamilyParent(req) : null);
+}
+export async function saveParentSettings(parentId: string, childId: string, values: Record<string, any>) {
+  if (familyIdForOwner(parentId)) return saveFamilySettings(parentId, childId, values);
+  await db.update(parentChildSettingsTable).set(values).where(and(
+    eq(parentChildSettingsTable.parentId, parentId), eq(parentChildSettingsTable.childId, childId),
+  ));
 }

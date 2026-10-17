@@ -26,6 +26,7 @@ import {
   PARENT_CHAT_DISCLAIMER,
 } from "./parentChatPolicy";
 import { ownedParentChild, parentBehaviorsFromSettings } from "./parentAuth";
+import { familyIdForOwner, familySupportCards, saveFamilySettings } from "./familyParentAuth";
 import {
   getStarterTemplate,
   makeStarterCard,
@@ -93,7 +94,9 @@ export type ParentDocumentWire = {
   documentType: string;
   scanStatus: string;
   scanError: string | null;
-  uploadedBy: "parent";
+  uploadedBy: "parent" | "clinician";
+  canShare?: boolean;
+  canScan?: boolean;
   shared: boolean;
   reviewed: boolean;
   createdAt: string;
@@ -115,6 +118,8 @@ function toWire(document: typeof documentsTable.$inferSelect, metadata: ParentDo
     scanStatus: document.scanStatus || "pending",
     scanError: document.scanError || null,
     uploadedBy: "parent",
+    canShare: true,
+    canScan: true,
     shared: Boolean(metadata.sharedClinicianId),
     reviewed: Boolean(metadata.reviewedBy && metadata.reviewedAt),
     createdAt: (document.createdDate || metadata.createdAt).toISOString(),
@@ -220,13 +225,27 @@ export async function canReadParentDocument(
   if (!child || !document || document.childId !== metadata.childId) return false;
 
   if (req.parentAccount?.id === metadata.parentId) {
-    return child.parentId === metadata.parentId && document.parentId === metadata.parentId;
+    return Boolean(await ownedParentChild(metadata.parentId, child.id)) && document.parentId === metadata.parentId;
+  }
+  const authorizedFamilyOwner = familyIdForOwner(metadata.parentId) &&
+    Boolean(await ownedParentChild(metadata.parentId, metadata.childId));
+  const effectiveChildParentId = authorizedFamilyOwner ? metadata.parentId : child.parentId;
+  const effectiveWorkspaceId = authorizedFamilyOwner ? metadata.workspaceId : child.tenantId;
+  if (req.parentAccount && familyIdForOwner(req.parentAccount.id) &&
+      metadata.sharedClinicianId && metadata.sharedClinicianId === child.clinicianId &&
+      await ownedParentChild(req.parentAccount.id, metadata.childId)) {
+    return canAccessParentDocument({
+      parentId: metadata.parentId, workspaceId: metadata.workspaceId,
+      childParentId: effectiveChildParentId, childWorkspaceId: effectiveWorkspaceId,
+      childClinicianId: child.clinicianId, sharedClinicianId: metadata.sharedClinicianId,
+      documentTenantId: document.tenantId, authorizedLegacyChildSession: true,
+    });
   }
   if (req.user?.id && canAccessParentDocument({
     parentId: metadata.parentId,
     workspaceId: metadata.workspaceId,
-    childParentId: child.parentId,
-    childWorkspaceId: child.tenantId,
+    childParentId: effectiveChildParentId,
+    childWorkspaceId: effectiveWorkspaceId,
     childClinicianId: child.clinicianId,
     sharedClinicianId: metadata.sharedClinicianId,
     documentTenantId: document.tenantId,
@@ -240,8 +259,8 @@ export async function canReadParentDocument(
     canAccessParentDocument({
       parentId: metadata.parentId,
       workspaceId: metadata.workspaceId,
-      childParentId: child.parentId,
-      childWorkspaceId: child.tenantId,
+      childParentId: effectiveChildParentId,
+      childWorkspaceId: effectiveWorkspaceId,
       childClinicianId: child.clinicianId,
       sharedClinicianId: metadata.sharedClinicianId,
       documentTenantId: document.tenantId,
@@ -258,8 +277,8 @@ export async function canReadParentDocument(
   return canAccessParentDocument({
     parentId: metadata.parentId,
     workspaceId: metadata.workspaceId,
-    childParentId: child.parentId,
-    childWorkspaceId: child.tenantId,
+    childParentId: effectiveChildParentId,
+    childWorkspaceId: effectiveWorkspaceId,
     childClinicianId: child.clinicianId,
     sharedClinicianId: metadata.sharedClinicianId,
     documentTenantId: document.tenantId,
@@ -268,18 +287,35 @@ export async function canReadParentDocument(
 }
 
 export async function listParentDocuments(parentId: string, childId: string): Promise<ParentDocumentWire[]> {
-  await ownedChild(parentId, childId);
+  const child = await ownedChild(parentId, childId);
   const metadataRows = await db.select().from(parentDocumentsTable)
     .where(and(eq(parentDocumentsTable.parentId, parentId), eq(parentDocumentsTable.childId, childId)))
     .orderBy(desc(parentDocumentsTable.createdAt));
-  if (!metadataRows.length) return [];
-  const documentRows = await db.select().from(documentsTable)
-    .where(inArray(documentsTable.id, metadataRows.map((row) => row.documentId)));
+  const documentRows = await db.select().from(documentsTable).where(eq(documentsTable.childId, childId));
+  const allMetadata = documentRows.length ? await db.select().from(parentDocumentsTable)
+    .where(inArray(parentDocumentsTable.documentId, documentRows.map(d => d.id))) : [];
+  const permissions = new Map(allMetadata.map(m => [m.documentId, m]));
   const byId = new Map(documentRows.map((row) => [row.id, row]));
-  return metadataRows.flatMap((metadata) => {
+  const own = metadataRows.flatMap((metadata) => {
     const document = byId.get(metadata.documentId);
     return document ? [toWire(document, metadata)] : [];
   });
+  const ownIds = new Set(own.map(d => d.id));
+  const clinical = documentRows.filter(d => {
+    if (ownIds.has(d.id) || !child.clinicianId || d.clinicianId !== child.clinicianId) return false;
+    const metadata = permissions.get(d.id);
+    if (metadata && metadata.sharedClinicianId !== child.clinicianId) return false;
+    if (d.accessRoles && !/parent|client|family|caregiver|all/i.test(d.accessRoles)) return false;
+    return true;
+  }).map(d => ({
+    id: d.id, childId, title: d.title || d.fileName || "Care-team document",
+    fileName: d.fileName || "document", documentType: d.category || "other",
+    scanStatus: d.scanStatus || "pending", scanError: d.scanError || null,
+    uploadedBy: (permissions.has(d.id) || d.uploadedBy !== child.clinicianId ? "parent" : "clinician") as "parent" | "clinician", canShare: false, canScan: false,
+    shared: true, reviewed: Boolean(permissions.get(d.id)?.reviewedAt),
+    createdAt: (d.createdDate || new Date(0)).toISOString(),
+  }));
+  return [...own, ...clinical].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 /**
@@ -314,7 +350,7 @@ export async function createParentDocument(input: {
   bytes: Buffer;
 }): Promise<{ document: ParentDocumentWire; duplicate: boolean }> {
   const child = await ownedChild(input.parentId, input.childId);
-  if (child.tenantId !== input.workspaceId) throw new Error("Child not found");
+  if (child.settings.workspaceId !== input.workspaceId) throw new Error("Child not found");
   const detected = detectParentDocumentType(input.fileName, input.declaredMimeType, input.bytes);
   if (!detected) {
     throw new Error("Unsupported file. Upload a valid PDF, DOC, DOCX, JPEG, PNG, or UTF-8 text file up to 20 MB.");
@@ -672,7 +708,8 @@ async function readParentDocument(
   const document = await findDocument(documentId);
   if (!document || document.parentId !== parentId || document.childId !== childId) throw new Error("Parent document not found");
   const [[settings], clinicianDocs] = await Promise.all([
-    db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId)),
+    familyIdForOwner(parentId) ? Promise.resolve([child.settings]) :
+      db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId)),
     child.clinicianId
       ? db.select().from(documentsTable).where(and(
           eq(documentsTable.childId, childId),
@@ -952,8 +989,9 @@ async function readParentDocument(
     const safetyNotice = notices.length
       ? `The plan was read. ${notices.join(" ")}`
       : null;
+    if (familyIdForOwner(parentId)) await saveFamilySettings(parentId, childId, { supportCards: nextCards });
     await db.transaction(async (tx) => {
-      await tx.update(parentChildSettingsTable).set({
+      if (!familyIdForOwner(parentId)) await tx.update(parentChildSettingsTable).set({
         supportCards: nextCards as any,
         updatedAt: new Date(),
       }).where(eq(parentChildSettingsTable.childId, childId));
@@ -1192,6 +1230,7 @@ export async function getParentSharedSupport(
 }
 
 export async function getParentSupportCards(parentId: string, childId: string): Promise<SupportCard[]> {
+  if (familyIdForOwner(parentId)) return familySupportCards(parentId, childId);
   const child = await ownedChild(parentId, childId);
   const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
   const raw = Array.isArray(settings?.supportCards)
@@ -1625,14 +1664,14 @@ export async function parentChat(
     };
   }
 
-  const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
+  const settings = (await ownedParentChild(parentId, childId))?.settings;
   const [cards, storedLogs, planGoals] = await Promise.all([
     getParentSupportCards(parentId, childId),
     db.select().from(parentLogsTable)
       .where(and(eq(parentLogsTable.parentId, parentId), eq(parentLogsTable.childId, childId)))
       .orderBy(desc(parentLogsTable.createdAt))
       .limit(20),
-    getParentPlanGoals(childId),
+    getParentPlanGoals(childId, parentId),
   ]);
   const selectedBehaviors = parentBehaviorsFromSettings(settings);
   const actionDate = normalizeParentActionDate(requestedActionDate);

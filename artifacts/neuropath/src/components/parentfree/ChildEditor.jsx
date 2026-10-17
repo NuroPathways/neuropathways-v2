@@ -6,7 +6,7 @@ import { parentRequest } from "@/lib/parentSession";
 import { BehaviorChoice, GoalFields, toSelections, toInput, goalsValid } from "./BehaviorFields";
 import { Field, ErrorBox, errMsg } from "./common";
 
-export default function ChildEditor({ child, section, onUpload }) {
+export default function ChildEditor({ child, section, onUpload, lockDemographics = false }) {
   const bRef = useRef(null); const gRef = useRef(null);
   useEffect(() => { (section === "goals" ? gRef : bRef).current?.scrollIntoView?.({ behavior: "smooth", block: "start" }); }, [section]);
   const qc = useQueryClient();
@@ -22,7 +22,7 @@ export default function ChildEditor({ child, section, onUpload }) {
   const save = (e) => {
     e.preventDefault();
     setError(""); setSaved(false);
-    const data = { name: f.name.trim(), age: f.age === "" ? undefined : Number(f.age), notes: f.notes.trim(), behaviors: toInput(f.sels) };
+    const data = { ...(lockDemographics ? {} : { name: f.name.trim(), age: f.age === "" ? undefined : Number(f.age) }), notes: f.notes.trim(), behaviors: toInput(f.sels) };
     update.mutate({ childId: child.id, data }, {
       onSuccess: async () => { setSaved(true); await refreshParent(); qc.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(child.id) }); },
       onError: (er) => setError(errMsg(er)),
@@ -34,8 +34,9 @@ export default function ChildEditor({ child, section, onUpload }) {
       <h2>Edit Behaviors / Goals</h2>
       <p className="pf-hint">Change the behavior, goal, nickname or notes without starting over. Your uploaded documents and guidance are kept.</p>
       {onUpload && <div><button type="button" className="pf-btn small" onClick={onUpload} data-testid="button-profile-upload">Upload a Plan</button></div>}
+      {lockDemographics ? <p className="pf-hint" data-testid="text-demographics-managed">Name and age are managed by your clinic.</p> : <>
       <Field label="Name or nickname"><input className="pf-input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} data-testid="input-edit-name" /></Field>
-      <Field label="Age"><input className="pf-input" type="number" min="0" max="25" value={f.age} onChange={(e) => setF({ ...f, age: e.target.value })} data-testid="input-edit-age" /></Field>
+      <Field label="Age"><input className="pf-input" type="number" min="0" max="25" value={f.age} onChange={(e) => setF({ ...f, age: e.target.value })} data-testid="input-edit-age" /></Field></>}
       <Field label="Notes"><textarea className="pf-area" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} data-testid="input-edit-notes" /></Field>
       <h3 ref={bRef}>Behaviors</h3>
       <p className="pf-hint">Add or remove behaviors. Each one keeps its own goal.</p>

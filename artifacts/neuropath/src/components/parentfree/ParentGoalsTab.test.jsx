@@ -13,6 +13,11 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
   return {
     ...actual,
     getGetParentDashboardQueryKey: (childId) => ["parent-dashboard", childId],
+    getGetParentGoalsQueryKey: (childId) => ["parent-goals", childId],
+    useGetParentGoals: () => ({ isLoading: false, isError: false, data: [] }),
+    useCreateParentGoal: () => ({ isPending: false, mutate: vi.fn() }),
+    useUpdateParentGoal: () => ({ isPending: false, mutate: vi.fn() }),
+    useDeleteParentGoal: () => ({ isPending: false, mutate: vi.fn() }),
     useRecordParentGoalFeedback: () => ({
       isPending: false,
       mutate: goalMocks.mutate,

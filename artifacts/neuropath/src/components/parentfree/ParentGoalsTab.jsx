@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import BehaviorLibrary from "./BehaviorLibrary";
 import GoalLines from "./GoalLines";
+import ClinicalGoals from "./ClinicalGoals";
 import { ErrorBox, errMsg } from "./common";
 
 const RATINGS = [
@@ -176,6 +177,8 @@ export default function ParentGoalsTab({
         </p>
       </section>
 
+      <ClinicalGoals childId={child?.id} childName={child?.name} dailyActions={dailyActions} />
+      <h3 style={{ marginTop: 4 }}>Behavior goals and check-ins</h3>
       {activeBehaviors.length === 0 ? (
         <section className="pf-card" data-testid="empty-goals">
           <h3>No active goals yet</h3>

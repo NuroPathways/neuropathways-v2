@@ -17,6 +17,81 @@ tags:
   - name: clinic-link
     description: Parent and clinician linking operations
 paths:
+  /parent/children/{childId}/goals:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getParentGoals
+      tags: [parent]
+      responses:
+        "200":
+          description: Authorized goals
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/ParentGoal" } }
+    post:
+      operationId: createParentGoal
+      tags: [parent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ParentGoalInput" }
+      responses:
+        "201":
+          description: Parent goal created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ParentGoal" }
+  /parent/children/{childId}/goals/{goalId}:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+      - { name: goalId, in: path, required: true, schema: { type: string } }
+    patch:
+      operationId: updateParentGoal
+      tags: [parent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ParentGoalUpdate" }
+      responses:
+        "200":
+          description: Parent goal updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ParentGoal" }
+    delete:
+      operationId: deleteParentGoal
+      tags: [parent]
+      responses:
+        "204": { description: Parent goal deleted }
+  /parent/children/{childId}/messages:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getParentMessages
+      tags: [parent]
+      responses:
+        "200":
+          description: Care-team messages
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/ParentMessage" } }
+    post:
+      operationId: sendParentMessage
+      tags: [parent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ParentMessageInput" }
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ParentMessage" }
   /healthz:
     get:
       operationId: healthCheck
@@ -843,6 +918,48 @@ components:
       in: cookie
       name: sid
   schemas:
+    ParentGoal:
+      type: object
+      properties:
+        id: { type: string }
+        childId: { type: string }
+        title: { type: string }
+        description: { type: string }
+        progress: { type: integer }
+        target: { type: integer }
+        source: { type: string }
+        createdByClinician: { type: boolean }
+        canEdit: { type: boolean }
+        canDelete: { type: boolean }
+      required: [id, childId, title, description, progress, target, source, createdByClinician, canEdit, canDelete]
+    ParentGoalInput:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 180 }
+        description: { type: string, maxLength: 3000 }
+        target: { type: integer, minimum: 1, maximum: 10000 }
+      required: [title]
+    ParentGoalUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 180 }
+        description: { type: string, maxLength: 3000 }
+        progress: { type: integer, minimum: 0, maximum: 10000 }
+        target: { type: integer, minimum: 1, maximum: 10000 }
+    ParentMessageInput:
+      type: object
+      properties:
+        content: { type: string, minLength: 1, maxLength: 5000 }
+      required: [content]
+    ParentMessage:
+      type: object
+      properties:
+        id: { type: string }
+        childId: { type: string }
+        content: { type: string }
+        senderRole: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, childId, content, senderRole, createdAt]
     HealthStatus:
       type: object
       properties:
@@ -898,7 +1015,7 @@ components:
           type: string
         accountType:
           type: string
-          const: parent_free
+          enum: [parent_free, legacy_family]
       required: [id, firstName, email, workspaceId, accountType]
     ParentChild:
       type: object
@@ -1287,6 +1404,8 @@ components:
     ParentDocument:
       type: object
       properties:
+        canShare: { type: boolean }
+        canScan: { type: boolean }
         id:
           type: string
         childId:
@@ -1387,7 +1506,7 @@ components:
             type: string
         sourceType:
           type: string
-          enum: [clinician_uploaded_plan, parent_uploaded_plan]
+          enum: [clinician_uploaded_plan, parent_uploaded_plan, selected_behavior]
       required: [id, title, description, milestones, sourceType]
     ParentDashboard:
       type: object
@@ -1418,6 +1537,8 @@ components:
     ParentDailyAction:
       type: object
       properties:
+        goalId:
+          type: [string, "null"]
         id:
           type: string
         childId:

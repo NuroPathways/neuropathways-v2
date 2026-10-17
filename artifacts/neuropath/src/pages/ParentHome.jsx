@@ -13,6 +13,7 @@ import LogPanel from "@/components/parentfree/LogPanel";
 import DocsPanel from "@/components/parentfree/DocsPanel";
 import ChatPanel from "@/components/parentfree/ChatPanel";
 import ClinicPanel from "@/components/parentfree/ClinicPanel";
+import MessagesPanel from "@/components/parentfree/MessagesPanel";
 import BehaviorCards from "@/components/parentfree/BehaviorCards";
 import ParentGoalsTab from "@/components/parentfree/ParentGoalsTab";
 import { cardIdentity } from "@/components/parentfree/progress";
@@ -22,10 +23,9 @@ import DailySupportHome from "@/components/parentfree/DailySupportHome";
 import PracticePage from "@/components/parentfree/PracticePage";
 import { parentDirectBehaviors } from "@/components/parentfree/parentDirectSupport";
 import SupportNowOverlay, { clearSupportPopupSession } from "@/components/support/SupportNowOverlay";
-import UnifiedParentHome from "@/pages/UnifiedParentHome";
 import { AlertTriangle } from "lucide-react";
 
-const TABS = [["today", "Today's Support"], ["practice", "Practice"], ["steps", "Support Steps"], ["log", "Log What Happened"], ["docs", "Upload Plan"], ["ask", "Ask"], ["clinic", "Clinic"], ["edit", "Edit Child Profile"]];
+const TABS = [["today", "Today's Support"], ["practice", "Practice"], ["steps", "Support Steps"], ["log", "Log What Happened"], ["docs", "Upload Plan"], ["ask", "Ask"], ["clinic", "Clinic"], ["messages", "Messages"], ["edit", "Edit Child Profile"]];
 
 const focusPrefix = (userId) => `np-parent-focus:${userId}:`;
 function readFocus(userId, childId) {
@@ -45,6 +45,7 @@ function currentLocalDay() {
 
 function Body({ child }) {
   const { user } = useAuth();
+  const isLegacy = (user?.accountType || user?.account_type) === "legacy_family";
   const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
   const legacyPracticeRoute = sp.get("tab") === "today" && sp.get("section") === "practice";
@@ -135,6 +136,8 @@ function Body({ child }) {
           actions={d.dailyActions || []}
           documents={d.documents || []}
           initialActionId={sp.get("activity_id")}
+          initialView={section === "preferences" ? "My Routines" : undefined}
+          key={section === "preferences" ? "practice-preferences" : "practice"}
           onExitRoute={() => {
             if (sp.has("activity_id")) {
               const next = new URLSearchParams(sp);
@@ -199,7 +202,10 @@ function Body({ child }) {
       {d && tab === "log" && <LogPanel childId={child.id} childName={child.name} logs={d.logs} behaviors={behaviors} defaultId={curId} />}
       {d && tab === "docs" && <DocsPanel child={d.child || child} documents={d.documents} />}
       {tab === "ask" && <ChatPanel childId={child.id} childName={child.name} cards={allCards} />}
-      {d && tab === "clinic" && <ClinicPanel child={d.child || child} documents={d.documents} />}
+      {d && tab === "clinic" && (isLegacy
+        ? <div className="pf-card" data-testid="legacy-clinic-managed"><h2>Your clinic manages this family</h2><p className="pf-hint" style={{ marginTop: 6 }}>Your clinician already has access to this family account. Use Messages to reach your care team.</p><button type="button" className="pf-btn small" style={{ marginTop: 12 }} onClick={() => go("messages")}>Open Messages</button></div>
+        : <ClinicPanel child={d.child || child} documents={d.documents} />)}
+      {tab === "messages" && <MessagesPanel childId={child.id} childName={child.name} />}
       {tab === "edit" && section === "goals" && (
         <ParentGoalsTab
           child={d?.child || child}
@@ -216,6 +222,7 @@ function Body({ child }) {
         <ChildEditor
           child={d?.child || child}
           section={section === "goal-editor" ? "goals" : section}
+          lockDemographics={isLegacy}
           onUpload={() => go("docs")}
         />
       )}
@@ -263,14 +270,15 @@ export default function ParentHome() {
       behaviors: parentDirectBehaviors(dashboard.child || {}, dashboard.supportCards, starterLibrary),
     };
   }, []);
+  const isLegacyFamily = (user?.accountType || user?.account_type) === "legacy_family";
   if (!isAuthenticated) return <Navigate to="/ParentLogin" replace />;
-  if (user?.account_type === "parent_free") {
-  if (children.length === 0 || (activeChild && incomplete?.id === activeChild.id)) return <Navigate to="/ParentQuickStart" replace />;
+  if (["parent_free", "legacy_family"].includes(user?.account_type) || ["parent_free", "legacy_family"].includes(user?.accountType)) {
+  if (!isLegacyFamily && (children.length === 0 || (activeChild && incomplete?.id === activeChild.id))) return <Navigate to="/ParentQuickStart" replace />;
   } else if (
     user?.app_role === "parent" || user?.role === "parent" || user?.app_role === "caregiver" ||
     user?.role === "caregiver" || ["parent", "parent_family", "family", "caregiver"].includes(user?.account_type)
   ) {
-    return <UnifiedParentHome />;
+    if (children.length === 0) return <Navigate to="/ParentQuickStart" replace />;
   } else if (user?.app_role === "clinician" || user?.role === "clinician" || user?.role === "admin") {
     return <Navigate to="/ClinicianDashboard" replace />;
   } else {
@@ -286,6 +294,9 @@ export default function ParentHome() {
     onMenu: () => nav(`/Menu${activeChild?.id ? `?child_id=${encodeURIComponent(activeChild.id)}` : ""}`),
     onHistory: () => nav(`/History${activeChild?.id ? `?child_id=${encodeURIComponent(activeChild.id)}` : ""}`),
   });
+  const legacyHidden = new Set(["add-child", "profiles", "clinic"]);
+  if (isLegacyFamily) for (const group of navGroups) group.items = group.items.filter((item) => !legacyHidden.has(item.key));
+  for (const group of navGroups) for (const item of group.items) if (item.key === "messages") { delete item.to; delete item.pages; item.active = activeTab === "messages"; item.onSelect = () => goToTab("messages"); }
   const activeItem = navGroups.flatMap((group) => group.items).find((item) => item.active);
   const currentLabel = activeItem?.label || "Home";
 
@@ -336,6 +347,9 @@ export default function ParentHome() {
         loadProfileForChild={loadPopupProfile}
         logEngagement={false}
         openRequest={supportRequest}
+        autoOpen={false}
+        parentDirect
+        initialChildId={activeChild?.id || null}
       />
     </RoleAwareShell>
   );

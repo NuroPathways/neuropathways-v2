@@ -11,6 +11,8 @@ import type { ParentDailyActionSourceType } from './parentDailyActionSourceType'
 import type { ParentDailyActionStatus } from './parentDailyActionStatus';
 
 export interface ParentDailyAction {
+  /** @nullable */
+  goalId?: string | null;
   id: string;
   childId: string;
   actionDate: Date;

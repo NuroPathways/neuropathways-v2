@@ -248,12 +248,8 @@ async function validateClientSession(token: string | undefined | null): Promise<
 // ──────────────────────────────────────────────
 
 async function sessionMayAccessChild(sessionChildId: string, targetChildId: string): Promise<boolean> {
-  if (sessionChildId === targetChildId) return true;
-  const [auth] = await db.select().from(childrenTable).where(eq(childrenTable.id, sessionChildId));
-  const [target] = await db.select().from(childrenTable).where(eq(childrenTable.id, targetChildId));
-  if (!auth?.familyId || auth.familyId !== target?.familyId) return false;
-  if (auth.clinicianId !== target.clinicianId) return false;
-  return true;
+  const helpers = await import("./entities-helpers");
+  return helpers.sessionMayAccessChild(sessionChildId, targetChildId);
 }
 
 // ──────────────────────────────────────────────
@@ -681,6 +677,7 @@ router.post("/client-portal-data", async (req, res) => {
   let familyId: string | null = null;
   let clinicianId: string | null = null;
   if (csession.childId !== child_id) {
+    if (!(await sessionMayAccessChild(csession.childId, child_id))) return res.status(403).json({ error: "Access denied" });
     const [authChild] = await db.select().from(childrenTable).where(eq(childrenTable.id, csession.childId));
     const [targetChild] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
     if (!authChild?.familyId || authChild.familyId !== targetChild?.familyId) {
@@ -716,7 +713,7 @@ router.post("/client-portal-data", async (req, res) => {
 
     // Fetch siblings in the same family AND same clinician so the selector never
     // surfaces children that belong to a different clinician tenant.
-    const siblings = familyId
+    const siblings = familyId && child?.accountType !== "individual"
       ? await db.select().from(childrenTable).where(
           clinicianId
             ? and(eq(childrenTable.familyId, familyId), eq(childrenTable.clinicianId, clinicianId))
@@ -1697,8 +1694,10 @@ router.post("/verify-client-credentials", async (req, res) => {
       return res.json({ error: "Invalid username or access code" });
     }
 
-    const siblings = child.familyId
-      ? await db.select().from(childrenTable).where(eq(childrenTable.familyId, child.familyId))
+    const siblings = child.familyId && child.accountType !== "individual"
+      ? await db.select().from(childrenTable).where(and(eq(childrenTable.familyId, child.familyId),
+          child.clinicianId ? eq(childrenTable.clinicianId, child.clinicianId) : isNull(childrenTable.clinicianId),
+          child.tenantId ? eq(childrenTable.tenantId, child.tenantId) : isNull(childrenTable.tenantId)))
       : [child];
 
     const [family] = child.familyId
@@ -1715,7 +1714,7 @@ router.post("/verify-client-credentials", async (req, res) => {
       family_name: family?.familyName ?? null,
       primary_contact: family?.primaryContact ?? null,
       account_type: family?.accountType ?? null,
-      children: serialize(siblings),
+      children: stripSensitive(serialize(siblings)),
     };
     return res.json({ session });
   } catch (e: any) {
@@ -1746,8 +1745,12 @@ router.post("/client-session/change-access-code", async (req, res) => {
 
     const hashedCode = await hashAccessCode(new_access_code);
     // Update all siblings sharing the same family credentials
-    if (child.familyId) {
-      await db.update(childrenTable).set({ accessCode: hashedCode }).where(eq(childrenTable.familyId, child.familyId));
+    if (child.familyId && child.accountType !== "individual") {
+      await db.update(childrenTable).set({ accessCode: hashedCode }).where(and(
+        eq(childrenTable.familyId, child.familyId),
+        child.clinicianId ? eq(childrenTable.clinicianId, child.clinicianId) : isNull(childrenTable.clinicianId),
+        child.tenantId ? eq(childrenTable.tenantId, child.tenantId) : isNull(childrenTable.tenantId),
+      ));
     } else {
       await db.update(childrenTable).set({ accessCode: hashedCode }).where(eq(childrenTable.id, child.id));
     }

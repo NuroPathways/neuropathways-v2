@@ -21,9 +21,9 @@ const id = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const arrText = (items) => (items || []).join("\n");
 const parseLines = (text) => text.split("\n").map((v) => v.trim()).filter(Boolean);
 
-export default function FamilyTools({ childId, childName = "your child", actions = [], onActivities }) {
+export default function FamilyTools({ childId, childName = "your child", actions = [], onActivities, initialTab = "Routines" }) {
   const cache = useQueryClient();
-  const [tab, setTab] = useState("Routines");
+  const [tab, setTab] = useState(initialTab);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const q = useGetParentFamilyTools(String(childId), {

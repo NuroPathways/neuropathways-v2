@@ -8,6 +8,137 @@
 import * as zod from 'zod';
 
 
+export const GetParentGoalsParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const GetParentGoalsResponseItem = zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "progress": zod.number().int(),
+  "target": zod.number().int(),
+  "source": zod.string(),
+  "createdByClinician": zod.boolean(),
+  "canEdit": zod.boolean(),
+  "canDelete": zod.boolean()
+})
+export const GetParentGoalsResponse = zod.array(GetParentGoalsResponseItem)
+
+
+export const CreateParentGoalParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const createParentGoalBodyTitleMax = 180;
+
+export const createParentGoalBodyDescriptionMax = 3000;
+
+export const createParentGoalBodyTargetMax = 10000;
+
+
+
+export const CreateParentGoalBody = zod.object({
+  "title": zod.string().min(1).max(createParentGoalBodyTitleMax),
+  "description": zod.string().max(createParentGoalBodyDescriptionMax).optional(),
+  "target": zod.number().int().min(1).max(createParentGoalBodyTargetMax).optional()
+})
+
+export const CreateParentGoalResponse = zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "progress": zod.number().int(),
+  "target": zod.number().int(),
+  "source": zod.string(),
+  "createdByClinician": zod.boolean(),
+  "canEdit": zod.boolean(),
+  "canDelete": zod.boolean()
+})
+
+
+export const UpdateParentGoalParams = zod.object({
+  "childId": zod.coerce.string(),
+  "goalId": zod.coerce.string()
+})
+
+export const updateParentGoalBodyTitleMax = 180;
+
+export const updateParentGoalBodyDescriptionMax = 3000;
+
+export const updateParentGoalBodyProgressMin = 0;
+export const updateParentGoalBodyProgressMax = 10000;
+
+export const updateParentGoalBodyTargetMax = 10000;
+
+
+
+export const UpdateParentGoalBody = zod.object({
+  "title": zod.string().min(1).max(updateParentGoalBodyTitleMax).optional(),
+  "description": zod.string().max(updateParentGoalBodyDescriptionMax).optional(),
+  "progress": zod.number().int().min(updateParentGoalBodyProgressMin).max(updateParentGoalBodyProgressMax).optional(),
+  "target": zod.number().int().min(1).max(updateParentGoalBodyTargetMax).optional()
+})
+
+export const UpdateParentGoalResponse = zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "progress": zod.number().int(),
+  "target": zod.number().int(),
+  "source": zod.string(),
+  "createdByClinician": zod.boolean(),
+  "canEdit": zod.boolean(),
+  "canDelete": zod.boolean()
+})
+
+
+export const DeleteParentGoalParams = zod.object({
+  "childId": zod.coerce.string(),
+  "goalId": zod.coerce.string()
+})
+
+export const DeleteParentGoalResponse = zod.void()
+
+
+export const GetParentMessagesParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const GetParentMessagesResponseItem = zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "content": zod.string(),
+  "senderRole": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const GetParentMessagesResponse = zod.array(GetParentMessagesResponseItem)
+
+
+export const SendParentMessageParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const sendParentMessageBodyContentMax = 5000;
+
+
+
+export const SendParentMessageBody = zod.object({
+  "content": zod.string().min(1).max(sendParentMessageBodyContentMax)
+})
+
+export const SendParentMessageResponse = zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "content": zod.string(),
+  "senderRole": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
 /**
  * Returns server health status
  * @summary Health check
@@ -59,7 +190,7 @@ export const RegisterParentResponse = zod.object({
   "firstName": zod.string(),
   "email": zod.string(),
   "workspaceId": zod.string(),
-  "accountType": zod.literal("parent_free")
+  "accountType": zod.enum(['parent_free', 'legacy_family'])
 }),
   "children": zod.array(zod.object({
   "id": zod.string(),
@@ -104,7 +235,7 @@ export const LoginParentResponse = zod.object({
   "firstName": zod.string(),
   "email": zod.string(),
   "workspaceId": zod.string(),
-  "accountType": zod.literal("parent_free")
+  "accountType": zod.enum(['parent_free', 'legacy_family'])
 }),
   "children": zod.array(zod.object({
   "id": zod.string(),
@@ -172,7 +303,7 @@ export const GetParentSessionResponse = zod.object({
   "firstName": zod.string(),
   "email": zod.string(),
   "workspaceId": zod.string(),
-  "accountType": zod.literal("parent_free")
+  "accountType": zod.enum(['parent_free', 'legacy_family'])
 }),
   "children": zod.array(zod.object({
   "id": zod.string(),
@@ -456,6 +587,8 @@ export const GetParentDashboardResponse = zod.object({
   "reviewedAt": zod.string().nullable()
 })),
   "documents": zod.array(zod.object({
+  "canShare": zod.boolean().optional(),
+  "canScan": zod.boolean().optional(),
   "id": zod.string(),
   "childId": zod.string(),
   "title": zod.string(),
@@ -486,6 +619,7 @@ export const GetParentDashboardResponse = zod.object({
   "createdAt": zod.coerce.date()
 })),
   "dailyActions": zod.array(zod.object({
+  "goalId": zod.string().nullish(),
   "id": zod.string(),
   "childId": zod.string(),
   "actionDate": zod.coerce.date(),
@@ -525,7 +659,7 @@ export const GetParentDashboardResponse = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "milestones": zod.array(zod.string()),
-  "sourceType": zod.enum(['clinician_uploaded_plan', 'parent_uploaded_plan'])
+  "sourceType": zod.enum(['clinician_uploaded_plan', 'parent_uploaded_plan', 'selected_behavior'])
 }))
 })
 
@@ -549,6 +683,7 @@ export const updateParentDailyActionResponseCurrentStepMin = 0;
 
 
 export const UpdateParentDailyActionResponse = zod.object({
+  "goalId": zod.string().nullish(),
   "id": zod.string(),
   "childId": zod.string(),
   "actionDate": zod.coerce.date(),
@@ -612,6 +747,7 @@ export const logParentDailyActionResponseActionCurrentStepMin = 0;
 
 export const LogParentDailyActionResponse = zod.object({
   "action": zod.object({
+  "goalId": zod.string().nullish(),
   "id": zod.string(),
   "childId": zod.string(),
   "actionDate": zod.coerce.date(),
@@ -800,6 +936,8 @@ export const ListParentDocumentsParams = zod.object({
 })
 
 export const ListParentDocumentsResponseItem = zod.object({
+  "canShare": zod.boolean().optional(),
+  "canScan": zod.boolean().optional(),
   "id": zod.string(),
   "childId": zod.string(),
   "title": zod.string(),
@@ -830,6 +968,8 @@ export const UploadParentDocumentBody = zod.object({
 })
 
 export const UploadParentDocumentResponse = zod.object({
+  "canShare": zod.boolean().optional(),
+  "canScan": zod.boolean().optional(),
   "id": zod.string(),
   "childId": zod.string(),
   "title": zod.string(),
@@ -933,6 +1073,8 @@ export const SetParentDocumentSharingBody = zod.object({
 })
 
 export const SetParentDocumentSharingResponse = zod.object({
+  "canShare": zod.boolean().optional(),
+  "canScan": zod.boolean().optional(),
   "id": zod.string(),
   "childId": zod.string(),
   "title": zod.string(),
@@ -1199,6 +1341,8 @@ export const GetParentSharedSupportResponse = zod.object({
   "reviewedAt": zod.string().nullable()
 })),
   "documents": zod.array(zod.object({
+  "canShare": zod.boolean().optional(),
+  "canScan": zod.boolean().optional(),
   "id": zod.string(),
   "childId": zod.string(),
   "title": zod.string(),
@@ -1290,6 +1434,8 @@ export const UpdateSharedSupportActivityVersionResponse = zod.object({
   "reviewedAt": zod.string().nullable()
 })),
   "documents": zod.array(zod.object({
+  "canShare": zod.boolean().optional(),
+  "canScan": zod.boolean().optional(),
   "id": zod.string(),
   "childId": zod.string(),
   "title": zod.string(),

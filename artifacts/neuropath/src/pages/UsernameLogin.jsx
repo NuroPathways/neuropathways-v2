@@ -45,7 +45,7 @@ export default function UsernameLogin() {
 
       // Existing accounts keep their client session and records, but use the
       // current client home instead of the legacy parent dashboard.
-      window.location.href = "/ClientHome";
+      window.location.href = "/ParentHome";
     } catch {
       setError("Could not connect. Please try again.");
       setLoading(false);

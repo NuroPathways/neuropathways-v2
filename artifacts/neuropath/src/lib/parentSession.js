@@ -1,3 +1,4 @@
+import { getClientSession } from "./clientSession";
 const KEY = "np_parent_token";
 
 export function saveParentToken(token) {
@@ -12,11 +13,12 @@ export function clearParentToken() {
 
 // Request options for generated parent API functions/hooks: token header plus cookie.
 export function parentRequest(extra = {}) {
+  const familyToken = getClientSession()?.invite_token;
   const token = getParentToken();
   return {
     credentials: "include",
     ...extra,
-    headers: { ...(token ? { "X-Parent-Token": token } : {}), ...(extra.headers || {}) },
+    headers: { ...(familyToken ? { "X-Family-Token": familyToken } : token ? { "X-Parent-Token": token } : {}), ...(extra.headers || {}) },
   };
 }
 

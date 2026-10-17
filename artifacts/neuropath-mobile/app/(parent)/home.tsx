@@ -15,7 +15,7 @@ export default function ParentHome() {
   const behaviorNames = new Map(getParentBehaviors(query.data?.child ?? child ?? {}).map((behavior) => [parentBehaviorIdentity(behavior), behavior.behaviorName]));
   return (
     <Screen>
-      <H sub={child ? `Support for ${child.name}` : undefined}>Family Home</H>
+      <H>{child ? `Support for ${child.name}` : "Family Home"}</H>
       <ChildSwitch />
       <T size={14} color={c.secondary}>Choose what would help your family right now.</T>
       {query.isLoading ? <Skeleton lines={4} /> : query.isError ? <ErrorBox message={msg(query.error, "Your home could not load.")} onRetry={() => query.refetch()} /> : (
@@ -25,7 +25,22 @@ export default function ParentHome() {
             <View style={{ flex: 1 }}><T weight="bold" size={18} color={c.destructiveForeground}>Need help right now?</T><T size={13} color={c.destructiveForeground}>Open saved support steps</T></View>
           </Pressable>
           <View style={{ gap: 10 }}>
-            <T size={17} weight="bold">For today</T>
+            {(() => {
+              const paused = (query.data?.dailyActions ?? []).find((a) => (a.currentStep ?? 0) > 0 || a.bookmarked || a.status === "saved_for_later");
+              return paused ? (
+                <Card>
+                  <T size={12} weight="semi" color={c.secondary}>CONTINUE</T>
+                  <T weight="semi" size={16}>{paused.title}</T>
+                  <Pressable accessibilityRole="button" testID="home-continue" onPress={() => router.push("/(parent)/practice" as never)} style={{ minHeight: 44, justifyContent: "center" }}><T weight="semi" color={c.primary}>Continue where you left off</T></Pressable>
+                </Card>
+              ) : null;
+            })()}
+            <Card>
+              <T size={12} weight="semi" color={c.secondary}>PREPARE</T>
+              <T size={14} color={c.secondary}>Review saved support steps before a hard moment.</T>
+              <Pressable accessibilityRole="button" testID="home-prepare" onPress={() => router.push("/(parent)/help-now" as never)} style={{ minHeight: 44, justifyContent: "center" }}><T weight="semi" color={c.primary}>Prepare</T></Pressable>
+            </Card>
+            <T size={17} weight="bold">Practice Together</T>
             <Card>
               <T size={12} weight="semi" color={c.secondary}>PRACTICE</T>
               <T weight="semi" size={16}>One small step is enough</T>

@@ -20,13 +20,15 @@ export default function ParentMenu() {
   const [search] = useSearchParams();
   const childId = search.get("child_id");
   const open = (path) => {
-    if (user?.account_type === "parent_free") {
+    const unified = ["parent_free", "legacy_family"].includes(user?.accountType || user?.account_type);
+    if (unified) {
       const mapped = {
         "/HelpNow": "/ParentHome?tab=today&section=library",
         "/DocumentCenter": "/ParentHome?tab=docs",
         "/ParentUpload": "/ParentHome?tab=docs",
         "/AIChat": "/ParentHome?tab=ask",
-        "/ChildProfile": "/ParentHome?tab=edit&section=profile",
+        "/ChildProfile": "/ParentHome?tab=practice&section=preferences",
+        "/Messages": "/ParentHome?tab=messages",
       }[path];
       if (mapped) path = mapped;
     }
@@ -40,7 +42,7 @@ export default function ParentMenu() {
     <main className="np-parent-directory" data-testid="parent-menu">
       <header><span>Family tools</span><h1>Menu</h1><p>Everything else, in one place.</p></header>
       <nav aria-label="Parent features">
-        {entries.map(([title, description, Icon, path]) => (
+        {entries.filter(([title]) => !((user?.accountType || user?.account_type) === "legacy_family" && title === "Clinic connection")).map(([title, description, Icon, path]) => (
           <button type="button" key={title} onClick={() => open(path)} data-testid={`menu-link-${title.toLowerCase().replaceAll(/[^a-z]+/g, "-")}`}>
             <span className="np-directory-icon"><Icon size={19} aria-hidden="true" /></span>
             <span><strong>{title}</strong><small>{description}</small></span>

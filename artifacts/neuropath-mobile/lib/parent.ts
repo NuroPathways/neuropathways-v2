@@ -14,7 +14,8 @@ const base = getApiBase();
 if (base) setBaseUrl(base);
 
 export const parentOpts = (token: string | null): { headers: Record<string, string> } => ({
-  headers: token ? { "X-Parent-Token": token } : {},
+  headers: token?.startsWith("family-mobile:") ? { "X-Mobile-Token": token.slice("family-mobile:".length) } :
+    token ? { "X-Parent-Token": token } : {},
 });
 
 const CACHE_DIR = `${FileSystem.cacheDirectory ?? ""}np-parent-docs/`;
@@ -75,7 +76,7 @@ export async function uploadNative(childId: string, token: string, file: PickedF
   form.append("authorizedUploader", "true");
   const res = await fetch(`${getApiBase()}/api/parent/children/${encodeURIComponent(childId)}/documents`, {
     method: "POST",
-    headers: { "X-Parent-Token": token },
+    headers: parentOpts(token).headers,
     body: form,
   });
   if (!res.ok) {
@@ -85,29 +86,21 @@ export async function uploadNative(childId: string, token: string, file: PickedF
   return res.json();
 }
 
-/** Downloads authorized bytes to a private cache file using a header (never a URL token), then opens the native share/viewer sheet. */
+/** Returns a private web preview URL, or opens the native viewer using header-authorized bytes. */
 export async function openDocument(doc: ParentDocument, token: string) {
   if (Platform.OS === "web") {
-    const res = await fetch(`${getApiBase()}/api/parent/documents/${encodeURIComponent(doc.id)}/content`, { headers: { "X-Parent-Token": token } });
+    const res = await fetch(`${getApiBase()}/api/parent/documents/${encodeURIComponent(doc.id)}/content`, parentOpts(token));
     if (!res.ok) throw new Error("This document could not be opened.");
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = doc.fileName;
-    a.target = "_blank";
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    return;
+    // The caller displays this inside a sandboxed in-app preview and owns
+    // revocation. "Open" must not silently trigger an invisible download.
+    return URL.createObjectURL(blob);
   }
   await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true }).catch(() => undefined);
   const ext = (doc.fileName.match(/\.[A-Za-z0-9]{1,5}$/)?.[0] ?? "").toLowerCase();
   const target = `${CACHE_DIR}${doc.id}${ext}`;
   const res = await FileSystem.downloadAsync(`${getApiBase()}/api/parent/documents/${encodeURIComponent(doc.id)}/content`, target, {
-    headers: { "X-Parent-Token": token },
+    headers: parentOpts(token).headers,
   });
   if (res.status < 200 || res.status >= 300) {
     await FileSystem.deleteAsync(target, { idempotent: true }).catch(() => undefined);

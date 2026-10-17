@@ -10,6 +10,7 @@ import clinicianEmailAuthRouter from "./clinician-email-auth";
 import parentRouter from "./parent";
 import parentDocumentsRouter from "./parent-documents";
 import parentLinkRouter from "./parent-link";
+import parentFamilyDataRouter from "./parent-family-data";
 
 const router: IRouter = Router();
 
@@ -17,6 +18,7 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(clinicianEmailAuthRouter);
 router.use(parentRouter);
+router.use(parentFamilyDataRouter);
 router.use(parentDocumentsRouter);
 router.use(parentLinkRouter);
 router.use(entitiesRouter);

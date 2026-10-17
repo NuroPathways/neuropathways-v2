@@ -19,6 +19,12 @@ Use a calm, light, mobile-first visual system with navy text, soft teal accents,
 
 Keep “I Need Help Right Now” separate from the Behavior Support Library.
 
+Legacy username/access-code family and caregiver logins must enter the same parent application as independent and clinic-invited parent accounts, without creating replacement accounts or copying existing clinical records. Individual self-managed clients must stay in the client experience; unknown family types must fail safely.
+
+**Why:** The user explicitly approved the family-scoped bridge and repeatedly requested complete parent-experience unification rather than another role-routing-only change.
+
+**How to apply:** Establish family access from verified server sessions and recheck child, family, clinician, tenant, and active clinic-link boundaries on reads and writes. Preserve original clinical IDs and consent. Expired family credentials must not silently restore an unrelated stored parent or clinician session.
+
 **Why:** The user explicitly asked to remove that action from the library while restoring the older dashboard presentation.
 
 **How to apply:** Urgent support may remain in navigation or a separate dashboard action, but do not put its CTA inside the library.
