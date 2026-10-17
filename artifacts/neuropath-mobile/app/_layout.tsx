@@ -33,7 +33,11 @@ function RootLayoutNav() {
     const seg = segments[0] as string;
     const parentRoutes = ["(parent)", "parent-quickstart", "parent-edit", "parent-connect", "parent-add-child", "privacy", "+not-found"];
     if (parent.parent) {
-      if (!parent.setupComplete) {
+      if (parent.children.length === 0) {
+        if (seg !== "parent-quickstart" && seg !== "privacy") router.replace("/parent-quickstart" as never);
+      } else if (!parent.child && parent.children.length > 1) {
+        if (seg !== "(parent)" && seg !== "privacy") router.replace("/(parent)" as never);
+      } else if (!parent.setupComplete) {
         if (seg !== "parent-quickstart" && seg !== "privacy") router.replace("/parent-quickstart" as never);
       } else if (!parentRoutes.includes(seg)) router.replace("/(parent)" as never);
       return;
@@ -53,7 +57,7 @@ function RootLayoutNav() {
     } else if (isAuthenticated && (["login", "signup", "legacy-signup", "clinician-login"].includes(segments[0] as string) || (user?.role === "clinician" && segments[0] === "(tabs)") || (user?.role !== "clinician" && ["clinician", "clinician-client", "clinician-create-client"].includes(segments[0] as string)))) {
       router.replace(user?.role === "clinician" ? "/clinician" : "/(tabs)");
     }
-  }, [isAuthenticated, isLoading, segments, user?.role, parent.ready, parent.parent, parent.setupComplete]);
+  }, [isAuthenticated, isLoading, segments, user?.role, parent.ready, parent.parent, parent.children, parent.child, parent.setupComplete]);
 
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>

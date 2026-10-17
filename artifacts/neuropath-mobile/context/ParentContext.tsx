@@ -48,11 +48,12 @@ export function ParentProvider({ children: kids }: { children: React.ReactNode }
 
   const apply = useCallback(async (p: Parent, list: ParentChild[]) => {
     const saved = await AsyncStorage.getItem(PARENT_CHILD_KEY);
-    const pick = list.find((c) => c.id === saved) ?? list[0] ?? null;
+    const pick = list.find((c) => c.id === saved) ?? (list.length === 1 ? list[0] : null);
     setParent(p);
     setChildren(list);
     setChildId(pick?.id ?? null);
     if (pick) await AsyncStorage.setItem(PARENT_CHILD_KEY, pick.id);
+    else await AsyncStorage.removeItem(PARENT_CHILD_KEY);
   }, []);
 
   useEffect(() => {
@@ -116,7 +117,12 @@ export function ParentProvider({ children: kids }: { children: React.ReactNode }
     const s = await getParentSession(parentOpts(token));
     setParent(s.parent);
     setChildren(s.children);
-    if (!s.children.some((c) => c.id === childId)) setChildId(s.children[0]?.id ?? null);
+    if (!s.children.some((c) => c.id === childId)) {
+      const nextChild = s.children.length === 1 ? s.children[0] : null;
+      setChildId(nextChild?.id ?? null);
+      if (nextChild) await AsyncStorage.setItem(PARENT_CHILD_KEY, nextChild.id);
+      else await AsyncStorage.removeItem(PARENT_CHILD_KEY);
+    }
   };
   const upsertChild = (c: ParentChild) => {
     setChildren((prev) => (prev.some((x) => x.id === c.id) ? prev.map((x) => (x.id === c.id ? c : x)) : [...prev, c]));

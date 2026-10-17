@@ -4,6 +4,8 @@ import { Feather } from "@expo/vector-icons";
 import { Platform } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { useParent } from "@/context/ParentContext";
+import { ChildSwitch } from "@/components/ChildSwitch";
+import { H, Screen, T } from "@/components/ParentUi";
 
 export const unstable_settings = { initialRouteName: "home" };
 
@@ -16,6 +18,17 @@ export default function ParentTabs() {
     if (authorized && authorized.id !== child?.id) void selectChild(authorized.id);
   }, [child_id, children, child?.id, selectChild]);
   const icon = (n: keyof typeof Feather.glyphMap) => ({ color, size }: { color: string; size: number }) => <Feather name={n} color={color} size={size} />;
+  if (!child && children.length > 1) {
+    return (
+      <Screen>
+        <H sub="Your account can access more than one child. Choose the child you need before opening support, activities, goals, or documents.">
+          Which child needs support?
+        </H>
+        <ChildSwitch />
+        <T size={14} color={c.secondary}>The app will keep this selection for your next visit. You can switch children later.</T>
+      </Screen>
+    );
+  }
   return (
     <Tabs
       key={child?.id ?? "none"}
