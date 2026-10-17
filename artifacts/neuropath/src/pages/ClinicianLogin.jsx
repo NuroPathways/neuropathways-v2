@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from '@/lib/AuthContext';
-import { clearClientSession } from '@/lib/clientSession';
 import { Mail, Lock, Eye, EyeOff, User, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -34,11 +33,6 @@ export default function ClinicianLogin() {
   }, []);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
-  const handleReplitLogin = () => {
-    clearClientSession();
-    base44.auth.redirectToLogin("/RoleSetup?role=clinician");
-  };
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
@@ -120,19 +114,6 @@ export default function ClinicianLogin() {
                   <User className="w-4 h-4" /> Create New Account
                 </Button>
 
-                <div className="relative my-2">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
-                  <div className="relative flex justify-center text-xs text-muted-foreground">
-                    <span className="bg-card px-2">or</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleReplitLogin}
-                  className="w-full py-3 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors font-medium"
-                >
-                  Continue with Replit Account
-                </button>
               </motion.div>
             )}
 

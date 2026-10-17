@@ -16,3 +16,4 @@
 - [Security advisory verification](security-advisory-verification.md) — newer releases and clean audits do not prove an attack is fixed; verify unavailable fixes with regressions.
 - [NeuroPathways brand mark](neuropathways-brand-mark.md) — keep the app icon as a simple head profile with a winding path and star, using a green-to-blue gradient.
 - [Headless responsive checks](headless-responsive-checks.md) — set browser viewport metrics explicitly; Chromium's window-size flag alone may leave CSS layout at its 500px default.
+- [OpenAPI codegen symbol collisions](openapi-codegen-symbol-collisions.md) — use named request-body components and distinct operation names when generated Zod exports collide.

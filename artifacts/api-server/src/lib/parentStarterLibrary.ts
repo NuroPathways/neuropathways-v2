@@ -24,6 +24,11 @@ export type ParentPlanActivity = {
   sourceDocumentId: string;
   sourceExcerpt: string;
   sourceType: ParentPlanActivitySource;
+  contentVersion?: string;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  assignedBy?: string | null;
+  assignedAt?: string | null;
 };
 export type SupportCard = {
   id: string;

@@ -13,6 +13,7 @@ import {
   listParentDocuments,
   parentChat,
   readParentDocumentBytes,
+  reviewOrAssignParentActivity,
   reviewParentSupport,
   scanParentDocument,
   setParentDocumentSharing,
@@ -217,6 +218,34 @@ router.get("/parent/children/:childId/shared-support", async (req: any, res: Res
     if (message === "Child not found") return res.status(404).json({ error: message });
     if (message.includes("Clinician authentication")) return res.status(403).json({ error: message });
     return res.status(500).json({ error: "Shared support could not be loaded" });
+  }
+});
+
+router.post("/parent/children/:childId/shared-support/:cardId/activities/:activityIndex", async (req: any, res: Response) => {
+  if (!req.user?.id) return res.status(401).json({ error: "Clinician authentication required" });
+  const activityIndex = Number(req.params.activityIndex);
+  const { contentVersion, action } = req.body || {};
+  if (!Number.isInteger(activityIndex) || activityIndex < 0 ||
+      typeof contentVersion !== "string" || !/^[a-f0-9]{64}$/.test(contentVersion) ||
+      !["review", "assign", "unassign"].includes(action)) {
+    return res.status(400).json({ error: "Invalid activity review request" });
+  }
+  try {
+    return res.json(await reviewOrAssignParentActivity(
+      req.user.id,
+      req.params.childId,
+      req.params.cardId,
+      activityIndex,
+      contentVersion,
+      action,
+    ));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Activity action could not be saved";
+    if (message.includes("not linked")) return res.status(403).json({ error: message });
+    if (message.includes("changed") || message.includes("not available") || message.includes("Review this")) {
+      return res.status(409).json({ error: message });
+    }
+    return res.status(500).json({ error: "Activity action could not be saved" });
   }
 });
 

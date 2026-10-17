@@ -9,6 +9,35 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import SupportReview from "@/components/parentfree/SupportReview";
+import { recordClinicianObservationFeedback } from "@workspace/api-client-react";
+
+function ObservationFeedback({ childId, log }) {
+  const [feedback, setFeedback] = useState(log.clinicianFeedback || "");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  if (!log.parent_id && !log.parentId) return null;
+  const save = async () => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await recordClinicianObservationFeedback(childId, log.id, { feedback }, { credentials: "include" });
+      setFeedback(result.clinicianFeedback);
+      setMessage("Feedback shared with the family.");
+    } catch (error) {
+      setMessage(error?.data?.error || error?.message || "Feedback could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-3 space-y-2 border-t border-border pt-3">
+      {log.clinician_feedback && <p className="text-xs text-foreground"><strong>Clinician feedback:</strong> {log.clinician_feedback}</p>}
+      <Textarea aria-label="Clinician feedback on observation" maxLength={2000} value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="Optional feedback for the family…" className="min-h-16 text-xs" />
+      <Button size="sm" variant="outline" disabled={busy || !feedback.trim()} onClick={save}>{busy ? "Saving…" : "Share feedback"}</Button>
+      {message && <p className="text-xs text-muted-foreground" role="status">{message}</p>}
+    </div>
+  );
+}
 
 export default function ClientDetail() {
   const navigate = useNavigate();
@@ -348,6 +377,7 @@ export default function ClientDetail() {
                       </div>
                       {supportPractice && (rating || outcome) && <p className="text-xs text-foreground mt-1">{rating || outcome}</p>}
                       {log.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{log.notes}</p>}
+                       <ObservationFeedback childId={childId} log={log} />
                     </div>
                     <span className="text-[10px] text-muted-foreground flex-shrink-0">{log.created_at ? new Date(log.created_at).toLocaleDateString() : ""}</span>
                   </motion.div>

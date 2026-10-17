@@ -1135,8 +1135,16 @@ export async function getParentSharedSupport(
           ? source.metadata.sharedClinicianId === clinicianId &&
             Boolean(source.metadata.reviewedBy && source.metadata.reviewedAt)
           : card.source === "clinician_reviewed" && Boolean(card.reviewedBy && card.reviewedAt);
+        const contentVersion = parentActivityContentVersion(activity);
+        const currentReview = activity.contentVersion === contentVersion && activity.reviewedBy && activity.reviewedAt;
+        const currentAssignment = currentReview && activity.assignedBy === activity.reviewedBy && activity.assignedAt;
         return [{
           ...activity,
+          contentVersion,
+          reviewedBy: currentReview ? activity.reviewedBy : null,
+          reviewedAt: currentReview ? activity.reviewedAt : null,
+          assignedBy: currentAssignment ? activity.assignedBy : null,
+          assignedAt: currentAssignment ? activity.assignedAt : null,
           sourceType: sourceReviewed
             ? "clinician_reviewed" as const
             : source.metadata
@@ -1238,8 +1246,16 @@ export async function getParentSupportCards(parentId: string, childId: string): 
           ? source.metadata.sharedClinicianId === child.clinicianId &&
             Boolean(source.metadata.reviewedBy && source.metadata.reviewedAt)
           : card.source === "clinician_reviewed" && Boolean(card.reviewedBy && card.reviewedAt);
+        const contentVersion = parentActivityContentVersion(activity);
+        const currentReview = activity.contentVersion === contentVersion && Boolean(activity.reviewedBy && activity.reviewedAt);
+        const currentAssignment = currentReview && activity.assignedBy === activity.reviewedBy && activity.assignedAt;
         return [{
           ...activity,
+          contentVersion,
+          reviewedBy: currentReview ? activity.reviewedBy : null,
+          reviewedAt: currentReview ? activity.reviewedAt : null,
+          assignedBy: currentAssignment ? activity.assignedBy : null,
+          assignedAt: currentAssignment ? activity.assignedAt : null,
           sourceType: sourceReviewed
             ? "clinician_reviewed" as const
             : source.metadata
@@ -1417,6 +1433,74 @@ export async function reviewParentSupport(
   });
   const clinicianProjection = await getParentSharedSupport(clinicianId, childId);
   return { ok: true, supportCards: clinicianProjection.supportCards };
+}
+
+export function parentActivityContentVersion(activity: Pick<NonNullable<SupportCard["dailyActivities"]>[number], "title" | "routineContext" | "opportunity" | "skill" | "reinforcement" | "sourceDocumentId" | "sourceExcerpt">): string {
+  const canonical = [
+    activity.title,
+    activity.routineContext,
+    activity.opportunity,
+    activity.skill,
+    activity.reinforcement,
+    activity.sourceDocumentId,
+    activity.sourceExcerpt,
+  ].map((value) => value ?? "");
+  return crypto.createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+}
+
+export async function reviewOrAssignParentActivity(
+  clinicianId: string,
+  childId: string,
+  cardId: string,
+  activityIndex: number,
+  contentVersion: string,
+  action: "review" | "assign" | "unassign",
+) {
+  const visible = await getParentSharedSupport(clinicianId, childId);
+  const visibleCard = visible.supportCards.find((card) => card.id === cardId);
+  const visibleActivity = visibleCard?.dailyActivities?.[activityIndex];
+  if (!visibleActivity) throw new Error("Activity is not available in the shared support");
+  const currentVersion = parentActivityContentVersion(visibleActivity);
+  if (currentVersion !== contentVersion) throw new Error("Activity changed. Reload it before reviewing or assigning.");
+
+  const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
+  const cards = Array.isArray(settings?.supportCards) ? settings.supportCards.filter(validCard) : [];
+  const cardIndex = cards.findIndex((card) => card.id === cardId);
+  const activity = cards[cardIndex]?.dailyActivities?.[activityIndex];
+  if (!activity || parentActivityContentVersion(activity) !== currentVersion) {
+    throw new Error("Activity changed. Reload it before reviewing or assigning.");
+  }
+  const now = new Date().toISOString();
+  const currentReviewValid = activity.contentVersion === currentVersion && activity.reviewedBy === clinicianId;
+  const updatedActivity = action === "review"
+    ? { ...activity, contentVersion: currentVersion, reviewedBy: clinicianId, reviewedAt: now, assignedBy: null, assignedAt: null }
+    : action === "assign"
+      ? currentReviewValid
+        ? { ...activity, assignedBy: clinicianId, assignedAt: now }
+        : null
+      : { ...activity, assignedBy: null, assignedAt: null };
+  if (!updatedActivity) throw new Error("Review this exact activity version before assigning it.");
+  cards[cardIndex] = {
+    ...cards[cardIndex],
+    dailyActivities: cards[cardIndex].dailyActivities!.map((item, index) =>
+      index === activityIndex ? updatedActivity : item,
+    ),
+  };
+  await db.update(parentChildSettingsTable)
+    .set({ supportCards: cards as any, updatedAt: new Date() })
+    .where(eq(parentChildSettingsTable.childId, childId));
+  await db.insert(auditLogsTable).values({
+    tenantId: clinicianId,
+    userId: clinicianId,
+    userRole: "clinician",
+    action: `parent_activity_${action}`,
+    targetType: "parent_support_activity",
+    targetId: `${childId}:${cardId}:${activityIndex}`,
+    success: true,
+    reason: "Clinician action is bound to the exact activity content version visible through current sharing consent",
+    metadata: { childId, cardId, activityIndex, contentVersion: currentVersion },
+  });
+  return getParentSharedSupport(clinicianId, childId);
 }
 
 type ParentChatDocument = {

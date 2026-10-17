@@ -44,10 +44,10 @@ Implementation follows the attached phased specification. Existing accounts, dat
 
 - [x] Parents choose whether to share all, selected, or no uploaded documents and separately opt in to caregiver observations; clinician log reads filter to the active observation-consent scope.
 - [x] Consent scopes are persisted per parent/child/clinician and cleared when clinic access is revoked.
-- [ ] Versioned clinician review and publishing.
+- [x] Clinicians can review each shared plan activity and assign/unassign it to the family; each review and assignment is bound to a hash of the exact activity content.
 - [x] Revoking a clinic link clears its document-sharing access without deleting the parent account, child records, uploaded files, or support history.
 - [x] Invite creation uses a single-use, expiring copy-link flow; the UI does not claim email delivery.
-- [ ] Add consent-scoped sharing of observations and explicit reviewed-activity assignment.
+- [x] Clinician feedback on parent observations is available only with active observation-sharing consent, and appears in the parent's existing History view.
 
 ## Cross-platform and verification
 
@@ -64,6 +64,6 @@ Phase 2 limitation: This phase reuses the saved daily-action activity content an
 
 Phase 3 limitations: Reminder delivery infrastructure is not configured, so schedules persist but do not notify. Private routine images are not supported; routines offer short icon names and optional times. The UI explicitly identifies both limitations.
 
-Phase 4 limitation: Version-aware document review already checks source content hashes, but explicit reviewed-activity assignment/publishing and clinician feedback on shared observations remain outstanding. Invitation delivery is copy-link only; no email is claimed or sent.
+Phase 4 limitation: Activity review/assignment and observation feedback are available in the web clinician workflow and the assigned activity/feedback is visible to parents on web and Expo. Reminder delivery is still unavailable. Invitation delivery is copy-link only; no email is claimed or sent.
 
 Verification: `pnpm --filter @workspace/neuropath test` (62 passed), web production build passed, `pnpm --filter @workspace/neuropath-mobile run typecheck` passed, and API server typecheck/build passed. The additive practice-progress table was applied to the development database only. The web build reports the existing large JavaScript chunk advisory.

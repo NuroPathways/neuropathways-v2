@@ -78,7 +78,7 @@ export default function ParentHistory() {
         <section className="np-history-list" aria-label="Saved records">
           {timeline.map((item) => item.kind === "behavior" ? (
             <article className="np-history-row behavior" key={item.id} data-testid={`history-behavior-${item.log.id}`}>
-              <span className="np-history-symbol"><ClipboardList size={17} /></span><div><span className="np-history-kind">Behavior observation</span><h2>{item.log.behaviorName || item.log.behavior_type || "Behavior note"}</h2><p>{item.log.happened === false ? "Did not happen" : [item.log.intensity && `${item.log.intensity} intensity`, item.log.duration != null && `${item.log.duration} min`].filter(Boolean).join(" · ") || "Caregiver note"}</p>{item.log.whatHelped && <p>What helped: {item.log.whatHelped}</p>}</div><time><DateLabel value={item.at} /></time>
+               <span className="np-history-symbol"><ClipboardList size={17} /></span><div><span className="np-history-kind">Behavior observation</span><h2>{item.log.behaviorName || item.log.behavior_type || "Behavior note"}</h2><p>{item.log.happened === false ? "Did not happen" : [item.log.intensity && `${item.log.intensity} intensity`, item.log.duration != null && `${item.log.duration} min`].filter(Boolean).join(" · ") || "Caregiver note"}</p>{item.log.whatHelped && <p>What helped: {item.log.whatHelped}</p>}{item.log.clinicianFeedback && <p><strong>Clinician feedback:</strong> {item.log.clinicianFeedback}</p>}</div><time><DateLabel value={item.at} /></time>
             </article>
           ) : item.kind === "activity" ? (
             <article className="np-history-row activity" key={item.id} data-testid={`history-activity-${item.action.id}`}>

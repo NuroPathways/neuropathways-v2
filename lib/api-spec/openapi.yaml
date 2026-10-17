@@ -428,6 +428,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ParentLog"
+  /clinician/children/{childId}/observations/{logId}/feedback:
+    post:
+      operationId: recordClinicianObservationFeedback
+      tags: [clinic-link]
+      summary: Save feedback on a parent observation the family shared
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: logId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClinicianObservationFeedbackInput"
+      responses:
+        "200":
+          description: Feedback saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  clinicianFeedback: { type: string }
+                  clinicianFeedbackAt: { type: string }
+                required: [ok, clinicianFeedback, clinicianFeedbackAt]
   /parent/children/{childId}/documents:
     get:
       operationId: listParentDocuments
@@ -743,6 +780,44 @@ paths:
       responses:
         "200":
           description: Shared support and documents available for clinician review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentSharedSupport"
+  /parent/children/{childId}/shared-support/{cardId}/activities/{activityIndex}:
+    post:
+      operationId: updateSharedSupportActivityVersion
+      tags: [clinic-link]
+      summary: Review or assign an exact version of a shared support activity
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: activityIndex
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClinicianActivityActionInput"
+      responses:
+        "200":
+          description: Updated shared support with current activity review status
           content:
             application/json:
               schema:
@@ -1168,6 +1243,16 @@ components:
                 type: string
               sourceExcerpt:
                 type: string
+              contentVersion:
+                type: string
+              reviewedBy:
+                type: [string, "null"]
+              reviewedAt:
+                type: [string, "null"]
+              assignedBy:
+                type: [string, "null"]
+              assignedAt:
+                type: [string, "null"]
               sourceType:
                 type: string
                 enum: [clinician_reviewed, clinician_uploaded_plan, parent_uploaded_plan]
@@ -1264,6 +1349,13 @@ components:
           type: [string, "null"]
         notes:
           type: [string, "null"]
+        clinicianFeedback:
+          type: [string, "null"]
+        clinicianFeedbackBy:
+          type: [string, "null"]
+        clinicianFeedbackAt:
+          type: [string, "null"]
+          format: date-time
         createdAt:
           type: string
           format: date-time
@@ -1520,6 +1612,24 @@ components:
           items:
             $ref: "#/components/schemas/ParentDocument"
       required: [childName, supportCards, documents]
+    ClinicianActivityActionInput:
+      type: object
+      properties:
+        contentVersion:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+        action:
+          type: string
+          enum: [review, assign, unassign]
+      required: [contentVersion, action]
+    ClinicianObservationFeedbackInput:
+      type: object
+      properties:
+        feedback:
+          type: string
+          minLength: 1
+          maxLength: 2000
+      required: [feedback]
     ParentLogInput:
       type: object
       properties:

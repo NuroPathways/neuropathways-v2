@@ -25,6 +25,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ClinicianActivityActionInput,
+  ClinicianObservationFeedbackInput,
   CurrentAuthUser,
   HealthStatus,
   OkResult,
@@ -64,6 +66,7 @@ import type {
   ParentSharedSupport,
   ParentSupportReviewInput,
   ParentSupportReviewResult,
+  RecordClinicianObservationFeedback200,
   RevokeParentClinicLink200,
   StarterTemplate
 } from './api.schemas';
@@ -1757,6 +1760,97 @@ export const useAddParentLog = <TError = ErrorType<unknown>,
       return useMutation(getAddParentLogMutationOptions(options), queryClient);
     }
 
+export const getRecordClinicianObservationFeedbackUrl = (childId: string,
+    logId: string,) => {
+
+
+
+
+  return `/api/clinician/children/${childId}/observations/${logId}/feedback`
+}
+
+/**
+ * @summary Save feedback on a parent observation the family shared
+ */
+export const recordClinicianObservationFeedback = async (childId: string,
+    logId: string,
+    clinicianObservationFeedbackInput: ClinicianObservationFeedbackInput, options?: Parameters<typeof customFetch>[1]): Promise<RecordClinicianObservationFeedback200> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<RecordClinicianObservationFeedback200>(getRecordClinicianObservationFeedbackUrl(childId,logId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(clinicianObservationFeedbackInput)
+  }
+);}
+
+
+
+
+
+export const getRecordClinicianObservationFeedbackMutationKey = () => ['recordClinicianObservationFeedback'] as const;
+
+export const getRecordClinicianObservationFeedbackMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordClinicianObservationFeedback>>, TError,RecordClinicianObservationFeedbackMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordClinicianObservationFeedback>>, TError,RecordClinicianObservationFeedbackMutationVariables, TContext> => {
+
+const mutationKey = getRecordClinicianObservationFeedbackMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordClinicianObservationFeedback>>, RecordClinicianObservationFeedbackMutationVariables> = (props) => {
+          const {childId,logId,data} = props ?? {};
+
+          return  recordClinicianObservationFeedback(childId,logId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordClinicianObservationFeedbackMutationResult = NonNullable<Awaited<ReturnType<typeof recordClinicianObservationFeedback>>>
+    export type RecordClinicianObservationFeedbackMutationBody = BodyType<ClinicianObservationFeedbackInput>
+    export type RecordClinicianObservationFeedbackMutationError = ErrorType<unknown>
+    export type RecordClinicianObservationFeedbackMutationVariables = {childId: string;logId: string;data: BodyType<ClinicianObservationFeedbackInput>}
+
+    /**
+ * @summary Save feedback on a parent observation the family shared
+ */
+export const useRecordClinicianObservationFeedback = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordClinicianObservationFeedback>>, TError,RecordClinicianObservationFeedbackMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof recordClinicianObservationFeedback>>,
+        TError,
+        RecordClinicianObservationFeedbackMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRecordClinicianObservationFeedbackMutationOptions(options), queryClient);
+    }
+
 export const getListParentDocumentsUrl = (childId: string,) => {
 
 
@@ -2828,4 +2922,97 @@ export function useGetParentSharedSupport<TData = Awaited<ReturnType<typeof getP
 
 
 
+
+export const getUpdateSharedSupportActivityVersionUrl = (childId: string,
+    cardId: string,
+    activityIndex: number,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/shared-support/${cardId}/activities/${activityIndex}`
+}
+
+/**
+ * @summary Review or assign an exact version of a shared support activity
+ */
+export const updateSharedSupportActivityVersion = async (childId: string,
+    cardId: string,
+    activityIndex: number,
+    clinicianActivityActionInput: ClinicianActivityActionInput, options?: Parameters<typeof customFetch>[1]): Promise<ParentSharedSupport> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ParentSharedSupport>(getUpdateSharedSupportActivityVersionUrl(childId,cardId,activityIndex),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(clinicianActivityActionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateSharedSupportActivityVersionMutationKey = () => ['updateSharedSupportActivityVersion'] as const;
+
+export const getUpdateSharedSupportActivityVersionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSharedSupportActivityVersion>>, TError,UpdateSharedSupportActivityVersionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSharedSupportActivityVersion>>, TError,UpdateSharedSupportActivityVersionMutationVariables, TContext> => {
+
+const mutationKey = getUpdateSharedSupportActivityVersionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSharedSupportActivityVersion>>, UpdateSharedSupportActivityVersionMutationVariables> = (props) => {
+          const {childId,cardId,activityIndex,data} = props ?? {};
+
+          return  updateSharedSupportActivityVersion(childId,cardId,activityIndex,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSharedSupportActivityVersionMutationResult = NonNullable<Awaited<ReturnType<typeof updateSharedSupportActivityVersion>>>
+    export type UpdateSharedSupportActivityVersionMutationBody = BodyType<ClinicianActivityActionInput>
+    export type UpdateSharedSupportActivityVersionMutationError = ErrorType<unknown>
+    export type UpdateSharedSupportActivityVersionMutationVariables = {childId: string;cardId: string;activityIndex: number;data: BodyType<ClinicianActivityActionInput>}
+
+    /**
+ * @summary Review or assign an exact version of a shared support activity
+ */
+export const useUpdateSharedSupportActivityVersion = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSharedSupportActivityVersion>>, TError,UpdateSharedSupportActivityVersionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateSharedSupportActivityVersion>>,
+        TError,
+        UpdateSharedSupportActivityVersionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateSharedSupportActivityVersionMutationOptions(options), queryClient);
+    }
 

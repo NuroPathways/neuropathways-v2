@@ -75,6 +75,14 @@ export default function HelpNow() {
                 {selected.whatMayBeHappening ? <Card><T weight="bold" size={16}>One possible explanation</T><T size={14}>{selected.whatMayBeHappening}</T></Card> : null}
                 {selected.replacementSkill ? <Card><T weight="bold" size={16}>Practice a helpful skill</T><T size={14}>{selected.replacementSkill}</T>{selected.reinforcementIdea ? <T size={14}><T weight="semi" size={14}>Reinforce: </T>{selected.reinforcementIdea}</T> : null}</Card> : null}
                 {selected.seekHelp ? <T size={14}><T weight="semi">When to get help: </T>{selected.seekHelp}</T> : null}
+                {(selected.dailyActivities ?? []).filter((activity) => activity.assignedAt).map((activity, index) => (
+                  <Card key={`${activity.title}:${activity.sourceDocumentId}`}>
+                    <T size={12} weight="semi" color={c.primary}>ASSIGNED BY YOUR CARE TEAM</T>
+                    <T weight="bold" size={15}>{activity.title}</T>
+                    <T size={13}>{activity.routineContext} · Practice: {activity.skill}</T>
+                    {activity.reinforcement ? <T size={13}>Reinforcement: {activity.reinforcement}</T> : null}
+                  </Card>
+                ))}
                 <Pressable accessibilityRole="button" onPress={() => setSimpler((value) => !value)} style={{ minHeight: 44, justifyContent: "center" }}><T color={c.primary} weight="semi">{simpler ? "Return to saved steps" : "This isn't working"}</T></Pressable>
                 <T size={12} color={c.secondary}>No behavior log is created by opening or using Help Now. Logging is optional elsewhere.</T>
               </Card>

@@ -7,6 +7,9 @@
  */
 
 export * from './authUser';
+export * from './clinicianActivityActionInput';
+export * from './clinicianActivityActionInputAction';
+export * from './clinicianObservationFeedbackInput';
 export * from './currentAuthUser';
 export * from './error';
 export * from './healthStatus';
@@ -78,6 +81,7 @@ export * from './parentSession';
 export * from './parentSharedSupport';
 export * from './parentSupportReviewInput';
 export * from './parentSupportReviewResult';
+export * from './recordClinicianObservationFeedback200';
 export * from './revokeParentClinicLink200';
 export * from './sourceReference';
 export * from './starterTemplate';

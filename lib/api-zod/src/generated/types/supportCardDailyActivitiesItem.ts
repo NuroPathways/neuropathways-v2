@@ -16,5 +16,14 @@ export type SupportCardDailyActivitiesItem = {
   reinforcement: string | null;
   sourceDocumentId: string;
   sourceExcerpt: string;
+  contentVersion?: string;
+  /** @nullable */
+  reviewedBy?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  /** @nullable */
+  assignedBy?: string | null;
+  /** @nullable */
+  assignedAt?: string | null;
   sourceType: SupportCardDailyActivitiesItemSourceType;
 };

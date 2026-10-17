@@ -244,6 +244,15 @@ export type SupportCardDailyActivitiesItem = {
   reinforcement: string | null;
   sourceDocumentId: string;
   sourceExcerpt: string;
+  contentVersion?: string;
+  /** @nullable */
+  reviewedBy?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  /** @nullable */
+  assignedBy?: string | null;
+  /** @nullable */
+  assignedAt?: string | null;
   sourceType: SupportCardDailyActivitiesItemSourceType;
 };
 
@@ -334,6 +343,12 @@ export interface ParentLog {
   whatHelped: string | null;
   /** @nullable */
   notes: string | null;
+  /** @nullable */
+  clinicianFeedback?: string | null;
+  /** @nullable */
+  clinicianFeedbackBy?: string | null;
+  /** @nullable */
+  clinicianFeedbackAt?: string | null;
   createdAt: string;
 }
 
@@ -598,6 +613,29 @@ export interface ParentSharedSupport {
   documents: ParentDocument[];
 }
 
+export type ClinicianActivityActionInputAction = typeof ClinicianActivityActionInputAction[keyof typeof ClinicianActivityActionInputAction];
+
+
+export const ClinicianActivityActionInputAction = {
+  review: 'review',
+  assign: 'assign',
+  unassign: 'unassign',
+} as const;
+
+export interface ClinicianActivityActionInput {
+  /** @pattern ^[a-f0-9]{64}$ */
+  contentVersion: string;
+  action: ClinicianActivityActionInputAction;
+}
+
+export interface ClinicianObservationFeedbackInput {
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  feedback: string;
+}
+
 export type ParentLogInputIntensity = typeof ParentLogInputIntensity[keyof typeof ParentLogInputIntensity];
 
 
@@ -722,6 +760,12 @@ export interface ParentPasswordChangeInput {
      */
   newPassword: string;
 }
+
+export type RecordClinicianObservationFeedback200 = {
+  ok: boolean;
+  clinicianFeedback: string;
+  clinicianFeedbackAt: string;
+};
 
 export type RevokeParentClinicLink200 = {
   ok: boolean;

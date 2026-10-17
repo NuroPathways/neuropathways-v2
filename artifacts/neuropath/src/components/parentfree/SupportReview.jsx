@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getParentSharedSupport, reviewParentSupport } from "@workspace/api-client-react";
+import { getParentSharedSupport, reviewParentSupport, updateSharedSupportActivityVersion } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 
 const LABEL = {
@@ -18,6 +18,7 @@ export default function SupportReview({ childId }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
+  const [activityBusy, setActivityBusy] = useState("");
 
   const load = async () => {
     setLoading(true); setLoadError("");
@@ -44,6 +45,24 @@ export default function SupportReview({ childId }) {
     } catch (e) {
       setError(e?.data?.error || e?.message || "Review could not be saved.");
     } finally { setBusy(false); }
+  };
+
+  const runActivity = async (card, activity, index, action) => {
+    const key = `${card.id}:${index}`;
+    setActivityBusy(key); setError(""); setMsg("");
+    try {
+      const result = await updateSharedSupportActivityVersion(
+        childId,
+        card.id,
+        index,
+        { contentVersion: activity.contentVersion, action },
+        { credentials: "include" },
+      );
+      setShared(result);
+      setMsg(action === "review" ? "Activity version reviewed." : action === "assign" ? "Activity assigned to the family." : "Activity assignment removed.");
+    } catch (e) {
+      setError(e?.data?.error || e?.message || "Activity update could not be saved.");
+    } finally { setActivityBusy(""); }
   };
 
   const List = ({ items }) => <ul className="list-disc pl-5 space-y-0.5">{(items || []).map((t, i) => <li key={i}>{t}</li>)}</ul>;
@@ -77,6 +96,24 @@ export default function SupportReview({ childId }) {
           <p className="font-semibold">Prevention</p><List items={c.prevention} />
           <p><strong>Replacement skill:</strong> {c.replacementSkill}</p>
           <p><strong>Seek help:</strong> {c.seekHelp}</p>
+          {(c.dailyActivities || []).map((activity, index) => {
+            const key = `${c.id}:${index}`;
+            const busy = activityBusy === key;
+            return (
+              <div key={`${activity.title}:${activity.sourceDocumentId}`} className="rounded-lg border border-border bg-background p-3 space-y-2" data-testid={`review-activity-${c.id}-${index}`}>
+                <p className="font-semibold">Activity: {activity.title}</p>
+                <p>{activity.routineContext} {activity.opportunity}</p>
+                <p><strong>Skill:</strong> {activity.skill}</p>
+                {activity.reinforcement && <p><strong>Plan reinforcement:</strong> {activity.reinforcement}</p>}
+                <p className="text-muted-foreground">Version {activity.contentVersion?.slice(0, 12)} · {activity.reviewedAt ? "Reviewed" : "Not reviewed"} · {activity.assignedAt ? "Assigned" : "Not assigned"}</p>
+                <div className="flex flex-wrap gap-2">
+                  {!activity.reviewedAt
+                    ? <Button size="sm" variant="outline" disabled={busy} onClick={() => runActivity(c, activity, index, "review")} data-testid={`button-review-activity-${index}`}>Review this version</Button>
+                    : <Button size="sm" variant="outline" disabled={busy} onClick={() => runActivity(c, activity, index, activity.assignedAt ? "unassign" : "assign")} data-testid={`button-assign-activity-${index}`}>{activity.assignedAt ? "Remove assignment" : "Assign to family"}</Button>}
+                </div>
+              </div>
+            );
+          })}
           {(c.sourceReferences || []).length > 0 && (
             <div>
               <p className="font-semibold">Sources</p>

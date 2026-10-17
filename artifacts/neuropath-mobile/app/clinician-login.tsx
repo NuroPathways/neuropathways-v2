@@ -60,7 +60,7 @@ export default function ClinicianLoginScreen() {
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>{register ? "Create clinician account" : "Clinician sign in"}</Text>
-      <Text style={styles.caption}>Use the same email and password as the clinician web portal. Replit sign-in remains available on the web.</Text>
+      <Text style={styles.caption}>Use the same email and password as the clinician web portal.</Text>
       {register && <>
         <Text style={styles.label}>First name</Text><TextInput style={styles.input} value={firstName} onChangeText={setFirstName} autoComplete="given-name" />
         <Text style={styles.label}>Last name</Text><TextInput style={styles.input} value={lastName} onChangeText={setLastName} autoComplete="family-name" />

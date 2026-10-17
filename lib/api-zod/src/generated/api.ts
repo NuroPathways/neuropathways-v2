@@ -445,6 +445,11 @@ export const GetParentDashboardResponse = zod.object({
   "reinforcement": zod.string().nullable(),
   "sourceDocumentId": zod.string(),
   "sourceExcerpt": zod.string(),
+  "contentVersion": zod.string().optional(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "assignedBy": zod.string().nullish(),
+  "assignedAt": zod.string().nullish(),
   "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan'])
 })).optional().describe('Plan-grounded caregiver practice activities, with the source document and review status for each.'),
   "reviewedBy": zod.string().nullable(),
@@ -475,6 +480,9 @@ export const GetParentDashboardResponse = zod.object({
   "trigger": zod.string().nullable(),
   "whatHelped": zod.string().nullable(),
   "notes": zod.string().nullable(),
+  "clinicianFeedback": zod.string().nullish(),
+  "clinicianFeedbackBy": zod.string().nullish(),
+  "clinicianFeedbackAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
   "dailyActions": zod.array(zod.object({
@@ -754,7 +762,33 @@ export const AddParentLogResponse = zod.object({
   "trigger": zod.string().nullable(),
   "whatHelped": zod.string().nullable(),
   "notes": zod.string().nullable(),
+  "clinicianFeedback": zod.string().nullish(),
+  "clinicianFeedbackBy": zod.string().nullish(),
+  "clinicianFeedbackAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Save feedback on a parent observation the family shared
+ */
+export const RecordClinicianObservationFeedbackParams = zod.object({
+  "childId": zod.coerce.string(),
+  "logId": zod.coerce.string()
+})
+
+export const recordClinicianObservationFeedbackBodyFeedbackMax = 2000;
+
+
+
+export const RecordClinicianObservationFeedbackBody = zod.object({
+  "feedback": zod.string().min(1).max(recordClinicianObservationFeedbackBodyFeedbackMax)
+})
+
+export const RecordClinicianObservationFeedbackResponse = zod.object({
+  "ok": zod.boolean(),
+  "clinicianFeedback": zod.string(),
+  "clinicianFeedbackAt": zod.string()
 })
 
 
@@ -872,6 +906,11 @@ export const ScanParentDocumentResponse = zod.object({
   "reinforcement": zod.string().nullable(),
   "sourceDocumentId": zod.string(),
   "sourceExcerpt": zod.string(),
+  "contentVersion": zod.string().optional(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "assignedBy": zod.string().nullish(),
+  "assignedAt": zod.string().nullish(),
   "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan'])
 })).optional().describe('Plan-grounded caregiver practice activities, with the source document and review status for each.'),
   "reviewedBy": zod.string().nullable(),
@@ -1085,6 +1124,11 @@ export const ReviewParentSupportResponse = zod.object({
   "reinforcement": zod.string().nullable(),
   "sourceDocumentId": zod.string(),
   "sourceExcerpt": zod.string(),
+  "contentVersion": zod.string().optional(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "assignedBy": zod.string().nullish(),
+  "assignedAt": zod.string().nullish(),
   "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan'])
 })).optional().describe('Plan-grounded caregiver practice activities, with the source document and review status for each.'),
   "reviewedBy": zod.string().nullable(),
@@ -1144,6 +1188,102 @@ export const GetParentSharedSupportResponse = zod.object({
   "reinforcement": zod.string().nullable(),
   "sourceDocumentId": zod.string(),
   "sourceExcerpt": zod.string(),
+  "contentVersion": zod.string().optional(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "assignedBy": zod.string().nullish(),
+  "assignedAt": zod.string().nullish(),
+  "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan'])
+})).optional().describe('Plan-grounded caregiver practice activities, with the source document and review status for each.'),
+  "reviewedBy": zod.string().nullable(),
+  "reviewedAt": zod.string().nullable()
+})),
+  "documents": zod.array(zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "title": zod.string(),
+  "fileName": zod.string(),
+  "documentType": zod.string(),
+  "scanStatus": zod.string(),
+  "scanError": zod.string().nullable(),
+  "uploadedBy": zod.enum(['parent', 'clinician']),
+  "shared": zod.boolean(),
+  "reviewed": zod.boolean(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Review or assign an exact version of a shared support activity
+ */
+export const updateSharedSupportActivityVersionPathActivityIndexMin = 0;
+
+
+
+export const UpdateSharedSupportActivityVersionParams = zod.object({
+  "childId": zod.coerce.string(),
+  "cardId": zod.coerce.string(),
+  "activityIndex": zod.coerce.number().int().min(updateSharedSupportActivityVersionPathActivityIndexMin)
+})
+
+export const updateSharedSupportActivityVersionBodyContentVersionRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const UpdateSharedSupportActivityVersionBody = zod.object({
+  "contentVersion": zod.string().regex(updateSharedSupportActivityVersionBodyContentVersionRegExp),
+  "action": zod.enum(['review', 'assign', 'unassign'])
+})
+
+export const updateSharedSupportActivityVersionResponseSupportCardsItemPlanGoalMax = 500;
+
+
+
+export const UpdateSharedSupportActivityVersionResponse = zod.object({
+  "childName": zod.string(),
+  "supportCards": zod.array(zod.object({
+  "id": zod.string(),
+  "behaviorKey": zod.string(),
+  "behaviorName": zod.string(),
+  "goal": zod.string().nullable(),
+  "planGoal": zod.string().max(updateSharedSupportActivityVersionResponseSupportCardsItemPlanGoalMax).nullish().describe('Exact goal explicitly stated in a scanned source plan, independent of the selected goal.'),
+  "planGoalSourceDocumentIds": zod.array(zod.string()),
+  "planGoalSourceReferences": zod.array(zod.object({
+  "documentId": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullable()
+})),
+  "source": zod.enum(['starter', 'parent_document', 'clinician_document', 'clinician_reviewed']),
+  "sourceDocumentIds": zod.array(zod.string()),
+  "sourceReferences": zod.array(zod.object({
+  "documentId": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullable()
+})),
+  "conflict": zod.boolean(),
+  "conflictMessage": zod.string().nullable(),
+  "whatMayBeHappening": zod.string(),
+  "rightNow": zod.array(zod.string()),
+  "avoid": zod.array(zod.string()),
+  "prevention": zod.array(zod.string()),
+  "replacementSkill": zod.string(),
+  "reinforcementIdea": zod.string(),
+  "seekHelp": zod.string(),
+  "track": zod.array(zod.string()),
+  "relatedGoals": zod.array(zod.string()),
+  "dailyActivities": zod.array(zod.object({
+  "title": zod.string(),
+  "routineContext": zod.string(),
+  "opportunity": zod.string(),
+  "skill": zod.string(),
+  "reinforcement": zod.string().nullable(),
+  "sourceDocumentId": zod.string(),
+  "sourceExcerpt": zod.string(),
+  "contentVersion": zod.string().optional(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "assignedBy": zod.string().nullish(),
+  "assignedAt": zod.string().nullish(),
   "sourceType": zod.enum(['clinician_reviewed', 'clinician_uploaded_plan', 'parent_uploaded_plan'])
 })).optional().describe('Plan-grounded caregiver practice activities, with the source document and review status for each.'),
   "reviewedBy": zod.string().nullable(),

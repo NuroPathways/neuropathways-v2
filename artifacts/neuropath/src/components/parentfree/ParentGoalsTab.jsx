@@ -39,6 +39,7 @@ function PlanMilestones({ card, dailyActions = [], childId }) {
           {planActivities.map((activity, index) => (
             <li key={`${card.id}-plan-activity-${index}`} style={{ display: "block" }}>
               <strong>{activity.title}</strong>
+              {activity.assignedAt && <span className="pf-tag" aria-label="Assigned by clinician">Assigned by your care team</span>}
               <span className="pf-hint" style={{ display: "block", marginTop: 3 }}>
                 {activity.routineContext} · Practice: {activity.skill}
                 {activity.reinforcement ? ` · Reinforce: ${activity.reinforcement}` : ""}

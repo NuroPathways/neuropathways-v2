@@ -74,6 +74,9 @@ export const parentLogsTable = pgTable(
     trigger: text("trigger"),
     whatHelped: text("what_helped"),
     notes: text("notes"),
+    clinicianFeedback: text("clinician_feedback"),
+    clinicianFeedbackBy: varchar("clinician_feedback_by"),
+    clinicianFeedbackAt: timestamp("clinician_feedback_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

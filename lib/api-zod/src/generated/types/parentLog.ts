@@ -25,5 +25,11 @@ export interface ParentLog {
   whatHelped: string | null;
   /** @nullable */
   notes: string | null;
+  /** @nullable */
+  clinicianFeedback?: string | null;
+  /** @nullable */
+  clinicianFeedbackBy?: string | null;
+  /** @nullable */
+  clinicianFeedbackAt?: Date | null;
   createdAt: Date;
 }

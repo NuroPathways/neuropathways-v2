@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import {
   behaviorLogsTable,
   auditLogsTable,
@@ -15,6 +15,7 @@ import {
   parentFamilyToolsTable,
   parentAccountsTable,
   parentChildSettingsTable,
+  parentClinicConsentsTable,
   parentLogsTable,
   parentSessionsTable,
   userProfilesTable,
@@ -439,6 +440,9 @@ function serializeParentLog(log: typeof parentLogsTable.$inferSelect) {
     trigger: log.trigger ?? null,
     whatHelped: log.whatHelped ?? null,
     notes: log.notes ?? null,
+    clinicianFeedback: log.clinicianFeedback ?? null,
+    clinicianFeedbackBy: log.clinicianFeedbackBy ?? null,
+    clinicianFeedbackAt: log.clinicianFeedbackAt?.toISOString() ?? null,
     createdAt: log.createdAt.toISOString(),
   };
 }
@@ -1594,6 +1598,45 @@ router.post("/parent/children/:childId/logs", requireParent, async (req: Request
     res.status(201).json(serializeParentLog(log));
   } catch {
     res.status(500).json({ error: "Unable to save behavior log" });
+  }
+});
+
+router.post("/clinician/children/:childId/observations/:logId/feedback", async (req: any, res: Response) => {
+  const clinicianId = req.user?.id;
+  const feedback = typeof req.body?.feedback === "string" ? cleanText(req.body.feedback, 2000, true) : null;
+  if (!clinicianId) return res.status(401).json({ error: "Clinician authentication required" });
+  if (!feedback) return res.status(400).json({ error: "Feedback must be a non-empty note of at most 2000 characters" });
+  try {
+    const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, clinicianId));
+    if (profile?.appRole !== "clinician") return res.status(403).json({ error: "Clinician only" });
+    const childId = String(req.params.childId || "");
+    const logId = String(req.params.logId || "");
+    const [child] = await db.select().from(childrenTable).where(and(
+      eq(childrenTable.id, childId),
+      eq(childrenTable.clinicianId, clinicianId),
+    ));
+    const [log] = await db.select().from(parentLogsTable).where(and(
+      eq(parentLogsTable.id, logId),
+      eq(parentLogsTable.childId, childId),
+    ));
+    if (!child?.parentId || !log || child.parentId !== log.parentId) return res.status(404).json({ error: "Shared observation not found" });
+    const [grant] = await db.select().from(parentClinicConsentsTable).where(and(
+      eq(parentClinicConsentsTable.parentId, child.parentId),
+      eq(parentClinicConsentsTable.childId, childId),
+      eq(parentClinicConsentsTable.clinicianId, clinicianId),
+      isNull(parentClinicConsentsTable.revokedAt),
+      sql`${parentClinicConsentsTable.scopes} @> '["observations"]'::jsonb`,
+    ));
+    if (!grant) return res.status(403).json({ error: "Parent has not shared observations with this clinic" });
+    const now = new Date();
+    await db.update(parentLogsTable).set({
+      clinicianFeedback: feedback,
+      clinicianFeedbackBy: clinicianId,
+      clinicianFeedbackAt: now,
+    }).where(and(eq(parentLogsTable.id, logId), eq(parentLogsTable.childId, childId)));
+    return res.json({ ok: true, clinicianFeedback: feedback, clinicianFeedbackAt: now.toISOString() });
+  } catch {
+    return res.status(500).json({ error: "Observation feedback could not be saved" });
   }
 });
 
