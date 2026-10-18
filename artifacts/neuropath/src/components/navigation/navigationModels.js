@@ -129,7 +129,7 @@ export function createRoleNavigation(role, homePath, includeUploadPlan = false) 
 }
 
 export function mobilePrimaryKeysForRole(role) {
-  if (role === "clinician") return ["dashboard", "clients", "reports"];
+  if (role === "clinician") return ["dashboard", "clients", "messages"];
   if (role === "individual") return ["home", "support", "progress"];
   return ["home", "support", "practice", "goals"];
 }

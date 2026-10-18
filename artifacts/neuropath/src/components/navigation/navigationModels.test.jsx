@@ -96,6 +96,19 @@ describe("navigation role and menu models", () => {
     expect(items.every((item) => item.to.startsWith("/"))).toBe(true);
   });
 
+  it("puts Messages in the clinician mobile bar and keeps Progress Reports in the full menu", () => {
+    const groups = createRoleNavigation("clinician", "/ClinicianDashboard");
+    const mobile = getMobileNavigationItems(groups, mobilePrimaryKeysForRole("clinician"));
+    expect(mobile.map(item => item.key)).toEqual(["dashboard", "clients", "messages"]);
+    expect(mobile[2]).toMatchObject({ label: "Messages", to: "/Messages" });
+    expect(itemByKey(groups, "reports")).toMatchObject({ label: "Progress Reports", to: "/ProgressReports" });
+    renderShell({ role: "clinician", navGroups: groups });
+    const bar = screen.getByRole("navigation", { name: "Quick navigation" });
+    fireEvent.click(within(bar).getByRole("link", { name: "Messages" }));
+    expect(screen.getByTestId("current-location").textContent).toBe("/Messages");
+    expect(within(bar).queryByRole("link", { name: "Progress Reports" })).toBeNull();
+  });
+
   it("shows caregiver family tools and only adds plan upload when the account supports it", () => {
     const standard = allItems(createRoleNavigation("caregiver", "/ParentDashboard", false));
     const free = allItems(createRoleNavigation("caregiver", "/ParentDashboard", true));
@@ -131,7 +144,7 @@ describe("navigation role and menu models", () => {
 
   it("maps each role's mobile quick links to existing menu items", () => {
     const cases = [
-      ["clinician", "/ClinicianDashboard", ["dashboard", "clients", "reports"]],
+      ["clinician", "/ClinicianDashboard", ["dashboard", "clients", "messages"]],
       ["caregiver", "/ParentDashboard", ["home", "support", "practice", "goals"]],
       ["individual", "/ClientHome", ["home", "support", "progress"]],
     ];
@@ -199,7 +212,7 @@ describe("navigation role and menu models", () => {
 
 describe("role-aware shell interactions", () => {
   it.each([
-    ["clinician", "/ClinicianDashboard", ["dashboard", "clients", "reports"]],
+    ["clinician", "/ClinicianDashboard", ["dashboard", "clients", "messages"]],
     ["caregiver", "/ParentDashboard", ["home", "support", "practice", "goals"]],
     ["individual", "/ClientHome", ["home", "support", "progress"]],
   ])("renders %s quick links and expandable menu", (role, homePath, primaryKeys) => {
