@@ -21,6 +21,7 @@ import ParentGoalsTab from "@/components/parentfree/ParentGoalsTab";
 import { cardIdentity } from "@/components/parentfree/progress";
 import { PageHeader } from "@workspace/neuropathways-foundations/components/ui/page-header";
 import "@workspace/neuropathways-foundations/scoped.css";
+import "@/components/parentfree/goals-phase-five.css";
 import "@/components/parentfree/home-phase-two.css";
 import BehaviorLibrary from "@/components/parentfree/BehaviorLibrary";
 import ChildEditor from "@/components/parentfree/ChildEditor";
@@ -284,6 +285,7 @@ export default function ParentHome() {
   const legacyPracticeRoute = searchParams.get("tab") === "today" && searchParams.get("section") === "practice";
   const activeTab = legacyPracticeRoute ? "practice" : TABS.some(([key]) => key === searchParams.get("tab")) ? searchParams.get("tab") : "today";
   const activeSection = legacyPracticeRoute ? "" : searchParams.get("section") || "";
+  const goalsRoute = activeTab === "edit" && (activeSection === "goals" || activeSection === "goal-editor");
   const goToTab = (tab, section) => {
     const params = new URLSearchParams();
     if (tab !== "today" || section) params.set("tab", tab);
@@ -362,7 +364,7 @@ export default function ParentHome() {
       }}
       onLogout={() => { clearFocus(user?.id); clearSupportPopupSession(user?.id); logout(); }}
     >
-      <div className={`pf${activeTab === "today" && !activeSection ? " np-foundations np-home" : activeTab === "practice" ? " np-foundations np-practice-host" : ""}`}>
+      <div className={`pf${activeTab === "today" && !activeSection ? " np-foundations np-home" : activeTab === "practice" ? " np-foundations np-practice-host" : goalsRoute ? ` np-foundations np-goals-host${activeSection === "goal-editor" ? " np-goal-editor-host" : ""}` : ""}`}>
       <main className="pf-wrap wide">
         {activeTab === "today" && !activeSection ? (
           <PageHeader
@@ -378,6 +380,14 @@ export default function ParentHome() {
             title={<>Practice With {activeChild.name}</>}
             description={<span data-testid="text-practice-subtitle">Simple activities and routines you can try together.</span>}
             actions={<Link to="/DataRequests" className="np-practice-privacy">Privacy &amp; data requests</Link>}
+          />
+        ) : goalsRoute && activeChild ? (
+          <PageHeader
+            className="np-goals-heading"
+            context={activeChild.name}
+            title={activeSection === "goal-editor" ? "Edit Goals" : "Goals & Milestones"}
+            description="Family goals, care team goals and goals from plans, each in one place."
+            actions={<Link to="/DataRequests" className="np-goals-privacy">Privacy &amp; data requests</Link>}
           />
         ) : <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
         <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>

@@ -5,6 +5,8 @@ import {
   getGetParentDashboardQueryKey,
   parentBehaviorIdentity,
   useRecordParentGoalFeedback,
+  useGetParentCareTeam,
+  getGetParentCareTeamQueryKey,
 } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
@@ -12,6 +14,13 @@ import BehaviorLibrary from "./BehaviorLibrary";
 import GoalLines from "./GoalLines";
 import ClinicalGoals from "./ClinicalGoals";
 import { ErrorBox, errMsg } from "./common";
+import { GoalPreview, presentGoalTitle } from "./goalPresentation";
+import "./goals-phase-five.css";
+
+const SOURCE_LABEL = (source) => source === "clinician_reviewed" ? "Clinician reviewed"
+  : source === "clinician_document" ? "Clinician-uploaded plan"
+    : source === "parent_document" ? "Based on your uploaded plan · not clinician-reviewed"
+      : "Starter support";
 
 const RATINGS = [
   { value: "positive", label: "Going well", Icon: ThumbsUp },
@@ -32,9 +41,9 @@ function PlanMilestones({ card, dailyActions = [], childId }) {
   );
 
   return (
-    <details className="pf-goal-disclosure pf-goal-plan" data-testid={`plan-milestones-${card.id}`}>
-      <summary>Plan milestones and practice</summary>
-      <section className="pf-card sage">
+    <div className="np-goal-block" data-testid={`plan-milestones-${card.id}`}>
+      <h5>Plan milestones and practice</h5>
+      <section>
       {planActivities.length > 0 ? (
         <ul className="pf-list" style={{ marginTop: 8 }}>
           {planActivities.map((activity, index) => (
@@ -68,7 +77,7 @@ function PlanMilestones({ card, dailyActions = [], childId }) {
         </p>
       )}
       </section>
-    </details>
+    </div>
   );
 }
 
@@ -82,9 +91,9 @@ function PlanGoalMilestones({ goal, dailyActions, childId }) {
   );
 
   return (
-    <details className="pf-goal-disclosure">
-      <summary>Plan milestones and practice</summary>
-      <div className="pf-goal-disclosure-body">
+    <div className="np-goal-block">
+      <h5>Plan milestones and practice</h5>
+      <div>
         {goal.milestones.length > 0 && (
           <ul className="pf-list">
             {goal.milestones.map((milestone, index) => <li key={`${goal.id}-milestone-${index}`}>{milestone}</li>)}
@@ -104,7 +113,7 @@ function PlanGoalMilestones({ goal, dailyActions, childId }) {
           <p className="pf-hint">Activities based on this goal will appear in Today.</p>
         ) : null}
       </div>
-    </details>
+    </div>
   );
 }
 
@@ -124,6 +133,13 @@ export default function ParentGoalsTab({
   const [showLibrary, setShowLibrary] = useState(false);
   const [error, setError] = useState("");
   const activeBehaviors = Array.isArray(behaviors) ? behaviors : [];
+  // Observe the same cache as ClinicalGoals so a care-team record has one home.
+  const care = useGetParentCareTeam(child?.id || "", {
+    query: { queryKey: getGetParentCareTeamQueryKey(child?.id || ""), enabled: !!child?.id, staleTime: 30_000 },
+    request: parentRequest(),
+  });
+  const careGoalIds = new Set((care.data?.goals || [])
+    .filter((goal) => goal.status === "published").map((goal) => goal.id));
   const activeIdentities = new Set(activeBehaviors.map(parentBehaviorIdentity));
   const discoveredPlanGoals = (Array.isArray(allCards) ? allCards : [])
     .filter((card) => card.planGoal?.trim() && !activeIdentities.has(parentBehaviorIdentity(card)))
@@ -138,6 +154,7 @@ export default function ParentGoalsTab({
     .filter(Boolean)
     .map((title) => title.normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ")));
   const storedPlanGoals = (Array.isArray(planGoals) ? planGoals : [])
+    .filter((goal) => !careGoalIds.has(goal.id))
     .filter((goal) =>
       !cardPlanGoalTitles.has(goal.title.trim().normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ")),
     );
@@ -167,144 +184,152 @@ export default function ParentGoalsTab({
     );
   };
 
-  return (
-    <div className="pf-goals-tab" data-testid="panel-goals">
-      <section className="pf-card sage pf-goals-intro">
-        <p className="pf-eyebrow">Goals &amp; Milestones</p>
-        <h2 style={{ marginTop: 6 }}>See what {child?.name || "your child"} is working toward</h2>
-        <p className="pf-hint" style={{ marginTop: 6 }}>
-          Review saved goals, plan milestones, and the progress you record. Caregiver check-ins do not automatically change treatment progress.
-        </p>
-      </section>
+  // Parent-saved behavior goals are always classified as Family Goals, even when
+  // linked guidance came from a plan; provenance stays inside the details.
+  const behaviorGoals = activeBehaviors.map((behavior) => {
+    const identity = parentBehaviorIdentity(behavior);
+    const linkedCard =
+      cards.find((card) => parentBehaviorIdentity(card) === identity) ||
+      allCards.find((card) => parentBehaviorIdentity(card) === identity);
+    const goalCard = {
+      ...(linkedCard || {}),
+      id: linkedCard?.id || identity,
+      behaviorName: behavior.behaviorName,
+      goal: behavior.goal,
+    };
+    const ratingId = `${behavior.behaviorKey}-${identity}`;
+    const lastCheckIn = behavior.goalRating ? lastCheckInLabel(behavior.goalRatingAt) : "";
 
-      <ClinicalGoals childId={child?.id} childName={child?.name} dailyActions={dailyActions} />
-      <h3 style={{ marginTop: 4 }}>Behavior goals and check-ins</h3>
-      {activeBehaviors.length === 0 ? (
-        <section className="pf-card" data-testid="empty-goals">
-          <h3>No active goals yet</h3>
-          <p className="pf-hint" style={{ marginTop: 6 }}>
-            Add a behavior and its goal below to start checking in.
-          </p>
-        </section>
-      ) : activeBehaviors.map((behavior) => {
-        const identity = parentBehaviorIdentity(behavior);
-        const linkedCard =
-          cards.find((card) => parentBehaviorIdentity(card) === identity) ||
-          allCards.find((card) => parentBehaviorIdentity(card) === identity);
-        const goalCard = {
-          ...(linkedCard || {}),
-          id: linkedCard?.id || identity,
-          behaviorName: behavior.behaviorName,
-          goal: behavior.goal,
-        };
-        const ratingId = `${behavior.behaviorKey}-${identity}`;
+    return (
+      <GoalPreview key={identity} id={`behavior-${identity}`} testId={`goal-card-${behavior.behaviorKey}`}
+        title={behavior.behaviorName} source="Family Goal" lastLine={lastCheckIn}>
+        {linkedCard?.source && (
+          <p className="np-goal-source-line"><span className="pf-tag">
+            {linkedCard.source === "clinician_reviewed" ? "Clinician reviewed"
+              : linkedCard.source === "clinician_document" ? "Shared by your care team"
+                : linkedCard.source === "parent_document" ? "Based on your uploaded document · not clinician-reviewed"
+                  : "Starter support"}
+          </span></p>
+        )}
+        <GoalLines card={goalCard} active />
+        {linkedCard?.planGoal && <PlanMilestones card={linkedCard} dailyActions={dailyActions} childId={child?.id} />}
 
-        return (
-          <article className="pf-card pf-parent-goal-card" key={identity} data-testid={`goal-card-${behavior.behaviorKey}`}>
-            <div className="pf-parent-goal-heading">
-              <h3 style={{ margin: 0 }}>{behavior.behaviorName}</h3>
+        {behavior.goal ? (
+          <div className="np-goal-block">
+            <h5>Your check-in (parent observation)</h5>
+            <p className="np-goal-note">How is this goal going? Check-ins do not change clinical progress.</p>
+            <div className="np-goal-actions">
+              {RATINGS.map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className="pf-chip"
+                  aria-pressed={behavior.goalRating === value}
+                  aria-label={`${label} for ${behavior.behaviorName}`}
+                  disabled={feedback.isPending}
+                  onClick={() => saveRating(behavior, value)}
+                  data-testid={`button-goal-rating-${ratingId}-${value}`}
+                >
+                  <Icon aria-hidden="true" size={17} />
+                  {label}
+                </button>
+              ))}
             </div>
-            {linkedCard?.source && (
-              <span className="pf-tag" style={{ marginTop: 8 }}>
-                {linkedCard.source === "clinician_reviewed" ? "Clinician reviewed"
-                  : linkedCard.source === "clinician_document" ? "Shared by your care team"
-                    : linkedCard.source === "parent_document" ? "Based on your uploaded document · not clinician-reviewed"
-                      : "Starter support"}
-              </span>
-            )}
-            <div style={{ marginTop: 12 }}>
-              <GoalLines card={goalCard} active />
-            </div>
-          {linkedCard?.planGoal && <PlanMilestones card={linkedCard} dailyActions={dailyActions} childId={child?.id} />}
-
-            {behavior.goal ? (
-              <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--pf-line)" }}>
-                <p style={{ fontWeight: 700, marginBottom: 8 }}>How is this goal going?</p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {RATINGS.map(({ value, label, Icon }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className="pf-chip"
-                      aria-pressed={behavior.goalRating === value}
-                      aria-label={`${label} for ${behavior.behaviorName}`}
-                      disabled={feedback.isPending}
-                      onClick={() => saveRating(behavior, value)}
-                      data-testid={`button-goal-rating-${ratingId}-${value}`}
-                    >
-                      <Icon aria-hidden="true" size={17} />
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {behavior.goalRating && (
-                  <p role="status" aria-live="polite" className="pf-hint" style={{ marginTop: 8 }}>
-                    Current check-in: {behavior.goalRating === "positive" ? "Going well" : "Needs support"}.
-                    {behavior.goalRatingAt && ` ${lastCheckInLabel(behavior.goalRatingAt)}.`}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="pf-hint" style={{ marginTop: 14 }}>
-                Add a goal to start checking in on this behavior.
+            {behavior.goalRating && (
+              <p role="status" aria-live="polite" className="pf-hint">
+                Current check-in: {behavior.goalRating === "positive" ? "Going well" : "Needs support"}.
+                {behavior.goalRatingAt && ` ${lastCheckInLabel(behavior.goalRatingAt)}.`}
               </p>
             )}
-          </article>
-        );
-      })}
+          </div>
+        ) : (
+          <p className="pf-hint">
+            Add a goal to start checking in on this behavior.
+          </p>
+        )}
+      </GoalPreview>
+    );
+  });
+
+  return (
+    <div className="pf-goals-tab np-goals-v5" data-testid="panel-goals">
+      <p className="np-goals-intro">
+        Caregiver check-ins and practice show participation. They do not automatically change treatment progress.
+      </p>
+
+      <ClinicalGoals
+        childId={child?.id}
+        childName={child?.name}
+        dailyActions={dailyActions}
+        presentation="phase5"
+        familyExtras={behaviorGoals}
+        familyExtrasCount={behaviorGoals.length}
+        careGoalDetails={(careGoal) => {
+          const linkedPlan = planGoals.find((goal) => goal.id === careGoal.id);
+          return linkedPlan ? <section aria-label="Linked plan source" data-testid={`linked-plan-${linkedPlan.id}`}>
+            <p className="np-goal-source-line"><span className="pf-tag">{linkedPlan.sourceType === "clinician_uploaded_plan" ? "Clinician-uploaded plan" : "Based on your uploaded plan · not clinician-reviewed"}</span></p>
+            {linkedPlan.description && linkedPlan.description !== careGoal.description && <p className="np-goal-desc">{linkedPlan.description}</p>}
+            <PlanGoalMilestones goal={linkedPlan} dailyActions={dailyActions} childId={child?.id} />
+          </section> : null;
+        }}
+      />
 
       {(discoveredPlanGoals.length > 0 || storedPlanGoals.length > 0) && (
-        <section className="pf-card" aria-labelledby="plan-goals-heading" data-testid="goals-found-in-plan">
-          <p className="pf-eyebrow">Added from read documents</p>
-          <h3 id="plan-goals-heading" style={{ marginTop: 5 }}>Goals and milestones from plans and reports</h3>
-          <p className="pf-hint" style={{ marginTop: 6 }}>
-            These goals were found in {child.name}'s documents and added automatically. They do not replace your saved goals.
+        <section className="np-goal-group" aria-labelledby="plan-goals-heading" data-testid="goals-found-in-plan">
+          <h3 id="plan-goals-heading">Goals From Plans &amp; Documents</h3>
+          <p className="np-goal-group-sub">
+            Found in {child.name}'s documents and added automatically. They do not replace your saved goals or show clinical progress.
           </p>
-          <div className="pf-plan-goals-grid">
-            {discoveredPlanGoals.map((card) => (
-              <article className="pf-card sage pf-plan-goal-card" key={`${parentBehaviorIdentity(card)}:${card.planGoal}`}>
-                <h4>{card.behaviorName}</h4>
-                <span className="pf-tag">{card.source === "clinician_reviewed" ? "Clinician reviewed" : card.source === "clinician_document" ? "Clinician-uploaded plan" : card.source === "parent_document" ? "Based on your uploaded plan · not clinician-reviewed" : "Starter support"}</span>
-                <p style={{ marginTop: 6 }}><strong>Plan goal:</strong> {card.planGoal}</p>
-                {card.planGoalSourceReferences?.length > 0 && (
-                  <p className="pf-hint" style={{ marginTop: 5 }}>
-                    From: {card.planGoalSourceReferences.map((reference) => reference.title).join(", ")}
-                  </p>
-                )}
-                <PlanMilestones card={card} dailyActions={dailyActions} childId={child?.id} />
-              </article>
-            ))}
-            {storedPlanGoals.map((goal) => (
-              <article className="pf-card sage pf-plan-goal-card" key={goal.id} data-testid={`plan-goal-${goal.id}`}>
-                <span className="pf-tag">{goal.sourceType === "clinician_uploaded_plan" ? "Clinician-uploaded plan" : "Based on your uploaded plan · not clinician-reviewed"}</span>
-                {goal.sourceType === "clinician_uploaded_plan" && <p className="pf-hint">From a clinician-uploaded document</p>}
-                <h4 style={{ marginTop: 5 }}>{goal.title}</h4>
-                {goal.description && <p style={{ marginTop: 6 }}>{goal.description}</p>}
-                <PlanGoalMilestones goal={goal} dailyActions={dailyActions} childId={child?.id} />
-              </article>
-            ))}
+          <div className="np-goal-grid">
+            {discoveredPlanGoals.map((card) => {
+              const shown = presentGoalTitle(card.planGoal, []);
+              const cardKey = `${parentBehaviorIdentity(card)}:${card.planGoal}`;
+              return (
+                <GoalPreview key={cardKey} id={`plan-card-${card.id}`} testId={`plan-card-goal-${card.id}`}
+                  title={shown.title} rawTitle={shown.raw} needsSourceReview={shown.needsSourceReview}
+                  source="Plan or document goal">
+                  <p className="np-goal-source-line"><span className="pf-tag">{card.source === "clinician_reviewed" ? "Clinician reviewed" : SOURCE_LABEL(card.source)}</span></p>
+                  <p className="np-goal-desc">Related behavior: {card.behaviorName}</p>
+                  {card.planGoalSourceReferences?.length > 0 && (
+                    <p className="pf-hint">
+                      From: {card.planGoalSourceReferences.map((reference) => reference.title).join(", ")}
+                    </p>
+                  )}
+                  <PlanMilestones card={card} dailyActions={dailyActions} childId={child?.id} />
+                </GoalPreview>
+              );
+            })}
+            {storedPlanGoals.map((goal) => {
+              const shown = presentGoalTitle(goal.title, [goal.description]);
+              return (
+                <GoalPreview key={goal.id} id={`plan-${goal.id}`} testId={`plan-goal-${goal.id}`}
+                  title={shown.title} rawTitle={shown.raw} needsSourceReview={shown.needsSourceReview}
+                  source="Plan or document goal">
+                  <p className="np-goal-source-line"><span className="pf-tag">{goal.sourceType === "clinician_uploaded_plan" ? "Clinician-uploaded plan" : "Based on your uploaded plan · not clinician-reviewed"}</span></p>
+                  {goal.sourceType === "clinician_uploaded_plan" && <p className="pf-hint">From a clinician-uploaded document</p>}
+                  {goal.description && <p className="np-goal-desc">{goal.description}</p>}
+                  <PlanGoalMilestones goal={goal} dailyActions={dailyActions} childId={child?.id} />
+                </GoalPreview>
+              );
+            })}
           </div>
         </section>
       )}
 
-      <section className="pf-card sun" data-testid="add-goal-action">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div>
-            <h3>Add a goal</h3>
-            <p className="pf-hint" style={{ marginTop: 4 }}>
-              Add another behavior and set its starting goal.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="pf-btn small ink"
-            aria-expanded={showLibrary}
-            onClick={() => { setShowLibrary((open) => !open); setError(""); }}
-            data-testid="button-add-goal"
-          >
-            {showLibrary ? "Close" : "Add a goal"}
-          </button>
+      <section className="np-goal-add" data-testid="add-goal-action">
+        <div>
+          <h3>Add a goal</h3>
+          <p className="np-goal-group-sub">Add another behavior and set its starting goal.</p>
         </div>
+        <button
+          type="button"
+          className="pf-btn small ink"
+          aria-expanded={showLibrary}
+          onClick={() => { setShowLibrary((open) => !open); setError(""); }}
+          data-testid="button-add-goal"
+        >
+          {showLibrary ? "Close" : "Add a goal"}
+        </button>
       </section>
 
       {showLibrary && (

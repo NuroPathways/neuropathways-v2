@@ -1,0 +1,122 @@
+/* Phase 5 Goals & Milestones adapter: consumes the approved package's scoped
+   --np-* variables (scoped.css). Scoped to .np-goals-v5 / .np-goals-host only, so
+   Home, Practice, Help Now, ChildEditor (outside goal-editor) and the clinician
+   CareTeamGoalCard preview stay unchanged. */
+.np-goals-host .np-goals-heading {
+  display: flex; flex-direction: column; gap: var(--np-space-related);
+  padding-block: var(--np-space-section) var(--np-space-related-lg);
+  color: var(--np-color-foreground);
+}
+.np-goals-host .np-goals-heading h1 {
+  margin: 0; font: 700 var(--np-text-page-title)/var(--np-leading-page-title) var(--np-font-display); letter-spacing: -.025em;
+}
+.np-goals-host .np-goals-heading p { margin: 0; font-size: var(--np-text-body-sm); color: var(--np-color-muted-foreground); }
+.np-goals-host .np-goals-privacy { font-size: var(--np-text-support); color: var(--np-color-primary); text-decoration: underline; }
+@media (min-width: 768px) { .np-goals-host .np-goals-heading { flex-direction: row; align-items: flex-end; justify-content: space-between; } }
+
+/* Goal editor route only: field spacing for the shared ChildEditor form. */
+.np-goals-host.np-goal-editor-host form label { display: block; margin-bottom: var(--np-space-list); }
+.np-goals-host.np-goal-editor-host form .pf-input { margin-bottom: var(--np-space-related); }
+
+.np-goals-v5 {
+  display: grid; gap: var(--np-space-section); min-width: 0;
+  color: var(--np-color-foreground); font-family: var(--np-font-sans);
+}
+.np-goals-v5 * { overflow-wrap: anywhere; }
+.np-goals-v5 .np-goals-intro { margin: 0; font-size: var(--np-text-support); color: var(--np-color-muted-foreground); }
+.np-goals-v5 .np-goals-groups { display: grid; gap: var(--np-space-section); min-width: 0; }
+.np-goals-v5 .np-goal-group { display: grid; gap: var(--np-space-related); min-width: 0; }
+.np-goals-v5 .np-goal-group > h3, .np-goals-v5 .np-goal-add h3 {
+  margin: 0; font: 700 var(--np-text-section-title)/var(--np-leading-section-title) var(--np-font-display);
+}
+.np-goals-v5 .np-goal-group-sub { margin: 0; font-size: var(--np-text-support); line-height: var(--np-leading-support); color: var(--np-color-muted-foreground); }
+.np-goals-v5 .np-goal-grid { display: grid; gap: var(--np-space-related-lg); grid-template-columns: 1fr; align-items: start; }
+@media (min-width: 768px) { .np-goals-v5 .np-goal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Compact preview (CompactCard composition) */
+.np-goals-v5 .np-goal-preview {
+  display: grid; gap: var(--np-space-list); min-width: 0;
+  padding: var(--np-space-card);
+  background: var(--np-color-card); color: var(--np-color-card-foreground);
+  border: 1px solid var(--np-color-border); border-radius: var(--np-radius);
+  box-shadow: var(--np-shadow-raised);
+}
+.np-goals-v5 .np-goal-preview[data-state="open"] { grid-column: 1 / -1; }
+.np-goals-v5 .np-goal-preview > * { margin: 0; min-width: 0; }
+.np-goals-v5 .np-goal-preview > div:first-child { display: flex; align-items: flex-start; gap: var(--np-space-related); }
+.np-goals-v5 .np-goal-preview h4 { margin: 0; font: 700 var(--np-text-card-title)/var(--np-leading-card-title) var(--np-font-display); }
+.np-goals-v5 .np-goal-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; border-radius: calc(var(--np-radius) - 4px);
+  background: var(--np-color-accent); color: var(--np-color-chart-3);
+}
+.np-goals-v5 .np-goal-preview > p:first-of-type {
+  display: flex; flex-wrap: wrap; gap: 4px var(--np-space-related);
+  font-size: var(--np-text-support); color: var(--np-color-muted-foreground);
+}
+.np-goals-v5 .np-goal-source { font-weight: 700; color: var(--np-color-chart-3); }
+.np-goals-v5 .np-goal-review { font-weight: 700; color: var(--np-color-foreground); text-decoration: underline dotted; }
+
+/* Details: forceMounted, hidden when closed so drafts/focus are kept. Never clamped. */
+.np-goals-v5 .np-goal-details[data-state="closed"] { display: none; }
+.np-goals-v5 .np-goal-details {
+  display: grid; gap: var(--np-space-related);
+  padding-top: var(--np-space-related); border-top: 1px solid var(--np-color-border);
+}
+.np-goals-v5 .np-goal-details p, .np-goals-v5 .np-goal-details li {
+  display: block; overflow: visible; -webkit-line-clamp: unset; margin: 0;
+  font-size: var(--np-text-body-sm); line-height: var(--np-leading-body-sm);
+}
+.np-goals-v5 .np-goal-details .pf-card { box-shadow: none; }
+.np-goals-v5 .np-goal-raw, .np-goals-v5 .np-goal-note { color: var(--np-color-muted-foreground); font-size: var(--np-text-support) !important; }
+.np-goals-v5 .np-goal-block { display: grid; gap: var(--np-space-list); padding: var(--np-space-related); background: var(--np-color-muted); border-radius: calc(var(--np-radius) - 4px); }
+.np-goals-v5 .np-goal-block h5 { margin: 0; font: 700 var(--np-text-support)/var(--np-leading-support) var(--np-font-sans); }
+.np-goals-v5 .np-goal-block ul { margin: 0; }
+.np-goals-v5 .np-goal-note { display: block; }
+.np-goals-v5 .np-goal-facts { display: grid; gap: 4px var(--np-space-related); margin: 0; }
+.np-goals-v5 .np-goal-link-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--np-space-list); }
+.np-goals-v5 .np-goal-bar { height: var(--np-space-list); border-radius: var(--np-space-list); background: var(--np-color-border); overflow: hidden; }
+.np-goals-v5 .np-goal-bar > div { height: 100%; background: var(--np-color-chart-2); }
+
+/* Controls: 44px, visible focus */
+.np-goals-v5 .np-goal-actions { display: flex; flex-wrap: wrap; gap: var(--np-space-list); }
+.np-goals-host .np-goals-v5 button.pf-btn.small,
+.np-goals-host .np-goals-v5 .pf-btn,
+.np-goals-v5 button, .np-goals-v5 .pf-btn, .np-goals-v5 .np-goal-details a { min-height: var(--np-space-control); }
+.np-goals-v5 .np-goal-details li a { display: inline-flex; align-items: center; color: var(--np-color-primary); }
+.np-goals-v5 .np-goal-view {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  min-height: var(--np-space-control); padding: 0 var(--np-space-related-lg);
+  border: 1px solid var(--np-color-border); border-radius: calc(var(--np-radius) - 2px);
+  background: var(--np-color-card); color: var(--np-color-primary);
+  font: 600 var(--np-text-support)/1 var(--np-font-sans);
+}
+.np-goals-v5 .np-goal-preview[data-state="open"] .np-goal-chevron { transform: rotate(180deg); }
+.np-goals-v5 .np-goal-chevron { transition: transform .15s ease; }
+@media (prefers-reduced-motion: reduce) { .np-goals-v5 .np-goal-chevron { transition: none; } }
+.np-goals-v5 .np-goal-danger { color: var(--np-color-destructive); }
+.np-goals-v5 button:focus-visible, .np-goals-v5 a:focus-visible, .np-goals-v5 input:focus-visible, .np-goals-v5 textarea:focus-visible {
+  outline: 2px solid var(--np-color-ring); outline-offset: 2px;
+}
+.np-goals-v5 .np-goal-add-btn, .np-goals-v5 .np-goal-group > .np-goal-add { justify-self: start; }
+
+.np-goals-v5 .np-goal-empty {
+  display: grid; gap: var(--np-space-list); padding: var(--np-space-card-lg);
+  border: 1px dashed var(--np-color-border); border-radius: var(--np-radius);
+}
+.np-goals-v5 .np-goal-empty p { margin: 0; color: var(--np-color-muted-foreground); font-size: var(--np-text-body-sm); }
+
+/* Goal form: field spacing only */
+.np-goals-v5 .np-goal-form { gap: var(--np-space-list) !important; }
+.np-goals-v5 .np-goal-form label { margin-top: var(--np-space-list); font-weight: 600; font-size: var(--np-text-support); }
+.np-goals-v5 .np-goal-form label:first-child { margin-top: 0; }
+.np-goals-v5 .np-goal-form > div { margin-top: var(--np-space-list); }
+.np-goals-v5 .np-goal-form-wrap {
+  padding: var(--np-space-card); border: 1px solid var(--np-color-border); border-radius: var(--np-radius); background: var(--np-color-card);
+}
+
+/* Add Goal shortcut: open section, not a floating card */
+.np-goals-v5 .np-goal-add {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--np-space-related);
+  padding-top: var(--np-space-related-lg); border-top: 1px solid var(--np-color-border);
+}

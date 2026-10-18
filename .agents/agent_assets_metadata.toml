@@ -210,3 +210,17 @@ mtime_ms = 1792296391452
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/a2cd50e9-7d5b-4280-811a-db4fac6243a4/0c558e93-b628-4c27-b690-4aa53c92effd"
 storage_version_token = "1792296444426900"
 content_type = "text/html"
+
+[[outputs]]
+id = "a2yRhRchnrvkfjRz6OOCF"
+uri = "file://generated-artifacts/phase5-review/NeuroPathways-Phase-5-Goals-Review.html"
+type = "html"
+title = "Phase 5 — Goals & Milestones Review"
+description = "Changes, preserved behavior, test results, screenshot references and verification limits."
+logical_id = "4536294d-61fe-404e-bb91-c7af27c34bf9"
+content_hash = "sha256:549b7702d98c709592c7306a8d44f9b7bfd2e5886a1c865d0c97c937df91d325"
+size = 9423
+mtime_ms = 1792299426454
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/4536294d-61fe-404e-bb91-c7af27c34bf9/c566be25-d6bc-48de-ae95-4e34a4557217"
+storage_version_token = "1792299462157136"
+content_type = "text/html"

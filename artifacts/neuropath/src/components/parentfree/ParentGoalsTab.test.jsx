@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import ParentGoalsTab from "./ParentGoalsTab";
 
 const goalMocks = vi.hoisted(() => ({
   mutate: vi.fn(),
   refreshParent: vi.fn(),
   invalidateQueries: vi.fn(),
+  careData: undefined,
 }));
 
 vi.mock("@workspace/api-client-react", async (importOriginal) => {
@@ -16,7 +17,7 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
     getGetParentGoalsQueryKey: (childId) => ["parent-goals", childId],
     useGetParentGoals: () => ({ isLoading: false, isError: false, data: [] }),
     getGetParentCareTeamQueryKey: (childId) => ["care", childId],
-    useGetParentCareTeam: () => ({ isLoading: false, isError: false, data: undefined }),
+    useGetParentCareTeam: () => ({ isLoading: false, isError: false, data: goalMocks.careData }),
     useCreateParentGoal: () => ({ isPending: false, mutate: vi.fn() }),
     useUpdateParentGoal: () => ({ isPending: false, mutate: vi.fn() }),
     useDeleteParentGoal: () => ({ isPending: false, mutate: vi.fn() }),
@@ -46,9 +47,22 @@ vi.mock("./BehaviorLibrary", () => ({
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  goalMocks.careData = undefined;
 });
 
 describe("ParentGoalsTab", () => {
+  it("shows a shared care-team goal only in its primary group, not again as a plan goal", () => {
+    const goal = { id: "shared", title: "Ask for a break", status: "published",
+      description: "Use the existing signal.", milestones: [], linkedActivityIds: [], target: 10 };
+    goalMocks.careData = { goals: [goal], assignments: [], recentPractice: [] };
+    render(<ParentGoalsTab child={{ id: "child-1", name: "Sam" }} behaviors={[]}
+      allCards={[]} dailyActions={[]} planGoals={[{ ...goal, sourceType: "clinician_uploaded_plan" }]} />);
+    expect(screen.getByTestId("group-clinical-goals")).toBeTruthy();
+    expect(screen.queryByTestId("plan-goal-shared")).toBeNull();
+    expect(screen.queryByTestId("goals-found-in-plan")).toBeNull();
+    expect(screen.getByTestId("linked-plan-shared")).toBeTruthy();
+    expect(screen.getByText("Clinician-uploaded plan")).toBeTruthy();
+  });
   it("shows per-goal thumbs check-ins and records the selected caregiver rating", () => {
     render(
       <ParentGoalsTab
@@ -66,6 +80,7 @@ describe("ParentGoalsTab", () => {
       />,
     );
 
+    fireEvent.click(within(screen.getByTestId("goal-card-elopement")).getByRole("button", { name: /view goal/i }));
     expect(screen.getByText("Stay near an adult")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Going well for Leaving the area" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Needs support for Leaving the area" })).toBeTruthy();
@@ -108,6 +123,7 @@ describe("ParentGoalsTab", () => {
     );
 
     expect(screen.getByTestId("goals-found-in-plan")).toBeTruthy();
+    fireEvent.click(within(screen.getByTestId("goals-found-in-plan")).getByRole("button", { name: /view goal/i }));
     expect(screen.getByText("John will request a break independently during homework.")).toBeTruthy();
     expect(screen.getByText("Practice requesting a break")).toBeTruthy();
     expect(screen.getByText(/Provide the planned break/)).toBeTruthy();
@@ -144,6 +160,7 @@ describe("ParentGoalsTab", () => {
     );
 
     expect(screen.getByTestId("plan-goal-report-goal-1")).toBeTruthy();
+    fireEvent.click(within(screen.getByTestId("plan-goal-report-goal-1")).getByRole("button", { name: /view goal/i }));
     expect(screen.getByText("From a clinician-uploaded document")).toBeTruthy();
     expect(screen.getByText("Use the break card before the first homework task.")).toBeTruthy();
     expect(screen.getByText("Return to the next task after the planned break.")).toBeTruthy();
