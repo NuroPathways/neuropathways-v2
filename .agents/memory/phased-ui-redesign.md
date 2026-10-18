@@ -16,3 +16,9 @@ Phase 1 establishes isolated foundation/component previews before application-wi
 **Why:** The brief explicitly requires reviewing the foundation examples first, with Home and subsequent screens authorized in separate phases. A global theme or CSS-toolchain migration could change those screens prematurely.
 
 **How to apply:** Keep foundation adoption scoped to the individually approved screen phase. Do not treat a shared stylesheet migration as incidental setup; review its effects on unapproved roles and pages before applying it.
+
+Help Now may collapse optional explanations and prevention/background material, but emergency instructions, immediate safety guidance, escalation warnings, things to avoid and clinician-contact thresholds must remain outside collapsed sections.
+
+**Why:** The user's redesign brief prioritizes caregivers who may have limited time or attention during a stressful event; reducing visual density must not make critical guidance harder to reach.
+
+**How to apply:** Keep source text intact, emphasize the current saved action and retain every step/control. If a note's urgency is unclear, keep it visible rather than assuming that long text is nonurgent. Presentation changes must not change eligibility, branching or logging contracts.

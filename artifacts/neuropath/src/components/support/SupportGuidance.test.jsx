@@ -113,7 +113,7 @@ describe("support guidance", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Leaving the area/ }));
 
-    expect(screen.getByText("Try one step")).toBeTruthy();
+    expect(screen.getByText(/Try one step/)).toBeTruthy();
     expect(screen.getByText("Move to a safer place")).toBeTruthy();
     expect(screen.queryByText("Offer a clear choice")).toBeNull();
     expect(screen.getByRole("button", { name: "Back" }).disabled).toBe(true);
@@ -143,6 +143,7 @@ describe("support guidance", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Transition difficulty/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Prevention Ideas/ }));
     expect(screen.getByText("Use the familiar visual schedule")).toBeTruthy();
     expect(screen.getByText(/Only 1 source-grounded item is available/)).toBeTruthy();
   });

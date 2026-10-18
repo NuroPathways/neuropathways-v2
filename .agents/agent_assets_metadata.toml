@@ -182,3 +182,17 @@ mtime_ms = 1792293271975
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/bb134f03-d8c6-4cd9-afa7-2b0942ee23c7/62ca460a-7b33-4b1d-9fb0-63065d5954bd"
 storage_version_token = "1792293302431050"
 content_type = "text/html"
+
+[[outputs]]
+id = "zSO0cfDxWTwTbT32UAdSl"
+uri = "file://generated-artifacts/phase3-review/NeuroPathways-Phase-3-Help-Now-Review.html"
+type = "html"
+title = "Phase 3 — Help Now review"
+description = "Implementation details, preserved behavior, verification results and remaining coverage gaps. Actual running-app screenshots are shown in the conversation."
+logical_id = "ab85c212-e38e-49d5-8a6c-3083f8bd4bd1"
+content_hash = "sha256:56e88f753ba9e0127343acf52d11fd369a101d15cf0cbd2a80b1f737835e700d"
+size = 7410
+mtime_ms = 1792294895212
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/ab85c212-e38e-49d5-8a6c-3083f8bd4bd1/fffb0ec5-188f-459f-b980-af684310751a"
+storage_version_token = "1792294913478450"
+content_type = "text/html"

@@ -1,4 +1,4 @@
-import { ArrowLeft, X, ShieldAlert, Phone, AlertTriangle } from "lucide-react";
+import { ArrowLeft, X, ShieldAlert, Phone } from "lucide-react";
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -36,104 +36,82 @@ export default function CrisisPlan({ child, profile, loadingProfile, profileLoad
 
   return (
     <div>
-      <div className="sticky top-0 bg-red-600 px-5 py-4 flex items-center gap-3 z-10">
-        <button type="button" onClick={onBack} className="min-w-[40px] min-h-[40px] flex items-center justify-center text-white/80 hover:text-white rounded-xl hover:bg-white/10 transition-colors">
-          <ArrowLeft className="w-5 h-5" />
+      <div className="np-help-bar">
+        <button type="button" onClick={onBack} aria-label="Back to support options" data-testid="button-back-support" className="np-help-icon-btn">
+          <ArrowLeft aria-hidden="true" />
         </button>
-        <div className="flex items-center gap-2 flex-1">
-          <ShieldAlert className="w-5 h-5 text-white" />
-          <p className="font-bold text-white text-sm">Safety / Crisis Plan</p>
+        <div className="np-help-bar-title">
+          <h2><ShieldAlert aria-hidden="true" style={{ width: 20, height: 20, color: "var(--np-color-destructive)" }} />Safety / Crisis Plan</h2>
         </div>
-        <button type="button" onClick={onDismiss} className="min-w-[40px] min-h-[40px] flex items-center justify-center text-white/80 hover:text-white rounded-xl hover:bg-white/10 transition-colors">
-          <X className="w-5 h-5" />
+        <button type="button" onClick={onDismiss} aria-label="Close support" data-testid="button-close-support" className="np-help-icon-btn">
+          <X aria-hidden="true" />
         </button>
       </div>
 
-      <div className="bg-red-50 border-b border-red-200 px-5 py-3 flex items-center gap-2">
-        <Phone className="w-4 h-4 text-red-600 flex-shrink-0" />
-        <p className="text-sm font-bold text-red-700">If there is immediate danger, call 911 or emergency services.</p>
-      </div>
+      <div className="np-help-body">
+        <p className="np-help-emergency" role="note" data-testid="text-emergency-top">
+          <Phone aria-hidden="true" />
+          <span>If there is immediate danger, call 911 or emergency services.</span>
+        </p>
 
-      <div className="p-5 space-y-4">
         {loadingProfile ? (
-          <div className="py-12 text-center">
-            <div className="w-10 h-10 border-4 border-border border-t-red-500 rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">Loading safety plan...</p>
-          </div>
+          <p role="status" aria-busy="true" className="np-help-muted">Loading safety plan...</p>
         ) : profileLoadError ? (
-          <div role="alert" className="bg-red-50 border border-red-200 rounded-2xl p-5">
-            <p className="text-sm font-semibold text-red-800 mb-1">Could not load safety information.</p>
-            <p className="text-sm text-red-700">Return to the support menu and try again.</p>
+          <div role="alert" className="np-help-notice" data-tone="urgent">
+            <p className="np-help-text np-help-strong">Could not load safety information.</p>
+            <p className="np-help-text">Return to the support menu and try again.</p>
           </div>
         ) : crisisPlan.length === 0 && safetyProcedures.length === 0 ? (
-          <div className="py-6">
-            <div className="bg-sky-50 border border-sky-200 rounded-2xl p-5 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-sky-700 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-sky-900">
-                  {safetyPlanUploaded
-                    ? "A safety plan was uploaded, but its steps are not available in this screen."
-                    : "No safety plan has been uploaded for this child."}
-                </p>
-                <p className="text-sm text-sky-800 mt-1">
-                  {safetyPlanUploaded
-                    ? "Review the uploaded document for its instructions. Contact a qualified professional if you need individualized guidance."
-                    : `This screen does not contain an individualized crisis plan for ${name || "this child"}. Upload a safety plan or contact a qualified professional for individualized guidance.`}
-                </p>
-                <p className="text-sm font-bold text-sky-900 mt-3">If there is immediate danger, call 911 or emergency services.</p>
-              </div>
-            </div>
+          <div className="np-help-notice" data-tone="caution">
+            <p className="np-help-text np-help-strong">
+              {safetyPlanUploaded
+                ? "A safety plan was uploaded, but its steps are not available in this screen."
+                : "No safety plan has been uploaded for this child."}
+            </p>
+            <p className="np-help-text">
+              {safetyPlanUploaded
+                ? "Review the uploaded document for its instructions. Contact a qualified professional if you need individualized guidance."
+                : `This screen does not contain an individualized crisis plan for ${name || "this child"}. Upload a safety plan or contact a qualified professional for individualized guidance.`}
+            </p>
+            <p className="np-help-text np-help-strong">If there is immediate danger, call 911 or emergency services.</p>
           </div>
         ) : (
           <>
             {name && !isIndividual && (
-              <div className="bg-card border border-border rounded-xl px-4 py-3">
-                <p className="text-xs text-muted-foreground">Crisis plan for:</p>
-                <p className="font-semibold text-foreground">{name}</p>
-              </div>
+              <p className="np-help-muted">Crisis plan for: <strong className="np-help-strong" style={{ color: "var(--np-color-foreground)" }}>{name}</strong></p>
             )}
 
             {crisisPlan.length > 0 && (
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Crisis plan steps on file</h4>
-                <div className="bg-red-600 rounded-2xl p-4 space-y-2">
-                  {crisisPlan.map((step, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 mt-0.5">{i + 1}</span>
-                      <p className="text-white text-sm leading-snug">{step}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <section className="np-help-active" data-testid="section-crisis-steps">
+                <h3 className="np-help-label">Crisis plan steps on file</h3>
+                <ol className="np-help-steps" data-tone="urgent">
+                  {crisisPlan.map((step, i) => <li key={i}><span>{step}</span></li>)}
+                </ol>
+              </section>
             )}
 
             {safetyProcedures.length > 0 && (
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Safety Procedures</h4>
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
-                  {safetyProcedures.map((s, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <ShieldAlert className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm text-emerald-800 leading-snug">{s}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <section className="np-help-group" data-testid="section-safety-procedures">
+                <h3 className="np-help-label">Safety Procedures</h3>
+                <ol className="np-help-steps">
+                  {safetyProcedures.map((s, i) => <li key={i}><span>{s}</span></li>)}
+                </ol>
+              </section>
             )}
 
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-1">When To Contact Your Clinician</p>
-              <p className="text-sm text-amber-800">
+            <section className="np-help-group np-help-urgent-section">
+              <h3 className="np-help-label">When To Contact Your Clinician</h3>
+              <p className="np-help-text">
                 Contact your clinician if the situation does not de-escalate, if safety cannot be maintained, or if the crisis plan steps are not working.
               </p>
-            </div>
+            </section>
           </>
         )}
 
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
-          <Phone className="w-4 h-4 text-red-600 flex-shrink-0" />
-          <p className="text-xs text-red-700 font-medium">If there is immediate danger, call 911 or emergency services.</p>
-        </div>
+        <p className="np-help-emergency" role="note">
+          <Phone aria-hidden="true" />
+          <span>If there is immediate danger, call 911 or emergency services.</span>
+        </p>
       </div>
     </div>
   );

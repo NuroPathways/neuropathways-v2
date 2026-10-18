@@ -1,7 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { base44 } from '@/api/entities';
-import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, ShieldAlert, Wind, X, ChevronRight, Loader2, Phone } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { AlertTriangle, ShieldAlert, Wind, X, Phone } from "lucide-react";
+import { MenuRow } from "@workspace/neuropathways-foundations/components/ui/menu-row";
+import { PageHeader } from "@workspace/neuropathways-foundations/components/ui/page-header";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "./help-now.css";
 import BehaviorSelector from "./BehaviorSelector";
 import CrisisPlan from "./CrisisPlan";
 import CalmDownTool from "./CalmDownTool";
@@ -32,58 +36,72 @@ export function clearSupportPopupSession(userId) {
   if (userId) shownThisLoad.delete(userId);
 }
 
+function CloseButton({ onDismiss }) {
+  return (
+    <button
+      type="button"
+      onClick={onDismiss}
+      aria-label="Close support"
+      data-testid="button-close-support"
+      className="np-help-icon-btn"
+    >
+      <X aria-hidden="true" />
+    </button>
+  );
+}
+
+function EmergencyLine() {
+  return (
+    <p className="np-help-emergency" role="note">
+      <Phone aria-hidden="true" />
+      <span>If there is immediate danger, call 911 or emergency services.</span>
+    </p>
+  );
+}
+
 function ChildSelector({ children, selectedChildId, onSelect, onContinue, onDismiss }) {
   return (
-    <div className="p-6">
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <div>
-          <h2 className="text-xl font-bold text-foreground mb-1">Who do you need help with?</h2>
-          <p className="text-sm text-muted-foreground">Choose a child to see the right support plan.</p>
-        </div>
+    <div className="np-help-body">
+      <div className="np-help-header">
+        <PageHeader
+          as="h2"
+          title="Who do you need help with?"
+          description="Choose a child to see the right support plan."
+        />
+        <CloseButton onDismiss={onDismiss} />
+      </div>
+      <div className="np-help-group">
+        {children.length > 0 && (
+          <div className="np-help-options">
+            {children.map((child) => (
+              <MenuRow
+                key={child.id}
+                onClick={() => onSelect(child.id)}
+                aria-pressed={selectedChildId === child.id}
+                data-testid={`button-select-child-${child.id}`}
+                className="np-help-option"
+                icon={<span className="np-help-option-initial">{(child.child_name || child.childName || child.name)?.[0]?.toUpperCase() || "?"}</span>}
+                label={child.child_name || child.childName || child.name || "Child"}
+                description={selectedChildId === child.id ? [child.diagnosis, "Selected"].filter(Boolean).join(" · ") : child.diagnosis || undefined}
+              />
+            ))}
+          </div>
+        )}
+        {children.length === 0 && (
+          <p role="status" className="np-help-muted">No child profile is connected to this sign-in. Please contact your care team.</p>
+        )}
         <button
           type="button"
-          onClick={onDismiss}
-          aria-label="Close support"
-          className="min-w-[40px] min-h-[40px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors"
+          onClick={onContinue}
+          disabled={!selectedChildId}
+          data-testid="button-continue-support"
+          data-variant="primary"
+          data-block="true"
+          className="np-help-btn"
         >
-          <X className="w-5 h-5" />
+          Continue to support options
         </button>
       </div>
-      <div className="space-y-3 mt-5">
-        {children.map((child) => (
-          <button
-            type="button"
-            key={child.id}
-            onClick={() => onSelect(child.id)}
-            aria-pressed={selectedChildId === child.id}
-            className={`w-full flex items-center justify-between bg-card border-2 rounded-2xl p-4 text-left transition-all group ${selectedChildId === child.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-primary font-bold text-base">{(child.child_name || child.childName || child.name)?.[0]?.toUpperCase() || "?"}</span>
-              </div>
-              <div>
-                <p className="font-semibold text-foreground">{child.child_name || child.childName || child.name || "Child"}</p>
-                {child.diagnosis && <p className="text-xs text-muted-foreground">{child.diagnosis}</p>}
-              </div>
-            </div>
-            {selectedChildId === child.id
-              ? <span className="text-xs font-semibold text-primary">Selected</span>
-              : <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />}
-          </button>
-        ))}
-      </div>
-      {children.length === 0 && (
-        <p role="status" className="text-sm text-muted-foreground mt-5">No child profile is connected to this sign-in. Please contact your care team.</p>
-      )}
-      <button
-        type="button"
-        onClick={onContinue}
-        disabled={!selectedChildId}
-        className="w-full mt-5 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Continue to support options
-      </button>
     </div>
   );
 }
@@ -91,88 +109,55 @@ function ChildSelector({ children, selectedChildId, onSelect, onContinue, onDism
 function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
   const name = child?.child_name;
   return (
-    <div className="p-6">
-      <div className="flex items-start justify-between mb-2">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground leading-tight">Need support right now?</h2>
-          {name && (
-            <p className="text-sm text-muted-foreground mt-1">For: <span className="font-semibold text-foreground">{name}</span></p>
-          )}
+    <div className="np-help-body">
+      <div className="np-help-header">
+        <PageHeader
+          as="h2"
+          title="Need support right now?"
+          context={name ? <>For: <strong>{name}</strong></> : undefined}
+          description="Choose what you need. Support guidance is labeled by where it came from."
+        />
+        <CloseButton onDismiss={onDismiss} />
+      </div>
+
+      <div className="np-help-group">
+        <div className="np-help-options">
+          <MenuRow
+            onClick={() => onSelect("behavior")}
+            data-testid="button-help-behavior"
+            data-tone="primary"
+            className="np-help-option"
+            icon={<AlertTriangle />}
+            label="Help With a Behavior"
+            description="Step-by-step support for a selected behavior"
+          />
+          <MenuRow
+            onClick={() => onSelect("crisis")}
+            data-testid="button-help-crisis"
+            data-tone="urgent"
+            className="np-help-option"
+            icon={<ShieldAlert />}
+            label="Safety / Crisis Plan"
+            description="Review available safety information and next steps"
+          />
+          <MenuRow
+            onClick={() => onSelect("calm")}
+            data-testid="button-help-calm"
+            className="np-help-option"
+            icon={<Wind />}
+            label="Calm Down First"
+            description="Breathing, grounding, and co-regulation tools"
+          />
+          <MenuRow
+            onClick={onDismiss}
+            data-testid="button-help-dashboard"
+            data-tone="quiet"
+            className="np-help-option"
+            label="I'm Okay — Go to Dashboard"
+            description="Continue to your regular dashboard"
+          />
         </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Close support"
-          className="min-w-[40px] min-h-[40px] flex items-center justify-center text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-
-      <p className="text-sm text-muted-foreground mb-6">Choose what you need. Support guidance is labeled by where it came from.</p>
-
-      <div className="space-y-3">
-        <button
-          type="button"
-          onClick={() => onSelect("behavior")}
-          className="w-full flex items-center gap-4 bg-orange-50 border-2 border-orange-200 hover:border-orange-400 rounded-2xl p-5 text-left transition-all group"
-        >
-          <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-            <AlertTriangle className="w-6 h-6 text-orange-600" />
-          </div>
-          <div className="flex-1">
-            <p className="font-bold text-orange-900 text-base">Help With a Behavior</p>
-            <p className="text-xs text-orange-700 mt-0.5">Step-by-step support for a selected behavior</p>
-          </div>
-          <ChevronRight className="w-5 h-5 text-orange-400 group-hover:text-orange-600 transition-colors" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSelect("crisis")}
-          className="w-full flex items-center gap-4 bg-red-50 border-2 border-red-200 hover:border-red-400 rounded-2xl p-5 text-left transition-all group"
-        >
-          <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
-            <ShieldAlert className="w-6 h-6 text-red-600" />
-          </div>
-          <div className="flex-1">
-            <p className="font-bold text-red-900 text-base">Safety / Crisis Plan</p>
-            <p className="text-xs text-red-700 mt-0.5">Review available safety information and next steps</p>
-          </div>
-          <ChevronRight className="w-5 h-5 text-red-400 group-hover:text-red-600 transition-colors" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSelect("calm")}
-          className="w-full flex items-center gap-4 bg-teal-50 border-2 border-teal-200 hover:border-teal-400 rounded-2xl p-5 text-left transition-all group"
-        >
-          <div className="w-12 h-12 rounded-xl bg-teal-100 flex items-center justify-center flex-shrink-0">
-            <Wind className="w-6 h-6 text-teal-600" />
-          </div>
-          <div className="flex-1">
-            <p className="font-bold text-teal-900 text-base">Calm Down First</p>
-            <p className="text-xs text-teal-700 mt-0.5">Breathing, grounding, and co-regulation tools</p>
-          </div>
-          <ChevronRight className="w-5 h-5 text-teal-400 group-hover:text-teal-600 transition-colors" />
-        </button>
-
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="w-full flex items-center gap-4 bg-muted border-2 border-border hover:border-muted-foreground/30 rounded-2xl p-5 text-left transition-all group"
-        >
-          <div className="flex-1">
-            <p className="font-bold text-foreground text-base">I'm Okay — Go to Dashboard</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Continue to your regular dashboard</p>
-          </div>
-          <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
-        </button>
-      </div>
-
-      <div className="mt-6 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
-        <Phone className="w-4 h-4 text-red-600 flex-shrink-0" />
-        <p className="text-xs text-red-700 font-medium">If there is immediate danger, call 911 or emergency services.</p>
+        <EmergencyLine />
       </div>
     </div>
   );
@@ -331,14 +316,57 @@ export default function SupportNowOverlay({
     }
   }, [selectedChild?.id, loadProfile, logEngagement]);
 
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(() => {
     const key = user?.invite_token || user?.id;
     if (user?.invite_token) {
       try { sessionStorage.setItem(SUPPORT_POPUP_DISMISSED_KEY, "1"); }
       catch { if (key) shownThisLoad.add(key); }
     } else if (key) shownThisLoad.add(key);
     setVisible(false);
-  };
+  }, [user?.invite_token, user?.id]);
+
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    if (!visible) return;
+    const panel = dialogRef.current;
+    if (!panel) return;
+    const trigger = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panel.focus({ preventScroll: true });
+    const handleKey = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleDismiss();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = [...panel.querySelectorAll("button, a[href], input, select, textarea, [tabindex]")]
+        .filter((element) => !element.disabled && element.tabIndex >= 0
+          && !element.closest("[hidden], [inert]") && getComputedStyle(element).display !== "none");
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (!first) {
+        event.preventDefault();
+        panel.focus();
+      } else if (!panel.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === panel)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panel)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = previousOverflow;
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    };
+  }, [visible, handleDismiss]);
 
   const handleSelectChild = (child) => {
     setProfile(null);
@@ -366,12 +394,14 @@ export default function SupportNowOverlay({
 
   const handleBack = () => setStep("menu");
 
+  const reduceMotion = useReducedMotion();
+
   if (!visible) return null;
 
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0 }}
+        initial={reduceMotion ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex justify-center pointer-events-none"
@@ -384,12 +414,14 @@ export default function SupportNowOverlay({
         {/* Dark backdrop — blocks background taps/clicks, sits behind the modal */}
         <div className="absolute inset-0 bg-black/50 pointer-events-auto" style={{ zIndex: 0 }} />
         <motion.div
-          initial={{ y: 60, opacity: 0 }}
+          initial={reduceMotion ? false : { y: 60, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 60, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 320, damping: 30 }}
-          className="pointer-events-auto relative w-full max-w-md bg-background rounded-3xl shadow-2xl overflow-y-auto border border-border"
+          exit={reduceMotion ? { opacity: 0 } : { y: 60, opacity: 0 }}
+          transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 30 }}
+          className="np-foundations np-help pointer-events-auto relative w-full max-w-md overflow-y-auto"
           role="dialog"
+          ref={dialogRef}
+          tabIndex={-1}
           aria-modal="true"
           aria-label="Choose support for a child"
           style={{ zIndex: 1, maxHeight: "90vh" }}
