@@ -9,6 +9,14 @@ Activity position and saved-for-later state belong to a specific parent-child pa
 
 **How to apply:** When changing activity generation, IDs, or parent dashboards, preserve stable activity keys and scope progress reads/writes by both parent and child. Keep reflection records separate from resume state and clinical mastery.
 
+## Live position versus opened snapshots
+
+Freeze instruction content when required, not the live resume cursor. Save for Later must use the current on-screen step, and pending step writes must finish in order before pause or feedback writes.
+
+**Why:** Using the cached opening position can rewind practice when it is saved. An earlier, slower request can also overwrite a later saved bookmark.
+
+**How to apply:** Keep a current local cursor while the dashboard cache catches up. Test rapid Next/Back followed by Save for Later with delayed requests, not just immediately resolving mocks. Preserve the existing persistence format and parent/child boundary.
+
 ## Assigned instructions and history
 
 Published clinician assignments and parent feedback must retain the exact instruction version used. Referenced starter-library versions must remain available when that library evolves; never silently resolve historical references to newer text.

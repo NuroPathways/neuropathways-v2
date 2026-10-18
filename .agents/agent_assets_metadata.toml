@@ -196,3 +196,17 @@ mtime_ms = 1792294895212
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/ab85c212-e38e-49d5-8a6c-3083f8bd4bd1/fffb0ec5-188f-459f-b980-af684310751a"
 storage_version_token = "1792294913478450"
 content_type = "text/html"
+
+[[outputs]]
+id = "EWpcabIngJlQ8AdXsg6RW"
+uri = "file://generated-artifacts/phase4-review/NeuroPathways-Phase-4-Practice-Review.html"
+type = "html"
+title = "Phase 4 — Practice review"
+description = "Changes, preserved behavior, actual browser evidence, save-position and focus corrections, test results and remaining limits."
+logical_id = "a2cd50e9-7d5b-4280-811a-db4fac6243a4"
+content_hash = "sha256:caebe8b4f17b994f3a7e37c5899b2917a1f51917dd530dc51b311f0ccccdf969"
+size = 8398
+mtime_ms = 1792296391452
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/a2cd50e9-7d5b-4280-811a-db4fac6243a4/0c558e93-b628-4c27-b690-4aa53c92effd"
+storage_version_token = "1792296444426900"
+content_type = "text/html"

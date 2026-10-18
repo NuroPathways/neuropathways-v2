@@ -1,0 +1,171 @@
+/* Phase 4 Practice-only adapter: consumes the approved package's scoped --np-*
+   variables (scoped.css). Everything is nested under .np-practice-v4 so other
+   tabs, Home, Help Now, FamilyTools logic and clinician preview stay unchanged. */
+.np-practice-v4 {
+  display: grid;
+  gap: var(--np-space-section);
+  color: var(--np-color-foreground);
+  font-family: var(--np-font-sans);
+  min-width: 0;
+}
+.np-practice-v4 * { overflow-wrap: anywhere; }
+.np-practice-v4 h3 {
+  display: flex; align-items: center; gap: var(--np-space-list);
+  margin: 0;
+  font: 700 var(--np-text-section-title)/var(--np-leading-section-title) var(--np-font-display);
+}
+.np-practice-v4 h3 svg { color: var(--np-color-chart-2); flex-shrink: 0; }
+.np-practice-v4 .np-practice-section { display: grid; gap: var(--np-space-related); }
+.np-practice-v4 .np-section-sub, .np-practice-v4 .np-practice-meta {
+  margin: 0; font-size: var(--np-text-support); line-height: var(--np-leading-support); color: var(--np-color-muted-foreground);
+}
+.np-practice-v4 .np-activity-grid {
+  display: grid; gap: var(--np-space-related-lg); grid-template-columns: 1fr; align-items: start;
+}
+@media (min-width: 768px) {
+  .np-practice-v4 .np-activity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1100px) {
+  .np-practice-v4 .np-activity-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Compact activity preview (CompactCard composition) */
+.np-practice-v4 .np-practice-card {
+  display: grid; gap: var(--np-space-list); min-width: 0;
+  padding: var(--np-space-card);
+  background: var(--np-color-card); color: var(--np-color-card-foreground);
+  border: 1px solid var(--np-color-border); border-radius: var(--np-radius);
+  box-shadow: var(--np-shadow-raised);
+}
+.np-practice-v4 .np-practice-card > * { margin: 0; min-width: 0; }
+.np-practice-v4 .np-practice-card > div:first-child { display: flex; align-items: flex-start; gap: var(--np-space-related); }
+.np-practice-v4 .np-practice-card h4 {
+  margin: 0; font: 700 var(--np-text-card-title)/var(--np-leading-card-title) var(--np-font-display);
+}
+.np-practice-v4 .np-practice-card-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; border-radius: calc(var(--np-radius) - 4px);
+  background: var(--np-color-accent); color: var(--np-color-chart-3);
+}
+.np-practice-v4 .np-practice-card > p:not(:last-child) { display: flex; flex-wrap: wrap; gap: 4px var(--np-space-related); }
+.np-practice-v4 .np-activity-meta { font-size: var(--np-text-support); color: var(--np-color-muted-foreground); }
+.np-practice-v4 .np-care-source {
+  background: transparent; padding: 0; border-radius: 0;
+  font-size: var(--np-text-support-sm); color: var(--np-color-chart-3); font-weight: 700;
+}
+/* Descriptions may include safety context: never line-clamp. */
+.np-practice-v4 .np-practice-card p {
+  display: block; overflow: visible; -webkit-line-clamp: unset;
+  font-size: var(--np-text-body-sm); line-height: var(--np-leading-body-sm);
+}
+.np-practice-v4 .np-practice-card > p:nth-of-type(1):not(:last-of-type) { display: flex; }
+.np-practice-v4 .np-practice-card > div:last-child { display: flex; flex-wrap: wrap; gap: var(--np-space-list); padding-top: 4px; }
+
+/* Buttons inside Practice */
+.np-practice-v4 button:not(.np-practice-row) {
+  min-height: var(--np-space-control);
+  padding: 0 var(--np-space-related-lg);
+  border: 1px solid var(--np-color-border); border-radius: calc(var(--np-radius) - 2px);
+  background: var(--np-color-card); color: var(--np-color-foreground);
+  font: 600 var(--np-text-support)/1 var(--np-font-sans);
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+}
+.np-practice-v4 button.primary, .np-practice-v4 .pf-btn.primary {
+  background: var(--np-color-primary); border-color: var(--np-color-primary); color: var(--np-color-primary-foreground);
+}
+.np-practice-v4 button[aria-pressed="true"] { background: var(--np-color-accent); border-color: var(--np-color-chart-2); color: var(--np-color-accent-foreground); }
+.np-practice-v4 button:disabled { opacity: .55; cursor: not-allowed; }
+.np-practice-v4 button.np-link-btn { min-height: var(--np-space-control); padding: 0; border: 0; background: transparent; color: var(--np-color-primary); text-decoration: underline; }
+.np-practice-v4 button:focus-visible, .np-practice-v4 summary:focus-visible, .np-practice-v4 textarea:focus-visible {
+  outline: 2px solid var(--np-color-ring); outline-offset: 2px;
+}
+
+/* Category filters: presentation only */
+.np-practice-v4 .np-category-filter { display: flex; flex-wrap: wrap; gap: var(--np-space-list); }
+.np-practice-v4 .np-category-filter button { border-radius: 999px; }
+
+/* Shortcuts (MenuRow) */
+.np-practice-v4 .np-practice-rows {
+  display: grid; gap: var(--np-space-list); grid-template-columns: 1fr;
+  border-top: 1px solid var(--np-color-border); padding-top: var(--np-space-related-lg);
+}
+@media (min-width: 768px) { .np-practice-v4 .np-practice-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.np-practice-v4 .np-practice-row {
+  display: flex; align-items: center; gap: var(--np-space-related); width: 100%;
+  min-height: var(--np-space-control); padding: var(--np-space-list) var(--np-space-related);
+  background: var(--np-color-card); color: var(--np-color-foreground);
+  border: 1px solid var(--np-color-border); border-radius: var(--np-radius);
+  text-align: left; cursor: pointer;
+}
+.np-practice-v4 .np-practice-row:hover { background: var(--np-color-muted); }
+.np-practice-v4 .np-practice-row > span:first-child {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 2.25rem; height: 2.25rem; border-radius: calc(var(--np-radius) - 4px);
+  background: var(--np-color-muted); color: var(--np-color-chart-2);
+}
+.np-practice-v4 .np-practice-row > span:first-child svg { width: 18px; height: 18px; }
+.np-practice-v4 .np-practice-row > span:nth-child(2) { flex: 1; min-width: 0; }
+.np-practice-v4 .np-practice-row > span:nth-child(2) > span { display: block; }
+.np-practice-v4 .np-practice-row > span:nth-child(2) > span:first-child { font-weight: 700; font-size: var(--np-text-body-sm); }
+.np-practice-v4 .np-practice-row > span:nth-child(2) > span + span { font-size: var(--np-text-support-sm); color: var(--np-color-muted-foreground); }
+.np-practice-v4 .np-practice-row > svg:last-child { width: 16px; height: 16px; opacity: .6; flex-shrink: 0; }
+
+.np-practice-v4 .np-practice-empty {
+  display: grid; gap: var(--np-space-list); justify-items: start;
+  padding: var(--np-space-card-lg); border: 1px dashed var(--np-color-border); border-radius: var(--np-radius);
+}
+.np-practice-v4 .np-practice-empty p { margin: 0; color: var(--np-color-muted-foreground); font-size: var(--np-text-body-sm); }
+
+/* Focused guided activity (parent Practice only; clinician preview omits .np-practice-guide-v4) */
+.np-practice-v4 .np-practice-guide-v4 { display: grid; gap: var(--np-space-related-lg); max-width: 46rem; }
+.np-practice-guide-v4 .np-guide-head h3 { font-size: var(--np-text-page-title); line-height: var(--np-leading-page-title); }
+.np-practice-guide-v4 .np-guide-meta { display: flex; flex-wrap: wrap; gap: 4px var(--np-space-related); font-size: var(--np-text-support); color: var(--np-color-muted-foreground); }
+.np-practice-guide-v4 .np-guide-block { border-top: 1px solid var(--np-color-border); padding-top: var(--np-space-related); }
+.np-practice-guide-v4 .np-guide-block h4, .np-practice-guide-v4 .np-practice-stage h4 {
+  margin: 0 0 var(--np-space-list); font: 700 var(--np-text-card-title)/var(--np-leading-card-title) var(--np-font-display);
+}
+.np-practice-guide-v4 .np-practice-stage {
+  display: grid; gap: var(--np-space-related);
+  padding: var(--np-space-card-lg);
+  background: var(--np-color-card); border: 1px solid var(--np-color-primary); border-radius: var(--np-radius);
+  box-shadow: var(--np-shadow-floating);
+}
+.np-practice-guide-v4 .np-guide-step {
+  margin: 0; font: 600 var(--np-text-section-title)/var(--np-leading-section-title) var(--np-font-display);
+}
+.np-practice-guide-v4 [tabindex="-1"]:focus {
+  outline: 2px solid var(--np-color-ring); outline-offset: 4px;
+}
+.np-practice-guide-v4 .np-practice-controls { display: flex; flex-wrap: wrap; gap: var(--np-space-list); }
+.np-practice-guide-v4 .np-practice-difficult {
+  padding: var(--np-space-related); border-left: 3px solid var(--np-color-chart-2);
+  background: var(--np-color-muted); border-radius: calc(var(--np-radius) - 4px);
+}
+.np-practice-guide-v4 .np-practice-difficult h5 { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: var(--np-text-support); }
+.np-practice-guide-v4 .np-practice-difficult p { margin: 0; font-size: var(--np-text-body-sm); }
+/* Feedback is visually distinct from instructions: muted, not floating. */
+.np-practice-guide-v4 .np-practice-feedback-v4 {
+  background: var(--np-color-muted); border: 1px dashed var(--np-color-border); box-shadow: none;
+}
+.np-practice-guide-v4 textarea {
+  width: 100%; min-height: 6rem; padding: var(--np-space-related);
+  border: 1px solid var(--np-color-input); border-radius: calc(var(--np-radius) - 4px);
+  background: var(--np-color-card); color: var(--np-color-foreground); font: inherit;
+}
+.np-practice-guide-v4 label { font-weight: 600; font-size: var(--np-text-support); }
+.np-practice-guide-v4 summary { cursor: pointer; min-height: var(--np-space-control); display: flex; align-items: center; font-size: var(--np-text-support); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) { .np-practice-v4 * { transition: none !important; } }
+
+/* Practice header in ParentHome (only when tab=practice) */
+.np-practice-host .np-practice-heading {
+  display: flex; flex-direction: column; gap: var(--np-space-related);
+  padding-block: var(--np-space-section) var(--np-space-related-lg);
+  color: var(--np-color-foreground);
+}
+.np-practice-host .np-practice-heading h1 {
+  margin: 0; font: 700 var(--np-text-page-title)/var(--np-leading-page-title) var(--np-font-display); letter-spacing: -.025em;
+}
+.np-practice-host .np-practice-heading p { margin: 4px 0 0; font-size: var(--np-text-body-sm); color: var(--np-color-muted-foreground); }
+.np-practice-host .np-practice-privacy { font-size: var(--np-text-support); color: var(--np-color-primary); text-decoration: underline; }
+@media (min-width: 768px) { .np-practice-host .np-practice-heading { flex-direction: row; align-items: flex-end; justify-content: space-between; } }

@@ -1,9 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetParentDashboardQueryKey, logParentDailyAction, updateParentPracticeProgress } from "@workspace/api-client-react";
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, errMsg } from "./common";
 import FamilyTools from "./FamilyTools";
+import { CompactCard } from "@workspace/neuropathways-foundations/components/ui/compact-card";
+import { MenuRow } from "@workspace/neuropathways-foundations/components/ui/menu-row";
+import { ArrowRight, Bookmark, CalendarCheck, Footprints, Hand, HeartHandshake, ListChecks, MessageCircle, Puzzle, Shield, Shuffle, Sun } from "lucide-react";
+import "./practice-phase-four.css";
+
+// Presentation-only: one meaningful icon per activity, chosen from its existing category.
+const CATEGORY_ICONS = {
+  Communication: MessageCircle,
+  "Calm & Coping": HeartHandshake,
+  "Daily Routines": Sun,
+  Transitions: Shuffle,
+  "Playing Together": Puzzle,
+  "Safety Skills": Shield,
+};
+const iconFor = (activity) => CATEGORY_ICONS[activity?.skill] || CATEGORY_ICONS[categoryFor(activity)] || Footprints;
 
 const SOURCE_LABELS = {
   clinician_reviewed: "Clinician reviewed",
@@ -54,29 +69,39 @@ const positionToStep = (position, count) => position >= 2 && position < count + 
  * Exported so clinician "Preview as Parent" can render exactly what parents see
  * (pass `preview` to disable saving).
  */
-export function ActivityGuide({ feedbackVisibility, activity, childName, assigned = false, relatedGoal, sourceLabel, closed = false, busy = false, preview = false, requireOutcome = false,
+export function ActivityGuide({ feedbackVisibility, activity, childName, assigned = false, relatedGoal, sourceLabel, closed = false, busy = false, preview = false, requireOutcome = false, presentation = false,
   initialStep = 0, initialFinished = false, onStep, onExit, onSaveForLater, onSaveUpdate, onSkip, onGoal, onHistory, error }) {
   const steps = Array.isArray(activity?.steps) ? activity.steps.filter(Boolean) : [];
   const [step, setStep] = useState(Math.min(initialStep, Math.max(0, steps.length - 1)));
   const [finished, setFinished] = useState(initialFinished);
   const [outcome, setOutcome] = useState("");
   const [note, setNote] = useState("");
+  const guideId = useId();
+  const instructionRef = useRef(null);
+  const feedbackRef = useRef(null);
+  const titleRef = useRef(null);
+  const focusRequested = useRef(presentation);
   const why = usefulWhy(activity?.whyItMayHelp || activity?.whyThisHelps);
   const needs = activity?.whatYouNeed || activity?.materials;
   const category = activity?.skill || categoryFor(activity);
   const minutes = activity?.estimatedMinutes;
-  const go = (next) => { setStep(next); onStep?.(next, false); };
-  const finish = () => { setFinished(true); onStep?.(steps.length, true); };
+  const go = (next) => { focusRequested.current = presentation; setStep(next); onStep?.(next, false); };
+  const finish = () => { focusRequested.current = presentation; setFinished(true); onStep?.(steps.length, true); };
+  useEffect(() => {
+    if (!presentation || !focusRequested.current) return;
+    focusRequested.current = false;
+    ((finished ? feedbackRef.current : instructionRef.current) || titleRef.current)?.focus();
+  }, [step, finished, presentation]);
 
   return (
-    <article className="np-practice-detail" data-testid={`practice-detail-${activity.id}`}>
+    <article className={presentation ? "np-practice-detail np-practice-guide-v4" : "np-practice-detail"} data-testid={`practice-detail-${activity.id}`}>
       {preview && <p className="np-preview-label" role="note" data-testid="label-preview">Preview as Parent · nothing is saved from this preview</p>}
       <div className="np-practice-controls np-practice-topbar">
         <button type="button" onClick={onExit} data-testid="button-exit-practice">Exit activity</button>
         {!closed && !preview && onSaveForLater && <button type="button" onClick={onSaveForLater} disabled={busy} data-testid="button-pause-practice">Save for later</button>}
       </div>
       <header className="np-guide-head">
-        <h3 data-testid="text-activity-title">{activity.title}</h3>
+        <h3 ref={presentation ? titleRef : undefined} tabIndex={presentation ? -1 : undefined} data-testid="text-activity-title">{activity.title}</h3>
         <div className="np-guide-meta">
           {category && <span>{category}</span>}
           {minutes ? <span>About {minutes} minutes</span> : null}
@@ -98,10 +123,14 @@ export function ActivityGuide({ feedbackVisibility, activity, childName, assigne
         <section className="np-practice-stage" aria-live="polite" data-testid="practice-stage">
           <h4>Let's Try It</h4>
           {steps.length ? <>
-            <p className="np-practice-meta" data-testid="text-step-count">Step {step + 1} of {steps.length}</p>
-            <p className="np-guide-step" data-testid="text-current-step">{steps[step]}</p>
-          </> : <p>No steps were included with this activity. You can exit without trying it.</p>}
-          {activity.ifDifficult && <details className="np-why" data-testid="details-if-difficult"><summary>If it becomes difficult</summary><p>{activity.ifDifficult}</p></details>}
+            <p id={presentation ? `${guideId}-count` : undefined} className="np-practice-meta" data-testid="text-step-count">Step {step + 1} of {steps.length}</p>
+            <p ref={presentation ? instructionRef : undefined} tabIndex={presentation ? -1 : undefined}
+              aria-describedby={presentation ? `${guideId}-count` : undefined} className="np-guide-step" data-testid="text-current-step">{steps[step]}</p>
+          </> : <p ref={presentation ? instructionRef : undefined} tabIndex={presentation ? -1 : undefined}>No steps were included with this activity. You can exit without trying it.</p>}
+          {activity.ifDifficult && (presentation
+            // Parent Practice keeps difficulty/safety guidance always visible, never collapsed.
+            ? <div className="np-practice-difficult" data-testid="details-if-difficult"><h5><Hand size={16} aria-hidden="true" /> If it becomes difficult</h5><p>{activity.ifDifficult}</p></div>
+            : <details className="np-why" data-testid="details-if-difficult"><summary>If it becomes difficult</summary><p>{activity.ifDifficult}</p></details>)}
           <div className="np-practice-controls">
             {step > 0 && <button type="button" onClick={() => go(step - 1)} data-testid="button-step-back">Back</button>}
             {steps.length > 0 && step < steps.length - 1
@@ -110,8 +139,8 @@ export function ActivityGuide({ feedbackVisibility, activity, childName, assigne
           </div>
         </section>
       ) : (
-        <section className="np-practice-stage" data-testid="practice-feedback">
-          <h4>How did it go?</h4>
+        <section className={presentation ? "np-practice-stage np-practice-feedback-v4" : "np-practice-stage"} data-testid="practice-feedback">
+          <h4 ref={presentation ? feedbackRef : undefined} tabIndex={presentation ? -1 : undefined}>How did it go?</h4>
           <p className="np-practice-meta">Optional. Skip it if you prefer. Your answer is a description of what happened, not a measure of progress, and it does not change any goal.</p>
           {assigned && <p className="np-practice-meta" data-testid="text-feedback-visibility">{feedbackVisibility || "Your care team may see this update, depending on your family's sharing settings."}</p>}
           <div className="np-practice-controls" role="group" aria-label="How did it go?">
@@ -134,18 +163,21 @@ export function ActivityGuide({ feedbackVisibility, activity, childName, assigne
 }
 
 function ActivityCard({ activity, assigned, meta, onStart, onSave, saved, goal, toggle = false }) {
+  const Icon = iconFor(activity);
   return (
-    <article className="np-activity-card" data-testid={`practice-activity-${activity.id}`}>
-      {assigned && <span className="np-care-badge">Assigned by Your Care Team</span>}
-      <h4>{activity.title}</h4>
-      {meta && <p className="np-activity-meta">{meta}</p>}
-      {goal && <p className="np-activity-meta">Related goal: {goal}</p>}
-      {activity.description && <p className="np-activity-desc">{activity.description}</p>}
-      <div className="np-activity-actions">
-        <button type="button" className="primary" onClick={onStart} data-testid={`button-start-${activity.id}`}>{isClosedAction(activity) ? "Review" : "Start Activity"}</button>
+    <CompactCard className="np-practice-card" data-testid={`practice-activity-${activity.id}`} headingLevel="h4"
+      leading={<span className="np-practice-card-icon"><Icon size={18} /></span>}
+      title={activity.title}
+      meta={meta || goal || assigned ? <>
+        {meta && <span className="np-activity-meta">{meta}</span>}
+        {goal && <span className="np-activity-meta">Related goal: {goal}</span>}
+        {assigned && <span className="np-care-badge np-care-source">Assigned by Your Care Team</span>}
+      </> : null}
+      description={activity.description || null}
+      actions={<>
+        <button type="button" className="primary np-practice-start" onClick={onStart} data-testid={`button-start-${activity.id}`}>{isClosedAction(activity) ? "Review" : "Start Activity"}{!isClosedAction(activity) && <ArrowRight size={16} aria-hidden="true" />}</button>
         {onSave && <button type="button" onClick={onSave} disabled={saved && !toggle} aria-pressed={saved} data-testid={`button-save-${activity.id}`}>{saved ? "Saved" : "Save"}</button>}
-      </div>
-    </article>
+      </>} />
   );
 }
 
@@ -164,6 +196,13 @@ export default function PracticePage({ childId, childName = "your child", action
   const activeAction = actions.find((action) => action.id === activeId);
   const assigned = useMemo(() => visibleAssignments(assignedActivities, childId), [assignedActivities, childId]);
   const openedInitial = useRef(false);
+  // Keep local position authoritative until the dashboard catches up. Serialize
+  // step writes so a slower earlier request cannot undo a later pause/finish.
+  const dailyProgress = useRef(null);
+  const dailyPosition = (action) => dailyProgress.current?.id === action.id
+    ? dailyProgress.current.currentStep : action.currentStep ?? 0;
+  const waitForDailyProgress = (actionId) => dailyProgress.current?.id === actionId
+    ? dailyProgress.current.pending.catch(() => {}) : Promise.resolve();
   useEffect(() => {
     if (openedInitial.current || !initialAssignmentId) return;
     const match = assigned.find((item) => String(item.id) === String(initialAssignmentId));
@@ -193,6 +232,7 @@ export default function PracticePage({ childId, childName = "your child", action
 
   const leave = () => { setActiveId(null); setActiveAssigned(null); setError(""); onExitRoute?.(); };
   const persist = async (action, body) => {
+    await waitForDailyProgress(action.id);
     await updateParentPracticeProgress(childId, action.id, body, parentRequest());
     await queryClient.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(childId) });
   };
@@ -200,7 +240,7 @@ export default function PracticePage({ childId, childName = "your child", action
     setBusy(true); setError("");
     try { await fn(); return true; } catch (e) { setError(errMsg(e)); return false; } finally { setBusy(false); }
   };
-  const saveCard = (action) => childId && run(() => persist(action, { currentStep: action.currentStep ?? 0, bookmarked: true }));
+  const saveCard = (action) => childId && run(() => persist(action, { currentStep: dailyPosition(action), bookmarked: true }));
   const startAction = (action) => { setActiveAssigned(null); setActiveId(action.id); };
   const startAssigned = (item) => { setActiveId(null); setActiveAssigned(item); };
 
@@ -208,9 +248,9 @@ export default function PracticePage({ childId, childName = "your child", action
     const steps = activeAssigned.steps || [];
     const position = activeAssigned.currentStep ?? 0;
     return (
-      <section className="np-practice" aria-labelledby="practice-page-heading" data-testid="panel-practice">
+      <section className="np-practice np-practice-v4 np-foundations" aria-labelledby="practice-page-heading" data-testid="panel-practice">
         <h2 id="practice-page-heading" className="sr-only">Practice With {childName}</h2>
-        <ActivityGuide key={activeAssigned.id} feedbackVisibility={feedbackVisibility} activity={activeAssigned} childName={childName} assigned requireOutcome busy={busy} error={error}
+        <ActivityGuide key={activeAssigned.id} presentation feedbackVisibility={feedbackVisibility} activity={activeAssigned} childName={childName} assigned requireOutcome busy={busy} error={error}
           relatedGoal={activeAssigned.goalTitle || activeAssigned.relatedGoal?.title} onGoal={onGoals}
           initialStep={Math.min(position, Math.max(0, steps.length - 1))} initialFinished={steps.length > 0 && position >= steps.length}
           onStep={(index, done) => {
@@ -231,24 +271,31 @@ export default function PracticePage({ childId, childName = "your child", action
 
   if (activeAction) {
     const count = activeAction.steps?.length ?? 0;
-    const position = activeAction.currentStep ?? 0;
+    const position = dailyPosition(activeAction);
     const closed = isClosedAction(activeAction);
     const progress = (index, done) => {
       if (closed || !childId) return;
-      void updateParentPracticeProgress(childId, activeAction.id, { currentStep: done ? count + 2 : index + 2, bookmarked: isSaved(activeAction) }, parentRequest())
-        .catch((e) => setError(errMsg(e)));
+      const currentStep = done ? count + 2 : index + 2;
+      const pending = waitForDailyProgress(activeAction.id)
+        .then(() => updateParentPracticeProgress(childId, activeAction.id, { currentStep, bookmarked: isSaved(activeAction) }, parentRequest()));
+      dailyProgress.current = { id: activeAction.id, currentStep, pending };
+      void pending.catch((e) => setError(errMsg(e)));
     };
     return (
-      <section className="np-practice" aria-labelledby="practice-page-heading" data-testid="panel-practice">
+      <section className="np-practice np-practice-v4 np-foundations" aria-labelledby="practice-page-heading" data-testid="panel-practice">
         <h2 id="practice-page-heading" className="sr-only">Practice With {childName}</h2>
         {!closed && position > 0 && position < count + 2 && <p className="np-practice-meta" role="status">Picking up where you left off.</p>}
-        <ActivityGuide key={activeAction.id} activity={activeAction} childName={childName} closed={closed} busy={busy} error={error}
+        <ActivityGuide key={activeAction.id} presentation activity={activeAction} childName={childName} closed={closed} busy={busy} error={error}
           relatedGoal={goalFor(activeAction)} sourceLabel={source(activeAction)}
           initialStep={positionToStep(position, count)} initialFinished={!closed && count > 0 && position >= count + 2}
           onStep={progress} onExit={leave} onGoal={onGoals} onHistory={onHistory}
-          onSaveForLater={() => run(() => persist(activeAction, { currentStep: position, bookmarked: true })).then((ok) => ok && leave())}
+          onSaveForLater={() => run(() => persist(activeAction, {
+            currentStep: dailyPosition(activeAction),
+            bookmarked: true,
+          })).then((ok) => ok && leave())}
           onSkip={() => run(() => persist(activeAction, { currentStep: count + 2, bookmarked: false })).then((ok) => ok && leave())}
           onSaveUpdate={({ outcome, note }) => run(async () => {
+            await waitForDailyProgress(activeAction.id);
             await updateParentPracticeProgress(childId, activeAction.id, { currentStep: count + 2, bookmarked: false }, parentRequest());
             await logParentDailyAction(childId, activeAction.id, { eventType: "outcome", ...(outcome ? { outcome } : {}), ...(note ? { note } : {}) }, parentRequest());
             await queryClient.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(childId) });
@@ -259,7 +306,7 @@ export default function PracticePage({ childId, childName = "your child", action
 
   const subView = view !== "main";
   return (
-    <section className="np-practice" aria-labelledby="practice-page-heading" data-testid="panel-practice">
+    <section className="np-practice np-practice-v4 np-foundations" aria-labelledby="practice-page-heading" data-testid="panel-practice">
       <header className="np-practice-intro">
         {subView && <button type="button" className="np-link-btn" onClick={() => setView("main")} data-testid="button-back-to-practice">Back to Practice</button>}
         <h2 id="practice-page-heading" data-testid="text-practice-title" className={hideTitle && !subView ? "sr-only" : undefined}>{view === "routines" ? "My Routines" : view === "saved" ? "Saved Activities" : `Practice With ${childName}`}</h2>
@@ -311,7 +358,7 @@ export default function PracticePage({ childId, childName = "your child", action
         </section>
 
         {explore.length > 0 && <section className="np-practice-section" aria-labelledby="explore-heading" data-testid="section-explore">
-          <h3 id="explore-heading">Explore More Activities</h3>
+          <h3 id="explore-heading"><ListChecks size={18} aria-hidden="true" /> Explore More Activities</h3>
           {presentCategories.length > 0 && <div className="np-category-filter" role="group" aria-label="Filter by category">
             <button type="button" aria-pressed={!category} onClick={() => setCategory("")} data-testid="filter-category-all">All</button>
             {presentCategories.map((name) => <button type="button" key={name} aria-pressed={category === name} onClick={() => setCategory(name)} data-testid={`filter-category-${name.toLowerCase().replace(/[^a-z]+/g, "-")}`}>{name}</button>)}
@@ -323,8 +370,8 @@ export default function PracticePage({ childId, childName = "your child", action
         </section>}
 
         <nav className="np-practice-rows" aria-label="Routines and saved activities">
-          <button type="button" onClick={() => setView("routines")} data-testid="practice-view-my-routines"><strong>My Routines</strong><span>Create or open familiar routines.</span></button>
-          <button type="button" onClick={() => setView("saved")} data-testid="practice-view-saved-activities"><strong>Saved Activities</strong><span>Return to previously saved activities.</span></button>
+          <MenuRow className="np-practice-row" icon={<CalendarCheck />} label="My Routines" description="Create or open familiar routines." onClick={() => setView("routines")} data-testid="practice-view-my-routines" />
+          <MenuRow className="np-practice-row" icon={<Bookmark />} label="Saved Activities" description="Return to previously saved activities." onClick={() => setView("saved")} data-testid="practice-view-saved-activities" />
         </nav>
       </>}
     </section>

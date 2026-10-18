@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import PracticePage from "./PracticePage";
+import PracticePage, { ActivityGuide } from "./PracticePage";
 
 vi.mock("@workspace/api-client-react", () => ({
   getGetParentDashboardQueryKey: (id) => ["dashboard", id],
@@ -201,5 +201,133 @@ describe("PracticePage", () => {
   it("opens Preferences directly when requested", () => {
     renderPractice(<PracticePage childId="c1" childName="River" actions={[]} initialView="My Routines" />);
     expect(screen.getByText("River's preferences")).toBeTruthy();
+  });
+});
+
+describe("Practice presentation and persistence preservation", () => {
+  const action = {
+    id: "practice-preservation", childId: "child-a", title: "Familiar practice",
+    description: "Keep the existing safety description visible.",
+    steps: ["First saved step", "Second saved step", "Third saved step"],
+    behaviorKey: "transitions", behaviorName: "Transitions", sourceType: "parent_uploaded_plan",
+    sourceDocumentId: "doc-a", status: "not_started", currentStep: 0,
+    ifDifficult: "Stop if this is unsafe.", estimatedMinutes: 4,
+  };
+  beforeEach(async () => {
+    const api = await import("@workspace/api-client-react");
+    api.updateParentPracticeProgress.mockReset().mockResolvedValue({});
+    api.logParentDailyAction.mockReset().mockResolvedValue({});
+  });
+
+  it("saves the current daily step rather than the stale position supplied when opened", async () => {
+    const api = await import("@workspace/api-client-react");
+    renderPractice(<PracticePage childId="child-a" actions={[action]} />);
+    fireEvent.click(screen.getByTestId(`button-start-${action.id}`));
+    fireEvent.click(screen.getByTestId("button-step-next"));
+    fireEvent.click(screen.getByTestId("button-step-next"));
+    fireEvent.click(screen.getByTestId("button-pause-practice"));
+    await vi.waitFor(() => expect(api.updateParentPracticeProgress).toHaveBeenLastCalledWith(
+      "child-a", action.id, { currentStep: 4, bookmarked: true }, expect.anything(),
+    ));
+    expect(screen.queryByTestId(`practice-detail-${action.id}`)).toBeNull();
+  });
+
+  it("waits for older step writes before sending Save for later", async () => {
+    const api = await import("@workspace/api-client-react");
+    let release;
+    api.updateParentPracticeProgress.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    renderPractice(<PracticePage childId="child-a" actions={[action]} />);
+    fireEvent.click(screen.getByTestId(`button-start-${action.id}`));
+    fireEvent.click(screen.getByTestId("button-step-next"));
+    await vi.waitFor(() => expect(api.updateParentPracticeProgress).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByTestId("button-step-next"));
+    fireEvent.click(screen.getByTestId("button-pause-practice"));
+    expect(api.updateParentPracticeProgress).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("button-pause-practice").disabled).toBe(true);
+    release({});
+    await vi.waitFor(() => expect(api.updateParentPracticeProgress).toHaveBeenCalledTimes(3));
+    expect(api.updateParentPracticeProgress.mock.calls.map((call) => call[2])).toEqual([
+      { currentStep: 3, bookmarked: false },
+      { currentStep: 4, bookmarked: false },
+      { currentStep: 4, bookmarked: true },
+    ]);
+  });
+
+  it.each(["used_skill", "partially", "not_yet"])("retains the %s outcome and trimmed notes contract", async (outcome) => {
+    const api = await import("@workspace/api-client-react");
+    renderPractice(<PracticePage childId="child-a" actions={[{ ...action, steps: ["One"] }]} />);
+    fireEvent.click(screen.getByTestId(`button-start-${action.id}`));
+    fireEvent.click(screen.getByTestId("button-step-finish"));
+    fireEvent.click(screen.getByTestId(`button-outcome-${outcome}`));
+    fireEvent.change(screen.getByTestId("input-practice-note"), { target: { value: "  Existing note  " } });
+    fireEvent.click(screen.getByTestId("button-save-update"));
+    await vi.waitFor(() => expect(api.logParentDailyAction).toHaveBeenCalledWith(
+      "child-a", action.id, { eventType: "outcome", outcome, note: "Existing note" }, expect.anything(),
+    ));
+  });
+
+  it("keeps failed feedback and notes on screen instead of leaving the guide", async () => {
+    const api = await import("@workspace/api-client-react");
+    api.logParentDailyAction.mockRejectedValueOnce(new Error("Could not save the update."));
+    renderPractice(<PracticePage childId="child-a" actions={[{ ...action, steps: ["One"] }]} />);
+    fireEvent.click(screen.getByTestId(`button-start-${action.id}`));
+    fireEvent.click(screen.getByTestId("button-step-finish"));
+    fireEvent.change(screen.getByTestId("input-practice-note"), { target: { value: "Keep this note" } });
+    fireEvent.click(screen.getByTestId("button-save-update"));
+    await screen.findByText("Could not save the update.");
+    expect(screen.getByTestId("input-practice-note").value).toBe("Keep this note");
+    expect(screen.getByTestId("practice-feedback")).toBeTruthy();
+    expect(screen.getByTestId("button-save-update").disabled).toBe(false);
+  });
+
+  it("preserves source documents, related goal and history destinations and visible safety text", () => {
+    const goal = vi.fn(), history = vi.fn();
+    renderPractice(<PracticePage childId="child-a" actions={[action]} onGoals={goal} onHistory={history}
+      child={{ behaviors: [{ behaviorKey: "transitions", goal: "Existing goal" }] }}
+      documents={[{ id: "doc-a", title: "Existing uploaded plan" }]} />);
+    fireEvent.click(screen.getByTestId(`button-start-${action.id}`));
+    expect(screen.getByText(/Based on your uploaded plan · not clinician-reviewed · Existing uploaded plan/)).toBeTruthy();
+    expect(screen.getByTestId("details-if-difficult").tagName).not.toBe("DETAILS");
+    expect(screen.getByText("Stop if this is unsafe.")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("button-related-goal"));
+    fireEvent.click(screen.getByRole("button", { name: "Practice history" }));
+    expect(goal).toHaveBeenCalledOnce();
+    expect(history).toHaveBeenCalledOnce();
+  });
+
+  it("keeps clinician preview outside the new parent-only presentation and disables saving", () => {
+    const save = vi.fn();
+    render(<ActivityGuide activity={action} childName="Sam" preview initialFinished onSaveUpdate={save} onSaveForLater={save} />);
+    expect(screen.getByTestId(`practice-detail-${action.id}`).className).not.toContain("np-practice-guide-v4");
+    expect(screen.queryByTestId("button-pause-practice")).toBeNull();
+    expect(screen.getByTestId("button-save-update").disabled).toBe(true);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("keeps focus on the current instruction when Back disappears at the first step", () => {
+    renderPractice(<PracticePage childId="child-a" actions={[action]} />);
+    fireEvent.click(screen.getByTestId(`button-start-${action.id}`));
+    expect(document.activeElement).toBe(screen.getByTestId("text-current-step"));
+    fireEvent.click(screen.getByTestId("button-step-next"));
+    const back = screen.getByTestId("button-step-back");
+    back.focus();
+    fireEvent.click(back);
+    expect(screen.queryByTestId("button-step-back")).toBeNull();
+    const instruction = screen.getByTestId("text-current-step");
+    expect(document.activeElement).toBe(instruction);
+    expect(document.getElementById(instruction.getAttribute("aria-describedby")).textContent).toBe("Step 1 of 3");
+  });
+
+  it("focuses feedback after Finish, returns to the instruction and does not steal note focus", () => {
+    renderPractice(<PracticePage childId="child-a" actions={[{ ...action, steps: ["One"] }]} />);
+    fireEvent.click(screen.getByTestId(`button-start-${action.id}`));
+    fireEvent.click(screen.getByTestId("button-step-finish"));
+    expect(document.activeElement).toBe(screen.getByText("How did it go?"));
+    const notes = screen.getByTestId("input-practice-note");
+    notes.focus();
+    fireEvent.change(notes, { target: { value: "Still typing" } });
+    expect(document.activeElement).toBe(notes);
+    fireEvent.click(screen.getByTestId("button-feedback-back"));
+    expect(document.activeElement).toBe(screen.getByTestId("text-current-step"));
   });
 });

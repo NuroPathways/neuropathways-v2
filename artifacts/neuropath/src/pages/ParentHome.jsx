@@ -362,7 +362,7 @@ export default function ParentHome() {
       }}
       onLogout={() => { clearFocus(user?.id); clearSupportPopupSession(user?.id); logout(); }}
     >
-      <div className={`pf${activeTab === "today" && !activeSection ? " np-foundations np-home" : ""}`}>
+      <div className={`pf${activeTab === "today" && !activeSection ? " np-foundations np-home" : activeTab === "practice" ? " np-foundations np-practice-host" : ""}`}>
       <main className="pf-wrap wide">
         {activeTab === "today" && !activeSection ? (
           <PageHeader
@@ -371,6 +371,13 @@ export default function ParentHome() {
             title={activeChild ? `Today's Support for ${activeChild.name}` : "Choose a child profile"}
             description="Small steps for today, with support when you need it."
             actions={<Link to="/DataRequests" className="np-home-privacy">Privacy &amp; data requests</Link>}
+          />
+        ) : activeTab === "practice" && activeChild ? (
+          <PageHeader
+            className="np-practice-heading"
+            title={<>Practice With {activeChild.name}</>}
+            description={<span data-testid="text-practice-subtitle">Simple activities and routines you can try together.</span>}
+            actions={<Link to="/DataRequests" className="np-practice-privacy">Privacy &amp; data requests</Link>}
           />
         ) : <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
         <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>
