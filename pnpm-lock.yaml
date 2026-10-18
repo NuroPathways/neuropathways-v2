@@ -464,6 +464,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/neuropathways-foundations':
+        specifier: workspace:*
+        version: link:../neuropathways-foundations
       autoprefixer:
         specifier: ^10.5.2
         version: 10.6.1(postcss@8.5.28)

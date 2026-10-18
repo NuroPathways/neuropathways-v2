@@ -10,6 +10,8 @@ import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, errMsg } from "./common";
 import { sourceLabel } from "./SupportView";
 import { cardIdentity, summarize } from "./progress";
+import { CompactCard } from "@workspace/neuropathways-foundations/components/ui/compact-card";
+import HomeWeekSummary from "./HomeWeekSummary";
 
 const SOURCE_LABELS = {
   clinician_reviewed: "Clinician reviewed",
@@ -74,31 +76,38 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
   };
 
   return (
-    <article className={`pf-card pf-daily-action ${action.status === "needs_review" ? "needs-review" : ""}`} data-testid={`card-daily-action-${action.id}`}>
-      <div className="pf-daily-action-top">
-        <div>
-          <p className="pf-eyebrow">{action.behaviorName} · {action.estimatedMinutes} min</p>
-          <h3>{action.title}</h3>
-        </div>
-        <span className={`pf-tag ${statusTone(action.status)}`}>{STATUS_LABELS[action.status] || "Ready when you are"}</span>
-      </div>
-      <p className="pf-daily-description"><strong>What to do:</strong> {action.description}</p>
-      {practicedSkill && <p className="pf-daily-skill"><strong>Skill practiced:</strong> {practicedSkill.replace(/^Skill practiced:\s*/, "")}</p>}
-      <div className="pf-daily-source">
+    <CompactCard
+      className={`pf-daily-action np-home-activity ${action.status === "needs_review" ? "needs-review" : ""}`}
+      data-testid={`card-daily-action-${action.id}`}
+      title={action.title}
+      current={showPracticeSteps}
+      meta={<>{action.behaviorName} · {action.estimatedMinutes} min</>}
+      description={action.description}
+      badges={<>
         <span className={`pf-tag ${action.sourceType === "starter_template" ? "sun" : ""}`}>{sourceText(action)}</span>
-        {document && <span className="pf-hint">Plan: {document.title || document.fileName}</span>}
-      </div>
-      {practiceSteps.length > 0 && (
-        <>
+        <span className={`pf-tag ${statusTone(action.status)}`}>{STATUS_LABELS[action.status] || "Ready when you are"}</span>
+      </>}
+    >
+      {document && <p className="pf-hint np-home-plan-source">Plan: {document.title || document.fileName}</p>}
+      {action.status === "needs_review" && (
+        <p className="pf-hint pf-daily-review-note">Ask your clinician which plan step to use before trying plan-specific guidance.</p>
+      )}
+      <div className="np-home-activity-controls">
           <button
             type="button"
-            className="pf-btn primary"
+            className={`pf-btn ${hasActions && action.status !== "needs_review" ? "primary" : ""}`}
             aria-expanded={showPracticeSteps}
+            aria-controls={`home-activity-details-${action.id}`}
+            data-testid={`button-home-activity-${action.id}`}
             onClick={() => setShowPracticeSteps((shown) => !shown)}
           >
-            {showPracticeSteps ? "Hide Activity Steps" : "Try Today"}
+            {showPracticeSteps ? "Close Activity" : action.status === "needs_review" ? "Review Activity" : hasActions ? "Try Today" : "View Activity"}
           </button>
-          {showPracticeSteps && (
+      </div>
+      {showPracticeSteps && (
+        <div id={`home-activity-details-${action.id}`} className="np-home-activity-details">
+          {practicedSkill && <p className="pf-daily-skill"><strong>Skill practiced:</strong> {practicedSkill.replace(/^Skill practiced:\s*/, "")}</p>}
+          {practiceSteps.length > 0 && (
             <section className="pf-daily-try-steps" aria-label={`Steps to try for ${action.title}`}>
               <strong>Steps to try</strong>
               <ol className="pf-daily-steps">
@@ -106,16 +115,13 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
               </ol>
             </section>
           )}
-        </>
-      )}
       {action.whyItMayHelp && (
         <details className="pf-daily-details">
           <summary>Show Details</summary>
           {action.whyItMayHelp && <p className="pf-daily-why"><strong>Why you're doing this:</strong> {action.whyItMayHelp}</p>}
         </details>
       )}
-      {action.status === "needs_review" && (
-        <p className="pf-hint pf-daily-review-note">Ask your clinician which plan step to use before trying plan-specific guidance.</p>
+        </div>
       )}
       {(action.status === "done" || action.status === "logged") && feedback && (
         <p className="pf-hint pf-daily-feedback" data-testid={`text-action-feedback-${action.id}`}>
@@ -128,7 +134,7 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
         </p>
       )}
       <ErrorBox error={error} />
-      {hasActions && action.status !== "needs_review" && (
+      {showPracticeSteps && hasActions && action.status !== "needs_review" && (
         <>
           <div className="pf-daily-outcomes" role="group" aria-label={`Activity outcome for ${childName}`}>
             {OUTCOMES.map(([value, label]) => (
@@ -170,7 +176,7 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
           {action.status === "skipped" ? "You can revisit this support step from the library." : "Your update is saved for today."}
         </p>
       )}
-    </article>
+    </CompactCard>
   );
 }
 
@@ -265,41 +271,6 @@ export default function DailySupportHome({
         )}
       </section>
 
-      <section className="pf-daily-section" aria-labelledby="this-week-heading">
-        <div className="pf-daily-section-heading">
-          <div>
-            <p className="pf-eyebrow">From your recent notes</p>
-            <h2 id="this-week-heading">This Week</h2>
-          </div>
-          <span className="pf-daily-count">{week.entries} logged</span>
-        </div>
-        <div className="pf-card">
-          {focusedCard ? (
-            <>
-              <div className="pf-daily-source">
-                <span className={`pf-tag ${focusedSource.kind}`}>{focusedSource.text}</span>
-              </div>
-              <p style={{ marginTop: 12 }}>
-                This week, try one small support step for <strong>{focusedCard.behaviorName}</strong> during a calm moment.
-              </p>
-              {focusedCard.source === "starter" && (
-                <p className="pf-hint" style={{ marginTop: 8 }}>
-                  This is starter support based on the behavior you selected. Upload a plan later for more personalized support.
-                </p>
-              )}
-            </>
-          ) : (
-            <p>No support area selected yet. Add a behavior to see starter support here.</p>
-          )}
-          <p className="pf-hint" style={{ marginTop: 10 }}>
-            {week.entries
-              ? `${week.entries} parent ${week.entries === 1 ? "note was" : "notes were"} logged in the last 7 days (${week.happened} marked as happened).`
-              : "No parent notes logged in the last 7 days. Your notes are optional observations, not clinical findings."}
-          </p>
-          <button type="button" className="pf-btn small" style={{ marginTop: 12 }} onClick={onLog}>Quick Log</button>
-        </div>
-      </section>
-
       <section className="pf-daily-section" aria-labelledby="prepare-heading">
         <div className="pf-daily-section-heading">
           <div>
@@ -309,23 +280,28 @@ export default function DailySupportHome({
           {focusedSource && <span className={`pf-tag ${focusedSource.kind}`}>{focusedSource.text}</span>}
         </div>
         {focusedCard ? (
-          <div className="pf-card">
+          <div className="np-home-prepare">
             <h3>Prepare for a routine involving {focusedCard.behaviorName}</h3>
             <p className="pf-hint" style={{ marginTop: 6 }}>
               Use the prevention steps already saved for this support area. Do not create a difficult situation to practice.
             </p>
+            <details className="np-home-preparation-details">
+            <summary>Saved preparation steps</summary>
             <ol className="pf-daily-steps">
               {(focusedCard.prevention || []).slice(0, 3).map((step, index) => <li key={`${focusedCard.id}-prepare-${index}`}>{step}</li>)}
             </ol>
             {(!focusedCard.prevention || focusedCard.prevention.length === 0) && (
               <p className="pf-hint">No preparation steps are available for this support area yet. Review its saved support steps or upload a plan.</p>
             )}
+            </details>
             <button type="button" className="pf-btn small primary" style={{ marginTop: 12 }} onClick={() => onOpenSteps(focusedCard)}>Review support steps</button>
           </div>
         ) : (
           <div className="pf-card"><p>Select a behavior or upload a plan to see preparation support.</p></div>
         )}
       </section>
+
+      <HomeWeekSummary focusedCard={focusedCard} focusedSource={focusedSource} week={week} onLog={onLog} />
 
       <section className="pf-card pf-quick-actions">
         <div className="pf-daily-section-heading">

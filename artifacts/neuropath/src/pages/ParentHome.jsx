@@ -19,6 +19,9 @@ import MessagesPanel from "@/components/parentfree/MessagesPanel";
 import BehaviorCards from "@/components/parentfree/BehaviorCards";
 import ParentGoalsTab from "@/components/parentfree/ParentGoalsTab";
 import { cardIdentity } from "@/components/parentfree/progress";
+import { PageHeader } from "@workspace/neuropathways-foundations/components/ui/page-header";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "@/components/parentfree/home-phase-two.css";
 import BehaviorLibrary from "@/components/parentfree/BehaviorLibrary";
 import ChildEditor from "@/components/parentfree/ChildEditor";
 import DailySupportHome from "@/components/parentfree/DailySupportHome";
@@ -359,9 +362,17 @@ export default function ParentHome() {
       }}
       onLogout={() => { clearFocus(user?.id); clearSupportPopupSession(user?.id); logout(); }}
     >
-      <div className="pf">
+      <div className={`pf${activeTab === "today" && !activeSection ? " np-foundations np-home" : ""}`}>
       <main className="pf-wrap wide">
-        <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
+        {activeTab === "today" && !activeSection ? (
+          <PageHeader
+            className="np-home-heading"
+            context={`Hi ${user.first_name || "there"}`}
+            title={activeChild ? `Today's Support for ${activeChild.name}` : "Choose a child profile"}
+            description="Small steps for today, with support when you need it."
+            actions={<Link to="/DataRequests" className="np-home-privacy">Privacy &amp; data requests</Link>}
+          />
+        ) : <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
         <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>
           {activeChild
             ? activeTab === "practice" ? <>Practice With {activeChild.name}</>
@@ -369,7 +380,7 @@ export default function ParentHome() {
             : "Choose a child profile"}
         </h1>
         {activeChild && activeTab === "practice" && <p className="pf-hero-sub" style={{ margin: "0 0 8px" }} data-testid="text-practice-subtitle">Simple activities and routines you can try together.</p>}
-        <Link to="/DataRequests" className="text-sm underline underline-offset-4" style={{ color: "hsl(var(--primary))" }}>Privacy &amp; data requests</Link></div>
+        <Link to="/DataRequests" className="text-sm underline underline-offset-4" style={{ color: "hsl(var(--primary))" }}>Privacy &amp; data requests</Link></div>}
         {activeTab === "today" && !activeSection && <button type="button" className="pf-help-cta" disabled={!activeChild} onClick={() => setSupportRequest((request) => request + 1)} data-testid="button-dashboard-help-now"><span className="ico"><AlertTriangle size={20} /></span><span><strong>I Need Help Right Now</strong><small>{activeChild ? "Open support steps for a stressful moment" : "Choose which child needs support first"}</small></span></button>}
         {activeChild ? <Body key={activeChild.id} child={activeChild} /> : (
           <section className="pf-card" data-testid="choose-child-before-support">

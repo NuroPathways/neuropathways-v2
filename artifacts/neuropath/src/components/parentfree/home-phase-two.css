@@ -1,0 +1,113 @@
+/* Home-only bridge: consume the approved package's scoped tokens, not its
+   global Tailwind 4 theme. All other tabs and roles retain their existing CSS. */
+.np-home {
+  background: var(--np-color-background);
+  color: var(--np-color-foreground);
+  font-family: var(--np-font-sans);
+  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+}
+.np-home > .pf-wrap { padding-inline: var(--np-space-gutter); }
+.np-home .np-home-heading {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--np-space-related);
+  padding-block: var(--np-space-section) var(--np-space-related-lg);
+}
+.np-home .np-home-heading h1 {
+  margin: 0;
+  font: 700 var(--np-text-page-title)/var(--np-leading-page-title) var(--np-font-display);
+  letter-spacing: -.025em;
+}
+.np-home .np-home-heading p {
+  margin: 4px 0 0;
+  font-size: var(--np-text-body-sm);
+  color: var(--np-color-muted-foreground);
+}
+.np-home .np-home-heading p:first-child { font-size: var(--np-text-support); }
+.np-home .np-home-privacy { font-size: var(--np-text-support); color: var(--np-color-primary); text-decoration: underline; }
+.np-home .pf-help-cta {
+  margin: 0 0 var(--np-space-section);
+  padding: var(--np-space-card-lg);
+  background: var(--np-color-card);
+  border: 1px solid var(--np-color-destructive);
+  border-left-width: 4px;
+  border-radius: var(--np-radius);
+  box-shadow: var(--np-shadow-floating);
+  color: var(--np-color-destructive);
+  min-height: var(--np-space-control);
+}
+.np-home .pf-help-cta strong { color: var(--np-color-destructive); font-size: var(--np-text-card-title); }
+.np-home .pf-help-cta small { color: var(--np-color-muted-foreground); font-size: var(--np-text-support); }
+.np-home .pf-daily-home { gap: var(--np-space-section); padding-bottom: 0; }
+.np-home .pf-daily-section { gap: var(--np-space-related); }
+.np-home .pf-daily-section-heading { gap: var(--np-space-related); }
+.np-home .pf-daily-section-heading h2 {
+  font: 700 var(--np-text-section-title)/var(--np-leading-section-title) var(--np-font-display);
+  margin: 0;
+}
+.np-home .pf-eyebrow { font-size: var(--np-text-support-sm); }
+.np-home .pf-hint { font-size: var(--np-text-support); color: var(--np-color-muted-foreground); }
+.np-home .pf-daily-grid { gap: var(--np-space-related-lg); align-items: start; }
+.np-home .np-home-activity {
+  min-width: 0;
+  display: grid;
+  gap: var(--np-space-related);
+  padding: var(--np-space-card);
+  border: 1px solid var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-card);
+  box-shadow: none;
+  color: var(--np-color-foreground);
+}
+.np-home .np-home-activity > * { margin: 0; min-width: 0; }
+.np-home .np-home-activity > div:first-child { display: flex; flex-wrap: wrap; gap: var(--np-space-list); align-items: center; }
+.np-home .np-home-activity h3 {
+  font: 700 var(--np-text-card-title)/var(--np-leading-card-title) var(--np-font-display);
+  margin: 0;
+}
+.np-home .np-home-activity > p {
+  font-size: var(--np-text-body-sm);
+  line-height: var(--np-leading-body-sm);
+  /* Descriptions may include safety context: never line-clamp that content. */
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+.np-home .np-home-activity > p:first-of-type { font-size: var(--np-text-support); color: var(--np-color-muted-foreground); }
+.np-home .np-home-activity[data-current="true"] { box-shadow: var(--np-shadow-floating); border-color: var(--np-color-primary); }
+.np-home .np-home-activity.needs-review { border-left: 3px solid var(--np-color-destructive); }
+.np-home .np-home-activity-details { display: grid; gap: var(--np-space-related); border-top: 1px solid var(--np-color-border); padding-top: var(--np-space-related-lg); }
+.np-home .np-home-activity-details p { margin: 0; }
+.np-home .pf-tag { font-size: var(--np-text-support-sm); line-height: var(--np-leading-support-sm); white-space: normal; overflow-wrap: anywhere; }
+.np-home .pf-btn, .np-home .pf-daily-outcome { min-height: var(--np-space-control); font-size: var(--np-text-support); }
+.np-home .pf-btn.primary { background: var(--np-color-primary); color: var(--np-color-primary-foreground); }
+.np-home .pf-btn:focus-visible, .np-home summary:focus-visible, .np-home a:focus-visible, .np-home button:focus-visible {
+  outline: 2px solid var(--np-color-ring); outline-offset: 3px;
+}
+.np-home .pf-daily-review-note { color: var(--np-color-destructive); }
+.np-home .np-home-prepare, .np-home .np-home-week {
+  border: 0;
+  border-top: 1px solid var(--np-color-border);
+  padding-top: var(--np-space-related-lg);
+  background: transparent;
+  box-shadow: none;
+}
+.np-home .np-home-prepare h3 { font-size: var(--np-text-card-title); }
+.np-home .np-home-preparation-details { margin-top: var(--np-space-related); }
+.np-home summary { cursor: pointer; padding-block: var(--np-space-list); min-height: var(--np-space-control); font-size: var(--np-text-support); }
+.np-home .np-home-week > p { margin: 0; }
+.np-home .np-home-week > .pf-btn { justify-self: start; }
+.np-home .pf-quick-actions { background: transparent; border: 0; box-shadow: none; border-top: 1px solid var(--np-color-border); padding: var(--np-space-related-lg) 0 0; }
+.np-home .pf-library-preview-card { box-shadow: none; border-radius: var(--np-radius); padding: var(--np-space-card); }
+/* The approved blue is a fill, not small text on dark surfaces. */
+.dark .np-home .np-home-privacy,
+.dark .np-home .pf-help-cta strong,
+.dark .np-home .pf-daily-review-note { color: var(--np-color-foreground); }
+.dark .np-home .pf-tag { color: var(--np-color-foreground); background: var(--np-color-muted); }
+@media (min-width: 768px) {
+  .np-home .np-home-heading { flex-direction: row; align-items: flex-end; }
+  .np-home .np-home-activity { padding: var(--np-space-card-lg); }
+  .np-home { padding-bottom: var(--np-space-section); }
+}

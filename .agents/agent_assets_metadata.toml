@@ -168,3 +168,17 @@ mtime_ms = 1792291678828
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/20db4246-a1b9-4714-aa70-79ff450b9176/e3cbd490-d694-4166-98b8-a9a57aa888a4"
 storage_version_token = "1792291689926748"
 content_type = "text/html"
+
+[[outputs]]
+id = "JaL4BJchsRYMp4We1PMin"
+uri = "file://generated-artifacts/phase2-review/NeuroPathways-Phase-2-Home-Review.html"
+type = "html"
+title = "Phase 2 — Home implementation review"
+description = "Changes, preserved behavior, files, browser evidence references and testing limits. Actual before-and-after screenshots are shown in the conversation."
+logical_id = "bb134f03-d8c6-4cd9-afa7-2b0942ee23c7"
+content_hash = "sha256:2bf7e9e0928475f930cdbf0bb03b6d672bbb1d2fb9862a050ae81cd26e959740"
+size = 7826
+mtime_ms = 1792293271975
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/bb134f03-d8c6-4cd9-afa7-2b0942ee23c7/62ca460a-7b33-4b1d-9fb0-63065d5954bd"
+storage_version_token = "1792293302431050"
+content_type = "text/html"
