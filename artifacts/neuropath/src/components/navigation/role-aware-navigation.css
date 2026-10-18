@@ -106,6 +106,20 @@
   padding: 13px 12px;
 }
 
+.np-nav-groups-with-footer {
+  display: flex;
+  flex-direction: column;
+}
+
+.np-nav-groups-with-footer > .np-nav-group {
+  flex-shrink: 0;
+}
+
+.np-nav-groups-with-footer > .np-nav-group.np-nav-group-footer {
+  margin-top: auto;
+  padding-top: 20px;
+}
+
 .np-nav-group + .np-nav-group {
   margin-top: 15px;
 }

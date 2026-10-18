@@ -203,6 +203,28 @@ describe("navigation role and menu models", () => {
     expect(closeMenu).toHaveBeenCalledOnce();
   });
 
+  it("keeps client AI beside Goals near the top and Menu immediately before Add a child at the bottom", () => {
+    const goToTab = vi.fn(), onAddChild = vi.fn(), onMenu = vi.fn();
+    const groups = createFreeCaregiverNavigation({ activeTab: "ask", goToTab, onAddChild, onMenu });
+    expect(allItems(groups).slice(0, 5).map(item => item.key)).toEqual(["home", "support", "practice", "goals", "ask"]);
+    expect(groups.at(-1)).toMatchObject({ placement: "bottom", items: [{ key: "menu" }, { key: "add-child" }] });
+    expect(itemByKey(groups, "ask").active).toBe(true);
+    renderShell({ navGroups: groups });
+    fireEvent.click(screen.getByTestId("button-navigation-menu"));
+    const drawer = screen.getByRole("complementary", { name: "Caregiver workspace navigation" });
+    const ai = within(drawer).getByTestId("nav-ask-mobile");
+    expect(ai.closest("section").textContent).toContain("Goals");
+    const footer = within(drawer).getByTestId("nav-menu-mobile").closest("section");
+    expect(footer.className).toContain("np-nav-group-footer");
+    expect(Array.from(footer.querySelectorAll("button")).map(item => item.textContent)).toEqual(["Menu", "Add a child"]);
+    fireEvent.click(ai);
+    expect(goToTab).toHaveBeenCalledWith("ask");
+    expect(screen.getByTestId("button-navigation-menu").getAttribute("aria-expanded")).toBe("false");
+    const shared = createRoleNavigation("caregiver", "/ParentDashboard");
+    expect(allItems(shared).slice(0, 5).map(item => item.key)).toEqual(["home", "support", "practice", "goals", "ai-chat"]);
+    expect(shared.at(-1)).toMatchObject({ placement: "bottom", items: [{ key: "menu", to: "/Menu" }] });
+  });
+
   it("offers child selection only when there is more than one profile and a handler", () => {
     expect(canChooseNavigationChild([{ id: "one" }], vi.fn())).toBe(false);
     expect(canChooseNavigationChild([{ id: "one" }, { id: "two" }], undefined)).toBe(false);
@@ -232,7 +254,7 @@ describe("role-aware shell interactions", () => {
 
     const drawer = screen.getByRole("complementary", { name: `${roleLabel} navigation` });
     for (const group of groups) {
-      expect(within(drawer).getByRole("heading", { name: group.label })).toBeTruthy();
+      if (group.label) expect(within(drawer).getByRole("heading", { name: group.label })).toBeTruthy();
       for (const item of group.items) {
         expect(within(drawer).getByTestId(`nav-${item.key}-mobile`)).toBeTruthy();
       }

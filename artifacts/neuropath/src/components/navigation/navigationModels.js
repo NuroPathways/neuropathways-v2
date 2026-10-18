@@ -104,25 +104,31 @@ export function createRoleNavigation(role, homePath, includeUploadPlan = false) 
       ],
     },
     {
-      label: "Goals",
+      label: "Goals & AI",
       items: [
         { key: "goals", label: "Goals", icon: Target, to: "/GoalsMilestones", pages: ["GoalsMilestones"] },
+        { key: "ai-chat", label: "AI Chat", icon: Bot, to: "/AIChat", pages: ["AIChat"] },
       ],
     },
     {
-      label: "Menu",
+      label: "More tools",
       items: [
-        { key: "menu", label: "Menu", icon: MoreHorizontal, to: "/Menu", pages: ["Menu"] },
         { key: "history", label: "History", icon: ClipboardList, to: "/History", pages: ["History"] },
         { key: "library", label: "Support Library", icon: BookOpen, to: "/ParentHome?tab=today&section=library" },
         { key: "documents", label: "Document Center", icon: FileText, to: "/DocumentCenter", pages: ["DocumentCenter"] },
-        { key: "ai-chat", label: "AI Chat", icon: Bot, to: "/AIChat", pages: ["AIChat"] },
         { key: "profiles", label: "Family & Children", icon: Users, to: "/ChildProfile", pages: ["ChildProfile"] },
         ...(includeUploadPlan
           ? [{ key: "upload-plan", label: "Upload Plan", icon: Upload, to: "/UploadBehaviorPlan", pages: ["UploadBehaviorPlan"] }]
           : []),
         { key: "messages", label: "Messages", icon: Mail, to: "/Messages", pages: ["Messages"] },
         { key: "settings", label: "Settings", icon: Settings, to: "/Settings", pages: ["Settings"] },
+      ],
+    },
+    {
+      label: "",
+      placement: "bottom",
+      items: [
+        { key: "menu", label: "Menu", icon: MoreHorizontal, to: "/Menu", pages: ["Menu"] },
       ],
     },
   ];
@@ -244,31 +250,37 @@ export function createFreeCaregiverNavigation({ activeTab, activeSection, goToTa
       ],
     },
     {
-      label: "Goals",
+      label: "Goals & AI",
       items: [
         { key: "goals", label: "Goals", icon: Target, active: activeTab === "edit" && activeSection === "goals", onSelect: () => goToTab("edit", "goals") },
+        { key: "ask", label: "AI Chat", icon: Sparkles, active: activeTab === "ask", onSelect: () => goToTab("ask") },
       ],
     },
     {
-      label: "Menu",
+      label: "More tools",
       items: [
-        { key: "menu", label: "Menu", icon: MoreHorizontal, active: false, onSelect: onMenu },
         { key: "history", label: "History", icon: ClipboardList, active: false, onSelect: onHistory },
         { key: "library", label: "Support library", icon: BookOpen, active: activeTab === "today" && activeSection === "library", onSelect: () => goToTab("today", "library") },
         { key: "care-plan", label: "Care plan & documents", icon: FileText, active: activeTab === "docs", onSelect: () => goToTab("docs") },
         { key: "upload", label: "Upload a plan", icon: Upload, active: activeTab === "docs", onSelect: () => goToTab("docs") },
-        { key: "ask", label: "AI Chat", icon: Sparkles, active: activeTab === "ask", onSelect: () => goToTab("ask") },
         { key: "preferences", label: "Enjoyment & preferences", icon: UserRound, active: activeTab === "practice" && activeSection === "preferences", onSelect: () => goToTab("practice", "preferences") },
         { key: "profiles", label: "Child profile", icon: UserRound, active: false, onSelect: () => goToTab("edit", "profile") },
         { key: "clinic", label: "Clinic connection", icon: Heart, active: activeTab === "clinic", onSelect: () => goToTab("clinic") },
         { key: "messages", label: "Messages", icon: Mail, to: "/Messages", pages: ["Messages"] },
-        { key: "add-child", label: "Add a child", icon: Plus, onSelect: onAddChild },
       ],
     },
     {
       label: "Account",
       items: [
         { key: "settings", label: "Settings", icon: Settings, to: "/Settings", pages: ["Settings"] },
+      ],
+    },
+    {
+      label: "",
+      placement: "bottom",
+      items: [
+        { key: "menu", label: "Menu", icon: MoreHorizontal, active: false, onSelect: onMenu },
+        { key: "add-child", label: "Add a child", icon: Plus, onSelect: onAddChild },
       ],
     },
   ];

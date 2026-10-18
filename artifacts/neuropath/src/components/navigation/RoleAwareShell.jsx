@@ -118,9 +118,9 @@ export default function RoleAwareShell({
   const closeMenu = () => setMobileOpen(false);
 
   const navigation = (variant) => (
-    <nav className={`np-nav-groups np-nav-groups-${variant}`} aria-label="Main navigation">
+    <nav className={`np-nav-groups np-nav-groups-${variant}${navGroups.some(group => group.placement === "bottom") ? " np-nav-groups-with-footer" : ""}`} aria-label="Main navigation">
       {navGroups.map((group, index) => (
-        <section className="np-nav-group" key={group.label || index}>
+        <section className={`np-nav-group${group.placement === "bottom" ? " np-nav-group-footer" : ""}`} key={group.label || index}>
           {group.label && <h2>{group.label}</h2>}
           {group.items.map((item) => (
             <NavigationLink
