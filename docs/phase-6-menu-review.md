@@ -53,10 +53,27 @@ The original entries, descriptions, icons, test IDs, handler mappings, selected-
 - Fifty new tests click every original shortcut across independent/legacy-family account modes and both account-type field aliases. They also verify exact authorized shortcut inventories, original non-unified fallback routes, missing/encoded child context and browser back.
 - Production build passed; the existing bundle-size warning remains.
 - The web and API workflows restarted successfully.
-- Signed-in browser verification was blocked: the persistent browser reset and lost the existing test sessions. The temporary access fixture was no longer available. No new accounts were created and no account or clinical data was changed.
+- The first signed-in browser attempt was blocked by a browser reset and a missing temporary access fixture. The user then explicitly authorized fresh isolated verification accounts.
+- A subsequent read-only Menu pass succeeded with synthetic independent-parent and legacy-family sessions at 390×844, plus an independent-parent desktop view at 1440×1000.
+- The independent view had 9 original rows; the legacy-family view had 8, correctly excluding Clinic connection. Resources, Family & Care Team, and Account groups appeared in both modes.
+- All menu rows measured at least 68px high. Neither mobile page overflowed horizontally. Keyboard focus had a visible 2px outline, and Menu was highlighted as active.
+- The legacy-family History shortcut preserved the selected child context.
+- No existing records were changed. Verification created only one independent parent account and child profile, one clinician account, and one legacy family account and child profile. No goals, plans or practice records were created.
+
+## Screenshots
+
+Actual signed-in screenshots were shown in the conversation:
+
+- Independent phone Menu — `reewib`
+- Legacy-family phone Menu — `4rt0im`
+- Independent desktop Menu with keyboard focus — `eyn0yx`
+
+Credentials/session material is excluded from this review and screenshots.
 
 ## Remaining issues and approval boundary
 
-Actual phone/desktop screenshots, row measurements and keyboard-focus appearance have not yet been verified. This phase is not being submitted for completion approval until that visual review is possible. Fresh isolated verification accounts require permission; existing accounts must not be reset or modified to regain access.
+No blocking Menu issue was found. Long synthetic child names wrap in the existing mobile shell header and its workspace label truncates; neither obstructs Menu controls. That shared header was not changed in this phase.
 
-Phase 7 — AI Chat has not started. No push, merge or deployment.
+The existing bundle-size warning remains. Native Expo was not modified or re-tested. Unit tests cover every original shortcut; the browser pass was deliberately limited to Menu presentation and a representative navigation/context check, not the contents of every destination page.
+
+Phase 6 is ready for approval. Phase 7 — AI Chat has not started. No push, merge or deployment.

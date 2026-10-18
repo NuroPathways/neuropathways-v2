@@ -224,3 +224,17 @@ mtime_ms = 1792299426454
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/4536294d-61fe-404e-bb91-c7af27c34bf9/c566be25-d6bc-48de-ae95-4e34a4557217"
 storage_version_token = "1792299462157136"
 content_type = "text/html"
+
+[[outputs]]
+id = "neZoV3tBVK0z-FFtTlixN"
+uri = "file://generated-artifacts/phase6-review/NeuroPathways-Phase-6-Menu-Review.html"
+type = "html"
+title = "Phase 6 — Menu Review"
+description = "Shortcut inventory, changes, preserved behavior, testing and screenshot references."
+logical_id = "046f138c-bf0d-4d22-86e8-29353b9d8f08"
+content_hash = "sha256:e8eec38445a1d8e983b75e260394a9cb41bdd8daa6dd5a6d06e353d010b166d7"
+size = 12959
+mtime_ms = 1792301535146
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/046f138c-bf0d-4d22-86e8-29353b9d8f08/e4c8eab5-1938-4793-b565-be8c0b5b7c65"
+storage_version_token = "1792301563228041"
+content_type = "text/html"
