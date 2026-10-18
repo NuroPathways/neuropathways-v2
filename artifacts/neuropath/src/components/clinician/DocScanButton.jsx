@@ -27,13 +27,22 @@ function parseErrorMessage(err) {
   return raw.replace(/^API error \d+:\s*/, "").trim() || "Scan failed";
 }
 
+function failedDocuments(err) {
+  const raw = err?.message || "";
+  try {
+    const body = JSON.parse(raw.slice(raw.indexOf("{")));
+    return Array.isArray(body.failed) ? body.failed : [];
+  } catch { return []; }
+}
+
 // Maps raw scanner errors to a plain-language reason. `retryable` is false for
 // problems a retry cannot fix (unsupported format), so we never offer an endless loop.
 export function describeScanError(message) {
   const raw = String(message || "").trim();
   const text = raw.toLowerCase();
   if (/unsupported|not supported|mime|file type|format/.test(text)) return { reason: "Unsupported file format.", retryable: false, detail: raw };
-  if (/corrupt|damaged|malformed|invalid pdf|truncated/.test(text)) return { reason: "File may be damaged.", retryable: true, detail: raw };
+  if (/password.protected|unlocked pdf/.test(text)) return { reason: "An unlocked PDF copy is needed.", retryable: false, detail: raw };
+  if (/corrupt|damaged|malformed|invalid pdf|pdf is invalid|truncated|re-export/.test(text)) return { reason: "The file needs to be re-exported.", retryable: false, detail: raw };
   if (/no (readable )?text|empty|no content|blank/.test(text)) return { reason: "No readable text found.", retryable: true, detail: raw };
   if (/timeout|timed out|unavailable|503|502|429|rate limit|network|fetch failed|econn/.test(text)) return { reason: "Processing service temporarily unavailable.", retryable: true, detail: raw };
   if (/session expired|sign in/.test(text)) return { reason: raw, retryable: true, detail: raw };
@@ -88,11 +97,17 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned
         setStatus("error");
       } else {
         setStatus("done");
-        onScanned?.(doc.id);
       }
+      onScanned?.(doc.id);
     } catch (e) {
-      setErrorMsg(parseErrorMessage(e));
-      setStatus("error");
+      const failed = failedDocuments(e);
+      const ownFailure = failed.find(f => f.id === doc.id);
+      setErrorMsg(ownFailure?.reason || parseErrorMessage(e));
+      setStatus(failed.length && !ownFailure ? "blocked" : "error");
+      setShowError(true);
+      // Refresh the list so the actual failed document gets its own persisted
+      // reason; never label the selected healthy file as corrupt by association.
+      onScanned?.(doc.id);
     }
   };
 
@@ -104,10 +119,12 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned
     );
   }
 
-  const failure = status === "error" ? describeScanError(errorMsg) : null;
+  const failure = status === "blocked"
+    ? { reason: "Another document is blocking the combined scan.", retryable: true, detail: errorMsg }
+    : status === "error" ? describeScanError(errorMsg) : null;
   const label = status === "done" ? "Re-scan" : status === "error" ? "Retry Scan" : "Scan";
   const Icon = status === "pending" ? Sparkles : RefreshCw;
-  const showButton = status !== "error" || failure?.retryable;
+  const showButton = !failure || failure.retryable;
 
   return (
     <div className="flex flex-col items-end gap-1">
@@ -125,7 +142,8 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned
             <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> Failed
           </span>
         )}
-        {status === "error" && (
+        {status === "blocked" && <span className="text-xs text-foreground font-medium" data-testid={`status-doc-scan-${doc.id}`}>Scan blocked</span>}
+        {(status === "error" || status === "blocked") && (
           <button type="button" onClick={() => setShowError(v => !v)} aria-expanded={showError}
             className="text-xs font-medium px-2 py-1 rounded-lg border border-border text-foreground hover:border-primary transition-colors"
             data-testid={`button-view-scan-error-${doc.id}`}>
@@ -145,7 +163,7 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned
           </button>
         )}
       </div>
-      {status === "error" && showError && (
+      {(status === "error" || status === "blocked") && showError && (
         <div role="alert" className="max-w-[18rem] text-right text-xs text-foreground" data-testid={`text-scan-error-${doc.id}`}>
           <p className="font-semibold">{failure.reason}</p>
           {failure.detail && failure.detail !== failure.reason && <p className="text-muted-foreground break-words">{failure.detail}</p>}

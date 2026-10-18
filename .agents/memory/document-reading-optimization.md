@@ -14,3 +14,9 @@ Preserve original PDF pages when optimizing AI inputs; keep extracted raw health
 **Why:** Searchable PDF text can omit charts or scanned portions, and storing another plaintext copy of sensitive files would expand their exposure.
 
 **How to apply:** Improve repeat extraction and shared prompt-prefix reuse without removing original visual sources. Saved derived findings may remain in their existing storage format.
+
+Validate PDF structure, not just its header, before multi-document AI requests. A rejected combined request must not mark every included document as corrupt. Partial rereads must preserve an existing complete clinical profile rather than replace it with a smaller subset.
+
+**Why:** One PDF passed the old header-only check but the AI reader rejected it, causing repeated whole-client scan failures and misleading errors on healthy documents.
+
+**How to apply:** Prepare complete visual pages in memory, keep originals unchanged, report errors on the actual affected document, and distinguish invalid/password-protected files from temporary service failures. Require a readable replacement for files no PDF reader can open; do not invent missing content or fall back silently to text-only clinical interpretation.

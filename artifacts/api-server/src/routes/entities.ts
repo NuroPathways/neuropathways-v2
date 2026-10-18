@@ -15,6 +15,7 @@ import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
 import { decryptBuffer } from "./upload";
 import { legacyVisibleDocuments, isParentOwnedChild, isParentOwnedDocument, familyHasParentOwnedChildren } from "../lib/documentVisibility";
 import { isParentDocument, readParentDocumentBytes, extractParentDocumentText } from "../lib/parentDocuments";
+import { prepareClinicalPdf, clinicalScanServiceError } from "../lib/clinicalPdf";
 import {
   accountAuthorityEvent,
   validateAccountAuthority,
@@ -1205,10 +1206,15 @@ router.post("/build-client-profile", async (req: any, res) => {
           contentParts.push({ type: "image", source: { type: "base64", media_type: IMAGE_MIME[ext], data: fileContent.toString("base64") } });
           includedDocIds.push(doc.id);
         } else if (ext === ".pdf") {
-          const header = fileContent.subarray(0, 5).toString("ascii");
-          if (header !== "%PDF-") { failedDocs.push({ id: doc.id, reason: "The PDF file appears to be corrupt or invalid." }); continue; }
+          let prepared: Buffer;
+          try {
+            prepared = await prepareClinicalPdf(fileContent);
+          } catch (error) {
+            failedDocs.push({ id: doc.id, reason: error instanceof Error ? error.message : "This PDF could not be read." });
+            continue;
+          }
           contentParts.push({ type: "text", text: `[Document: ${label}]` });
-          contentParts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: fileContent.toString("base64") } });
+          contentParts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: prepared.toString("base64") } });
           includedDocIds.push(doc.id);
         } else if (ext === ".docx") {
           const mammoth: any = await import("mammoth");
@@ -1254,11 +1260,11 @@ router.post("/build-client-profile", async (req: any, res) => {
     // Nothing usable to scan → return a clear, specific error.
     if (includedDocIds.length === 0) {
       const detail = failedDocs.map(f => f.reason).find(Boolean) || "The documents could not be read.";
-      return fail(422, "no_readable_content", `Couldn't read any of the client's documents. ${detail}`);
+      return res.status(422).json({ error: { code: "no_readable_content", message: `Couldn't read any of the client's documents. ${detail}` }, failed: failedDocs });
     }
     if (failedDocs.length > 0 && existingProfile) {
       return res.status(422).json({
-        error: { code: "partial_scan_failed", message: `Some documents could not be read. ${failedDocs[0].reason} Previously extracted information has been preserved.` },
+        error: { code: "partial_scan_failed", message: `The combined scan was not saved because ${failedDocs.length} document(s) could not be read. ${failedDocs[0].reason} Other documents have not been marked as failed. Previously extracted information has been preserved.` },
         failed: failedDocs,
       });
     }
@@ -1364,11 +1370,11 @@ Example: do not write only "${childName} will complete a graduated exposure hier
         messages: [{ role: "user", content: contentParts }],
       });
     } catch (ex: any) {
-      for (const id of includedDocIds) {
-        await db.update(documentsTable).set({ scanStatus: "error", scanError: "The AI scan failed. Please try again.", scannedAt: now }).where(eq(documentsTable.id, id)).catch(() => {});
-      }
-      console.error(`[NeuroPath] buildClientProfile: AI error child=${child_id}:`, ex?.message);
-      return fail(502, "ai_error", "The AI service could not process the documents right now. Please try again in a moment.");
+      // A batch rejection is not evidence that every included file is bad.
+      // Preserve each file's existing status and the last successful profile.
+      const failure = clinicalScanServiceError(ex);
+      req.log.error({ status: ex?.status, code: failure.code }, "Clinical document reader rejected the scan");
+      return res.status(failure.status).json({ error: { code: failure.code, message: failure.message }, failed: failedDocs });
     }
 
     const toolUse = message.content.find((b: any) => b.type === "tool_use") as any;

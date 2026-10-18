@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import DocScanButton, { describeScanError } from "./DocScanButton";
+import { base44 } from "@/api/entities";
 
 vi.mock("@/api/entities", () => ({ base44: { functions: { invoke: vi.fn(async () => ({ data: {} })) } } }));
 afterEach(cleanup);
@@ -27,5 +28,32 @@ describe("DocScanButton", () => {
   it("labels successful scans Ready", () => {
     render(<DocScanButton doc={{ id: "d3", child_id: "c1", scan_status: "done" }} clinicianId="u1" />);
     expect(screen.getByTestId("status-doc-scan-d3").textContent).toContain("Ready");
+  });
+  it("asks for an unlocked or re-exported PDF instead of an endless retry", () => {
+    expect(describeScanError("This PDF is password-protected. Upload an unlocked PDF copy.").retryable).toBe(false);
+    render(<DocScanButton doc={{ id: "d4", child_id: "c1", scan_status: "error", scan_error: "This PDF is damaged or incomplete. Re-export it as a PDF and upload it again." }} clinicianId="u1" />);
+    expect(screen.queryByTestId("button-scan-doc-d4")).toBeNull();
+  });
+  it("does not mark a healthy document Failed when another document blocks the scan", async () => {
+    base44.functions.invoke.mockRejectedValueOnce(new Error(`API error 422: ${JSON.stringify({
+      error: { message: "A different file could not be read. Previous information has been preserved." },
+      failed: [{ id: "bad", reason: "This PDF is damaged or incomplete." }],
+    })}`));
+    const refresh = vi.fn();
+    render(<DocScanButton doc={{ id: "good", child_id: "c1", scan_status: "done" }} clinicianId="u1" onScanned={refresh} />);
+    fireEvent.click(screen.getByTestId("button-scan-doc-good"));
+    await waitFor(() => expect(screen.getByTestId("status-doc-scan-good").textContent).toBe("Scan blocked"));
+    expect(screen.getByTestId("text-scan-error-good").textContent).toContain("Another document is blocking");
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+  it("shows the selected file's specific persisted error after a mixed scan failure", async () => {
+    base44.functions.invoke.mockRejectedValueOnce(new Error(`API error 422: ${JSON.stringify({
+      error: { message: "Combined scan failed" },
+      failed: [{ id: "bad", reason: "This PDF is damaged or incomplete. Re-export it as a PDF and upload it again." }],
+    })}`));
+    render(<DocScanButton doc={{ id: "bad", child_id: "c1" }} clinicianId="u1" />);
+    fireEvent.click(screen.getByTestId("button-scan-doc-bad"));
+    await waitFor(() => expect(screen.getByTestId("text-scan-error-bad").textContent).toContain("re-exported"));
+    expect(screen.queryByTestId("button-scan-doc-bad")).toBeNull();
   });
 });
