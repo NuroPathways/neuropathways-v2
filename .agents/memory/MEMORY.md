@@ -18,3 +18,4 @@
 - [Headless responsive checks](headless-responsive-checks.md) — set browser viewport metrics explicitly; Chromium's window-size flag alone may leave CSS layout at its 500px default.
 - [OpenAPI codegen symbol collisions](openapi-codegen-symbol-collisions.md) — use named request-body components and distinct operation names when generated Zod exports collide.
 - [Sandboxed document previews](sandboxed-document-previews.md) — verify visible content without frame introspection that can reset the authenticated test worker.
+- [Redesign approval gates](phased-ui-redesign.md) — audit before UI edits; stop after each redesign phase and require explicit approval to advance.
