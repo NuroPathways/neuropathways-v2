@@ -30,7 +30,7 @@ function GoalForm({ initial, busy, onSave, onCancel }: { initial?: ParentGoal; b
   );
 }
 
-export function ParentGoalsSection({ actions = [] }: { actions?: Action[] }) {
+export function ParentGoalsSection({ actions = [], excludeIds = [] }: { actions?: Action[]; excludeIds?: string[] }) {
   const c = useColors();
   const qc = useQueryClient();
   const { child, opts } = useParent();
@@ -45,7 +45,7 @@ export function ParentGoalsSection({ actions = [] }: { actions?: Action[] }) {
   const [error, setError] = useState("");
   const busy = create.isPending || update.isPending || remove.isPending;
   const done = { onSuccess: () => { setAdding(false); setEditId(null); void qc.invalidateQueries({ queryKey: key }); }, onError: (e: unknown) => setError(msg(e)) };
-  const goals = q.data ?? [];
+  const goals = (q.data ?? []).filter((g) => !(g.source === "care_team" && excludeIds.includes(g.id)));
   const render = (g: ParentGoal) => {
     const linked = actions.filter((a) => a.goalId ? a.goalId === g.id : (a.behaviorName ?? "").trim().toLowerCase() === g.title.trim().toLowerCase());
     return (

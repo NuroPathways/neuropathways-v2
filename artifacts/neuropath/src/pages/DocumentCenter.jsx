@@ -151,12 +151,12 @@ export default function DocumentCenter({ embedded = false }) {
   return (
     <div className="min-h-screen bg-background font-inter">
       {/* Header */}
-      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,47%) 0%, hsl(180,29%,55%) 100%)" }}>
+      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,40%) 0%, hsl(180,34%,32%) 100%)" }}>
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-2 right-8 w-24 h-24 rounded-full bg-white" />
         </div>
         <div className="relative px-5 pt-5 pb-7 max-w-2xl mx-auto">
-          {!embedded && <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-white/70 hover:text-white text-sm mb-5 transition-colors">
+          {!embedded && <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-white/90 hover:text-white text-sm mb-5 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>}
           <div className="flex items-center justify-between">

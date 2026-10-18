@@ -8,10 +8,12 @@ import { ChildSwitch } from "@/components/ChildSwitch";
 import { Card, ErrorBox, H, Screen, Skeleton, T, msg } from "@/components/ParentUi";
 import { useParent } from "@/context/ParentContext";
 import { useColors } from "@/hooks/useColors";
+import { useCareTeam } from "@/lib/careTeam";
 
 type HistoryRow =
   | { kind: "behavior"; id: string; at: string; title: string; detail: string; clinicianFeedback?: string | null }
   | { kind: "activity"; id: string; actionId: string; at: string; title: string; detail: string }
+  | { kind: "care"; id: string; assignmentId: string; at: string; title: string; detail: string }
   | { kind: "routine"; id: string; at: string; title: string; detail: string };
 
 export default function ParentHistory() {
@@ -19,6 +21,7 @@ export default function ParentHistory() {
   const { child, opts } = useParent();
   const query = useQuery({ queryKey: getGetParentDashboardQueryKey(child?.id ?? ""), queryFn: () => getParentDashboard(child!.id, opts), enabled: !!child });
   const tools = useGetParentFamilyTools(child?.id ?? "", { query: { queryKey: getGetParentFamilyToolsQueryKey(child?.id ?? ""), enabled: !!child, retry: false }, request: opts });
+  const care = useCareTeam();
   const rows = useMemo<HistoryRow[]>(() => {
     const data = query.data as ParentDashboard | undefined;
     if (!data) return [];
@@ -51,24 +54,31 @@ export default function ParentHistory() {
         detail: run.status === "completed" ? "Completed" : run.status === "paused" ? `Paused at step ${step + 1}` : String(run.status ?? "Started"),
       };
     });
+    const OUT: Record<string, string> = { tried: "We tried it", needed_support: "We needed support", not_tried: "Didn't get a chance" };
+    const careRows: HistoryRow[] = care.recentPractice.map((p) => ({
+      kind: "care", id: `care-${p.id}`, assignmentId: p.assignmentId, at: p.createdAt, title: p.title,
+      detail: [OUT[p.outcome] ?? p.outcome, p.goalTitle ? `Goal: ${p.goalTitle}` : null, p.note ? `Note: ${p.note}` : null].filter(Boolean).join(" · "),
+    }));
     const seen = new Set<string>();
-    return [...behaviorRows, ...activityRows, ...routineRows]
+    return [...behaviorRows, ...activityRows, ...careRows, ...routineRows]
       .filter((row) => (seen.has(row.id) ? false : (seen.add(row.id), true)))
       .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
-  }, [query.data, tools.data]);
+  }, [query.data, tools.data, care.query.data]);
   return (
     <Screen>
       <H sub={child ? `Saved records for ${child.name}` : undefined}>History</H>
       <ChildSwitch />
       <T size={14} color={c.secondary}>Behavior observations, practice activity, and routines are labeled separately.</T>
+      {care.query.isError ? <ErrorBox message={msg(care.query.error, "Care team practice history could not load.")} onRetry={() => void care.query.refetch()} /> : null}
       {query.isLoading ? <Skeleton lines={4} /> : query.isError ? <ErrorBox message={msg(query.error, "History could not load.")} onRetry={() => query.refetch()} /> : rows.length ? rows.map((row) => (
         <Card key={row.id}>
-          <T size={11} weight="semi" color={c.secondary}>{row.kind === "behavior" ? "BEHAVIOR OBSERVATION" : row.kind === "routine" ? "ROUTINE" : "PRACTICE ACTIVITY"}</T>
+          <T size={11} weight="semi" color={c.secondary}>{row.kind === "behavior" ? "BEHAVIOR OBSERVATION" : row.kind === "routine" ? "ROUTINE" : row.kind === "care" ? "CARE TEAM ACTIVITY" : "PRACTICE ACTIVITY"}</T>
           <T weight="bold" size={16}>{row.title}</T>
           <T size={14}>{row.detail}</T>
           {row.kind === "behavior" && row.clinicianFeedback ? <T size={13} color={c.primary}><T weight="semi" size={13}>Clinician feedback: </T>{row.clinicianFeedback}</T> : null}
           <T size={12} color={c.mutedForeground}>{Number.isNaN(new Date(row.at).getTime()) ? "Date unavailable" : new Date(row.at).toLocaleString()}</T>
           {row.kind === "activity" ? <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/(parent)/practice", params: { activityId: row.actionId } } as never)} style={{ minHeight: 40, justifyContent: "center" }}><T size={13} weight="semi" color={c.primary}>Open this activity</T></Pressable> : null}
+          {row.kind === "care" && care.assignments.some((a) => a.id === row.assignmentId) ? <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/(parent)/practice", params: { assignmentId: row.assignmentId } } as never)} style={{ minHeight: 40, justifyContent: "center" }}><T size={13} weight="semi" color={c.primary}>Open this activity</T></Pressable> : null}
         </Card>
       )) : <Card><T weight="semi">No saved history yet</T><T size={14} color={c.secondary}>Behavior notes and practice activity will appear here after they are recorded.</T></Card>}
     </Screen>

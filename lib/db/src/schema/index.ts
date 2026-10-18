@@ -7,3 +7,4 @@ export * from "./parent-family-tools";
 export * from "./parent-documents";
 export * from "./parent-link";
 export * from "./parent-clinic-consents";
+export * from "./care-team-assignments";

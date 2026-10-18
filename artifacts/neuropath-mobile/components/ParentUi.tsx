@@ -32,7 +32,7 @@ export function H({ children, sub }: { children: React.ReactNode; sub?: string }
 export function Card({ children, style, tone }: { children: React.ReactNode; style?: ViewStyle; tone?: "primary" | "warn" }) {
   const c = useColors();
   return (
-    <View style={[{ minWidth: 0, backgroundColor: tone === "primary" ? c.primary : c.card, borderRadius: 16, padding: 16, gap: 8, borderWidth: tone ? 0 : 1, borderColor: c.border }, tone === "warn" && { borderLeftWidth: 4, borderLeftColor: c.destructive, borderWidth: 1 }, style]}>
+    <View style={[{ minWidth: 0, backgroundColor: c.card, borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: c.border }, tone === "primary" && { borderLeftWidth: 4, borderLeftColor: c.primary }, tone === "warn" && { borderLeftWidth: 4, borderLeftColor: c.destructive, borderWidth: 1 }, style]}>
       {children}
     </View>
   );

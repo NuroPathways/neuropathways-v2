@@ -331,8 +331,8 @@ export default function ClientDetail() {
           </motion.div>
         )}
 
-        {/* Goals & Milestones */}
-        <ClientGoalsSection childId={childId} clinicianId={clinicianId} />
+        {/* Goals & Activities: existing goal records plus care-team goals and assignments */}
+        <ClientGoalsSection childId={childId} childName={child?.child_name} />
 
         {/* Behavior Logs */}
         <div>

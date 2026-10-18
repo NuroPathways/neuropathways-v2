@@ -5,6 +5,212 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type CareStatus = typeof CareStatus[keyof typeof CareStatus];
+
+
+export const CareStatus = {
+  draft: 'draft',
+  published: 'published',
+  paused: 'paused',
+  archived: 'archived',
+} as const;
+
+export type CareGoalInputMeasurement = typeof CareGoalInputMeasurement[keyof typeof CareGoalInputMeasurement];
+
+
+export const CareGoalInputMeasurement = {
+  frequency: 'frequency',
+  duration: 'duration',
+  percentage: 'percentage',
+  completed_steps: 'completed_steps',
+  clinician_defined: 'clinician_defined',
+  observation: 'observation',
+} as const;
+
+export interface CareGoalInput {
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  description: string;
+  /** @maxLength 120 */
+  skill?: string;
+  measurement?: CareGoalInputMeasurement;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  target?: number | null;
+  /**
+     * @maxItems 30
+     * @items.maxLength 300
+     */
+  milestones?: string[];
+  /** @maxLength 4000 */
+  notes?: string;
+  status?: CareStatus;
+  /** @minimum 0 */
+  expectedVersion?: number;
+}
+
+export type CareGoal = CareGoalInput & ({
+  id: string;
+  childId: string;
+  version: number;
+  source?: string;
+  canEdit?: boolean;
+  /** @nullable */
+  progress?: number | null;
+  linkedActivityIds?: string[];
+}) & Required<Pick<CareGoalInput & ({
+  id: string;
+  childId: string;
+  version: number;
+  source?: string;
+  canEdit?: boolean;
+  /** @nullable */
+  progress?: number | null;
+  linkedActivityIds?: string[];
+}), 'status'>>;
+
+export interface CareAssignmentInput {
+  /** @nullable */
+  libraryId?: string | null;
+  /** @nullable */
+  goalId?: string | null;
+  /** @maxLength 180 */
+  title?: string;
+  /** @maxLength 2000 */
+  description?: string;
+  /** @maxLength 120 */
+  skill?: string;
+  /**
+     * @minimum 1
+     * @maximum 180
+     * @nullable
+     */
+  estimatedMinutes?: number | null;
+  /** @maxLength 2000 */
+  materials?: string;
+  /**
+     * @maxItems 40
+     * @items.minLength 1
+     * @items.maxLength 2000
+     */
+  steps?: string[];
+  /** @maxLength 2000 */
+  whyItMayHelp?: string;
+  /** @maxLength 2000 */
+  ifDifficult?: string;
+  /** @maxLength 4000 */
+  notes?: string;
+  /** @maxLength 300 */
+  schedule?: string;
+  status?: CareStatus;
+  /** @minimum 0 */
+  expectedVersion?: number;
+}
+
+export interface CareActivity {
+  id: string;
+  childId: string;
+  /** @nullable */
+  libraryId?: string | null;
+  /** @nullable */
+  goalId?: string | null;
+  /** @nullable */
+  goalTitle?: string | null;
+  title: string;
+  description: string;
+  skill: string;
+  /** @nullable */
+  estimatedMinutes?: number | null;
+  materials?: string;
+  steps: string[];
+  whyItMayHelp?: string;
+  ifDifficult?: string;
+  notes?: string;
+  schedule?: string;
+  status: CareStatus;
+  version: number;
+  source: string;
+  currentStep?: number;
+  bookmarked?: boolean;
+}
+
+export interface CarePracticeProgressInput {
+  /** @minimum 1 */
+  version: number;
+  /**
+     * @minimum 0
+     * @maximum 40
+     */
+  currentStep: number;
+  bookmarked: boolean;
+}
+
+export type CarePracticeInputOutcome = typeof CarePracticeInputOutcome[keyof typeof CarePracticeInputOutcome];
+
+
+export const CarePracticeInputOutcome = {
+  tried: 'tried',
+  needed_support: 'needed_support',
+  not_tried: 'not_tried',
+} as const;
+
+export interface CarePracticeInput {
+  /** @minimum 1 */
+  version: number;
+  outcome: CarePracticeInputOutcome;
+  /** @maxLength 4000 */
+  note?: string;
+  /**
+     * @minLength 8
+     * @maxLength 100
+     */
+  requestId: string;
+}
+
+export interface CarePractice {
+  id: string;
+  assignmentId: string;
+  childId: string;
+  version: number;
+  outcome: string;
+  /** @nullable */
+  note?: string | null;
+  title: string;
+  /** @nullable */
+  goalId?: string | null;
+  /** @nullable */
+  goalTitle?: string | null;
+  createdAt: string;
+  steps?: string[];
+}
+
+export interface CareObservation {
+  id: string;
+  createdAt: string;
+  /** @nullable */
+  behavior?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  intensity?: string | null;
+}
+
+export interface CareTeamWorkspace {
+  goals: CareGoal[];
+  assignments: CareActivity[];
+  recentPractice: CarePractice[];
+  observations: CareObservation[];
+}
+
 export interface ParentGoal {
   id: string;
   childId: string;

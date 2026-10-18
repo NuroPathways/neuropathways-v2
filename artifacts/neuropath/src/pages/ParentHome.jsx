@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { getParentBehaviors, getParentDashboard, getStarterLibrary, parentBehaviorIdentity, useGetParentDashboard, getGetParentDashboardQueryKey } from "@workspace/api-client-react";
+import { getParentBehaviors, getParentDashboard, getStarterLibrary, parentBehaviorIdentity, useGetParentDashboard, getGetParentDashboardQueryKey, useGetParentCareTeam, getGetParentCareTeamQueryKey, saveCareTeamPracticeProgress, recordCareTeamPractice } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { CARE_OUTCOME, newRequestId } from "@/lib/careTeam";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, Skeleton } from "@/components/parentfree/common";
@@ -48,7 +50,11 @@ function Body({ child }) {
   const isLegacy = (user?.accountType || user?.account_type) === "legacy_family";
   const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
-  const legacyPracticeRoute = sp.get("tab") === "today" && sp.get("section") === "practice";
+  const LEARN_WHY = ["learn-why", "learnwhy", "learn_why", "learn"];
+  const legacyPracticeRoute = (sp.get("tab") === "today" && sp.get("section") === "practice")
+    || LEARN_WHY.includes(String(sp.get("section") || "").toLowerCase())
+    || LEARN_WHY.includes(String(sp.get("tab") || "").toLowerCase())
+    || String(sp.get("view") || "").toLowerCase().replace(/\s+/g, "-") === "learn-why";
   const tab = legacyPracticeRoute ? "practice" : TABS.some(([k]) => k === sp.get("tab")) ? sp.get("tab") : "today";
   const [selId, setSelId] = useState(() => readFocus(user?.id, child.id));
   const [section, setSection] = useState(() => sp.get("section"));
@@ -59,6 +65,25 @@ function Body({ child }) {
   const dashboardHeaders = new Headers(dashboardRequest.headers);
   dashboardHeaders.set("X-Parent-Local-Date", currentLocalDay());
   const q = useGetParentDashboard(child.id, { query: { queryKey: getGetParentDashboardQueryKey(child.id), staleTime: 0, refetchOnMount: "always" }, request: { ...dashboardRequest, headers: dashboardHeaders } });
+  const queryClient = useQueryClient();
+  const careKey = getGetParentCareTeamQueryKey(child.id);
+  // Optional enhancement: errors or an empty result simply hide care-team sections.
+  const careQ = useGetParentCareTeam(child.id, { query: { queryKey: careKey, staleTime: 30_000, refetchInterval: 60_000, retry: 1 }, request: parentRequest() });
+  const careAssignments = careQ.data?.assignments || [];
+  const refreshCare = () => queryClient.invalidateQueries({ queryKey: careKey });
+  const saveAssigned = async (item, { currentStep = item.currentStep ?? 0, bookmarked = true } = {}) => {
+    await saveCareTeamPracticeProgress(child.id, item.id, { version: item.version, currentStep, bookmarked }, parentRequest());
+    await refreshCare();
+  };
+  const assignedProgress = (item, currentStep) => saveCareTeamPracticeProgress(child.id, item.id, { version: item.version, currentStep, bookmarked: Boolean(item.bookmarked) }, parentRequest());
+  const pendingPracticeRequests = useRef(new Map());
+  const recordAssigned = async (item, { outcome, note }) => {
+    const key = `${child.id}:${item.id}:${item.version}`;
+    if (!pendingPracticeRequests.current.has(key)) pendingPracticeRequests.current.set(key, newRequestId());
+    await recordCareTeamPractice(child.id, item.id, { version: item.version, outcome: CARE_OUTCOME[outcome] || outcome, ...(note ? { note } : {}), requestId: pendingPracticeRequests.current.get(key) }, parentRequest());
+    await refreshCare();
+    pendingPracticeRequests.current.delete(key);
+  };
   useEffect(() => { setSection(sp.get("section")); }, [sp]);
   useEffect(() => { if (tab !== "steps") setSupportStepId(null); }, [tab]);
   useEffect(() => {
@@ -136,12 +161,24 @@ function Body({ child }) {
           actions={d.dailyActions || []}
           documents={d.documents || []}
           initialActionId={sp.get("activity_id")}
+          hideTitle
+          feedbackVisibility={isLegacy
+            ? "Your care team can see updates saved in this family account."
+            : "Your care team sees this update only if you have chosen to share observations with your clinic. You can change that in Clinic."}
+          assignedActivities={careAssignments}
+          careError={careQ.isError ? (careQ.error || "Care team activities could not load.") : null}
+          onRetryCare={() => careQ.refetch()}
+          initialAssignmentId={sp.get("assignment_id")}
+          onSaveAssigned={saveAssigned}
+          onAssignedProgress={assignedProgress}
+          onRecordAssignedPractice={recordAssigned}
           initialView={section === "preferences" ? "My Routines" : undefined}
           key={section === "preferences" ? "practice-preferences" : "practice"}
           onExitRoute={() => {
-            if (sp.has("activity_id")) {
+            if (sp.has("activity_id") || sp.has("assignment_id")) {
               const next = new URLSearchParams(sp);
               next.delete("activity_id");
+              next.delete("assignment_id");
               setSp(next, { replace: true });
             }
           }}
@@ -327,10 +364,12 @@ export default function ParentHome() {
         <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
         <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>
           {activeChild
-            ? <>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span style={{ color: "rgba(255,255,255,.75)", fontWeight: 400 }}>for {activeChild.name}</span></>
+            ? activeTab === "practice" ? <>Practice With {activeChild.name}</>
+              : <>{activeTab === "today" && !activeSection ? "Today's Support" : currentLabel} <span className="pf-hero-child" style={{ fontWeight: 400 }}>for {activeChild.name}</span></>
             : "Choose a child profile"}
         </h1>
-        <Link to="/DataRequests" className="text-sm underline underline-offset-4" style={{ color: "rgba(255,255,255,.88)" }}>Privacy &amp; data requests</Link></div>
+        {activeChild && activeTab === "practice" && <p className="pf-hero-sub" style={{ margin: "0 0 8px" }} data-testid="text-practice-subtitle">Simple activities and routines you can try together.</p>}
+        <Link to="/DataRequests" className="text-sm underline underline-offset-4" style={{ color: "hsl(var(--primary))" }}>Privacy &amp; data requests</Link></div>
         {activeTab === "today" && !activeSection && <button type="button" className="pf-help-cta" disabled={!activeChild} onClick={() => setSupportRequest((request) => request + 1)} data-testid="button-dashboard-help-now"><span className="ico"><AlertTriangle size={20} /></span><span><strong>I Need Help Right Now</strong><small>{activeChild ? "Open support steps for a stressful moment" : "Choose which child needs support first"}</small></span></button>}
         {activeChild ? <Body key={activeChild.id} child={activeChild} /> : (
           <section className="pf-card" data-testid="choose-child-before-support">

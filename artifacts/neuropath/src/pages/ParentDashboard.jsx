@@ -61,11 +61,11 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
                 <span className="text-white/80 text-sm font-medium">NeuroPathways</span>
                 <StreakBadge userId={user?.id} />
               </div>
-              <p className="text-white/70 text-sm">{getGreeting()},</p>
+              <p className="text-white/90 text-sm">{getGreeting()},</p>
               <h1 className="text-2xl md:text-3xl font-bold text-white mt-0.5 mb-1">
                 {firstName}
               </h1>
-              <p className="text-white/60 text-sm">Your personal support hub</p>
+              <p className="text-white/90 text-sm">Your personal support hub</p>
             </div>
             {unreadMessages > 0 && (
               <button
@@ -89,9 +89,9 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
                 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
                 className="bg-white/15 backdrop-blur-sm rounded-2xl p-3 border border-white/20 text-center"
               >
-                <s.icon className="w-4 h-4 text-white/70 mx-auto mb-1" />
+                <s.icon className="w-4 h-4 text-white/90 mx-auto mb-1" />
                 <p className="text-xl font-bold text-white">{s.value}</p>
-                <p className="text-xs text-white/60">{s.label}</p>
+                <p className="text-xs text-white/90">{s.label}</p>
               </motion.div>
             ))}
           </div>
@@ -111,7 +111,7 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
             </div>
             <div>
               <p className="text-white font-bold text-base">Quick Log</p>
-              <p className="text-white/70 text-xs">Record a behavior</p>
+              <p className="text-white/90 text-xs">Record a behavior</p>
             </div>
           </button>
           <button
@@ -123,7 +123,7 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
             </div>
             <div>
               <p className="text-white font-bold text-base">Help Now</p>
-              <p className="text-white/70 text-xs">Get instant guidance</p>
+              <p className="text-white/90 text-xs">Get instant guidance</p>
             </div>
           </button>
         </motion.div>
@@ -223,7 +223,7 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
           className="bg-gradient-to-br from-accent/10 to-primary/5 border border-accent/20 rounded-2xl p-5 flex items-start gap-4"
         >
           <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
-            <Heart className="w-5 h-5 text-accent" />
+            <Heart className="w-5 h-5 text-accent-foreground" />
           </div>
           <div>
             <p className="text-sm font-semibold text-foreground mb-1">You're doing great</p>
@@ -283,11 +283,11 @@ function FamilyDashboard({ user, children, recentLogs, unreadMessages, loading, 
                 <span className="text-white/80 text-sm font-medium">NeuroPathways</span>
                 <StreakBadge userId={user?.id} />
               </div>
-              <p className="text-white/70 text-sm">{getGreeting()},</p>
+              <p className="text-white/90 text-sm">{getGreeting()},</p>
               <h1 className="text-2xl md:text-3xl font-bold text-white mt-0.5 mb-1">
                 {loading ? "..." : firstName}
               </h1>
-              <p className="text-white/60 text-sm">Your family's support hub</p>
+              <p className="text-white/90 text-sm">Your family's support hub</p>
             </div>
             {unreadMessages > 0 && (
               <button
@@ -311,9 +311,9 @@ function FamilyDashboard({ user, children, recentLogs, unreadMessages, loading, 
                 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
                 className="bg-white/15 backdrop-blur-sm rounded-2xl p-3 border border-white/20 text-center"
               >
-                <s.icon className="w-4 h-4 text-white/70 mx-auto mb-1" />
+                <s.icon className="w-4 h-4 text-white/90 mx-auto mb-1" />
                 <p className="text-xl font-bold text-white">{s.value}</p>
-                <p className="text-xs text-white/60">{s.label}</p>
+                <p className="text-xs text-white/90">{s.label}</p>
               </motion.div>
             ))}
           </div>
@@ -355,7 +355,7 @@ function FamilyDashboard({ user, children, recentLogs, unreadMessages, loading, 
             </div>
             <div>
               <p className="text-white font-bold text-base">Quick Log</p>
-              <p className="text-white/70 text-xs">Record a behavior</p>
+              <p className="text-white/90 text-xs">Record a behavior</p>
             </div>
           </button>
           <button
@@ -367,7 +367,7 @@ function FamilyDashboard({ user, children, recentLogs, unreadMessages, loading, 
             </div>
             <div>
               <p className="text-white font-bold text-base">Help Now</p>
-              <p className="text-white/70 text-xs">Get instant guidance</p>
+              <p className="text-white/90 text-xs">Get instant guidance</p>
             </div>
           </button>
         </motion.div>
@@ -505,7 +505,7 @@ function FamilyDashboard({ user, children, recentLogs, unreadMessages, loading, 
           className="bg-gradient-to-br from-accent/10 to-primary/5 border border-accent/20 rounded-2xl p-5 flex items-start gap-4"
         >
           <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
-            <Heart className="w-5 h-5 text-accent" />
+            <Heart className="w-5 h-5 text-accent-foreground" />
           </div>
           <div>
             <p className="text-sm font-semibold text-foreground mb-1">You're doing great</p>

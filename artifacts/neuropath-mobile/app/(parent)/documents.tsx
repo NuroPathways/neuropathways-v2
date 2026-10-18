@@ -39,6 +39,14 @@ function PreviewModal({ url, doc, onClose }: { url: string; doc: ParentDocument;
   );
 }
 
+const scanReason = (e: string) => {
+  const t = e.toLowerCase();
+  if (/unsupported|mime|format|type/.test(t)) return "Unsupported file format. Upload a PDF, image, or text document.";
+  if (/no (readable )?text|empty|nothing to read/.test(t)) return "No readable text found. A clearer scan or photo may help.";
+  if (/corrupt|damaged|invalid pdf|malformed/.test(t)) return "The file may be damaged. Try re-saving or re-uploading it.";
+  if (/timeout|unavailable|503|502|rate|network|temporar/.test(t)) return "Processing service temporarily unavailable. Retry in a few minutes.";
+  return "This document could not be read.";
+};
 const DONE = ["scanned", "complete", "completed", "done", "ready"];
 function categoryOf(d: ParentDocument) {
   const t = `${(d as { documentType?: string }).documentType || ""} ${d.title || ""} ${d.fileName || ""}`.toLowerCase();
@@ -100,8 +108,9 @@ function DocRow({
       {error ? <ErrorBox message={error} /> : null}
       <T size={12} weight="semi" color={doc.reviewed ? c.primary : c.secondary}>{doc.reviewed ? "Clinician reviewed" : "Uploaded plan · not clinician-reviewed"}</T>
       {doc.scanError ? (
-        <Disclosure label="Scan note">
-          <T size={13} color={c.destructive}>{doc.scanError}</T>
+        <Disclosure label={failed ? "View error" : "Scan note"}>
+          <T size={13} weight="semi" color={c.foreground}>{scanReason(doc.scanError)}</T>
+          <T size={12} color={c.destructive}>{doc.scanError}</T>
         </Disclosure>
       ) : null}
       <Row wrap>

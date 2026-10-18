@@ -60,7 +60,7 @@ export default function FamilyCard({ family, children = [] }) {
           <div className="flex -space-x-1">
             {children.slice(0, 3).map((c, i) => (
               <div key={c.id || i} className="w-5 h-5 rounded-full bg-secondary/20 border border-background flex items-center justify-center">
-                <span className="text-[9px] font-bold text-secondary">
+                <span className="text-[9px] font-bold text-secondary-foreground">
                   {sanitize(c.child_name)?.[0]?.toUpperCase() || "?"}
                 </span>
               </div>

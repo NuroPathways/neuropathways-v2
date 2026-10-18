@@ -8,19 +8,25 @@ import { Btn, Card, ErrorBox, H, Screen, Skeleton, T, msg } from "@/components/P
 import { useParent } from "@/context/ParentContext";
 import { ParentGoalsSection } from "@/components/ParentGoalsMessages";
 import { useColors } from "@/hooks/useColors";
+import { CareTeamGoals } from "@/components/CareTeamGoals";
+import { useCareTeam } from "@/lib/careTeam";
 
 export default function FamilyGoals() {
   const c = useColors();
   const { child, opts } = useParent();
+  const care = useCareTeam();
   const query = useQuery({ queryKey: getGetParentDashboardQueryKey(child?.id ?? ""), queryFn: () => getParentDashboard(child!.id, opts), enabled: !!child });
   return (
     <Screen>
-      <H sub={child ? `See what ${child.name} is working toward and the progress you've recorded.` : undefined}>Goals &amp; Milestones</H>
+      <H sub={child ? `See what ${child.name} is working toward.` : undefined}>Goals &amp; Milestones</H>
       <ChildSwitch />
       {query.isLoading ? <Skeleton lines={4} /> : query.isError ? <ErrorBox message={msg(query.error, "Goals could not load.")} onRetry={() => query.refetch()} /> : (
         <>
           <T size={14} color={c.secondary}>Saved goals and plan milestones stay separate. Caregiver check-ins do not automatically change treatment progress.</T>
-          <ParentGoalsSection actions={query.data?.dailyActions ?? []} />
+          {care.query.isError ? <ErrorBox message={msg(care.query.error, "Care team goals could not load.")} onRetry={() => void care.query.refetch()} /> : null}
+          <CareTeamGoals goals={care.goals} assignments={care.assignments} />
+          {care.goals.length ? <T size={17} weight="bold">Family Goals</T> : null}
+          <ParentGoalsSection actions={query.data?.dailyActions ?? []} excludeIds={care.goals.map((g) => g.id)} />
           <T size={17} weight="bold">Behavior goals and plan milestones</T>
           {(query.data?.child.behaviors ?? []).length ? (query.data?.child.behaviors ?? []).map((behavior, index) => (
             <Card key={`${behavior.behaviorKey}-${index}`}>

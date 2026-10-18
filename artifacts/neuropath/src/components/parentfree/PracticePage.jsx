@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetParentDashboardQueryKey, logParentDailyAction, updateParentPracticeProgress } from "@workspace/api-client-react";
 import { parentRequest } from "@/lib/parentSession";
@@ -13,212 +13,320 @@ const SOURCE_LABELS = {
   recent_log_pattern: "Based on recent parent notes",
   selected_behavior: "Based on your selected behavior",
 };
-const OUTCOMES = [
+export const OUTCOMES = [
   ["used_skill", "We tried it"],
-  ["partially", "We needed more support"],
-  ["not_yet", "We didn't get a chance"],
+  ["partially", "We needed support"],
+  ["not_yet", "Didn't get a chance"],
 ];
-const VIEWS = ["Activities", "Learn Why", "My Routines", "Saved for Later"];
-const VIEW_DETAILS = {
-  Activities: "Browse things to try together.",
-  "My Routines": "Create and use visual routines.",
-  "Learn Why": "Read short explanations and examples.",
-  "Saved for Later": "Continue an activity you paused.",
-};
+export const CATEGORIES = ["Communication", "Calm & Coping", "Daily Routines", "Transitions", "Playing Together", "Safety Skills"];
+const CATEGORY_HINTS = [
+  ["Safety Skills", /safe|elop|wander|danger|street|stranger/],
+  ["Transitions", /transition|first[- ]then|switch|leav|next activity|timer|change/],
+  ["Calm & Coping", /calm|cop|regulat|break|breath|melt|tantrum|upset|sensory|aggress|hit|bite|frustrat/],
+  ["Daily Routines", /routine|morning|bed|sleep|meal|eat|dress|brush|bath|toilet|schedule|getting ready/],
+  ["Playing Together", /play|toy|game|turn[- ]tak|share|train|build/],
+  ["Communication", /communicat|request|ask|aac|word|sign|talk|speech|help|choice/],
+];
 const CLOSED = new Set(["done", "logged", "skipped"]);
 export const isClosedAction = (action) => CLOSED.has(String(action?.status || ""));
-const PHASE_LABELS = ["Understand", "See an Example", "Try Together", "Reflect"];
+const GENERIC_WHY = /^(this|the) activity (helps|will help|can help) (improve|build|develop|with)?\s*(this|the|a)? ?skills?\.?$/i;
+export const usefulWhy = (text) => {
+  const value = String(text || "").trim();
+  if (value.length < 25 || GENERIC_WHY.test(value) || /^no additional explanation/i.test(value)) return "";
+  return value;
+};
+export const categoryFor = (action) => {
+  if (action?.category && CATEGORIES.includes(action.category)) return action.category;
+  if (action?.skill && CATEGORIES.includes(action.skill)) return action.skill;
+  const text = `${action?.behaviorKey || ""} ${action?.behaviorName || ""} ${action?.title || ""}`.toLowerCase();
+  return CATEGORY_HINTS.find(([, pattern]) => pattern.test(text))?.[0] || null;
+};
+// Assigned activities come from the clinician assignment contract (to be wired by the
+// parent route). Only published entries for this child are ever shown.
+export const visibleAssignments = (items, childId) => (Array.isArray(items) ? items : [])
+  .filter((item) => String(item?.status || "").toLowerCase() === "published")
+  .filter((item) => !childId || !item.childId || String(item.childId) === String(childId));
 
-export default function PracticePage({ childId, childName = "your child", actions = [], child, documents = [], onOpenSteps, onAddBehavior, card, initialActionId, initialView, onGoals, onHistory, onExitRoute }) {
-  const queryClient = useQueryClient();
-  const [view, setView] = useState(initialView && VIEWS.includes(initialView) ? initialView : "Activities");
-  const [toolsTab, setToolsTab] = useState(initialView === "My Routines" ? "Preferences" : "Routines");
-  const [activeId, setActiveId] = useState(initialActionId || null);
-  const [started, setStarted] = useState(false);
-  const [phase, setPhase] = useState(0);
-  const [tryStep, setTryStep] = useState(0);
+const positionToStep = (position, count) => position >= 2 && position < count + 2 ? position - 2 : 0;
+
+/**
+ * Focused guided activity: one instruction at a time, Back, Exit, optional feedback.
+ * Exported so clinician "Preview as Parent" can render exactly what parents see
+ * (pass `preview` to disable saving).
+ */
+export function ActivityGuide({ feedbackVisibility, activity, childName, assigned = false, relatedGoal, sourceLabel, closed = false, busy = false, preview = false, requireOutcome = false,
+  initialStep = 0, initialFinished = false, onStep, onExit, onSaveForLater, onSaveUpdate, onSkip, onGoal, onHistory, error }) {
+  const steps = Array.isArray(activity?.steps) ? activity.steps.filter(Boolean) : [];
+  const [step, setStep] = useState(Math.min(initialStep, Math.max(0, steps.length - 1)));
+  const [finished, setFinished] = useState(initialFinished);
   const [outcome, setOutcome] = useState("");
   const [note, setNote] = useState("");
+  const why = usefulWhy(activity?.whyItMayHelp || activity?.whyThisHelps);
+  const needs = activity?.whatYouNeed || activity?.materials;
+  const category = activity?.skill || categoryFor(activity);
+  const minutes = activity?.estimatedMinutes;
+  const go = (next) => { setStep(next); onStep?.(next, false); };
+  const finish = () => { setFinished(true); onStep?.(steps.length, true); };
+
+  return (
+    <article className="np-practice-detail" data-testid={`practice-detail-${activity.id}`}>
+      {preview && <p className="np-preview-label" role="note" data-testid="label-preview">Preview as Parent · nothing is saved from this preview</p>}
+      <div className="np-practice-controls np-practice-topbar">
+        <button type="button" onClick={onExit} data-testid="button-exit-practice">Exit activity</button>
+        {!closed && !preview && onSaveForLater && <button type="button" onClick={onSaveForLater} disabled={busy} data-testid="button-pause-practice">Save for later</button>}
+      </div>
+      <header className="np-guide-head">
+        <h3 data-testid="text-activity-title">{activity.title}</h3>
+        <div className="np-guide-meta">
+          {category && <span>{category}</span>}
+          {minutes ? <span>About {minutes} minutes</span> : null}
+          {assigned && <span className="np-care-badge" data-testid="badge-care-team">Assigned by Your Care Team</span>}
+        </div>
+        {relatedGoal && <p className="np-practice-meta">Related goal: {onGoal ? <button type="button" className="np-link-btn" onClick={onGoal} data-testid="button-related-goal">{relatedGoal}</button> : relatedGoal}</p>}
+        {sourceLabel && !assigned && <p className="np-practice-meta">{sourceLabel}</p>}
+        {activity.description && <p>{activity.description}</p>}
+      </header>
+      {needs && <section className="np-guide-block"><h4>What You'll Need</h4><p>{needs}</p></section>}
+
+      {closed ? (
+        <section className="np-practice-stage" data-testid="practice-closed-review">
+          <p className="np-practice-chip" role="status" data-testid="status-practice-closed">{activity.status === "skipped" ? "Closed" : "Completed"} · review only</p>
+          {steps.length > 0 && <ol>{steps.map((text, index) => <li key={index}>{text}</li>)}</ol>}
+          <div className="np-practice-controls"><button type="button" className="primary" onClick={onExit} data-testid="button-back-closed-practice">Back to Practice</button></div>
+        </section>
+      ) : !finished ? (
+        <section className="np-practice-stage" aria-live="polite" data-testid="practice-stage">
+          <h4>Let's Try It</h4>
+          {steps.length ? <>
+            <p className="np-practice-meta" data-testid="text-step-count">Step {step + 1} of {steps.length}</p>
+            <p className="np-guide-step" data-testid="text-current-step">{steps[step]}</p>
+          </> : <p>No steps were included with this activity. You can exit without trying it.</p>}
+          {activity.ifDifficult && <details className="np-why" data-testid="details-if-difficult"><summary>If it becomes difficult</summary><p>{activity.ifDifficult}</p></details>}
+          <div className="np-practice-controls">
+            {step > 0 && <button type="button" onClick={() => go(step - 1)} data-testid="button-step-back">Back</button>}
+            {steps.length > 0 && step < steps.length - 1
+              ? <button type="button" className="primary" onClick={() => go(step + 1)} data-testid="button-step-next">Next</button>
+              : <button type="button" className="primary" onClick={finish} data-testid="button-step-finish">Finish</button>}
+          </div>
+        </section>
+      ) : (
+        <section className="np-practice-stage" data-testid="practice-feedback">
+          <h4>How did it go?</h4>
+          <p className="np-practice-meta">Optional. Skip it if you prefer. Your answer is a description of what happened, not a measure of progress, and it does not change any goal.</p>
+          {assigned && <p className="np-practice-meta" data-testid="text-feedback-visibility">{feedbackVisibility || "Your care team may see this update, depending on your family's sharing settings."}</p>}
+          <div className="np-practice-controls" role="group" aria-label="How did it go?">
+            {OUTCOMES.map(([value, label]) => <button type="button" key={value} aria-pressed={outcome === value} onClick={() => setOutcome(outcome === value ? "" : value)} data-testid={`button-outcome-${value}`}>{label}</button>)}
+          </div>
+          <label htmlFor="practice-reflection">Notes (optional)</label>
+          <textarea id="practice-reflection" maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} placeholder={`Anything you noticed with ${childName}?`} data-testid="input-practice-note" />
+          <div className="np-practice-controls">
+            <button className="primary" type="button" disabled={busy || preview || (requireOutcome ? !outcome : (!outcome && !note.trim()))} onClick={() => onSaveUpdate?.({ outcome, note: note.trim() })} data-testid="button-save-update">{busy ? "Saving…" : "Save Update"}</button>
+            <button type="button" onClick={onSkip} disabled={busy} data-testid="button-skip-feedback">Skip</button>
+            <button type="button" onClick={() => { setFinished(false); go(Math.max(0, steps.length - 1)); }} data-testid="button-feedback-back">Back</button>
+          </div>
+        </section>
+      )}
+      {error && <ErrorBox error={error} />}
+      {why && <details className="np-why" data-testid="details-why"><summary>Why this helps</summary><p>{why}</p></details>}
+      {onHistory && !preview && <div className="np-practice-controls"><button type="button" onClick={onHistory}>Practice history</button></div>}
+    </article>
+  );
+}
+
+function ActivityCard({ activity, assigned, meta, onStart, onSave, saved, goal, toggle = false }) {
+  return (
+    <article className="np-activity-card" data-testid={`practice-activity-${activity.id}`}>
+      {assigned && <span className="np-care-badge">Assigned by Your Care Team</span>}
+      <h4>{activity.title}</h4>
+      {meta && <p className="np-activity-meta">{meta}</p>}
+      {goal && <p className="np-activity-meta">Related goal: {goal}</p>}
+      {activity.description && <p className="np-activity-desc">{activity.description}</p>}
+      <div className="np-activity-actions">
+        <button type="button" className="primary" onClick={onStart} data-testid={`button-start-${activity.id}`}>{isClosedAction(activity) ? "Review" : "Start Activity"}</button>
+        {onSave && <button type="button" onClick={onSave} disabled={saved && !toggle} aria-pressed={saved} data-testid={`button-save-${activity.id}`}>{saved ? "Saved" : "Save"}</button>}
+      </div>
+    </article>
+  );
+}
+
+export default function PracticePage({ childId, childName = "your child", actions = [], child, documents = [], onOpenSteps, onAddBehavior, card, initialActionId, initialView, onGoals, onHistory, onExitRoute,
+  assignedActivities = [], initialAssignmentId, hideTitle = false, feedbackVisibility, onSaveAssigned, onAssignedProgress, onRecordAssignedPractice, careError, onRetryCare }) {
+  const queryClient = useQueryClient();
+  const startView = initialView === "My Routines" ? "routines" : initialView === "Saved for Later" || initialView === "Saved Activities" ? "saved" : "main";
+  const [view, setView] = useState(startView);
+  const [toolsTab] = useState(initialView === "My Routines" ? "Preferences" : "Routines");
+  const [activeId, setActiveId] = useState(initialActionId || null);
+  // Snapshot of the open assignment so a background refetch never yanks the activity away.
+  const [activeAssigned, setActiveAssigned] = useState(null);
+  const [category, setCategory] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const activeAction = actions.find((action) => action.id === activeId);
-  const closed = isClosedAction(activeAction);
+  const assigned = useMemo(() => visibleAssignments(assignedActivities, childId), [assignedActivities, childId]);
+  const openedInitial = useRef(false);
   useEffect(() => {
-    if (!activeAction) return;
-    const position = activeAction.currentStep ?? 0;
-    const count = activeAction.steps?.length ?? 0;
-    setStarted(position > 0);
-    if (position < 2) { setPhase(position); setTryStep(0); }
-    else if (position >= count + 2) { setPhase(3); setTryStep(Math.max(0, count - 1)); }
-    else { setPhase(2); setTryStep(position - 2); }
-  }, [activeId, activeAction?.currentStep]);
-  const goalFor = (action) => child?.behaviors?.find((behavior) => behavior.behaviorKey === action.behaviorKey)?.goal || null;
-  const visibleActions = actions.filter((action) => view === "Saved for Later"
-    ? !isClosedAction(action) && (action.bookmarked || action.status === "saved_for_later")
-    : view === "Activities" || view === "Learn Why");
-  const start = (action) => {
-    setActiveId(action.id);
-    setStarted(false);
-    const position = action.currentStep ?? 0;
-    const count = action.steps?.length ?? 0;
-    if (position < 2) { setPhase(position); setTryStep(0); }
-    else if (position >= count + 2) { setPhase(3); setTryStep(Math.max(0, count - 1)); }
-    else { setPhase(2); setTryStep(position - 2); }
-    setOutcome("");
-    setNote("");
-    setError("");
-  };
-  const leave = () => { setActiveId(null); setStarted(false); setError(""); onExitRoute?.(); };
-  const currentPosition = (nextPhase = phase, nextTryStep = tryStep) => nextPhase === 0 ? 0
-    : nextPhase === 1 ? 1
-      : nextPhase === 2 ? nextTryStep + 2
-        : (activeAction?.steps?.length ?? 0) + 2;
-  const saveForLater = async () => {
-    if (!activeAction || !childId) return;
-    if (closed) { leave(); return; }
-    setBusy(true); setError("");
-    try {
-      await updateParentPracticeProgress(childId, activeAction.id, { currentStep: currentPosition(), bookmarked: true }, parentRequest());
-      await queryClient.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(childId) });
-      leave();
-    } catch (e) { setError(errMsg(e)); }
-    finally { setBusy(false); }
-  };
-  const saveReflection = async () => {
-    if (!activeAction || !childId || closed || (!outcome && !note.trim())) return;
-    setBusy(true); setError("");
-    try {
-      const selected = OUTCOMES.find(([value]) => value === outcome);
-      await updateParentPracticeProgress(childId, activeAction.id, { currentStep: currentPosition(3), bookmarked: false }, parentRequest());
-      await logParentDailyAction(childId, activeAction.id, {
-        eventType: "outcome",
-        ...(selected ? { outcome: selected[0] } : {}),
-        ...(note.trim() ? { note: note.trim() } : {}),
-      }, parentRequest());
-      await queryClient.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(childId) });
-      leave();
-    } catch (e) { setError(errMsg(e)); }
-    finally { setBusy(false); }
-  };
-  const movePhase = (nextPhase) => {
-    setPhase(nextPhase);
-    setStarted(true);
-    const nextTryStep = nextPhase === 2 ? 0 : tryStep;
-    setTryStep(nextTryStep);
-    if (!activeAction || !childId || closed) return;
-    void updateParentPracticeProgress(childId, activeAction.id, {
-      currentStep: currentPosition(nextPhase, nextTryStep),
-      bookmarked: Boolean(activeAction.bookmarked || activeAction.status === "saved_for_later"),
-    }, parentRequest()).catch((e) => setError(errMsg(e)));
-  };
-  const moveTryStep = (nextTryStep) => {
-    setTryStep(nextTryStep);
-    setPhase(2);
-    if (!activeAction || !childId || closed) return;
-    void updateParentPracticeProgress(childId, activeAction.id, {
-      currentStep: currentPosition(2, nextTryStep),
-      bookmarked: Boolean(activeAction.bookmarked || activeAction.status === "saved_for_later"),
-    }, parentRequest()).catch((e) => setError(errMsg(e)));
-  };
-  const source = (action) => {
-    const label = SOURCE_LABELS[action.sourceType] || "Source not available";
-    const document = documents.find((item) => item.id === action.sourceDocumentId);
-    return document?.title ? `${label} · ${document.title}` : label;
-  };
+    if (openedInitial.current || !initialAssignmentId) return;
+    const match = assigned.find((item) => String(item.id) === String(initialAssignmentId));
+    if (match) { openedInitial.current = true; setActiveAssigned(match); }
+  }, [assigned, initialAssignmentId]);
+  useEffect(() => { setError(""); }, [activeId, activeAssigned?.id]);
 
+  const goalFor = (action) => child?.behaviors?.find((behavior) => behavior.behaviorKey === action.behaviorKey)?.goal || null;
+  const source = (action) => {
+    const label = SOURCE_LABELS[action.sourceType] || "";
+    const document = documents.find((item) => item.id === action.sourceDocumentId);
+    return document?.title && label ? `${label} · ${document.title}` : label;
+  };
+  const metaFor = (action) => [categoryFor(action), action.estimatedMinutes ? `${action.estimatedMinutes} minutes` : null].filter(Boolean).join(" · ");
+  const isSaved = (action) => Boolean(action.bookmarked || action.status === "saved_for_later");
+  const open = actions.filter((action) => !isClosedAction(action));
+  const featured = open.slice(0, 3);
+  const featuredIds = new Set(featured.map((action) => action.id));
+  const explore = actions.filter((action) => !featuredIds.has(action.id));
+  const presentCategories = CATEGORIES.filter((name) => explore.some((action) => categoryFor(action) === name));
+  const filtered = category ? explore.filter((action) => categoryFor(action) === category) : explore;
+  const savedList = open.filter(isSaved);
+  const savedAssigned = assigned.filter((item) => item.bookmarked);
+  // Keep the opened snapshot (id, version, local position) but read bookmark state from the latest cache.
+  const liveAssigned = activeAssigned ? assigned.find((item) => item.id === activeAssigned.id) : null;
+  const currentAssigned = activeAssigned ? { ...activeAssigned, bookmarked: liveAssigned ? Boolean(liveAssigned.bookmarked) : Boolean(activeAssigned.bookmarked) } : null;
+
+  const leave = () => { setActiveId(null); setActiveAssigned(null); setError(""); onExitRoute?.(); };
+  const persist = async (action, body) => {
+    await updateParentPracticeProgress(childId, action.id, body, parentRequest());
+    await queryClient.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(childId) });
+  };
+  const run = async (fn) => {
+    setBusy(true); setError("");
+    try { await fn(); return true; } catch (e) { setError(errMsg(e)); return false; } finally { setBusy(false); }
+  };
+  const saveCard = (action) => childId && run(() => persist(action, { currentStep: action.currentStep ?? 0, bookmarked: true }));
+  const startAction = (action) => { setActiveAssigned(null); setActiveId(action.id); };
+  const startAssigned = (item) => { setActiveId(null); setActiveAssigned(item); };
+
+  if (activeAssigned) {
+    const steps = activeAssigned.steps || [];
+    const position = activeAssigned.currentStep ?? 0;
+    return (
+      <section className="np-practice" aria-labelledby="practice-page-heading" data-testid="panel-practice">
+        <h2 id="practice-page-heading" className="sr-only">Practice With {childName}</h2>
+        <ActivityGuide key={activeAssigned.id} feedbackVisibility={feedbackVisibility} activity={activeAssigned} childName={childName} assigned requireOutcome busy={busy} error={error}
+          relatedGoal={activeAssigned.goalTitle || activeAssigned.relatedGoal?.title} onGoal={onGoals}
+          initialStep={Math.min(position, Math.max(0, steps.length - 1))} initialFinished={steps.length > 0 && position >= steps.length}
+          onStep={(index, done) => {
+            const currentStep = done ? steps.length : index;
+            setActiveAssigned((prev) => prev ? { ...prev, currentStep } : prev);
+            void Promise.resolve(onAssignedProgress?.({ ...currentAssigned, currentStep }, currentStep)).catch((e) => setError(errMsg(e)));
+          }}
+          onExit={leave}
+          onSaveForLater={onSaveAssigned ? () => run(() => onSaveAssigned(currentAssigned, { currentStep: position, bookmarked: true })).then((ok) => ok && leave()) : undefined}
+          onSkip={leave}
+          onSaveUpdate={(feedback) => onRecordAssignedPractice
+            ? run(() => onRecordAssignedPractice(currentAssigned, feedback)).then((ok) => ok && leave())
+            : leave()}
+          onHistory={onHistory} />
+      </section>
+    );
+  }
+
+  if (activeAction) {
+    const count = activeAction.steps?.length ?? 0;
+    const position = activeAction.currentStep ?? 0;
+    const closed = isClosedAction(activeAction);
+    const progress = (index, done) => {
+      if (closed || !childId) return;
+      void updateParentPracticeProgress(childId, activeAction.id, { currentStep: done ? count + 2 : index + 2, bookmarked: isSaved(activeAction) }, parentRequest())
+        .catch((e) => setError(errMsg(e)));
+    };
+    return (
+      <section className="np-practice" aria-labelledby="practice-page-heading" data-testid="panel-practice">
+        <h2 id="practice-page-heading" className="sr-only">Practice With {childName}</h2>
+        {!closed && position > 0 && position < count + 2 && <p className="np-practice-meta" role="status">Picking up where you left off.</p>}
+        <ActivityGuide key={activeAction.id} activity={activeAction} childName={childName} closed={closed} busy={busy} error={error}
+          relatedGoal={goalFor(activeAction)} sourceLabel={source(activeAction)}
+          initialStep={positionToStep(position, count)} initialFinished={!closed && count > 0 && position >= count + 2}
+          onStep={progress} onExit={leave} onGoal={onGoals} onHistory={onHistory}
+          onSaveForLater={() => run(() => persist(activeAction, { currentStep: position, bookmarked: true })).then((ok) => ok && leave())}
+          onSkip={() => run(() => persist(activeAction, { currentStep: count + 2, bookmarked: false })).then((ok) => ok && leave())}
+          onSaveUpdate={({ outcome, note }) => run(async () => {
+            await updateParentPracticeProgress(childId, activeAction.id, { currentStep: count + 2, bookmarked: false }, parentRequest());
+            await logParentDailyAction(childId, activeAction.id, { eventType: "outcome", ...(outcome ? { outcome } : {}), ...(note ? { note } : {}) }, parentRequest());
+            await queryClient.invalidateQueries({ queryKey: getGetParentDashboardQueryKey(childId) });
+          }).then((ok) => ok && leave())} />
+      </section>
+    );
+  }
+
+  const subView = view !== "main";
   return (
     <section className="np-practice" aria-labelledby="practice-page-heading" data-testid="panel-practice">
-      <header className="np-practice-head">
-        <div><p className="pf-eyebrow">A family practice space</p><h2 id="practice-page-heading">Practice with {childName}</h2>
-          <p>Small, low-pressure moments. Use only the steps already saved here, and pause whenever you need.</p></div>
+      <header className="np-practice-intro">
+        {subView && <button type="button" className="np-link-btn" onClick={() => setView("main")} data-testid="button-back-to-practice">Back to Practice</button>}
+        <h2 id="practice-page-heading" data-testid="text-practice-title" className={hideTitle && !subView ? "sr-only" : undefined}>{view === "routines" ? "My Routines" : view === "saved" ? "Saved Activities" : `Practice With ${childName}`}</h2>
+        {!(hideTitle && !subView) && <p>{view === "routines" ? "Create or open familiar routines." : view === "saved" ? "Return to activities you saved." : "Simple activities and routines you can try together."}</p>}
       </header>
-      {!activeAction && <nav className="np-practice-destinations" aria-label="Practice destinations">
-        {VIEWS.map((item) => <button key={item} type="button" aria-current={view === item && !activeAction ? "page" : undefined}
-          data-testid={`practice-view-${item.toLowerCase().replaceAll(" ", "-")}`} onClick={() => { setView(item); setToolsTab("Routines"); leave(); }}>
-          <strong>{item}</strong><span>{VIEW_DETAILS[item]}</span>
-        </button>)}
-      </nav>}
       {error && <ErrorBox error={error} />}
-      {activeAction ? (
-        <article className="np-practice-detail" data-testid={`practice-detail-${activeAction.id}`}>
-          <div className="np-practice-controls">
-            <button type="button" onClick={leave} data-testid="button-exit-practice">Exit activity</button>
-            {!closed && <button type="button" onClick={saveForLater} disabled={busy} data-testid="button-pause-practice">Pause · Save for later</button>}
+
+      {view === "routines" ? (
+        <FamilyTools key={toolsTab} childId={childId} childName={childName} actions={actions} initialTab={toolsTab} onActivities={() => setView("main")} />
+      ) : view === "saved" ? (
+        savedList.length || savedAssigned.length ? <div className="np-activity-grid">
+          {savedAssigned.map((item) => <ActivityCard key={`assigned-${item.id}`} activity={item} assigned meta={[item.skill || categoryFor(item), item.estimatedMinutes ? `${item.estimatedMinutes} minutes` : null].filter(Boolean).join(" · ")}
+            onStart={() => startAssigned(item)} goal={item.goalTitle} />)}
+          {savedList.map((action) => <ActivityCard key={action.id} activity={action} meta={metaFor(action)} onStart={() => startAction(action)} />)}
+        </div> : <div className="np-practice-empty" data-testid="empty-practice-saved">
+          <strong>Nothing saved yet.</strong>
+          <p>Use Save on any activity to keep it here.</p>
+        </div>
+      ) : <>
+        {careError && <section className="np-practice-section" data-testid="section-care-team-error">
+          <h3>Assigned by Your Care Team</h3>
+          <ErrorBox error={careError} onRetry={onRetryCare} />
+        </section>}
+        {!careError && assigned.length > 0 && <section className="np-practice-section" aria-labelledby="care-team-heading" data-testid="section-care-team">
+          <h3 id="care-team-heading">Assigned by Your Care Team</h3>
+          <p className="np-section-sub">Activities your care team has selected for {childName}.</p>
+          <div className="np-activity-grid">
+            {assigned.map((item) => <ActivityCard key={item.id} activity={item} assigned
+              meta={[item.skill || categoryFor(item), item.estimatedMinutes ? `${item.estimatedMinutes} minutes` : null].filter(Boolean).join(" · ")}
+              onStart={() => startAssigned(item)} onSave={onSaveAssigned ? () => run(() => onSaveAssigned(item, { currentStep: item.currentStep ?? 0, bookmarked: !item.bookmarked })) : undefined} saved={Boolean(item.bookmarked)} toggle
+              goal={item.goalTitle} />)}
           </div>
-          <div><span className="np-practice-chip">{activeAction.estimatedMinutes} min · {source(activeAction)}</span>
-            <h3>{activeAction.title}</h3><p>{activeAction.description}</p>
-            <p className="np-practice-meta">Behavior: {activeAction.behaviorName || childName} · Goal: {goalFor(activeAction) || "No linked goal"}</p>
-            {closed && <p className="np-practice-chip" role="status" data-testid="status-practice-closed">{activeAction.status === "skipped" ? "Closed" : "Completed"} · review only</p>}
-            {!closed && activeAction.currentStep > 0 && <p className="np-practice-meta">Your place in this activity is saved.</p>}
-          </div>
-          {closed ? (
-            <section className="np-practice-stage" data-testid="practice-closed-review">
-              <h3>This activity is {activeAction.status === "skipped" ? "closed" : "completed"}</h3>
-              <p>You can read it again below. Progress and reflections are not changed for a closed activity.</p>
-              {activeAction.whyItMayHelp && <><h4>Why it may help</h4><p>{activeAction.whyItMayHelp}</p></>}
-              {activeAction.steps?.length > 0 && <ol>{activeAction.steps.map((stepText, index) => <li key={index}>{stepText}</li>)}</ol>}
-              <div className="np-practice-controls"><button type="button" className="primary" onClick={leave} data-testid="button-back-closed-practice">Back to activities</button></div>
-            </section>
-          ) : !started ? (
-            <section className="np-practice-start">
-              <h3>Ready to try it?</h3>
-              <p>Move through the short guide one step at a time, or go straight to trying the saved steps.</p>
-              <div className="np-practice-controls">
-                <button type="button" className="primary" onClick={() => { setStarted(true); movePhase(0); }}>Start Activity</button>
-                <button type="button" onClick={() => movePhase(2)}>Skip to Try Together</button>
-              </div>
-            </section>
-          ) : <>
-          <section className="np-practice-stage" aria-live="polite">
-          {phase < 3 && <p className="np-practice-meta">Step {phase + 1} of 3 · {PHASE_LABELS[phase]}</p>}
-          {phase === 0 && <><h3>Understand</h3><p>{activeAction.whyItMayHelp || "No additional explanation was included with this activity."}</p></>}
-          {phase === 1 && <><h3>See an Example</h3><p>{activeAction.description}</p>
-            {activeAction.steps?.[0] && <p className="np-practice-meta">Example: {activeAction.steps[0]}</p>}</>}
-           {phase === 2 && <div className="np-practice-steps"><h3>Try Together</h3>
-             {activeAction.steps?.length ? <div><p>Step {tryStep + 1} of {activeAction.steps.length}</p><p>{activeAction.steps[tryStep]}</p></div>
-              : <p>No steps were included with this activity. You can pause or exit without trying it.</p>}
-             <p className="np-practice-meta">Keep this low-risk and familiar. Stop if it does not feel right for your family.</p></div>}
-          {phase === 3 && <><h3>How did it go?</h3><p>This optional note is a caregiver reflection, not a measure of mastery or clinical progress.</p>
-            <div className="np-practice-controls">{OUTCOMES.map(([value, label]) => <button type="button" key={value} aria-pressed={outcome === value} onClick={() => setOutcome(value)}>{label}</button>)}</div>
-            <label htmlFor="practice-reflection">Optional note</label>
-            <textarea id="practice-reflection" maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Anything you'd like to remember?" />
-            <div className="np-practice-controls"><button className="primary" type="button" disabled={busy || (!outcome && !note.trim())} onClick={saveReflection}>{busy ? "Saving…" : "Save reflection"}</button>
-              <button type="button" onClick={leave}>Leave without saving</button></div></>}
-          </section>
-          <div className="np-practice-controls">
-            {phase > 0 && <button type="button" onClick={() => phase === 2 && tryStep > 0 ? moveTryStep(tryStep - 1) : phase === 3 && activeAction.steps?.length ? moveTryStep(activeAction.steps.length - 1) : movePhase(phase - 1)}>Back</button>}
-            {phase < 3 && <button className="primary" type="button" onClick={() => phase === 0 ? movePhase(1) : phase === 1 ? movePhase(activeAction.steps?.length ? 2 : 3) : phase === 2 && tryStep < activeAction.steps.length - 1 ? moveTryStep(tryStep + 1) : movePhase(3)}>{phase === 2 ? tryStep < activeAction.steps.length - 1 ? "Next step" : "Reflect" : "Continue"}</button>}
-            {phase < 2 && <button type="button" onClick={() => movePhase(2)}>Skip to Try Together</button>}
-          </div>
-          </>}
-          {(onGoals || onHistory) && <div className="np-practice-controls">
-            {onGoals && <button type="button" onClick={onGoals}>Related goals</button>}
-            {onHistory && <button type="button" onClick={onHistory}>Practice history</button>}
+        </section>}
+
+        <section className="np-practice-section" aria-labelledby="child-activities-heading" data-testid="section-child-activities">
+          <h3 id="child-activities-heading">Activities for {childName}</h3>
+          {featured.length ? <div className="np-activity-grid">
+            {featured.map((action) => <ActivityCard key={action.id} activity={action} meta={metaFor(action)} onStart={() => startAction(action)}
+              onSave={childId ? () => saveCard(action) : undefined} saved={isSaved(action)} />)}
+          </div> : <div className="np-practice-empty" data-testid="empty-practice-activities">
+            <strong>No activities are ready yet.</strong>
+            <p>Activities appear here once a behavior or plan is saved for {childName}.</p>
+            {onAddBehavior && <button type="button" className="pf-btn small" onClick={onAddBehavior}>Add a behavior</button>}
           </div>}
-        </article>
-       ) : view === "My Routines" ? (
-        <FamilyTools key={toolsTab} childId={childId} childName={childName} actions={actions} initialTab={toolsTab} onActivities={() => setView("Activities")} />
-      ) : visibleActions.length ? (
-        <div className="np-practice-grid">
-          {visibleActions.map((action) => <button type="button" className="np-practice-action" key={action.id}
-            data-testid={`practice-activity-${action.id}`} onClick={() => start(action)}>
-            <span className="np-practice-chip">{action.estimatedMinutes} min · {source(action)}</span>
-            <h3>{action.title}</h3><span>{view === "Learn Why" ? action.whyItMayHelp || action.description : action.description}</span>
-            {isClosedAction(action) && <span className="np-practice-chip">{action.status === "skipped" ? "Closed" : "Completed"}</span>}
-            <span className="np-practice-meta">Behavior: {action.behaviorName} · Goal: {goalFor(action) || "No linked goal"} · Open guide</span>
-          </button>)}
-        </div>
-      ) : (
-        <div className="np-practice-empty" data-testid={view === "Saved for Later" ? "empty-practice-saved" : "empty-practice-activities"}>
-          <strong>{view === "Saved for Later" ? "Nothing saved for later." : "No activities are ready yet."}</strong>
-          <p>{view === "Saved for Later" ? "Use “Pause · Save for later” inside an activity to keep it on this list." : "Activities appear here when they are included in your child's saved daily actions."}</p>
-          {onAddBehavior && view === "Activities" && <button type="button" className="pf-btn small" onClick={onAddBehavior}>Add a behavior</button>}
-        </div>
-      )}
-      {card && !actions.length && <div className="pf-card"><h3>{card.replacementSkill || `Review support for ${card.behaviorName}`}</h3>
-        {card.reinforcementIdea && <p><strong>Saved reinforcement idea:</strong> {card.reinforcementIdea}</p>}
-        <button type="button" className="pf-btn small primary" onClick={() => onOpenSteps?.(card)}>Open skill steps</button>
-      </div>}
+          {card && !actions.length && <div className="pf-card"><h3>{card.replacementSkill || `Review support for ${card.behaviorName}`}</h3>
+            {card.reinforcementIdea && <p><strong>Saved reinforcement idea:</strong> {card.reinforcementIdea}</p>}
+            <button type="button" className="pf-btn small primary" onClick={() => onOpenSteps?.(card)}>Open skill steps</button>
+          </div>}
+        </section>
+
+        {explore.length > 0 && <section className="np-practice-section" aria-labelledby="explore-heading" data-testid="section-explore">
+          <h3 id="explore-heading">Explore More Activities</h3>
+          {presentCategories.length > 0 && <div className="np-category-filter" role="group" aria-label="Filter by category">
+            <button type="button" aria-pressed={!category} onClick={() => setCategory("")} data-testid="filter-category-all">All</button>
+            {presentCategories.map((name) => <button type="button" key={name} aria-pressed={category === name} onClick={() => setCategory(name)} data-testid={`filter-category-${name.toLowerCase().replace(/[^a-z]+/g, "-")}`}>{name}</button>)}
+          </div>}
+          <div className="np-activity-grid">
+            {filtered.map((action) => <ActivityCard key={action.id} activity={action} meta={metaFor(action)} onStart={() => startAction(action)}
+              onSave={childId && !isClosedAction(action) ? () => saveCard(action) : undefined} saved={isSaved(action)} />)}
+          </div>
+        </section>}
+
+        <nav className="np-practice-rows" aria-label="Routines and saved activities">
+          <button type="button" onClick={() => setView("routines")} data-testid="practice-view-my-routines"><strong>My Routines</strong><span>Create or open familiar routines.</span></button>
+          <button type="button" onClick={() => setView("saved")} data-testid="practice-view-saved-activities"><strong>Saved Activities</strong><span>Return to previously saved activities.</span></button>
+        </nav>
+      </>}
     </section>
   );
 }

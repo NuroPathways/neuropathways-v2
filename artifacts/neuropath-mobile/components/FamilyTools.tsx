@@ -43,7 +43,7 @@ export function FamilyTools({ actions, onActivities, initialTab = "Routines" }: 
     query: { queryKey: getGetParentFamilyToolsQueryKey(childId), enabled: Boolean(childId), staleTime: 0, refetchOnMount: "always" },
     request: opts,
   });
-  const [tab, setTab] = useState(initialTab);
+  const [tab, setTab] = useState(initialTab === "Learn Why" ? "Routines" : initialTab);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [name, setName] = useState("");
@@ -136,7 +136,7 @@ export function FamilyTools({ actions, onActivities, initialTab = "Routines" }: 
   return <View style={{ gap: 12, minWidth: 0 }}>
     <Card><T size={12} weight="semi" color={c.primary}>PARENT-OWNED · PRIVATE TO YOUR FAMILY</T><T size={21} weight="bold">Family tools</T><T size={13} color={c.secondary}>Separate from scanned clinical information. Saving here does not change a care plan.</T></Card>
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
-      {["Routines", "Preferences", "Learn Why", "Reminders"].map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} onPress={() => { setTab(item); setError(""); }} style={buttonStyle(tab === item)}><T size={12} weight="semi" color={actionTextColor(tab === item)}>{item}</T></Pressable>)}
+      {["Routines", "Preferences", "Reminders"].map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} onPress={() => { setTab(item); setError(""); }} style={buttonStyle(tab === item)}><T size={12} weight="semi" color={actionTextColor(tab === item)}>{item}</T></Pressable>)}
     </View>
     {busy ? <T size={12} color={c.secondary}>Saving changes…</T> : null}
     {error ? <ErrorBox message={error} /> : null}

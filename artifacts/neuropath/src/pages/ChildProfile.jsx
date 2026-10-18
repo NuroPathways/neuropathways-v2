@@ -61,13 +61,13 @@ export default function ChildProfile() {
   return (
     <div className="min-h-screen bg-background font-inter">
       {/* Hero */}
-      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,47%) 0%, hsl(180,29%,55%) 100%)" }}>
+      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,40%) 0%, hsl(180,34%,32%) 100%)" }}>
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-2 right-8 w-28 h-28 rounded-full bg-white" />
           <div className="absolute -bottom-4 left-10 w-40 h-40 rounded-full bg-white" />
         </div>
         <div className="relative px-5 pt-5 pb-8 max-w-2xl mx-auto">
-          <button onClick={() => navigate("/ParentDashboard")} className="flex items-center gap-2 text-white/70 hover:text-white text-sm mb-6 transition-colors">
+          <button onClick={() => navigate("/ParentDashboard")} className="flex items-center gap-2 text-white/90 hover:text-white text-sm mb-6 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Dashboard
           </button>
           <div className="flex items-center gap-4">
@@ -77,8 +77,8 @@ export default function ChildProfile() {
             <div>
               <h1 className="text-2xl font-bold text-white">{child.child_name}</h1>
               <div className="flex flex-wrap gap-3 mt-1">
-                {child.age && <p className="text-white/70 text-xs flex items-center gap-1"><Calendar className="w-3 h-3" /> Age {child.age}</p>}
-                {child.diagnosis && <p className="text-white/70 text-xs flex items-center gap-1"><Stethoscope className="w-3 h-3" /> {child.diagnosis}</p>}
+                {child.age && <p className="text-white/90 text-xs flex items-center gap-1"><Calendar className="w-3 h-3" /> Age {child.age}</p>}
+                {child.diagnosis && <p className="text-white/90 text-xs flex items-center gap-1"><Stethoscope className="w-3 h-3" /> {child.diagnosis}</p>}
               </div>
             </div>
           </div>
@@ -105,10 +105,10 @@ export default function ChildProfile() {
             </div>
             <div>
               <p className="text-white font-bold">I Need Help Now</p>
-              <p className="text-white/70 text-xs">Get step-by-step intervention guidance</p>
+              <p className="text-white/90 text-xs">Get step-by-step intervention guidance</p>
             </div>
           </div>
-          <ChevronRight className="w-5 h-5 text-white/70" />
+          <ChevronRight className="w-5 h-5 text-white/90" />
         </motion.button>
 
         {/* Quick Actions */}

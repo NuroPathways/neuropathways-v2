@@ -25,6 +25,14 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CareActivity,
+  CareAssignmentInput,
+  CareGoal,
+  CareGoalInput,
+  CarePractice,
+  CarePracticeInput,
+  CarePracticeProgressInput,
+  CareTeamWorkspace,
   ClinicianActivityActionInput,
   ClinicianObservationFeedbackInput,
   CurrentAuthUser,
@@ -102,6 +110,797 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetCareTeamActivityLibraryUrl = () => {
+
+
+
+
+  return `/api/care-team/activity-library`
+}
+
+export const getCareTeamActivityLibrary = async ( options?: Parameters<typeof customFetch>[1]): Promise<CareActivity[]> => {
+
+  return customFetch<CareActivity[]>(getGetCareTeamActivityLibraryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCareTeamActivityLibraryQueryKey = () => {
+    return [
+    `/api/care-team/activity-library`
+    ] as const;
+    }
+
+
+export const getGetCareTeamActivityLibraryQueryOptions = <TData = Awaited<ReturnType<typeof getCareTeamActivityLibrary>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCareTeamActivityLibrary>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCareTeamActivityLibraryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCareTeamActivityLibrary>>> = ({ signal }) => getCareTeamActivityLibrary({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCareTeamActivityLibrary>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCareTeamActivityLibraryQueryResult = NonNullable<Awaited<ReturnType<typeof getCareTeamActivityLibrary>>>
+export type GetCareTeamActivityLibraryQueryError = ErrorType<unknown>
+
+
+export function useGetCareTeamActivityLibrary<TData = Awaited<ReturnType<typeof getCareTeamActivityLibrary>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCareTeamActivityLibrary>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCareTeamActivityLibrary>>,
+          TError,
+          Awaited<ReturnType<typeof getCareTeamActivityLibrary>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCareTeamActivityLibrary<TData = Awaited<ReturnType<typeof getCareTeamActivityLibrary>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCareTeamActivityLibrary>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCareTeamActivityLibrary>>,
+          TError,
+          Awaited<ReturnType<typeof getCareTeamActivityLibrary>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCareTeamActivityLibrary<TData = Awaited<ReturnType<typeof getCareTeamActivityLibrary>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCareTeamActivityLibrary>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetCareTeamActivityLibrary<TData = Awaited<ReturnType<typeof getCareTeamActivityLibrary>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCareTeamActivityLibrary>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCareTeamActivityLibraryQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetClinicianGoalsActivitiesUrl = (childId: string,) => {
+
+
+
+
+  return `/api/clinician/children/${childId}/goals-activities`
+}
+
+export const getClinicianGoalsActivities = async (childId: string, options?: Parameters<typeof customFetch>[1]): Promise<CareTeamWorkspace> => {
+
+  return customFetch<CareTeamWorkspace>(getGetClinicianGoalsActivitiesUrl(childId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClinicianGoalsActivitiesQueryKey = (childId: string,) => {
+    return [
+    `/api/clinician/children/${childId}/goals-activities`
+    ] as const;
+    }
+
+
+export const getGetClinicianGoalsActivitiesQueryOptions = <TData = Awaited<ReturnType<typeof getClinicianGoalsActivities>>, TError = ErrorType<unknown>>(childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClinicianGoalsActivities>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClinicianGoalsActivitiesQueryKey(childId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClinicianGoalsActivities>>> = ({ signal }) => getClinicianGoalsActivities(childId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: childId !== null && childId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClinicianGoalsActivities>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetClinicianGoalsActivitiesQueryResult = NonNullable<Awaited<ReturnType<typeof getClinicianGoalsActivities>>>
+export type GetClinicianGoalsActivitiesQueryError = ErrorType<unknown>
+
+
+export function useGetClinicianGoalsActivities<TData = Awaited<ReturnType<typeof getClinicianGoalsActivities>>, TError = ErrorType<unknown>>(
+ childId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClinicianGoalsActivities>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClinicianGoalsActivities>>,
+          TError,
+          Awaited<ReturnType<typeof getClinicianGoalsActivities>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClinicianGoalsActivities<TData = Awaited<ReturnType<typeof getClinicianGoalsActivities>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClinicianGoalsActivities>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClinicianGoalsActivities>>,
+          TError,
+          Awaited<ReturnType<typeof getClinicianGoalsActivities>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClinicianGoalsActivities<TData = Awaited<ReturnType<typeof getClinicianGoalsActivities>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClinicianGoalsActivities>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetClinicianGoalsActivities<TData = Awaited<ReturnType<typeof getClinicianGoalsActivities>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClinicianGoalsActivities>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetClinicianGoalsActivitiesQueryOptions(childId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCareTeamGoalUrl = (childId: string,) => {
+
+
+
+
+  return `/api/clinician/children/${childId}/care-goals`
+}
+
+export const createCareTeamGoal = async (childId: string,
+    careGoalInput: CareGoalInput, options?: Parameters<typeof customFetch>[1]): Promise<CareGoal> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CareGoal>(getCreateCareTeamGoalUrl(childId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(careGoalInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCareTeamGoalMutationKey = () => ['createCareTeamGoal'] as const;
+
+export const getCreateCareTeamGoalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCareTeamGoal>>, TError,CreateCareTeamGoalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCareTeamGoal>>, TError,CreateCareTeamGoalMutationVariables, TContext> => {
+
+const mutationKey = getCreateCareTeamGoalMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCareTeamGoal>>, CreateCareTeamGoalMutationVariables> = (props) => {
+          const {childId,data} = props ?? {};
+
+          return  createCareTeamGoal(childId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCareTeamGoalMutationResult = NonNullable<Awaited<ReturnType<typeof createCareTeamGoal>>>
+    export type CreateCareTeamGoalMutationBody = BodyType<CareGoalInput>
+    export type CreateCareTeamGoalMutationError = ErrorType<unknown>
+    export type CreateCareTeamGoalMutationVariables = {childId: string;data: BodyType<CareGoalInput>}
+
+    export const useCreateCareTeamGoal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCareTeamGoal>>, TError,CreateCareTeamGoalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createCareTeamGoal>>,
+        TError,
+        CreateCareTeamGoalMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCareTeamGoalMutationOptions(options), queryClient);
+    }
+
+export const getUpdateCareTeamGoalUrl = (childId: string,
+    goalId: string,) => {
+
+
+
+
+  return `/api/clinician/children/${childId}/care-goals/${goalId}`
+}
+
+export const updateCareTeamGoal = async (childId: string,
+    goalId: string,
+    careGoalInput: CareGoalInput, options?: Parameters<typeof customFetch>[1]): Promise<CareGoal> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CareGoal>(getUpdateCareTeamGoalUrl(childId,goalId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(careGoalInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCareTeamGoalMutationKey = () => ['updateCareTeamGoal'] as const;
+
+export const getUpdateCareTeamGoalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCareTeamGoal>>, TError,UpdateCareTeamGoalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCareTeamGoal>>, TError,UpdateCareTeamGoalMutationVariables, TContext> => {
+
+const mutationKey = getUpdateCareTeamGoalMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCareTeamGoal>>, UpdateCareTeamGoalMutationVariables> = (props) => {
+          const {childId,goalId,data} = props ?? {};
+
+          return  updateCareTeamGoal(childId,goalId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCareTeamGoalMutationResult = NonNullable<Awaited<ReturnType<typeof updateCareTeamGoal>>>
+    export type UpdateCareTeamGoalMutationBody = BodyType<CareGoalInput>
+    export type UpdateCareTeamGoalMutationError = ErrorType<unknown>
+    export type UpdateCareTeamGoalMutationVariables = {childId: string;goalId: string;data: BodyType<CareGoalInput>}
+
+    export const useUpdateCareTeamGoal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCareTeamGoal>>, TError,UpdateCareTeamGoalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateCareTeamGoal>>,
+        TError,
+        UpdateCareTeamGoalMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateCareTeamGoalMutationOptions(options), queryClient);
+    }
+
+export const getCreateCareTeamAssignmentUrl = (childId: string,) => {
+
+
+
+
+  return `/api/clinician/children/${childId}/assignments`
+}
+
+export const createCareTeamAssignment = async (childId: string,
+    careAssignmentInput: CareAssignmentInput, options?: Parameters<typeof customFetch>[1]): Promise<CareActivity> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CareActivity>(getCreateCareTeamAssignmentUrl(childId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(careAssignmentInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCareTeamAssignmentMutationKey = () => ['createCareTeamAssignment'] as const;
+
+export const getCreateCareTeamAssignmentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCareTeamAssignment>>, TError,CreateCareTeamAssignmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCareTeamAssignment>>, TError,CreateCareTeamAssignmentMutationVariables, TContext> => {
+
+const mutationKey = getCreateCareTeamAssignmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCareTeamAssignment>>, CreateCareTeamAssignmentMutationVariables> = (props) => {
+          const {childId,data} = props ?? {};
+
+          return  createCareTeamAssignment(childId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCareTeamAssignmentMutationResult = NonNullable<Awaited<ReturnType<typeof createCareTeamAssignment>>>
+    export type CreateCareTeamAssignmentMutationBody = BodyType<CareAssignmentInput>
+    export type CreateCareTeamAssignmentMutationError = ErrorType<unknown>
+    export type CreateCareTeamAssignmentMutationVariables = {childId: string;data: BodyType<CareAssignmentInput>}
+
+    export const useCreateCareTeamAssignment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCareTeamAssignment>>, TError,CreateCareTeamAssignmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createCareTeamAssignment>>,
+        TError,
+        CreateCareTeamAssignmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCareTeamAssignmentMutationOptions(options), queryClient);
+    }
+
+export const getUpdateCareTeamAssignmentUrl = (childId: string,
+    assignmentId: string,) => {
+
+
+
+
+  return `/api/clinician/children/${childId}/assignments/${assignmentId}`
+}
+
+export const updateCareTeamAssignment = async (childId: string,
+    assignmentId: string,
+    careAssignmentInput: CareAssignmentInput, options?: Parameters<typeof customFetch>[1]): Promise<CareActivity> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CareActivity>(getUpdateCareTeamAssignmentUrl(childId,assignmentId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(careAssignmentInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCareTeamAssignmentMutationKey = () => ['updateCareTeamAssignment'] as const;
+
+export const getUpdateCareTeamAssignmentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCareTeamAssignment>>, TError,UpdateCareTeamAssignmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCareTeamAssignment>>, TError,UpdateCareTeamAssignmentMutationVariables, TContext> => {
+
+const mutationKey = getUpdateCareTeamAssignmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCareTeamAssignment>>, UpdateCareTeamAssignmentMutationVariables> = (props) => {
+          const {childId,assignmentId,data} = props ?? {};
+
+          return  updateCareTeamAssignment(childId,assignmentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCareTeamAssignmentMutationResult = NonNullable<Awaited<ReturnType<typeof updateCareTeamAssignment>>>
+    export type UpdateCareTeamAssignmentMutationBody = BodyType<CareAssignmentInput>
+    export type UpdateCareTeamAssignmentMutationError = ErrorType<unknown>
+    export type UpdateCareTeamAssignmentMutationVariables = {childId: string;assignmentId: string;data: BodyType<CareAssignmentInput>}
+
+    export const useUpdateCareTeamAssignment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCareTeamAssignment>>, TError,UpdateCareTeamAssignmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateCareTeamAssignment>>,
+        TError,
+        UpdateCareTeamAssignmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateCareTeamAssignmentMutationOptions(options), queryClient);
+    }
+
+export const getGetParentCareTeamUrl = (childId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/care-team`
+}
+
+export const getParentCareTeam = async (childId: string, options?: Parameters<typeof customFetch>[1]): Promise<CareTeamWorkspace> => {
+
+  return customFetch<CareTeamWorkspace>(getGetParentCareTeamUrl(childId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetParentCareTeamQueryKey = (childId: string,) => {
+    return [
+    `/api/parent/children/${childId}/care-team`
+    ] as const;
+    }
+
+
+export const getGetParentCareTeamQueryOptions = <TData = Awaited<ReturnType<typeof getParentCareTeam>>, TError = ErrorType<unknown>>(childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentCareTeam>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetParentCareTeamQueryKey(childId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getParentCareTeam>>> = ({ signal }) => getParentCareTeam(childId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: childId !== null && childId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getParentCareTeam>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetParentCareTeamQueryResult = NonNullable<Awaited<ReturnType<typeof getParentCareTeam>>>
+export type GetParentCareTeamQueryError = ErrorType<unknown>
+
+
+export function useGetParentCareTeam<TData = Awaited<ReturnType<typeof getParentCareTeam>>, TError = ErrorType<unknown>>(
+ childId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentCareTeam>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getParentCareTeam>>,
+          TError,
+          Awaited<ReturnType<typeof getParentCareTeam>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetParentCareTeam<TData = Awaited<ReturnType<typeof getParentCareTeam>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentCareTeam>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getParentCareTeam>>,
+          TError,
+          Awaited<ReturnType<typeof getParentCareTeam>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetParentCareTeam<TData = Awaited<ReturnType<typeof getParentCareTeam>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentCareTeam>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetParentCareTeam<TData = Awaited<ReturnType<typeof getParentCareTeam>>, TError = ErrorType<unknown>>(
+ childId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getParentCareTeam>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetParentCareTeamQueryOptions(childId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveCareTeamPracticeProgressUrl = (childId: string,
+    assignmentId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/assignments/${assignmentId}/progress`
+}
+
+export const saveCareTeamPracticeProgress = async (childId: string,
+    assignmentId: string,
+    carePracticeProgressInput: CarePracticeProgressInput, options?: Parameters<typeof customFetch>[1]): Promise<CareActivity> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CareActivity>(getSaveCareTeamPracticeProgressUrl(childId,assignmentId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(carePracticeProgressInput)
+  }
+);}
+
+
+
+
+
+export const getSaveCareTeamPracticeProgressMutationKey = () => ['saveCareTeamPracticeProgress'] as const;
+
+export const getSaveCareTeamPracticeProgressMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveCareTeamPracticeProgress>>, TError,SaveCareTeamPracticeProgressMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveCareTeamPracticeProgress>>, TError,SaveCareTeamPracticeProgressMutationVariables, TContext> => {
+
+const mutationKey = getSaveCareTeamPracticeProgressMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveCareTeamPracticeProgress>>, SaveCareTeamPracticeProgressMutationVariables> = (props) => {
+          const {childId,assignmentId,data} = props ?? {};
+
+          return  saveCareTeamPracticeProgress(childId,assignmentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveCareTeamPracticeProgressMutationResult = NonNullable<Awaited<ReturnType<typeof saveCareTeamPracticeProgress>>>
+    export type SaveCareTeamPracticeProgressMutationBody = BodyType<CarePracticeProgressInput>
+    export type SaveCareTeamPracticeProgressMutationError = ErrorType<unknown>
+    export type SaveCareTeamPracticeProgressMutationVariables = {childId: string;assignmentId: string;data: BodyType<CarePracticeProgressInput>}
+
+    export const useSaveCareTeamPracticeProgress = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveCareTeamPracticeProgress>>, TError,SaveCareTeamPracticeProgressMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveCareTeamPracticeProgress>>,
+        TError,
+        SaveCareTeamPracticeProgressMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveCareTeamPracticeProgressMutationOptions(options), queryClient);
+    }
+
+export const getRecordCareTeamPracticeUrl = (childId: string,
+    assignmentId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/assignments/${assignmentId}/feedback`
+}
+
+export const recordCareTeamPractice = async (childId: string,
+    assignmentId: string,
+    carePracticeInput: CarePracticeInput, options?: Parameters<typeof customFetch>[1]): Promise<CarePractice> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CarePractice>(getRecordCareTeamPracticeUrl(childId,assignmentId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(carePracticeInput)
+  }
+);}
+
+
+
+
+
+export const getRecordCareTeamPracticeMutationKey = () => ['recordCareTeamPractice'] as const;
+
+export const getRecordCareTeamPracticeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordCareTeamPractice>>, TError,RecordCareTeamPracticeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordCareTeamPractice>>, TError,RecordCareTeamPracticeMutationVariables, TContext> => {
+
+const mutationKey = getRecordCareTeamPracticeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordCareTeamPractice>>, RecordCareTeamPracticeMutationVariables> = (props) => {
+          const {childId,assignmentId,data} = props ?? {};
+
+          return  recordCareTeamPractice(childId,assignmentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordCareTeamPracticeMutationResult = NonNullable<Awaited<ReturnType<typeof recordCareTeamPractice>>>
+    export type RecordCareTeamPracticeMutationBody = BodyType<CarePracticeInput>
+    export type RecordCareTeamPracticeMutationError = ErrorType<unknown>
+    export type RecordCareTeamPracticeMutationVariables = {childId: string;assignmentId: string;data: BodyType<CarePracticeInput>}
+
+    export const useRecordCareTeamPractice = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordCareTeamPractice>>, TError,RecordCareTeamPracticeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof recordCareTeamPractice>>,
+        TError,
+        RecordCareTeamPracticeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRecordCareTeamPracticeMutationOptions(options), queryClient);
+    }
 
 export const getGetParentGoalsUrl = (childId: string,) => {
 

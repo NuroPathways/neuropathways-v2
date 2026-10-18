@@ -157,6 +157,10 @@ export const rewardTokensTable = pgTable("reward_tokens", {
   source: varchar("source").default("manual"),
   milestoneNotes: text("milestone_notes"),
   createdByClinician: boolean("created_by_clinician").default(false),
+  publicationStatus: varchar("publication_status").notNull().default("published"),
+  goalDetails: jsonb("goal_details").$type<Record<string, unknown>>().notNull().default({}),
+  goalVersion: integer("goal_version").notNull().default(0),
+  goalVersions: jsonb("goal_versions").$type<Record<string, unknown>[]>().notNull().default([]),
   createdDate: createdAt(),
 });
 

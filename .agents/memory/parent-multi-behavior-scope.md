@@ -29,6 +29,14 @@ Legacy username/access-code family and caregiver logins must enter the same pare
 
 **How to apply:** Urgent support may remain in navigation or a separate dashboard action, but do not put its CTA inside the library.
 
+## Connected practice and clinical goals
+
+Practice should follow: choose an activity, follow one step at a time, optionally record feedback. Do not restore a standalone Learn Why destination or mandatory explanation/reflection stages; useful explanations belong in an optional activity disclosure.
+
+**Why:** The user explicitly requested this simplified practice experience while retaining the existing NeuroPathways colors and independent-parent support.
+
+**How to apply:** Put optional published care-team assignments within the existing Practice and Goals pages, not a new top-level dashboard. Keep clinician-authored goals distinct from family goals. Drafts stay private; pausing and archiving preserve history. Parent practice and feedback are observations, not clinical mastery, and must never automatically increment clinician-assessed progress.
+
 ## Essential information must be visible immediately
 
 Dashboard metrics, actions, and urgent guidance must be visible on first paint. Decorative motion must not gate their visibility.

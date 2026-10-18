@@ -216,6 +216,30 @@ const ACTIVITY_GUIDANCE: Record<string, ActivityGuidance> = {
   },
 };
 
+// Stable version 1 of the existing starter library. Assignments reference these
+// IDs; keep older versions available if starter instructions are revised.
+export function careTeamActivityLibrary() {
+  const categories: Record<string, string> = {
+    elopement: "Safety Skills", task_refusal: "Daily Routines", meltdowns: "Calm & Coping",
+    aggression: "Communication", self_injury: "Calm & Coping", transition_difficulty: "Transitions",
+    property_destruction: "Playing Together", daily_living: "Daily Routines", custom: "Communication",
+  };
+  const seen = new Set<string>();
+  return [...Object.entries(STARTER_PRACTICE_ACTIVITIES), ["custom", CUSTOM_PRACTICE_ACTIVITIES] as const]
+    .flatMap(([category, activities]) => activities.map(activity => ({ category, activity })))
+    .filter(({ activity }) => {
+      if (seen.has(activity.id) || !ACTIVITY_GUIDANCE[activity.id]) return false;
+      seen.add(activity.id); return true;
+    }).map(({ category, activity }) => ({
+      id: activity.id, childId: "", libraryId: activity.id, goalId: null, goalTitle: null,
+      title: activity.title, description: activity.description, skill: categories[category] || "Communication",
+      estimatedMinutes: activity.minutes, materials: "", steps: ACTIVITY_GUIDANCE[activity.id].steps,
+      whyItMayHelp: "", ifDifficult: activity.ifHard, notes: "", schedule: "",
+      status: "published" as const, version: 1, source: "NeuroPathways starter library",
+      currentStep: 0, bookmarked: false,
+    }));
+}
+
 function practiceActivitiesFor(behavior: Pick<ParentBehavior, "behaviorKey" | "behaviorName">): PracticeActivity[] {
   const identity = `${behavior.behaviorKey || ""} ${behavior.behaviorName || ""}`.normalize("NFKC").toLowerCase();
   if (identity.includes("elopement") || identity.includes("running away")) return STARTER_PRACTICE_ACTIVITIES.elopement;

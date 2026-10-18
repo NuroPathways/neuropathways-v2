@@ -338,7 +338,7 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
           {step === 2 && isFamily && (
             <div className="space-y-5">
               <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center mb-2">
-                <Baby className="w-6 h-6 text-secondary" />
+                <Baby className="w-6 h-6 text-secondary-foreground" />
               </div>
               <p className="text-xs text-muted-foreground -mt-2">Add the child or children receiving services. Check "Is the patient/client" for the primary client.</p>
               {children.map((c, i) => (

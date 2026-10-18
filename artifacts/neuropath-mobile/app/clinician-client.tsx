@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { apiFetch } from "@/lib/api";
 import DocumentLibrary from "@/components/DocumentLibrary";
+import { ClinicianCareTeam } from "@/components/ClinicianCareTeam";
 
 type Child = { id: string; child_name?: string; age?: number | null; diagnosis?: string | null; triggers?: string | null; notes?: string | null; parent_id?: string | null; family_id?: string | null };
 type Family = { id: string; family_name?: string; parent_name?: string };
@@ -17,7 +18,7 @@ type Log = { id: string; behavior_type?: string; intensity?: string; notes?: str
 type Document = { id: string; title?: string; file_name?: string; category?: string; created_date?: string };
 type Message = { id: string; content?: string; sender_role?: string; from_user_id?: string; created_date?: string };
 type Detail = { child: Child; family?: Family; behaviors: BehaviorPlan[]; interventions: InterventionPlan[]; logs: Log[]; documents: Document[]; messages: Message[] };
-type Tab = "Plans" | "Logs" | "Documents" | "Messages";
+type Tab = "Plans" | "Goals & Activities" | "Logs" | "Documents" | "Messages";
 type PlanKind = "behavior" | "intervention";
 
 const list = async <T,>(path: string, childId: string): Promise<T[]> => {
@@ -145,8 +146,8 @@ export default function ClinicianClient() {
             {data.child.notes && <Text style={[styles.body, { color: colors.text, marginTop: 9 }]}>Notes  ·  {data.child.notes}</Text>}
           </>)}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs} contentContainerStyle={{ gap: 8 }}>
-            {(["Plans", "Logs", "Documents", "Messages"] as Tab[]).map(item =>
-              <Pressable key={item} testID={`client-tab-${item.toLowerCase()}`} onPress={() => { setTab(item); setEditor(null); setActionError(""); }} style={[styles.tab, { backgroundColor: tab === item ? colors.primary : colors.card, borderColor: tab === item ? colors.primary : colors.border }]}>
+            {(["Plans", "Goals & Activities", "Logs", "Documents", "Messages"] as Tab[]).map(item =>
+              <Pressable key={item} testID={`client-tab-${item.toLowerCase().replace(/[^a-z]+/g, "-")}`} onPress={() => { setTab(item); setEditor(null); setActionError(""); }} style={[styles.tab, { backgroundColor: tab === item ? colors.primary : colors.card, borderColor: tab === item ? colors.primary : colors.border }]}>
                 <Text style={{ color: tab === item ? colors.primaryForeground : colors.mutedForeground, fontWeight: "700", fontSize: 12 }}>{item}</Text>
               </Pressable>)}
           </ScrollView>
@@ -180,6 +181,7 @@ export default function ClinicianClient() {
           {tab === "Documents" && <>
             <DocumentLibrary key={childId} childId={childId} clinician />
           </>}
+          {tab === "Goals & Activities" && <ClinicianCareTeam childId={childId} childName={data.child.child_name || "this client"} />}
           {tab === "Messages" && <>
             <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 13 }]}>Conversation</Text>
             {data.messages.length ? [...data.messages].sort((a, b) => (Date.parse(a.created_date ?? "") || 0) - (Date.parse(b.created_date ?? "") || 0)).map(message =>

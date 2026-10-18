@@ -81,7 +81,7 @@ export default function ClientDashboard() {
               <p className="text-white font-bold text-xl leading-tight">I Need Help Now</p>
               <p className="text-white/80 text-sm mt-0.5">Get step-by-step guidance for your child's behavior</p>
             </div>
-            <ChevronRight className="w-6 h-6 text-white/70" />
+            <ChevronRight className="w-6 h-6 text-white/90" />
           </div>
         </motion.button>
 

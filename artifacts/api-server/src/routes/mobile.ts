@@ -315,7 +315,8 @@ router.get("/mobile/reward-tokens", requireMobileAuth, async (req: any, res) => 
       .select()
       .from(rewardTokensTable)
       .where(eq(rewardTokensTable.childId, req.mobileUser.childId));
-    res.json(rows);
+    res.json(rows.filter(g => !g.createdByClinician || g.publicationStatus === "published")
+      .map(({ goalVersions: _versions, ...g }) => g));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

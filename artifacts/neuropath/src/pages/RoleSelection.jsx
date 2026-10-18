@@ -76,7 +76,7 @@ export default function RoleSelection() {
           >
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-accent/10 group-hover:bg-accent/20 flex items-center justify-center transition-colors flex-shrink-0">
-                <Heart className="w-6 h-6 text-accent" />
+                <Heart className="w-6 h-6 text-accent-foreground" />
               </div>
               <div>
                 <p className="font-semibold text-foreground text-base">I am a Parent</p>

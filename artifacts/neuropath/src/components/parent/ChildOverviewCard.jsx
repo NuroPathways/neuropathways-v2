@@ -6,7 +6,7 @@ export default function ChildOverviewCard({ child }) {
     <div className="bg-card rounded-2xl border border-border p-5">
       <div className="flex items-center gap-4">
         <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-          <span className="text-accent font-bold text-xl">
+          <span className="text-accent-foreground font-bold text-xl">
             {child.child_name?.[0]?.toUpperCase() || "?"}
           </span>
         </div>

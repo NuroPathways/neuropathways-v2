@@ -7,6 +7,18 @@
  */
 
 export * from './authUser';
+export * from './careActivity';
+export * from './careAssignmentInput';
+export * from './careGoal';
+export * from './careGoalInput';
+export * from './careGoalInputMeasurement';
+export * from './careObservation';
+export * from './carePractice';
+export * from './carePracticeInput';
+export * from './carePracticeInputOutcome';
+export * from './carePracticeProgressInput';
+export * from './careStatus';
+export * from './careTeamWorkspace';
 export * from './clinicianActivityActionInput';
 export * from './clinicianActivityActionInputAction';
 export * from './clinicianObservationFeedbackInput';

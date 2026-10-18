@@ -12,7 +12,9 @@ const CATEGORIES = [
   ["comfortSensoryPreferences", "Comfort and sensory preferences"],
   ["dislikes", "Dislikes (optional)"],
 ];
-const LESSONS = [
+// Educational content retained for reference; Learn Why is no longer a separate tab.
+// Short explanations now appear as an optional "Why this helps" inside each activity.
+export const LESSONS = [
   { title: "Predictability can make transitions easier", example: "A short heads-up before leaving the park can make the next step clearer. It may help; every child and moment is different.", activity: "Try a simple before-and-after routine." },
   { title: "A pause can support communication", example: "Waiting quietly after offering a choice gives time to respond in a preferred way.", activity: "Notice which communication method feels easiest today." },
   { title: "Comfort is information, not a reward", example: "A familiar texture or quieter space can help a child feel more settled. Comfort is never something to earn.", activity: "Add one useful comfort preference to the family notes." },
@@ -121,7 +123,7 @@ export default function FamilyTools({ childId, childName = "your child", actions
     <section className="np-family-tools" aria-label={`Family tools for ${childName}`}>
       <header className="np-tools-heading"><p className="pf-eyebrow">Parent-owned · private to your family</p><h2>Family tools</h2><p className="pf-hint">Your notes and routines are separate from scanned clinical information. Saving here does not change a care plan.</p></header>
       <nav className="np-tools-tabs" aria-label="Family tools">
-        {["Routines", "Preferences", "Learn Why", "Reminders"].map((name) => <button type="button" key={name} aria-pressed={tab === name} onClick={() => { setTab(name); setError(""); }}>{name}</button>)}
+        {["Routines", "Preferences", "Reminders"].map((name) => <button type="button" key={name} aria-pressed={tab === name} onClick={() => { setTab(name); setError(""); }}>{name}</button>)}
       </nav>
       {error && <p className="np-tools-error" role="alert">{error}</p>}
       {saving && <p className="pf-hint" role="status">Saving your changes…</p>}
@@ -157,8 +159,6 @@ export default function FamilyTools({ childId, childName = "your child", actions
         <h3>{childName}'s preferences</h3><p className="pf-hint">Editable family notes. These do not come from a scan and are not rewards to earn.</p>
         {CATEGORIES.map(([key, label]) => <label key={key}>{label}<textarea rows={key === "comfortSensoryPreferences" ? 3 : 2} value={arrText(preferenceDraft?.[key])} onChange={(e) => setPreferenceDraft((current) => ({ ...current, [key]: parseLines(e.target.value) }))} placeholder="One item per line" /></label>)}
         <button type="button" className="pf-btn primary" onClick={() => patch("preferences", preferenceDraft)}>Save preferences</button>
-      </div> : tab === "Learn Why" ? <div className="np-lessons">
-        {LESSONS.map((lesson) => <Lesson key={lesson.title} lesson={lesson} onActivity={() => onActivities?.()} />)}
       </div> : <div className="np-reminders">
         <h3>Recurring reminders</h3><p className="np-delivery-note"><strong>Delivery unavailable.</strong> Reminders can be saved, but no notifications will be sent. Lock-screen copy is kept generic.</p>
         <div className="np-tools-form"><h4>{editingReminder ? "Edit reminder" : "New reminder"}</h4><label>Activity or routine<select value={reminderTarget} onChange={(e) => setReminderTarget(e.target.value)}><option value="">Choose one</option>{targets.map((target) => <option key={`${target.type}:${target.id}`} value={`${target.type}:${target.id}`}>{target.title} · {target.type}</option>)}</select></label><label>Time<input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} /></label>
@@ -176,10 +176,4 @@ export default function FamilyTools({ childId, childName = "your child", actions
       <p className="pf-hint np-private-footnote">Private family tools. Opening this area or saving a routine never creates an incident or behavior log.</p>
     </section>
   );
-}
-
-function Lesson({ lesson, onActivity }) {
-  const [answer, setAnswer] = useState("");
-  const [expanded, setExpanded] = useState(false);
-  return <article className="np-lesson-card"><p className="pf-eyebrow">Learn Why · 2 minute read</p><h3>{lesson.title}</h3><p>{lesson.example}</p><button type="button" className="pf-btn small" onClick={() => setExpanded((v) => !v)}>{expanded ? "Hide optional reflection" : "Try an optional reflection"}</button>{expanded && <label>What might feel useful to your family?<textarea value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="You can leave this blank." rows={2} /></label>}<div className="np-tools-actions"><button type="button" className="pf-btn small primary" onClick={onActivity}>Related activity: {lesson.activity}</button><button type="button" className="pf-btn small" onClick={() => setExpanded(false)}>Skip</button></div></article>;
 }

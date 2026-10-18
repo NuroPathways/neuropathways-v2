@@ -285,7 +285,7 @@ export default function LogBehavior() {
             </button>
             <div>
               <h1 className="text-lg font-bold text-white">Log Behavior</h1>
-              <p className="text-white/60 text-xs">Quick entry for your clinician</p>
+              <p className="text-white/90 text-xs">Quick entry for your clinician</p>
             </div>
           </div>
         </div>

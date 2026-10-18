@@ -188,7 +188,7 @@ export default function ParentUpload() {
   return (
     <div className="min-h-screen bg-background font-inter">
       {/* Header */}
-      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,47%) 0%, hsl(180,29%,55%) 100%)" }}>
+      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,40%) 0%, hsl(180,34%,32%) 100%)" }}>
         <div className="relative px-5 pt-4 pb-5 max-w-xl mx-auto">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors flex-shrink-0">
@@ -196,7 +196,7 @@ export default function ParentUpload() {
             </button>
             <div>
               <h1 className="text-lg font-bold text-white">Upload Document</h1>
-              <p className="text-white/60 text-xs">Share a document with your clinician</p>
+              <p className="text-white/90 text-xs">Share a document with your clinician</p>
             </div>
           </div>
         </div>

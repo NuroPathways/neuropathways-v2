@@ -4,6 +4,7 @@ import { db, rewardTokensTable, messagesTable } from "@workspace/db";
 import { CreateParentGoalBody, UpdateParentGoalBody, SendParentMessageBody } from "@workspace/api-zod";
 import { ownedParentChild, parentActor, requireParent } from "../lib/parentAuth";
 import { parentGoalOwnerIds } from "../lib/familyParentAuth";
+import { readableGoalTitle } from "../lib/careTeam";
 
 const router = Router();
 async function childScope(req: Request, res: Response) {
@@ -17,9 +18,7 @@ function editable(goal: typeof rewardTokensTable.$inferSelect, owners: string[])
   return !goal.createdByClinician && goal.source === "manual" && Boolean(goal.parentId && owners.includes(goal.parentId));
 }
 function goalWire(goal: typeof rewardTokensTable.$inferSelect, owners: string[]) {
-  const title = (goal.goalTitle || goal.goalName || "Practice goal")
-    .replace(/^(?:plan|document|clinical|parent|goal)[_:]+/i, "")
-    .replace(/_/g, " ").trim();
+  const title = readableGoalTitle(goal);
   return {
     id: goal.id, childId: goal.childId!, title: title || "Practice goal",
     description: goal.goalDescription || goal.notes || "", progress: goal.progress ?? goal.tokensEarned ?? 0,
@@ -38,6 +37,7 @@ router.get("/parent/children/:childId/goals", requireParent, async (req, res) =>
   // because legacy credentials can access the clinical child.
   res.json(rows.filter(g => !g.source?.includes("parent_document") || g.parentId === owner)
     .filter(g => !g.createdByClinician || g.clinicianId === child.clinicianId)
+    .filter(g => !g.createdByClinician || g.publicationStatus === "published")
     .map(g => goalWire(g, owners)));
 });
 router.post("/parent/children/:childId/goals", requireParent, async (req, res) => {

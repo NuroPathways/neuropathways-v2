@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from '@/api/entities';
+import { readableGoalTitle } from "@/lib/goalTitle";
 import { motion, AnimatePresence } from "framer-motion";
 import { Target, ChevronRight, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -43,7 +44,7 @@ export default function GoalWidget({ childIds = [], prefetchedGoals }) {
   if (loading || goals.length === 0) return null;
 
   const goal = goals[index];
-  const title = goal.goal_title || goal.reward_description || "Current Goal";
+  const title = readableGoalTitle(goal, "Current Goal");
   const desc = goal.goal_description || goal.milestone_notes || "";
   const progress = goal.progress || goal.tokens_earned || 0;
   const target = goal.target || goal.tokens_goal || 10;

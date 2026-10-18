@@ -121,11 +121,11 @@ export default function UnifiedParentHome() {
           <p className="pf-eyebrow">{showingPractice ? "Practice together" : `Welcome, ${firstName}`}</p>
           <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>
             {showingPractice
-              ? `Practice with ${selectedChild ? childName(selectedChild) : "your child"}`
+              ? `Practice With ${selectedChild ? childName(selectedChild) : "your child"}`
               : `Support for ${selectedChild ? childName(selectedChild) : "your family"}`}
           </h1>
-          <p style={{ color: "rgba(255,255,255,.86)", margin: 0 }}>
-            {showingPractice ? "Use the support steps and materials available for this child." : "Support, activities, and routines that fit your day."}
+          <p className="pf-hero-sub" style={{ margin: 0 }}>
+            {showingPractice ? "Simple activities and routines you can try together." : "Support, activities, and routines that fit your day."}
           </p>
         </header>
         {!showingPractice && <section className="pf-help-cta" style={{ marginTop: 20 }} aria-label="Immediate support">

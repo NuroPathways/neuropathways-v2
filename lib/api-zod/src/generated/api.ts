@@ -8,6 +8,571 @@
 import * as zod from 'zod';
 
 
+export const GetCareTeamActivityLibraryResponseItem = zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "libraryId": zod.string().nullish(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "estimatedMinutes": zod.number().int().nullish(),
+  "materials": zod.string().optional(),
+  "steps": zod.array(zod.string()),
+  "whyItMayHelp": zod.string().optional(),
+  "ifDifficult": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "schedule": zod.string().optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "version": zod.number().int(),
+  "source": zod.string(),
+  "currentStep": zod.number().int().optional(),
+  "bookmarked": zod.boolean().optional()
+})
+export const GetCareTeamActivityLibraryResponse = zod.array(GetCareTeamActivityLibraryResponseItem)
+
+
+export const GetClinicianGoalsActivitiesParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const getClinicianGoalsActivitiesResponseGoalsItemOneTitleMax = 180;
+
+export const getClinicianGoalsActivitiesResponseGoalsItemOneDescriptionMax = 4000;
+
+export const getClinicianGoalsActivitiesResponseGoalsItemOneSkillMax = 120;
+
+export const getClinicianGoalsActivitiesResponseGoalsItemOneTargetMin = 0;
+
+export const getClinicianGoalsActivitiesResponseGoalsItemOneMilestonesItemMax = 300;
+
+export const getClinicianGoalsActivitiesResponseGoalsItemOneMilestonesMax = 30;
+
+export const getClinicianGoalsActivitiesResponseGoalsItemOneNotesMax = 4000;
+
+export const getClinicianGoalsActivitiesResponseGoalsItemOneExpectedVersionMin = 0;
+
+
+
+export const GetClinicianGoalsActivitiesResponse = zod.object({
+  "goals": zod.array(zod.object({
+  "title": zod.string().min(1).max(getClinicianGoalsActivitiesResponseGoalsItemOneTitleMax),
+  "description": zod.string().min(1).max(getClinicianGoalsActivitiesResponseGoalsItemOneDescriptionMax),
+  "skill": zod.string().max(getClinicianGoalsActivitiesResponseGoalsItemOneSkillMax).optional(),
+  "measurement": zod.enum(['frequency', 'duration', 'percentage', 'completed_steps', 'clinician_defined', 'observation']).optional(),
+  "target": zod.number().min(getClinicianGoalsActivitiesResponseGoalsItemOneTargetMin).nullish(),
+  "milestones": zod.array(zod.string().max(getClinicianGoalsActivitiesResponseGoalsItemOneMilestonesItemMax)).max(getClinicianGoalsActivitiesResponseGoalsItemOneMilestonesMax).optional(),
+  "notes": zod.string().max(getClinicianGoalsActivitiesResponseGoalsItemOneNotesMax).optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "expectedVersion": zod.number().int().min(getClinicianGoalsActivitiesResponseGoalsItemOneExpectedVersionMin).optional()
+}).and(zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "version": zod.number().int(),
+  "source": zod.string().optional(),
+  "canEdit": zod.boolean().optional(),
+  "progress": zod.number().nullish(),
+  "linkedActivityIds": zod.array(zod.string()).optional()
+}))),
+  "assignments": zod.array(zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "libraryId": zod.string().nullish(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "estimatedMinutes": zod.number().int().nullish(),
+  "materials": zod.string().optional(),
+  "steps": zod.array(zod.string()),
+  "whyItMayHelp": zod.string().optional(),
+  "ifDifficult": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "schedule": zod.string().optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "version": zod.number().int(),
+  "source": zod.string(),
+  "currentStep": zod.number().int().optional(),
+  "bookmarked": zod.boolean().optional()
+})),
+  "recentPractice": zod.array(zod.object({
+  "id": zod.string(),
+  "assignmentId": zod.string(),
+  "childId": zod.string(),
+  "version": zod.number().int(),
+  "outcome": zod.string(),
+  "note": zod.string().nullish(),
+  "title": zod.string(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "steps": zod.array(zod.string()).optional()
+})),
+  "observations": zod.array(zod.object({
+  "id": zod.string(),
+  "createdAt": zod.string(),
+  "behavior": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "intensity": zod.string().nullish()
+}))
+})
+
+
+export const CreateCareTeamGoalParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const createCareTeamGoalBodyTitleMax = 180;
+
+export const createCareTeamGoalBodyDescriptionMax = 4000;
+
+export const createCareTeamGoalBodySkillMax = 120;
+
+export const createCareTeamGoalBodyTargetMin = 0;
+
+export const createCareTeamGoalBodyMilestonesItemMax = 300;
+
+export const createCareTeamGoalBodyMilestonesMax = 30;
+
+export const createCareTeamGoalBodyNotesMax = 4000;
+
+export const createCareTeamGoalBodyExpectedVersionMin = 0;
+
+
+
+export const CreateCareTeamGoalBody = zod.object({
+  "title": zod.string().min(1).max(createCareTeamGoalBodyTitleMax),
+  "description": zod.string().min(1).max(createCareTeamGoalBodyDescriptionMax),
+  "skill": zod.string().max(createCareTeamGoalBodySkillMax).optional(),
+  "measurement": zod.enum(['frequency', 'duration', 'percentage', 'completed_steps', 'clinician_defined', 'observation']).optional(),
+  "target": zod.number().min(createCareTeamGoalBodyTargetMin).nullish(),
+  "milestones": zod.array(zod.string().max(createCareTeamGoalBodyMilestonesItemMax)).max(createCareTeamGoalBodyMilestonesMax).optional(),
+  "notes": zod.string().max(createCareTeamGoalBodyNotesMax).optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']).optional(),
+  "expectedVersion": zod.number().int().min(createCareTeamGoalBodyExpectedVersionMin).optional()
+})
+
+export const createCareTeamGoalResponseOneTitleMax = 180;
+
+export const createCareTeamGoalResponseOneDescriptionMax = 4000;
+
+export const createCareTeamGoalResponseOneSkillMax = 120;
+
+export const createCareTeamGoalResponseOneTargetMin = 0;
+
+export const createCareTeamGoalResponseOneMilestonesItemMax = 300;
+
+export const createCareTeamGoalResponseOneMilestonesMax = 30;
+
+export const createCareTeamGoalResponseOneNotesMax = 4000;
+
+export const createCareTeamGoalResponseOneExpectedVersionMin = 0;
+
+
+
+export const CreateCareTeamGoalResponse = zod.object({
+  "title": zod.string().min(1).max(createCareTeamGoalResponseOneTitleMax),
+  "description": zod.string().min(1).max(createCareTeamGoalResponseOneDescriptionMax),
+  "skill": zod.string().max(createCareTeamGoalResponseOneSkillMax).optional(),
+  "measurement": zod.enum(['frequency', 'duration', 'percentage', 'completed_steps', 'clinician_defined', 'observation']).optional(),
+  "target": zod.number().min(createCareTeamGoalResponseOneTargetMin).nullish(),
+  "milestones": zod.array(zod.string().max(createCareTeamGoalResponseOneMilestonesItemMax)).max(createCareTeamGoalResponseOneMilestonesMax).optional(),
+  "notes": zod.string().max(createCareTeamGoalResponseOneNotesMax).optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "expectedVersion": zod.number().int().min(createCareTeamGoalResponseOneExpectedVersionMin).optional()
+}).and(zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "version": zod.number().int(),
+  "source": zod.string().optional(),
+  "canEdit": zod.boolean().optional(),
+  "progress": zod.number().nullish(),
+  "linkedActivityIds": zod.array(zod.string()).optional()
+}))
+
+
+export const UpdateCareTeamGoalParams = zod.object({
+  "childId": zod.coerce.string(),
+  "goalId": zod.coerce.string()
+})
+
+export const updateCareTeamGoalBodyTitleMax = 180;
+
+export const updateCareTeamGoalBodyDescriptionMax = 4000;
+
+export const updateCareTeamGoalBodySkillMax = 120;
+
+export const updateCareTeamGoalBodyTargetMin = 0;
+
+export const updateCareTeamGoalBodyMilestonesItemMax = 300;
+
+export const updateCareTeamGoalBodyMilestonesMax = 30;
+
+export const updateCareTeamGoalBodyNotesMax = 4000;
+
+export const updateCareTeamGoalBodyExpectedVersionMin = 0;
+
+
+
+export const UpdateCareTeamGoalBody = zod.object({
+  "title": zod.string().min(1).max(updateCareTeamGoalBodyTitleMax),
+  "description": zod.string().min(1).max(updateCareTeamGoalBodyDescriptionMax),
+  "skill": zod.string().max(updateCareTeamGoalBodySkillMax).optional(),
+  "measurement": zod.enum(['frequency', 'duration', 'percentage', 'completed_steps', 'clinician_defined', 'observation']).optional(),
+  "target": zod.number().min(updateCareTeamGoalBodyTargetMin).nullish(),
+  "milestones": zod.array(zod.string().max(updateCareTeamGoalBodyMilestonesItemMax)).max(updateCareTeamGoalBodyMilestonesMax).optional(),
+  "notes": zod.string().max(updateCareTeamGoalBodyNotesMax).optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']).optional(),
+  "expectedVersion": zod.number().int().min(updateCareTeamGoalBodyExpectedVersionMin).optional()
+})
+
+export const updateCareTeamGoalResponseOneTitleMax = 180;
+
+export const updateCareTeamGoalResponseOneDescriptionMax = 4000;
+
+export const updateCareTeamGoalResponseOneSkillMax = 120;
+
+export const updateCareTeamGoalResponseOneTargetMin = 0;
+
+export const updateCareTeamGoalResponseOneMilestonesItemMax = 300;
+
+export const updateCareTeamGoalResponseOneMilestonesMax = 30;
+
+export const updateCareTeamGoalResponseOneNotesMax = 4000;
+
+export const updateCareTeamGoalResponseOneExpectedVersionMin = 0;
+
+
+
+export const UpdateCareTeamGoalResponse = zod.object({
+  "title": zod.string().min(1).max(updateCareTeamGoalResponseOneTitleMax),
+  "description": zod.string().min(1).max(updateCareTeamGoalResponseOneDescriptionMax),
+  "skill": zod.string().max(updateCareTeamGoalResponseOneSkillMax).optional(),
+  "measurement": zod.enum(['frequency', 'duration', 'percentage', 'completed_steps', 'clinician_defined', 'observation']).optional(),
+  "target": zod.number().min(updateCareTeamGoalResponseOneTargetMin).nullish(),
+  "milestones": zod.array(zod.string().max(updateCareTeamGoalResponseOneMilestonesItemMax)).max(updateCareTeamGoalResponseOneMilestonesMax).optional(),
+  "notes": zod.string().max(updateCareTeamGoalResponseOneNotesMax).optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "expectedVersion": zod.number().int().min(updateCareTeamGoalResponseOneExpectedVersionMin).optional()
+}).and(zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "version": zod.number().int(),
+  "source": zod.string().optional(),
+  "canEdit": zod.boolean().optional(),
+  "progress": zod.number().nullish(),
+  "linkedActivityIds": zod.array(zod.string()).optional()
+}))
+
+
+export const CreateCareTeamAssignmentParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const createCareTeamAssignmentBodyTitleMax = 180;
+
+export const createCareTeamAssignmentBodyDescriptionMax = 2000;
+
+export const createCareTeamAssignmentBodySkillMax = 120;
+
+export const createCareTeamAssignmentBodyEstimatedMinutesMax = 180;
+
+export const createCareTeamAssignmentBodyMaterialsMax = 2000;
+
+export const createCareTeamAssignmentBodyStepsItemMax = 2000;
+
+export const createCareTeamAssignmentBodyStepsMax = 40;
+
+export const createCareTeamAssignmentBodyWhyItMayHelpMax = 2000;
+
+export const createCareTeamAssignmentBodyIfDifficultMax = 2000;
+
+export const createCareTeamAssignmentBodyNotesMax = 4000;
+
+export const createCareTeamAssignmentBodyScheduleMax = 300;
+
+export const createCareTeamAssignmentBodyExpectedVersionMin = 0;
+
+
+
+export const CreateCareTeamAssignmentBody = zod.object({
+  "libraryId": zod.string().nullish(),
+  "goalId": zod.string().nullish(),
+  "title": zod.string().max(createCareTeamAssignmentBodyTitleMax).optional(),
+  "description": zod.string().max(createCareTeamAssignmentBodyDescriptionMax).optional(),
+  "skill": zod.string().max(createCareTeamAssignmentBodySkillMax).optional(),
+  "estimatedMinutes": zod.number().int().min(1).max(createCareTeamAssignmentBodyEstimatedMinutesMax).nullish(),
+  "materials": zod.string().max(createCareTeamAssignmentBodyMaterialsMax).optional(),
+  "steps": zod.array(zod.string().min(1).max(createCareTeamAssignmentBodyStepsItemMax)).max(createCareTeamAssignmentBodyStepsMax).optional(),
+  "whyItMayHelp": zod.string().max(createCareTeamAssignmentBodyWhyItMayHelpMax).optional(),
+  "ifDifficult": zod.string().max(createCareTeamAssignmentBodyIfDifficultMax).optional(),
+  "notes": zod.string().max(createCareTeamAssignmentBodyNotesMax).optional(),
+  "schedule": zod.string().max(createCareTeamAssignmentBodyScheduleMax).optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']).optional(),
+  "expectedVersion": zod.number().int().min(createCareTeamAssignmentBodyExpectedVersionMin).optional()
+})
+
+export const CreateCareTeamAssignmentResponse = zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "libraryId": zod.string().nullish(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "estimatedMinutes": zod.number().int().nullish(),
+  "materials": zod.string().optional(),
+  "steps": zod.array(zod.string()),
+  "whyItMayHelp": zod.string().optional(),
+  "ifDifficult": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "schedule": zod.string().optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "version": zod.number().int(),
+  "source": zod.string(),
+  "currentStep": zod.number().int().optional(),
+  "bookmarked": zod.boolean().optional()
+})
+
+
+export const UpdateCareTeamAssignmentParams = zod.object({
+  "childId": zod.coerce.string(),
+  "assignmentId": zod.coerce.string()
+})
+
+export const updateCareTeamAssignmentBodyTitleMax = 180;
+
+export const updateCareTeamAssignmentBodyDescriptionMax = 2000;
+
+export const updateCareTeamAssignmentBodySkillMax = 120;
+
+export const updateCareTeamAssignmentBodyEstimatedMinutesMax = 180;
+
+export const updateCareTeamAssignmentBodyMaterialsMax = 2000;
+
+export const updateCareTeamAssignmentBodyStepsItemMax = 2000;
+
+export const updateCareTeamAssignmentBodyStepsMax = 40;
+
+export const updateCareTeamAssignmentBodyWhyItMayHelpMax = 2000;
+
+export const updateCareTeamAssignmentBodyIfDifficultMax = 2000;
+
+export const updateCareTeamAssignmentBodyNotesMax = 4000;
+
+export const updateCareTeamAssignmentBodyScheduleMax = 300;
+
+export const updateCareTeamAssignmentBodyExpectedVersionMin = 0;
+
+
+
+export const UpdateCareTeamAssignmentBody = zod.object({
+  "libraryId": zod.string().nullish(),
+  "goalId": zod.string().nullish(),
+  "title": zod.string().max(updateCareTeamAssignmentBodyTitleMax).optional(),
+  "description": zod.string().max(updateCareTeamAssignmentBodyDescriptionMax).optional(),
+  "skill": zod.string().max(updateCareTeamAssignmentBodySkillMax).optional(),
+  "estimatedMinutes": zod.number().int().min(1).max(updateCareTeamAssignmentBodyEstimatedMinutesMax).nullish(),
+  "materials": zod.string().max(updateCareTeamAssignmentBodyMaterialsMax).optional(),
+  "steps": zod.array(zod.string().min(1).max(updateCareTeamAssignmentBodyStepsItemMax)).max(updateCareTeamAssignmentBodyStepsMax).optional(),
+  "whyItMayHelp": zod.string().max(updateCareTeamAssignmentBodyWhyItMayHelpMax).optional(),
+  "ifDifficult": zod.string().max(updateCareTeamAssignmentBodyIfDifficultMax).optional(),
+  "notes": zod.string().max(updateCareTeamAssignmentBodyNotesMax).optional(),
+  "schedule": zod.string().max(updateCareTeamAssignmentBodyScheduleMax).optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']).optional(),
+  "expectedVersion": zod.number().int().min(updateCareTeamAssignmentBodyExpectedVersionMin).optional()
+})
+
+export const UpdateCareTeamAssignmentResponse = zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "libraryId": zod.string().nullish(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "estimatedMinutes": zod.number().int().nullish(),
+  "materials": zod.string().optional(),
+  "steps": zod.array(zod.string()),
+  "whyItMayHelp": zod.string().optional(),
+  "ifDifficult": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "schedule": zod.string().optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "version": zod.number().int(),
+  "source": zod.string(),
+  "currentStep": zod.number().int().optional(),
+  "bookmarked": zod.boolean().optional()
+})
+
+
+export const GetParentCareTeamParams = zod.object({
+  "childId": zod.coerce.string()
+})
+
+export const getParentCareTeamResponseGoalsItemOneTitleMax = 180;
+
+export const getParentCareTeamResponseGoalsItemOneDescriptionMax = 4000;
+
+export const getParentCareTeamResponseGoalsItemOneSkillMax = 120;
+
+export const getParentCareTeamResponseGoalsItemOneTargetMin = 0;
+
+export const getParentCareTeamResponseGoalsItemOneMilestonesItemMax = 300;
+
+export const getParentCareTeamResponseGoalsItemOneMilestonesMax = 30;
+
+export const getParentCareTeamResponseGoalsItemOneNotesMax = 4000;
+
+export const getParentCareTeamResponseGoalsItemOneExpectedVersionMin = 0;
+
+
+
+export const GetParentCareTeamResponse = zod.object({
+  "goals": zod.array(zod.object({
+  "title": zod.string().min(1).max(getParentCareTeamResponseGoalsItemOneTitleMax),
+  "description": zod.string().min(1).max(getParentCareTeamResponseGoalsItemOneDescriptionMax),
+  "skill": zod.string().max(getParentCareTeamResponseGoalsItemOneSkillMax).optional(),
+  "measurement": zod.enum(['frequency', 'duration', 'percentage', 'completed_steps', 'clinician_defined', 'observation']).optional(),
+  "target": zod.number().min(getParentCareTeamResponseGoalsItemOneTargetMin).nullish(),
+  "milestones": zod.array(zod.string().max(getParentCareTeamResponseGoalsItemOneMilestonesItemMax)).max(getParentCareTeamResponseGoalsItemOneMilestonesMax).optional(),
+  "notes": zod.string().max(getParentCareTeamResponseGoalsItemOneNotesMax).optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "expectedVersion": zod.number().int().min(getParentCareTeamResponseGoalsItemOneExpectedVersionMin).optional()
+}).and(zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "version": zod.number().int(),
+  "source": zod.string().optional(),
+  "canEdit": zod.boolean().optional(),
+  "progress": zod.number().nullish(),
+  "linkedActivityIds": zod.array(zod.string()).optional()
+}))),
+  "assignments": zod.array(zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "libraryId": zod.string().nullish(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "estimatedMinutes": zod.number().int().nullish(),
+  "materials": zod.string().optional(),
+  "steps": zod.array(zod.string()),
+  "whyItMayHelp": zod.string().optional(),
+  "ifDifficult": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "schedule": zod.string().optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "version": zod.number().int(),
+  "source": zod.string(),
+  "currentStep": zod.number().int().optional(),
+  "bookmarked": zod.boolean().optional()
+})),
+  "recentPractice": zod.array(zod.object({
+  "id": zod.string(),
+  "assignmentId": zod.string(),
+  "childId": zod.string(),
+  "version": zod.number().int(),
+  "outcome": zod.string(),
+  "note": zod.string().nullish(),
+  "title": zod.string(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "steps": zod.array(zod.string()).optional()
+})),
+  "observations": zod.array(zod.object({
+  "id": zod.string(),
+  "createdAt": zod.string(),
+  "behavior": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "intensity": zod.string().nullish()
+}))
+})
+
+
+export const SaveCareTeamPracticeProgressParams = zod.object({
+  "childId": zod.coerce.string(),
+  "assignmentId": zod.coerce.string()
+})
+
+
+export const saveCareTeamPracticeProgressBodyCurrentStepMin = 0;
+export const saveCareTeamPracticeProgressBodyCurrentStepMax = 40;
+
+
+
+export const SaveCareTeamPracticeProgressBody = zod.object({
+  "version": zod.number().int().min(1),
+  "currentStep": zod.number().int().min(saveCareTeamPracticeProgressBodyCurrentStepMin).max(saveCareTeamPracticeProgressBodyCurrentStepMax),
+  "bookmarked": zod.boolean()
+})
+
+export const SaveCareTeamPracticeProgressResponse = zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "libraryId": zod.string().nullish(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "estimatedMinutes": zod.number().int().nullish(),
+  "materials": zod.string().optional(),
+  "steps": zod.array(zod.string()),
+  "whyItMayHelp": zod.string().optional(),
+  "ifDifficult": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "schedule": zod.string().optional(),
+  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "version": zod.number().int(),
+  "source": zod.string(),
+  "currentStep": zod.number().int().optional(),
+  "bookmarked": zod.boolean().optional()
+})
+
+
+export const RecordCareTeamPracticeParams = zod.object({
+  "childId": zod.coerce.string(),
+  "assignmentId": zod.coerce.string()
+})
+
+
+export const recordCareTeamPracticeBodyNoteMax = 4000;
+
+export const recordCareTeamPracticeBodyRequestIdMin = 8;
+export const recordCareTeamPracticeBodyRequestIdMax = 100;
+
+
+
+export const RecordCareTeamPracticeBody = zod.object({
+  "version": zod.number().int().min(1),
+  "outcome": zod.enum(['tried', 'needed_support', 'not_tried']),
+  "note": zod.string().max(recordCareTeamPracticeBodyNoteMax).optional(),
+  "requestId": zod.string().min(recordCareTeamPracticeBodyRequestIdMin).max(recordCareTeamPracticeBodyRequestIdMax)
+})
+
+export const RecordCareTeamPracticeResponse = zod.object({
+  "id": zod.string(),
+  "assignmentId": zod.string(),
+  "childId": zod.string(),
+  "version": zod.number().int(),
+  "outcome": zod.string(),
+  "note": zod.string().nullish(),
+  "title": zod.string(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "steps": zod.array(zod.string()).optional()
+})
+
+
 export const GetParentGoalsParams = zod.object({
   "childId": zod.coerce.string()
 })

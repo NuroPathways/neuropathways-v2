@@ -17,6 +17,137 @@ tags:
   - name: clinic-link
     description: Parent and clinician linking operations
 paths:
+  /care-team/activity-library:
+    get:
+      operationId: getCareTeamActivityLibrary
+      responses:
+        "200":
+          description: Existing versioned library
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/CareActivity" } }
+  /clinician/children/{childId}/goals-activities:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getClinicianGoalsActivities
+      responses:
+        "200":
+          description: Authorized workspace
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareTeamWorkspace" }
+  /clinician/children/{childId}/care-goals:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: createCareTeamGoal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CareGoalInput" }
+      responses:
+        "201":
+          description: Goal saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareGoal" }
+  /clinician/children/{childId}/care-goals/{goalId}:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+      - { name: goalId, in: path, required: true, schema: { type: string } }
+    patch:
+      operationId: updateCareTeamGoal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CareGoalInput" }
+      responses:
+        "200":
+          description: Goal saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareGoal" }
+  /clinician/children/{childId}/assignments:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: createCareTeamAssignment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CareAssignmentInput" }
+      responses:
+        "201":
+          description: Assignment saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareActivity" }
+  /clinician/children/{childId}/assignments/{assignmentId}:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+      - { name: assignmentId, in: path, required: true, schema: { type: string } }
+    patch:
+      operationId: updateCareTeamAssignment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CareAssignmentInput" }
+      responses:
+        "200":
+          description: Assignment saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareActivity" }
+  /parent/children/{childId}/care-team:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getParentCareTeam
+      responses:
+        "200":
+          description: Published assignments/goals and own practice history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareTeamWorkspace" }
+  /parent/children/{childId}/assignments/{assignmentId}/progress:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+      - { name: assignmentId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: saveCareTeamPracticeProgress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CarePracticeProgressInput" }
+      responses:
+        "200":
+          description: Saved progress
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareActivity" }
+  /parent/children/{childId}/assignments/{assignmentId}/feedback:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+      - { name: assignmentId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: recordCareTeamPractice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CarePracticeInput" }
+      responses:
+        "201":
+          description: Descriptive feedback, never clinical mastery
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CarePractice" }
   /parent/children/{childId}/goals:
     parameters:
       - { name: childId, in: path, required: true, schema: { type: string } }
@@ -918,6 +1049,123 @@ components:
       in: cookie
       name: sid
   schemas:
+    CareStatus:
+      type: string
+      enum: [draft, published, paused, archived]
+    CareGoalInput:
+      type: object
+      required: [title, description]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 180 }
+        description: { type: string, minLength: 1, maxLength: 4000 }
+        skill: { type: string, maxLength: 120 }
+        measurement: { type: string, enum: [frequency, duration, percentage, completed_steps, clinician_defined, observation] }
+        target: { type: [number, "null"], minimum: 0 }
+        milestones: { type: array, maxItems: 30, items: { type: string, maxLength: 300 } }
+        notes: { type: string, maxLength: 4000 }
+        status: { $ref: "#/components/schemas/CareStatus" }
+        expectedVersion: { type: integer, minimum: 0 }
+    CareGoal:
+      allOf:
+        - { $ref: "#/components/schemas/CareGoalInput" }
+        - type: object
+          required: [id, childId, version, status]
+          properties:
+            id: { type: string }
+            childId: { type: string }
+            version: { type: integer }
+            source: { type: string }
+            canEdit: { type: boolean }
+            progress: { type: [number, "null"] }
+            linkedActivityIds: { type: array, items: { type: string } }
+    CareAssignmentInput:
+      type: object
+      properties:
+        libraryId: { type: [string, "null"] }
+        goalId: { type: [string, "null"] }
+        title: { type: string, maxLength: 180 }
+        description: { type: string, maxLength: 2000 }
+        skill: { type: string, maxLength: 120 }
+        estimatedMinutes: { type: [integer, "null"], minimum: 1, maximum: 180 }
+        materials: { type: string, maxLength: 2000 }
+        steps: { type: array, maxItems: 40, items: { type: string, minLength: 1, maxLength: 2000 } }
+        whyItMayHelp: { type: string, maxLength: 2000 }
+        ifDifficult: { type: string, maxLength: 2000 }
+        notes: { type: string, maxLength: 4000 }
+        schedule: { type: string, maxLength: 300 }
+        status: { $ref: "#/components/schemas/CareStatus" }
+        expectedVersion: { type: integer, minimum: 0 }
+    CareActivity:
+      type: object
+      required: [id, childId, title, description, skill, steps, status, version, source]
+      properties:
+        id: { type: string }
+        childId: { type: string }
+        libraryId: { type: [string, "null"] }
+        goalId: { type: [string, "null"] }
+        goalTitle: { type: [string, "null"] }
+        title: { type: string }
+        description: { type: string }
+        skill: { type: string }
+        estimatedMinutes: { type: [integer, "null"] }
+        materials: { type: string }
+        steps: { type: array, items: { type: string } }
+        whyItMayHelp: { type: string }
+        ifDifficult: { type: string }
+        notes: { type: string }
+        schedule: { type: string }
+        status: { $ref: "#/components/schemas/CareStatus" }
+        version: { type: integer }
+        source: { type: string }
+        currentStep: { type: integer }
+        bookmarked: { type: boolean }
+    CarePracticeProgressInput:
+      type: object
+      required: [version, currentStep, bookmarked]
+      properties:
+        version: { type: integer, minimum: 1 }
+        currentStep: { type: integer, minimum: 0, maximum: 40 }
+        bookmarked: { type: boolean }
+    CarePracticeInput:
+      type: object
+      required: [version, outcome, requestId]
+      properties:
+        version: { type: integer, minimum: 1 }
+        outcome: { type: string, enum: [tried, needed_support, not_tried] }
+        note: { type: string, maxLength: 4000 }
+        requestId: { type: string, minLength: 8, maxLength: 100 }
+    CarePractice:
+      type: object
+      required: [id, assignmentId, childId, version, outcome, createdAt, title]
+      properties:
+        id: { type: string }
+        assignmentId: { type: string }
+        childId: { type: string }
+        version: { type: integer }
+        outcome: { type: string }
+        note: { type: [string, "null"] }
+        title: { type: string }
+        goalId: { type: [string, "null"] }
+        goalTitle: { type: [string, "null"] }
+        createdAt: { type: string }
+        steps: { type: array, items: { type: string } }
+    CareObservation:
+      type: object
+      required: [id, createdAt]
+      properties:
+        id: { type: string }
+        createdAt: { type: string }
+        behavior: { type: [string, "null"] }
+        notes: { type: [string, "null"] }
+        intensity: { type: [string, "null"] }
+    CareTeamWorkspace:
+      type: object
+      required: [goals, assignments, recentPractice, observations]
+      properties:
+        goals: { type: array, items: { $ref: "#/components/schemas/CareGoal" } }
+        assignments: { type: array, items: { $ref: "#/components/schemas/CareActivity" } }
+        recentPractice: { type: array, items: { $ref: "#/components/schemas/CarePractice" } }
+        observations: { type: array, items: { $ref: "#/components/schemas/CareObservation" } }
     ParentGoal:
       type: object
       properties:

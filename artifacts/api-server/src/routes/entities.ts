@@ -350,6 +350,11 @@ function makeCrud(path: string, table: any) {
   router.post(path, requireAuth, async (req: any, res) => {
     try {
       const data = bodyToCamel(req.body);
+      if (table === rewardTokensTable &&
+        (data.source === "care_team" || ["publicationStatus", "goalDetails", "goalVersion", "goalVersions"].some(k => k in data))) {
+        res.status(409).json({ error: "Use Goals & Activities to manage published clinical goals." });
+        return;
+      }
       // Inject clinicianId and tenantId on create
       if (table.clinicianId) data.clinicianId = req.user.id;
       if (table.tenantId) data.tenantId = req.user.id; // tenantId = clinicianId until multi-clinic
@@ -395,6 +400,10 @@ function makeCrud(path: string, table: any) {
         return res.status(403).json({ error: "Only the parent can edit a parent-owned document." });
       }
       const update = bodyToCamel(req.body);
+      if (table === rewardTokensTable && (existing.source === "care_team" ||
+        ["publicationStatus", "goalDetails", "goalVersion", "goalVersions"].some(k => k in update))) {
+        return res.status(409).json({ error: "Use Goals & Activities to preserve clinical publication history." });
+      }
       if (table === childrenTable && await isParentOwnedChild(req.params.id)) {
         const ownershipFields = ["parentId", "tenantId", "clinicianId", "familyId", "createdBy"];
         if (ownershipFields.some(key => key in update && update[key] !== existing[key])) {
@@ -438,6 +447,9 @@ function makeCrud(path: string, table: any) {
     try {
       const [existing] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!existing) return res.status(404).json({ error: "Not found" });
+      if (table === rewardTokensTable && existing.source === "care_team") {
+        return res.status(409).json({ error: "Archive this goal in Goals & Activities; its history must be preserved." });
+      }
       if (table.clinicianId && existing.clinicianId !== req.user.id) {
         return res.status(403).json({ error: "Access denied" });
       }
@@ -722,7 +734,9 @@ router.post("/client-portal-data", async (req, res) => {
       : (child ? [child] : []);
 
     const visibleDocuments = await legacyVisibleDocuments(documents, clinicianId);
-    return res.json(stripSensitive(serialize({ child: child ?? null, siblings, plans, documents: visibleDocuments, interventionPlans, profile, goals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs, messages })));
+    const visibleGoals = goals.filter(g => !g.createdByClinician || (g.publicationStatus === "published" && g.clinicianId === clinicianId))
+      .map(({ goalVersions: _versions, ...goal }) => goal);
+    return res.json(stripSensitive(serialize({ child: child ?? null, siblings, plans, documents: visibleDocuments, interventionPlans, profile, goals: visibleGoals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs, messages })));
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }
@@ -1144,13 +1158,12 @@ router.post("/build-client-profile", async (req: any, res) => {
 
     // If no documents, save a placeholder profile so the UI can show a clear message
     if (allScannableDocs.length === 0) {
-      const stub = { childId: child_id, clinicianId, tenantId: clinicianId ?? existingProfile?.tenantId ?? null, behaviors: [], goals: [], diagnoses: diagnosis ? [diagnosis] : [], objectives: [], safetyProcedures: [], sourceDocIds: [] };
-      let profile;
-      if (existingProfile) {
-        [profile] = await db.update(clientProfilesTable).set(stub).where(eq(clientProfilesTable.id, existingProfile.id)).returning();
-      } else {
-        [profile] = await db.insert(clientProfilesTable).values(stub).returning();
-      }
+      if (existingProfile) return res.json(serialize({
+        profile: existingProfile, scanned: [], failed: [],
+        warnings: ["No readable documents are available. Previously extracted information has been preserved."],
+      }));
+      const stub = { childId: child_id, clinicianId, tenantId: clinicianId ?? null, behaviors: [], goals: [], diagnoses: diagnosis ? [diagnosis] : [], objectives: [], safetyProcedures: [], sourceDocIds: [] };
+      const [profile] = await db.insert(clientProfilesTable).values(stub).returning();
       console.info(`[NeuroPath] buildClientProfile: no documents for child=${child_id}, saved empty profile`);
       return res.json(serialize({ profile, warnings: ["No documents were available to scan yet."] }));
     }
@@ -1242,6 +1255,12 @@ router.post("/build-client-profile", async (req: any, res) => {
     if (includedDocIds.length === 0) {
       const detail = failedDocs.map(f => f.reason).find(Boolean) || "The documents could not be read.";
       return fail(422, "no_readable_content", `Couldn't read any of the client's documents. ${detail}`);
+    }
+    if (failedDocs.length > 0 && existingProfile) {
+      return res.status(422).json({
+        error: { code: "partial_scan_failed", message: `Some documents could not be read. ${failedDocs[0].reason} Previously extracted information has been preserved.` },
+        failed: failedDocs,
+      });
     }
 
     // Instruct Claude to record the profile via the structured tool below.
@@ -1413,11 +1432,8 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       const goalKey = (title: string) => title.normalize("NFKC").toLowerCase().trim().replace(/\s+/g, " ");
       const extractedTitles = new Set(extractedGoals.map(g => goalKey(g.title)));
 
-      for (const g of existingDocGoals) {
-        if (!extractedTitles.has(goalKey(g.goalTitle || ""))) {
-          await db.delete(rewardTokensTable).where(eq(rewardTokensTable.id, g.id)).catch(() => {});
-        }
-      }
+      // A retry is not authority to delete a child's goals or their history.
+      // Keep previously extracted goals even if a newer reading omits them.
 
       const toInsert = extractedGoals
         .filter(g => !existingDocGoals.some(existing => goalKey(existing.goalTitle || "") === goalKey(g.title)))
@@ -1594,9 +1610,7 @@ router.post("/manage-client-goal", async (req: any, res) => {
   const clientMayAccessChild = async (targetChildId: string | null | undefined) => {
     if (!authChildId || !targetChildId) return false;
     if (authChildId === targetChildId) return true;
-    const [a] = await db.select().from(childrenTable).where(eq(childrenTable.id, authChildId));
-    const [b] = await db.select().from(childrenTable).where(eq(childrenTable.id, targetChildId));
-    return !!a?.familyId && a.familyId === b?.familyId;
+    return sessionMayAccessChild(authChildId, targetChildId);
   };
 
   const clinicianMayAccessChild = async (targetChildId: string | null | undefined) => {
@@ -1610,7 +1624,7 @@ router.post("/manage-client-goal", async (req: any, res) => {
     if (clinicianId) {
       return row.clinicianId === clinicianId && await clinicianMayAccessChild(row.childId);
     }
-    return clientMayAccessChild(row.childId);
+    return !row.createdByClinician && row.source === "manual" && row.parentId === authChildId && clientMayAccessChild(row.childId);
   };
 
   try {
@@ -1626,10 +1640,14 @@ router.post("/manage-client-goal", async (req: any, res) => {
         }
         const values: any = { ...bodyToCamel(data || {}), childId: targetChildId };
         delete values.id;
+        for (const key of ["publicationStatus", "goalDetails", "goalVersion", "goalVersions"]) delete values[key];
+        if (values.source === "care_team") return res.status(409).json({ error: "Use Goals & Activities for clinician assignments." });
         if (clinicianId) {
           values.clinicianId = clinicianId;
           values.tenantId = clinicianId;
         } else {
+          values.createdByClinician = false;
+          values.source = "manual";
           values.parentId = authChildId;
           // Inherit the child's clinician/tenant so parent-created goals also show
           // up in the clinician's goals list (makeCrud filters by clinicianId).
@@ -1645,9 +1663,11 @@ router.post("/manage-client-goal", async (req: any, res) => {
         const [existing] = await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.id, entityId));
         if (!existing) return res.status(404).json({ error: "Not found" });
         if (!(await canAccessRow(existing))) return res.status(403).json({ error: "Access denied" });
+        if (existing.source === "care_team") return res.status(409).json({ error: "Use Goals & Activities to edit this goal." });
         const patch = bodyToCamel(data || {});
         // Never allow ownership/identity fields to be reassigned via the request body.
         delete patch.id; delete patch.childId; delete patch.clinicianId; delete patch.tenantId; delete patch.parentId;
+        for (const key of ["publicationStatus", "goalDetails", "goalVersion", "goalVersions", "source", "createdByClinician"]) delete patch[key];
         const [goal] = await db.update(rewardTokensTable)
           .set(patch)
           .where(eq(rewardTokensTable.id, entityId))
@@ -1659,6 +1679,7 @@ router.post("/manage-client-goal", async (req: any, res) => {
         const [existing] = await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.id, entityId));
         if (!existing) return res.status(404).json({ error: "Not found" });
         if (!(await canAccessRow(existing))) return res.status(403).json({ error: "Access denied" });
+        if (existing.source === "care_team") return res.status(409).json({ error: "Archive this goal in Goals & Activities." });
         await db.delete(rewardTokensTable).where(eq(rewardTokensTable.id, entityId));
         return res.json({ ok: true });
       }

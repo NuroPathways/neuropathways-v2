@@ -262,3 +262,9 @@
 @media (min-width: 768px) { .np-nav-shell .np-ai-chat { height: calc(100dvh - 62px); min-height: 480px; } }
 .dark .pf { --pf-warn: hsl(var(--destructive) / .12); }
 .dark .pf-tag.warn,.dark .pf-error,.dark .pf-daily-review-note { color: hsl(var(--destructive)); }
+
+/* Contrast: hero copy always uses the theme's ink on light surfaces. */
+.pf-hero .pf-hero-sub { color: hsl(var(--muted-foreground)); }
+.pf-hero .pf-hero-child { color: hsl(var(--muted-foreground)); }
+.np-legacy .pf-hero, .np-legacy .pf-hero h1, .np-legacy .pf-hero p { color: hsl(var(--foreground)); }
+.np-legacy .pf-hero .pf-hero-sub, .np-legacy .pf-hero .pf-hero-child { color: hsl(var(--muted-foreground)); }

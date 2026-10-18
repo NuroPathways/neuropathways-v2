@@ -98,3 +98,31 @@ mtime_ms = 1792265082731
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/b738b5fe-0402-40a9-b7dd-c70fd6322760/3755ed6c-bc23-4da3-9441-b807a67816c0"
 storage_version_token = "1792265083244059"
 content_type = "text/html"
+
+[[outputs]]
+id = "3zw0MT-0rXtcQWJNvoxEz"
+uri = "file://generated-artifacts/neuropathways-ui-refinement-report.html"
+type = "html"
+title = "NeuroPathways — Full implementation report"
+description = "19 sections covering all changed files, connected workflows, migrations, tests, 13 screenshot references, and remaining limitations."
+logical_id = "e3ba7d56-05e4-49cd-8dca-24fbc30b235c"
+content_hash = "sha256:27c6f5dbe069b7dc4ec8c7c335642c656cbd300074cfda47195f8bd63fc1340b"
+size = 28964
+mtime_ms = 1792285542803
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/e3ba7d56-05e4-49cd-8dca-24fbc30b235c/34689aec-4cd7-4041-a754-10dffd2bbfe4"
+storage_version_token = "1792285576200183"
+content_type = "text/html"
+
+[[outputs]]
+id = "3xWS1SpuG24NX60fvUxd6"
+uri = "file://generated-artifacts/neuropathways-pre-refinement-recovery.tar.gz"
+type = "unspecified"
+title = "NeuroPathways — Pre-change recovery backup"
+description = "Verified complete Git history bundle, original working-tree patch, untracked-file backup, and starting commit reference."
+logical_id = "868a0842-a824-43c2-95db-62471c2e6336"
+content_hash = "sha256:eb7e33aa7117a21b28ec8cd1b94222a6114ac982a572270d6b186b32a7cd6606"
+size = 10894516
+mtime_ms = 1792285496782
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/868a0842-a824-43c2-95db-62471c2e6336/8734e5c5-c644-4531-ad74-29be9c0e851c"
+storage_version_token = "1792285576882799"
+content_type = "application/octet-stream"

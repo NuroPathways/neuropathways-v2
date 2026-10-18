@@ -8,3 +8,11 @@ Activity position and saved-for-later state belong to a specific parent-child pa
 **Why:** Families need activity progress to resume across days and across web/mobile, while one parent's private notes and bookmarks must not leak to another caregiver or child.
 
 **How to apply:** When changing activity generation, IDs, or parent dashboards, preserve stable activity keys and scope progress reads/writes by both parent and child. Keep reflection records separate from resume state and clinical mastery.
+
+## Assigned instructions and history
+
+Published clinician assignments and parent feedback must retain the exact instruction version used. Referenced starter-library versions must remain available when that library evolves; never silently resolve historical references to newer text.
+
+**Why:** The connected clinician-parent workflow requires historical feedback to describe what the parent actually practiced, even after edits, pause, or archive.
+
+**How to apply:** Freeze displayed instructions and version when a guide opens. Reject stale current-progress writes rather than relabeling old instructions. Preserve immutable published snapshots, and associate retries with the same feedback request identity to avoid duplicate observations.

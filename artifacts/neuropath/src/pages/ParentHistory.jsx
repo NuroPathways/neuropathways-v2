@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useGetParentDashboard, getGetParentDashboardQueryKey, useGetParentFamilyTools, getGetParentFamilyToolsQueryKey } from "@workspace/api-client-react";
+import { useGetParentDashboard, getGetParentDashboardQueryKey, useGetParentFamilyTools, getGetParentFamilyToolsQueryKey, useGetParentCareTeam, getGetParentCareTeamQueryKey } from "@workspace/api-client-react";
+import { CARE_OUTCOME_LABELS } from "@/lib/careTeam";
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import { useSelectedChild } from "@/components/parentfree/useParent";
@@ -28,6 +29,14 @@ export default function ParentHistory() {
     query: { queryKey: getGetParentDashboardQueryKey(allowedChild?.id || ""), enabled: isFree && !!allowedChild?.id },
     request: parentRequestOptions,
   });
+  // Same normalized care-team query for direct parents and legacy family sessions (parentRequest bridges scope).
+  const [legacyChildId, setLegacyChildId] = useState("");
+  const careChildId = String((isFree ? allowedChild?.id : legacyChildId) || "");
+  const careQuery = useGetParentCareTeam(careChildId, {
+    query: { queryKey: getGetParentCareTeamQueryKey(careChildId), enabled: !!careChildId, retry: 1, staleTime: 30_000 },
+    request: parentRequestOptions,
+  });
+  const carePractice = careQuery.data?.recentPractice || [];
   const toolsQuery = useGetParentFamilyTools(String(allowedChild?.id || ""), {
     query: { queryKey: getGetParentFamilyToolsQueryKey(String(allowedChild?.id || "")), enabled: isFree && !!allowedChild?.id, retry: false },
     request: parentRequestOptions,
@@ -47,6 +56,7 @@ export default function ParentHistory() {
           user.email ? base44.entities.Child.filter({ parent_email: user.email }).catch(() => []) : Promise.resolve([]),
         ]).then(([byId, byEmail]) => [...new Map([...byId, ...byEmail].map((child) => [child.id, child])).values()]);
         const childId = children.find((child) => String(child.id) === params.get("child_id"))?.id || children[0]?.id;
+        if (!cancelled) setLegacyChildId(childId ? String(childId) : "");
         if (!childId) { if (!cancelled) setLegacyLogs([]); return; }
         const [rows, events] = await Promise.all([
           base44.entities.BehaviorLog.filter({ child_id: childId }).catch(() => []),
@@ -70,10 +80,11 @@ export default function ParentHistory() {
   const timeline = useMemo(() => [
     ...logs.map((log) => ({ kind: "behavior", at: log.createdAt || log.created_date, id: `log-${log.id}`, log })),
     ...actions.flatMap((action) => (action.logs || []).map((event) => ({ kind: "activity", at: event.createdAt, id: `action-${action.id}-${event.id}`, action, event }))),
+    ...carePractice.map((record) => ({ kind: "care", at: record.createdAt, id: `care-${record.id}`, record })),
     ...routineRuns.map((run) => ({ kind: "routine", at: run.updatedAt || run.createdAt, id: `routine-${run.id}`, run, routine: routines.find((r) => r.id === run.routineId) })),
     ...(!isFree ? legacyEvents.map((event) => ({ kind: "information", at: event.created_date || event.createdAt, id: `event-${event.id}`, event })) : []),
   ].filter((item, index, all) => all.findIndex((other) => other.id === item.id) === index)
-    .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0)), [logs, actions, isFree, legacyEvents, routineRuns, routines]);
+    .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0)), [logs, actions, isFree, legacyEvents, routineRuns, routines, carePractice]);
 
   return (
     <main className="np-parent-history">
@@ -93,6 +104,14 @@ export default function ParentHistory() {
                <span className="np-history-symbol"><Activity size={17} /></span><div><span className="np-history-kind">Practice activity</span><h2>{item.action.title}</h2><p>{item.event.outcome || item.event.rating || item.event.eventType || "Activity updated"}</p>
                  {isFree && allowedChild?.id && <a data-testid={`link-practice-history-${item.action.id}`} href={`/ParentHome?tab=practice&activity_id=${encodeURIComponent(item.action.id)}&child_id=${encodeURIComponent(allowedChild.id)}`}>Open this activity</a>}
                </div><time><DateLabel value={item.at} /></time>
+            </article>
+          ) : item.kind === "care" ? (
+            <article className="np-history-row activity" key={item.id} data-testid={`history-care-${item.record.id}`}>
+              <span className="np-history-symbol"><Activity size={17} /></span><div><span className="np-history-kind">Care team activity</span><h2>{item.record.title}</h2>
+                <p>{CARE_OUTCOME_LABELS[item.record.outcome] || "Practice recorded"}{item.record.note ? ` · ${item.record.note}` : ""}</p>
+                {item.record.goalTitle && <p>Related goal: {item.record.goalTitle}</p>}
+                {careChildId && <a data-testid={`link-care-history-${item.record.id}`} href={`/ParentHome?tab=practice&assignment_id=${encodeURIComponent(item.record.assignmentId)}&child_id=${encodeURIComponent(careChildId)}`}>Open this activity</a>}
+              </div><time><DateLabel value={item.at} /></time>
             </article>
           ) : item.kind === "routine" ? (
             <article className="np-history-row activity" key={item.id} data-testid={`history-routine-${item.run.id}`}>

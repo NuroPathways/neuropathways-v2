@@ -495,7 +495,7 @@ export async function getParentDashboardData(parentId: string, childId: string, 
   const manualGoals = await db.select().from(rewardTokensTable).where(and(
     eq(rewardTokensTable.childId, childId), eq(rewardTokensTable.source, "manual"),
     or(and(inArray(rewardTokensTable.parentId, goalOwners), eq(rewardTokensTable.createdByClinician, false)),
-      owned.clinicianId ? and(eq(rewardTokensTable.createdByClinician, true), eq(rewardTokensTable.clinicianId, owned.clinicianId)) : undefined),
+      owned.clinicianId ? and(eq(rewardTokensTable.createdByClinician, true), eq(rewardTokensTable.clinicianId, owned.clinicianId), eq(rewardTokensTable.publicationStatus, "published")) : undefined),
   ));
   const activityGoals = [...planGoals, ...manualGoals.map(g => ({
     id: g.id, title: g.goalTitle || g.goalName || "Practice goal", description: g.goalDescription || "",

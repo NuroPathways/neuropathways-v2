@@ -27,6 +27,19 @@ function parseErrorMessage(err) {
   return raw.replace(/^API error \d+:\s*/, "").trim() || "Scan failed";
 }
 
+// Maps raw scanner errors to a plain-language reason. `retryable` is false for
+// problems a retry cannot fix (unsupported format), so we never offer an endless loop.
+export function describeScanError(message) {
+  const raw = String(message || "").trim();
+  const text = raw.toLowerCase();
+  if (/unsupported|not supported|mime|file type|format/.test(text)) return { reason: "Unsupported file format.", retryable: false, detail: raw };
+  if (/corrupt|damaged|malformed|invalid pdf|truncated/.test(text)) return { reason: "File may be damaged.", retryable: true, detail: raw };
+  if (/no (readable )?text|empty|no content|blank/.test(text)) return { reason: "No readable text found.", retryable: true, detail: raw };
+  if (/timeout|timed out|unavailable|503|502|429|rate limit|network|fetch failed|econn/.test(text)) return { reason: "Processing service temporarily unavailable.", retryable: true, detail: raw };
+  if (/session expired|sign in/.test(text)) return { reason: raw, retryable: true, detail: raw };
+  return { reason: "Document could not be read.", retryable: true, detail: raw && raw.toLowerCase() !== "failed" ? raw : "" };
+}
+
 export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned }) {
   const initialScanStatus = scanStatus(doc);
   const initial = initialScanStatus === "done" || initialScanStatus === "scanned" || initialScanStatus === "complete" || initialScanStatus === "completed" || initialScanStatus === "ready"
@@ -38,6 +51,7 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned
         : "pending";
   const [status, setStatus] = useState(initial);
   const [errorMsg, setErrorMsg] = useState(initial === "error" ? (scanError(doc) || "Failed") : "");
+  const [showError, setShowError] = useState(false);
 
   useEffect(() => {
     if (status === "scanning") return;
@@ -84,39 +98,61 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned
 
   if (status === "scanning") {
     return (
-      <span className="flex items-center gap-1 text-xs text-primary font-medium">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Scanning...
+      <span className="flex items-center gap-1 text-xs text-primary font-medium" role="status" data-testid={`status-doc-scan-${doc.id}`}>
+        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Processing
       </span>
     );
   }
 
-  const label = status === "done" ? "Re-scan" : status === "error" ? "Retry" : "Scan";
+  const failure = status === "error" ? describeScanError(errorMsg) : null;
+  const label = status === "done" ? "Re-scan" : status === "error" ? "Retry Scan" : "Scan";
   const Icon = status === "pending" ? Sparkles : RefreshCw;
+  const showButton = status !== "error" || failure?.retryable;
 
   return (
-    <div className="flex items-center gap-2">
-      {status === "done" && (
-        <span className="hidden sm:flex items-center gap-1 text-xs text-green-600 font-medium">
-          <CheckCircle2 className="w-3.5 h-3.5" /> Synced
-        </span>
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-2 flex-wrap justify-end">
+        {status === "done" && (
+          <span className="flex items-center gap-1 text-xs text-green-700 font-medium" data-testid={`status-doc-scan-${doc.id}`}>
+            <CheckCircle2 className="w-3.5 h-3.5" /> Ready
+          </span>
+        )}
+        {status === "pending" && (
+          <span className="text-xs text-muted-foreground font-medium" data-testid={`status-doc-scan-${doc.id}`}>Needs Review</span>
+        )}
+        {status === "error" && (
+          <span className="flex items-center gap-1 text-xs text-destructive font-medium" data-testid={`status-doc-scan-${doc.id}`}>
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> Failed
+          </span>
+        )}
+        {status === "error" && (
+          <button type="button" onClick={() => setShowError(v => !v)} aria-expanded={showError}
+            className="text-xs font-medium px-2 py-1 rounded-lg border border-border text-foreground hover:border-primary transition-colors"
+            data-testid={`button-view-scan-error-${doc.id}`}>
+            {showError ? "Hide Error" : "View Error"}
+          </button>
+        )}
+        {showButton && (
+          <button
+            type="button"
+            onClick={runScan}
+            title={status === "done" ? "Re-scan document with AI" : status === "error" ? "Retry scan" : "Scan document with AI"}
+            className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg border border-border hover:border-primary hover:text-primary text-foreground transition-colors"
+            data-testid={`button-scan-doc-${doc.id}`}
+          >
+            <Icon className="w-3 h-3" />
+            {label}
+          </button>
+        )}
+      </div>
+      {status === "error" && showError && (
+        <div role="alert" className="max-w-[18rem] text-right text-xs text-foreground" data-testid={`text-scan-error-${doc.id}`}>
+          <p className="font-semibold">{failure.reason}</p>
+          {failure.detail && failure.detail !== failure.reason && <p className="text-muted-foreground break-words">{failure.detail}</p>}
+          {!failure.retryable && <p className="text-muted-foreground">Upload the document again as a PDF, Word file, or image to scan it.</p>}
+          <p className="text-muted-foreground">Previously extracted information is kept.</p>
+        </div>
       )}
-      {status === "error" && (
-        <span
-          className="flex items-center gap-1 text-xs text-destructive font-medium max-w-[14rem]"
-          title={errorMsg}
-        >
-          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="truncate">{errorMsg || "Failed"}</span>
-        </span>
-      )}
-      <button
-        onClick={runScan}
-        title={status === "done" ? "Re-scan document with AI" : status === "error" ? "Retry scan" : "Scan document with AI"}
-        className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg border border-border hover:border-primary hover:text-primary text-muted-foreground transition-colors"
-      >
-        <Icon className="w-3 h-3" />
-        {label}
-      </button>
     </div>
   );
 }

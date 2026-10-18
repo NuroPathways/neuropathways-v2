@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
-import { ArrowLeft, Upload, FileText, Trash2, Loader2, Sparkles, CheckCircle2, X, Plus, RefreshCw } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Trash2, Loader2, CheckCircle2, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
+import DocScanButton from "@/components/clinician/DocScanButton";
 
 // Rebuilds the child's full ClientProfile from their documents (the reliable, single source of truth
 // used by Help Now). Returns the backend result or throws on failure.
@@ -50,6 +51,7 @@ export default function ClinicianDocuments() {
   const [childId, setChildId] = useState("");
   const [uploading, setUploading] = useState(false);
   const [scanStatus, setScanStatus] = useState({});
+  const [scanErrors, setScanErrors] = useState({});
 
   useEffect(() => {
     const load = async () => {
@@ -119,7 +121,8 @@ export default function ClinicianDocuments() {
             setScanStatus(s => ({ ...s, [doc.id]: "done" }));
             setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, scan_status: "done" } : d));
             base44.entities.Document.update(doc.id, { scan_status: "done" }).catch(() => {});
-          }).catch(() => {
+          }).catch((e) => {
+            setScanErrors(s => ({ ...s, [doc.id]: e?.message || "" }));
             setScanStatus(s => ({ ...s, [doc.id]: "error" }));
           });
         }
@@ -139,19 +142,6 @@ export default function ClinicianDocuments() {
   const handleDelete = async (docId) => {
     await base44.entities.Document.delete(docId).catch(() => {});
     setDocuments(prev => prev.filter(d => d.id !== docId));
-  };
-
-  const manualScan = async (doc) => {
-    if (!clinicianId) return;
-    setScanStatus(s => ({ ...s, [doc.id]: "scanning" }));
-    try {
-      await rebuildProfile(doc.child_id);
-      setScanStatus(s => ({ ...s, [doc.id]: "done" }));
-      setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, scan_status: "done" } : d));
-      base44.entities.Document.update(doc.id, { scan_status: "done" }).catch(() => {});
-    } catch {
-      setScanStatus(s => ({ ...s, [doc.id]: "error" }));
-    }
   };
 
   const childMap = Object.fromEntries(children.map(c => [c.id, c.child_name]));
@@ -326,29 +316,8 @@ export default function ClinicianDocuments() {
                               <p className="text-xs text-muted-foreground">{doc.category && doc.category.replace(/_/g, " ")}</p>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              {docStatus === "scanning" && (
-                                <span className="flex items-center gap-1 text-xs text-primary font-medium">
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Scanning...
-                                </span>
-                              )}
-                              {docStatus === "done" && (
-                                <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> Synced
-                                </span>
-                              )}
-                              {docStatus === "error" && (
-                                <span className="text-xs text-destructive font-medium">Scan failed</span>
-                              )}
-                              {docStatus !== "scanning" && (
-                                <button
-                                  onClick={() => manualScan(doc)}
-                                  title={docStatus === "done" ? "Re-scan document" : "Scan document"}
-                                  className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg border border-border hover:border-primary hover:text-primary text-muted-foreground transition-colors"
-                                >
-                                  {docStatus === "done" ? <RefreshCw className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
-                                  {docStatus === "done" ? "Re-scan" : "Scan"}
-                                </button>
-                              )}
+                              <DocScanButton doc={{ ...doc, scan_status: docStatus === "error" ? "error" : docStatus === "scanning" ? "scanning" : doc.scan_status, scan_error: scanErrors[doc.id] || doc.scan_error }} clinicianId={clinicianId}
+                                onScanned={(id) => { setDocuments(prev => prev.map(d => d.id === id ? { ...d, scan_status: "done" } : d)); setScanStatus(st => ({ ...st, [id]: "done" })); base44.entities.Document.update(id, { scan_status: "done" }).catch(() => {}); }} />
                               <button onClick={() => handleDelete(doc.id)} className="text-muted-foreground hover:text-destructive">
                                 <Trash2 className="w-4 h-4" />
                               </button>

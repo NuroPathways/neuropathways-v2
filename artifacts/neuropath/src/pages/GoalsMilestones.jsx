@@ -8,21 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
+import { readableGoalTitle } from "@/lib/goalTitle";
 
 const isDocumentGoal = (goal) => ["document", "parent_document"].includes(goal.source);
-const generatedGoalTitle = (title) =>
-  !title || /^(?:[a-z]\d+\s+)?goal\s+\d{1,2}:\d{2}(?::\d{2})?$/i.test(String(title).trim());
-
-function readableGoalTitle(goal) {
-  const current = goal.goal_title || goal.reward_description || goal.token_name;
-  if (!generatedGoalTitle(current)) return current;
-  const description = [goal.goal_description, goal.description, goal.reward_description]
-    .map((value) => String(value || "").trim())
-    .find((value) => value && generatedGoalTitle(value) === false);
-  if (!description) return "Goal details unavailable";
-  return description.split(/[.!?\n]/).map((part) => part.trim()).find(Boolean) || "Goal details unavailable";
-}
-
 const milestoneLines = (value) => String(value || "")
   .split(/\r?\n/)
   .map((line) => line.trim())
@@ -249,7 +237,7 @@ export default function GoalsMilestones({ embedded = false }) {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1 min-w-0 pr-3">
                       <div className="flex items-center gap-2 mb-0.5">
-                         {achieved ? <CheckCircle2 className="w-5 h-5 text-accent flex-shrink-0" /> : <Circle className="w-5 h-5 text-primary flex-shrink-0" />}
+                         {achieved ? <CheckCircle2 className="w-5 h-5 text-accent-foreground flex-shrink-0" /> : <Circle className="w-5 h-5 text-primary flex-shrink-0" />}
                         <p className="font-bold text-foreground break-words">{g.goal_title}</p>
                       </div>
                       {g.goal_description && (

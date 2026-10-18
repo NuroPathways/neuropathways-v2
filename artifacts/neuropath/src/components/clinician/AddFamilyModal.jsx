@@ -160,7 +160,7 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
 
               <div className="border-t border-border pt-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <User className="w-4 h-4 text-accent" />
+                  <User className="w-4 h-4 text-accent-foreground" />
                   <p className="text-sm font-semibold text-foreground">Primary Guardian</p>
                 </div>
                 <div className="space-y-3">
@@ -182,7 +182,7 @@ export default function AddFamilyModal({ open, onClose, onSuccess, clinicianId }
           {step === 1 && (
             <div className="space-y-5">
               <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center mb-4">
-                <Baby className="w-6 h-6 text-secondary" />
+                <Baby className="w-6 h-6 text-secondary-foreground" />
               </div>
               <p className="text-xs text-muted-foreground -mt-2">Add the children receiving services. Check "Is the patient/client" for the primary client.</p>
               {children.map((c, i) => (

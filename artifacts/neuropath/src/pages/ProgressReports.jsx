@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { readableGoalTitle } from "@/lib/goalTitle";
 import { base44 } from '@/api/entities';
 import { getClientSession } from '@/lib/clientSession';
 import {
@@ -320,7 +321,7 @@ function PositiveMomentumSection({ wins, checkIns, rewardGoals, winsRef, moodSec
               return (
                 <div key={g.id || i}>
                   <div className="flex justify-between items-baseline mb-1">
-                    <p className="text-sm font-medium text-foreground truncate pr-2">{g.goal_title || g.goal_name || "Goal"}</p>
+                    <p className="text-sm font-medium text-foreground truncate pr-2">{readableGoalTitle(g, "Goal")}</p>
                     <span className="text-xs text-muted-foreground flex-shrink-0">{earned} / {goalTotal}</span>
                   </div>
                   {g.reward && <p className="text-xs text-muted-foreground mb-1">Reward: {g.reward}</p>}
