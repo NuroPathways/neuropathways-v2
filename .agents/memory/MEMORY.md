@@ -15,7 +15,7 @@
 - [Document reading optimization](document-reading-optimization.md) — reuse unchanged complete readings; preserve PDF visuals and keep raw-text caches temporary.
 - [Security advisory verification](security-advisory-verification.md) — newer releases and clean audits do not prove an attack is fixed; verify unavailable fixes with regressions.
 - [NeuroPathways brand mark](neuropathways-brand-mark.md) — keep the app icon as a simple head profile with a winding path and star, using a green-to-blue gradient.
-- [Headless responsive checks](headless-responsive-checks.md) — use explicit viewport metrics and settled dialog animations to avoid misleading browser screenshots.
+- [Headless responsive checks](headless-responsive-checks.md) — set metrics before navigation; inspect scroll width and fixed/select controls for route-specific overflow.
 - [OpenAPI codegen symbol collisions](openapi-codegen-symbol-collisions.md) — use named request-body components and distinct operation names when generated Zod exports collide.
 - [Sandboxed document previews](sandboxed-document-previews.md) — verify visible content without frame introspection that can reset the authenticated test worker.
 - [Redesign approval gates](phased-ui-redesign.md) — audit before UI edits; stop after each redesign phase and require explicit approval to advance.

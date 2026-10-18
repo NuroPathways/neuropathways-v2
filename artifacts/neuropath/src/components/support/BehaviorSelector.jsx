@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { base44 } from '@/api/entities';
 import { ArrowLeft, X, Phone, ArrowRight } from "lucide-react";
 import { MenuRow } from "@workspace/neuropathways-foundations/components/ui/menu-row";
 import { Disclosure } from "@workspace/neuropathways-foundations/components/ui/disclosure";
+import { getBehaviorAppearance } from "./behaviorVisuals";
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -44,6 +45,7 @@ function normalizeBehavior(value, index) {
     name,
     sourceLabel: textValue(raw.sourceLabel ?? raw.source_label),
     what_may_be_happening: textValue(raw.what_may_be_happening ?? raw.whatMayBeHappening ?? raw.context),
+    contextLabels: listItems(raw.triggers ?? raw.contextTags ?? raw.context_tags),
     do_this_right_now: listItems(raw.do_this_right_now ?? raw.doThisRightNow ?? raw.rightNow ?? raw.right_now ?? raw.immediate_steps),
     interventions: listItems(raw.interventions ?? raw.clinicianApprovedSteps ?? raw.clinician_approved_strategies ?? raw.strategies),
     if_it_escalates: listItems(raw.if_it_escalates ?? raw.ifItEscalates ?? raw.escalationSteps ?? raw.escalation_steps),
@@ -123,12 +125,12 @@ function SourceNote({ count }) {
 }
 
 // Non-urgent supporting information: collapsed by default via package Disclosure.
-function Section({ title, items, testId }) {
+function Section({ title, items, testId, tone = "default" }) {
   if (!items || items.length === 0) return null;
   const visibleItems = items.slice(0, 5);
   return (
-    <Disclosure className="np-help-disclosure" title={title} data-testid={testId}>
-      <ol className="np-help-steps">
+    <Disclosure className={`np-help-disclosure np-help-disclosure--${tone}`} title={title} data-testid={testId}>
+      <ol className="np-help-steps" data-tone={tone}>
         {visibleItems.map((item, i) => <li key={i}><span>{item}</span></li>)}
       </ol>
       <SourceNote count={visibleItems.length} />
@@ -136,14 +138,20 @@ function Section({ title, items, testId }) {
   );
 }
 
-function BehaviorCard({ behavior, child, isIndividual, onBack }) {
-  const name = child?.child_name;
+function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [showSimpler, setShowSimpler] = useState(false);
-  const immediateSteps = behavior.do_this_right_now?.length ? behavior.do_this_right_now : behavior.interventions || [];
+  const directSteps = behavior.do_this_right_now || [];
+  const strategies = behavior.interventions || [];
+  const immediateSteps = directSteps.length ? directSteps : strategies;
+  const strategyIsClinicallyApproved = hasCurrentClinicalApproval(behavior);
+  const activeTone = directSteps.length ? "immediate" : "strategy";
+  const appearance = getBehaviorAppearance(behavior);
+  const BehaviorIcon = appearance.Icon;
   const simplerStep = behavior.if_it_escalates?.[0] || behavior.when_to_contact_clinician || "Pause the activity if you can do so safely. Offer a familiar, lower-demand option and give space.";
   const firstExplanation = behavior.what_may_be_happening ? behavior.what_may_be_happening.split(/[.!?]\s/)[0] : "";
   const hasOptional = Boolean(behavior.what_may_be_happening)
+    || behavior.contextLabels?.length > 0
     || behavior.prevention_tips?.length > 0
     || behavior.reinforcement_rewards?.length > 0
     || Boolean(behavior.replacement_skill)
@@ -156,13 +164,21 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
           <ArrowLeft aria-hidden="true" />
         </button>
         <div className="np-help-bar-title">
-          <h2 data-testid="text-behavior-name">{behavior.name}</h2>
+          <h2 data-testid="text-behavior-name">
+            <span className={`np-help-guidance-icon ${appearance.iconClasses}`} aria-hidden="true"><BehaviorIcon /></span>
+            {behavior.name}
+          </h2>
           <p>{behavior.sourceLabel || "Support guidance"}</p>
         </div>
       </div>
 
       <div className="np-help-body">
-        <section className="np-help-active" aria-live="polite" data-testid="section-active-step">
+        <section className="np-help-active" data-testid="section-active-step" data-tone={activeTone}>
+          {!directSteps.length && strategies.length > 0 && (
+            <p className="np-help-label" data-testid="label-strategy-source">
+              {strategyIsClinicallyApproved ? "Clinician-approved strategies" : "Saved support strategies"}
+            </p>
+          )}
           <p className="np-help-label">
             {showSimpler
               ? "A simpler supported step"
@@ -174,7 +190,24 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
             ? <p className="np-help-active-step" data-testid="text-simpler-step">{simplerStep}</p>
             : immediateSteps.length
               ? <>
-                <p className="np-help-active-step" data-testid="text-active-step">{immediateSteps[Math.min(stepIndex, immediateSteps.length - 1)]}</p>
+                {directSteps.length ? (
+                  <p className="np-help-active-step" data-testid="text-active-step" aria-live="polite">
+                    {immediateSteps[Math.min(stepIndex, immediateSteps.length - 1)]}
+                  </p>
+                ) : (
+                  <ol className="np-help-steps" data-tone={activeTone}>
+                    {immediateSteps.map((instruction, index) => (
+                      <li key={index} aria-current={index === stepIndex ? "step" : undefined}>
+                        <span
+                          data-testid={index === stepIndex ? "text-active-step" : undefined}
+                          aria-live={index === stepIndex ? "polite" : undefined}
+                        >
+                          {instruction}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
                 <div className="np-help-step-nav">
                   <button type="button" disabled={stepIndex === 0} onClick={() => setStepIndex((value) => Math.max(0, value - 1))} data-testid="button-step-back" className="np-help-btn">Back</button>
                   <span aria-live="polite">Step {stepIndex + 1} of {immediateSteps.length}</span>
@@ -186,6 +219,17 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
             {showSimpler ? "Return to saved step" : "This isn't working"}
           </button>
         </section>
+
+        {directSteps.length > 0 && strategies.length > 0 && (
+          <section className="np-help-group np-help-guidance-section" data-tone="strategy" data-testid="section-clinical-strategies">
+            <h3 className="np-help-label">
+              {strategyIsClinicallyApproved ? "Clinician-approved strategies" : "Saved support strategies"}
+            </h3>
+            <ol className="np-help-steps" data-tone="strategy">
+              {strategies.map((strategy, index) => <li key={index}><span>{strategy}</span></li>)}
+            </ol>
+          </section>
+        )}
 
         <p className="np-help-muted">
           {behavior.sourceLabel || "Source not available"}. Any explanation here is a possibility, not a conclusion. Use only what feels safe.
@@ -201,7 +245,7 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
         {behavior.if_it_escalates?.length > 0 && (
           <section className="np-help-group np-help-urgent-section" data-testid="section-escalation">
             <h3 className="np-help-label">If it escalates</h3>
-            <ol className="np-help-steps">
+            <ol className="np-help-steps" data-tone="urgent">
               {behavior.if_it_escalates.map((instruction, index) => (
                 <li key={index}><span>{instruction}</span></li>
               ))}
@@ -212,7 +256,7 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
         {behavior.avoid && behavior.avoid.length > 0 && (
           <section className="np-help-group np-help-urgent-section" data-testid="section-avoid">
             <h3 className="np-help-label">Things to Avoid</h3>
-            <ul className="np-help-bullets">
+            <ul className="np-help-bullets" data-tone="urgent">
               {behavior.avoid.slice(0, 5).map((a, i) => <li key={i}>{a}</li>)}
             </ul>
             {behavior.avoid.length < 3 && <p className="np-help-muted">Only {behavior.avoid.length} source-grounded {behavior.avoid.length === 1 ? "item is" : "items are"} available. No extra guidance has been added.</p>}
@@ -220,7 +264,7 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
         )}
 
         {behavior.when_to_contact_clinician && (
-          <section className="np-help-group np-help-urgent-section" data-testid="section-contact-clinician">
+          <section className="np-help-group np-help-urgent-section" data-tone="urgent" data-testid="section-contact-clinician">
             <h3 className="np-help-label">Contact Your Clinician If</h3>
             <p className="np-help-text">{behavior.when_to_contact_clinician}</p>
           </section>
@@ -229,25 +273,39 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
         {hasOptional && (
           <div className="np-help-disclosures">
             {behavior.what_may_be_happening && (
-              <Disclosure className="np-help-disclosure" title="One possible explanation" data-testid="disclosure-explanation">
+              <Disclosure className="np-help-disclosure np-help-disclosure--context" title="What may be happening" data-testid="disclosure-explanation">
                 <p className="np-help-text">{firstExplanation}{/[.!?]$/.test(firstExplanation) ? "" : "."}</p>
+                {behavior.contextLabels?.length > 0 && (
+                  <div className="np-help-context-chips" aria-label="Context labels from the saved support information">
+                    {behavior.contextLabels.map((label, index) => <span key={index} className="np-help-context-chip">{label}</span>)}
+                  </div>
+                )}
               </Disclosure>
             )}
+            {!behavior.what_may_be_happening && behavior.contextLabels?.length > 0 && (
+              <section className="np-help-disclosure np-help-disclosure--context" aria-label="What may be happening">
+                <p className="np-help-label">What may be happening</p>
+                <div className="np-help-context-chips" aria-label="Context labels from the saved support information">
+                  {behavior.contextLabels.map((label, index) => <span key={index} className="np-help-context-chip">{label}</span>)}
+                </div>
+              </section>
+            )}
             {behavior.prevention_tips && behavior.prevention_tips.length > 0 && (
-              <Section title="Prevention Ideas" items={behavior.prevention_tips} testId="disclosure-prevention" />
+              <Section title="Prevention Ideas" items={behavior.prevention_tips} testId="disclosure-prevention" tone="prevention" />
             )}
             {behavior.reinforcement_rewards && behavior.reinforcement_rewards.length > 0 && (
-              <Section title="Encouragement" items={behavior.reinforcement_rewards} testId="disclosure-encouragement" />
+              <Section title="Encouragement" items={behavior.reinforcement_rewards} testId="disclosure-encouragement" tone="encouragement" />
             )}
             {(behavior.replacement_skill || behavior.reinforcement_rewards?.length > 0) && (
               <Section
                 title="Practice a helpful skill"
                 items={[behavior.replacement_skill, ...(behavior.reinforcement_rewards || [])].filter(Boolean)}
                 testId="disclosure-skill"
+                tone="skill"
               />
             )}
             {behavior.track?.length > 0 && (
-              <Section title="What to notice" items={behavior.track} testId="disclosure-notice" />
+              <Section title="What to notice" items={behavior.track} testId="disclosure-notice" tone="context" />
             )}
           </div>
         )}
@@ -260,6 +318,11 @@ function BehaviorCard({ behavior, child, isIndividual, onBack }) {
 
 export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onOpenSafety, onDismiss, isIndividual, parentDirect = false, logEngagement = true }) {
   const [selectedBehavior, setSelectedBehavior] = useState(null);
+  const viewRef = useRef(null);
+  useLayoutEffect(() => {
+    const dialog = viewRef.current?.closest(".np-help-dialog");
+    if (dialog) dialog.scrollTop = 0;
+  }, [selectedBehavior]);
 
   const behaviors = normalizeBehaviorRows(profile?.behaviors).filter((behavior) => {
     if (behavior.conflict === true || Boolean(textValue(behavior.conflictMessage ?? behavior.conflict_message))) return false;
@@ -286,11 +349,15 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
   };
 
   if (selectedBehavior) {
-    return <BehaviorCard behavior={selectedBehavior} child={child} isIndividual={isIndividual} onBack={() => setSelectedBehavior(null)} />;
+    return (
+      <div ref={viewRef}>
+        <BehaviorCard behavior={selectedBehavior} child={child} isIndividual={isIndividual} parentDirect={parentDirect} onBack={() => setSelectedBehavior(null)} />
+      </div>
+    );
   }
 
   return (
-    <div>
+    <div ref={viewRef}>
       <div className="np-help-bar">
         <button type="button" onClick={onBack} aria-label="Back to support options" data-testid="button-back-support" className="np-help-icon-btn">
           <ArrowLeft aria-hidden="true" />
@@ -338,17 +405,23 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
         ) : (
           <div className="np-help-group">
             <p className="np-help-text">What is happening right now? Select the situation.</p>
-            <div className="np-help-options">
-              {behaviors.map((behavior, i) => (
-                <MenuRow
-                  key={i}
-                  onClick={() => handleSelectBehavior(behavior)}
-                  data-testid={`button-behavior-${i}`}
-                  className="np-help-option"
-                  label={behavior.name}
-                  description={behavior.sourceLabel || "Source not available"}
-                />
-              ))}
+            <div className="np-help-behavior-grid">
+              {behaviors.map((behavior, i) => {
+                const appearance = getBehaviorAppearance(behavior, i);
+                const BehaviorIcon = appearance.Icon;
+                return (
+                  <MenuRow
+                    key={behavior.id || i}
+                    onClick={() => handleSelectBehavior(behavior)}
+                    data-testid={`button-behavior-${i}`}
+                    data-tone={appearance.tone}
+                    className="np-help-option"
+                    icon={<BehaviorIcon aria-hidden="true" />}
+                    label={behavior.name}
+                    description={behavior.sourceLabel || "Source not available"}
+                  />
+                );
+              })}
             </div>
             <p className="np-help-muted">
               Only showing support information available for {child?.child_name}.

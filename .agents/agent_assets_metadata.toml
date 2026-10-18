@@ -266,3 +266,311 @@ mtime_ms = 1792341000191
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/deeec2a2-a778-4f50-934e-312712f801d4/0c4bcfc8-436b-4463-940d-617338d75d01"
 storage_version_token = "1792341005114714"
 content_type = "text/html"
+
+[[outputs]]
+id = "hsmF1Bf3Vc8v9UTeJI8Lh"
+uri = "file://generated-artifacts/phase9-review/routines-mobile.png"
+type = "image"
+title = "Phase 9 — Routine editor (mobile)"
+description = "Live authenticated parent screen at 390px, using isolated fictional verification data."
+logical_id = "b1687bf0-3e32-40bb-bd5f-3cd60841f6d0"
+content_hash = "sha256:8ab612869c8d1f013d08874fcbbfb82d365e7f23e782047679ce1449e42167a1"
+size = 67856
+mtime_ms = 1792349648925
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/b1687bf0-3e32-40bb-bd5f-3cd60841f6d0/77ad9955-cac4-44c0-865f-3371175bfb1f"
+storage_version_token = "1792349708496905"
+content_type = "image/png"
+
+[[outputs]]
+id = "aCL5-bxFxq6vitO4j1wLA"
+uri = "file://generated-artifacts/phase9-review/routine-player-mobile.png"
+type = "image"
+title = "Phase 9 — Routine player (mobile)"
+description = "Live Now step in a synthetic routine, opened through the existing routine Start action."
+logical_id = "96776b21-fc26-4c73-a04a-2e7963ac39f0"
+content_hash = "sha256:2aaf6d46a2735b0f571a2f637fcedf83552c4f8409cbd68ff87b4abc720c8a23"
+size = 65912
+mtime_ms = 1792349650389
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/96776b21-fc26-4c73-a04a-2e7963ac39f0/769c351b-0aea-4745-a5d3-03d8ca0f31cd"
+storage_version_token = "1792349709137902"
+content_type = "image/png"
+
+[[outputs]]
+id = "rfD-2ZEB-L5v-_sR-Orfc"
+uri = "file://generated-artifacts/phase9-review/reminders-mobile.png"
+type = "image"
+title = "Phase 9 — Reminder limitations (mobile)"
+description = "The existing delivery-unavailable notice remains visible above reminder controls."
+logical_id = "b69b9bd6-25c1-46f7-a64c-a30583dc9b30"
+content_hash = "sha256:7b20495f0d0a99a2bd8beb0def4d90a24c400a6232398b633d55e1311231bd78"
+size = 72972
+mtime_ms = 1792349652281
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/b69b9bd6-25c1-46f7-a64c-a30583dc9b30/fd9f137a-7a01-4538-abc6-6d392748805b"
+storage_version_token = "1792349709729508"
+content_type = "image/png"
+
+[[outputs]]
+id = "9VxO6DmN29D5Udf7BIbju"
+uri = "file://generated-artifacts/phase9-review/preferences-mobile.png"
+type = "image"
+title = "Phase 9 — Preferences (mobile)"
+description = "Family preference groups displayed on the existing parent Practice route."
+logical_id = "c1976e09-7224-496a-b30e-af030069deb0"
+content_hash = "sha256:fe2e66b2ac64df53b5ebc6fe946aa7c669e83b536c855e2f4e3c5c4a35e921de"
+size = 71828
+mtime_ms = 1792349653753
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/c1976e09-7224-496a-b30e-af030069deb0/9d98c81a-04db-48d1-aaad-69b265b949ae"
+storage_version_token = "1792349710566199"
+content_type = "image/png"
+
+[[outputs]]
+id = "2xa4ov9BzZHyKuiLSFCMG"
+uri = "file://generated-artifacts/phase9-review/messages-mobile.png"
+type = "image"
+title = "Phase 9 — Messages (mobile)"
+description = "Existing parent messages panel and urgent-safety notice; no message was sent."
+logical_id = "40aac4f5-f0a1-4ae3-b6fe-0be062e94bce"
+content_hash = "sha256:99a80c167c934cafc3eddff2270edee6b722aba6b8defecb22d59b8494571d84"
+size = 51162
+mtime_ms = 1792349659825
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/40aac4f5-f0a1-4ae3-b6fe-0be062e94bce/7e38608b-bd6d-4520-b8f0-17492d5163bb"
+storage_version_token = "1792349711219588"
+content_type = "image/png"
+
+[[outputs]]
+id = "MDLqu-mZkE-KqSmFnrrcT"
+uri = "file://generated-artifacts/phase9-review/history-mobile.png"
+type = "image"
+title = "Phase 9 — History (mobile)"
+description = "Synthetic routine run appears in the existing family history view."
+logical_id = "a11d150e-cb72-4c3d-9b47-fc07d46fdd5d"
+content_hash = "sha256:0f788fda95ce4d56cf969aa11198e6d3dacd5bcbff55cc4cd31fababde9a1594"
+size = 35258
+mtime_ms = 1792349665925
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/a11d150e-cb72-4c3d-9b47-fc07d46fdd5d/b08a2bd4-1c97-4db5-b801-fb458e664ec5"
+storage_version_token = "1792349711821810"
+content_type = "image/png"
+
+[[outputs]]
+id = "pmKenEkUGZzRfUsdVt6OF"
+uri = "file://generated-artifacts/phase10-review/phase10-final-review.html"
+type = "html"
+title = "NeuroPathways — Phase 10 Final Review"
+description = "Offline-ready report with all approved phases, changed components, verification results, known limits, and embedded before/after screenshots."
+logical_id = "87270996-8bef-4f76-900e-5c43a155edd6"
+content_hash = "sha256:5fe78ae6520a49e9e5bfd625d44d0bd0975b08faae72144ce2d87d2108f86894"
+size = 909769
+mtime_ms = 1792352262273
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/87270996-8bef-4f76-900e-5c43a155edd6/840a91ca-c3a8-4edd-a2c6-2d753b274a60"
+storage_version_token = "1792352283511541"
+content_type = "text/html"
+
+[[outputs]]
+id = "tSc6ongBoWCb9r9z5LySO"
+uri = "file://generated-artifacts/phase0-audit/screenshots/independent-home-mobile.png"
+type = "image"
+title = "NeuroPathways — Before redesign"
+description = "Phase 0 baseline parent home screenshot for comparison."
+logical_id = "a8e0caa6-5986-4241-9d13-46c145e65399"
+content_hash = "sha256:59a35c5a6a53439099b3fd3701e58db23c2951e56c6332cb0b6854dcfbdffeaa"
+size = 287464
+mtime_ms = 1792290265362
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/a8e0caa6-5986-4241-9d13-46c145e65399/d6000cd8-ed4f-4c90-95e5-0d1fa70adb5a"
+storage_version_token = "1792352284146631"
+content_type = "image/png"
+
+[[outputs]]
+id = "ALc0PLBDzpwdYvEmkTX27"
+uri = "file://generated-artifacts/phase10-review/home-320.png"
+type = "image"
+title = "NeuroPathways — Home at 320px"
+description = "Final responsive parent home; navigation labels fit and the page has no horizontal overflow."
+logical_id = "4294cfb2-87f3-4dbc-8679-92202bde9beb"
+content_hash = "sha256:f458af0a154b49e0ab9d7a2963ca44068e811284a8b93fceb0e76659d6e24dff"
+size = 65208
+mtime_ms = 1792352131785
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/4294cfb2-87f3-4dbc-8679-92202bde9beb/0b53db6f-c669-41a3-b161-c755f3032419"
+storage_version_token = "1792352284998632"
+content_type = "image/png"
+
+[[outputs]]
+id = "dCLk4IS0YoipD-ips-7Ez"
+uri = "file://generated-artifacts/phase10-review/home-390.png"
+type = "image"
+title = "NeuroPathways — Home at 390px"
+description = "Final mobile parent home after the approved redesign."
+logical_id = "68c250f1-bc6a-4468-b967-e861bc7c69ef"
+content_hash = "sha256:b9792967282c08c43a7bce88fc884f0f49315e39ea3497f11a7c5db8e241ed19"
+size = 78070
+mtime_ms = 1792352133325
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/68c250f1-bc6a-4468-b967-e861bc7c69ef/3c1b3e3f-d027-4e80-955a-fb5abdbb7d08"
+storage_version_token = "1792352285671810"
+content_type = "image/png"
+
+[[outputs]]
+id = "HstaTEuW5iz2ULgn0UO3Y"
+uri = "file://generated-artifacts/phase10-review/settings-390.png"
+type = "image"
+title = "NeuroPathways — Settings at 390px"
+description = "Mobile settings controls; account details are hidden in this verification screenshot."
+logical_id = "a319f224-0cd0-4315-adde-397fa882e75f"
+content_hash = "sha256:8751007753926d5465c89d74aa5d1d74282ce36889a9ce593a1c5d8ce458b5a8"
+size = 57229
+mtime_ms = 1792352135301
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/a319f224-0cd0-4315-adde-397fa882e75f/4c011930-e5c8-4be0-bf8d-8d39ef7a31f3"
+storage_version_token = "1792352286271424"
+content_type = "image/png"
+
+[[outputs]]
+id = "b8OMSkrGQV51wgV77c7ug"
+uri = "file://generated-artifacts/phase10-review/home-1440.png"
+type = "image"
+title = "NeuroPathways — Home at 1440px"
+description = "Final desktop parent home with the existing sidebar preserved."
+logical_id = "29cc2f6b-fef3-466e-942a-58bb16a0170f"
+content_hash = "sha256:6286b27e1f3534314f0379c71fed1c47aa7564b7647c6e814d727b4450f2c54e"
+size = 182328
+mtime_ms = 1792352136809
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/29cc2f6b-fef3-466e-942a-58bb16a0170f/1d18b5ee-8e78-499e-93b3-e9c511244afc"
+storage_version_token = "1792352286920896"
+content_type = "image/png"
+
+[[outputs]]
+id = "Z5JEp2j0wXnceddDjtL3F"
+uri = "file://generated-artifacts/help-now-restoration/01-login-popup-desktop.jpg"
+type = "image"
+title = "Help Now login popup — desktop"
+description = "Authenticated independent-parent view with the four color-coded options and emergency notice."
+logical_id = "1428e297-1bed-45e3-b089-cdabbb67039b"
+content_hash = "sha256:e668d0d77f4e5f7b8f52783c38c327f99c7894ff72051cd04b2385e961d8f379"
+size = 161956
+mtime_ms = 1792355165052
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/1428e297-1bed-45e3-b089-cdabbb67039b/c758dbde-c2f7-4483-875b-4b9e24d911e7"
+storage_version_token = "1792355585148406"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "WFQZnwejCTwmZzNPQ3pkx"
+uri = "file://generated-artifacts/help-now-restoration/02-login-popup-mobile.jpg"
+type = "image"
+title = "Help Now login popup — mobile"
+description = "390px phone viewport; all options and emergency footer fit without horizontal overflow."
+logical_id = "97be79fe-09da-4903-94cb-258a726ac92b"
+content_hash = "sha256:a5369489466102825e09f959a34a656ac962fb0239432736918b6b227ae2be5c"
+size = 61713
+mtime_ms = 1792355165492
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/97be79fe-09da-4903-94cb-258a726ac92b/6cd52782-b973-4dc4-b830-83d56abfcfcf"
+storage_version_token = "1792355585803319"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "E3j2mcCZz4thenZ85QexD"
+uri = "file://generated-artifacts/help-now-restoration/03-home-help-now-bar-desktop.jpg"
+type = "image"
+title = "Solid red Help Now bar — desktop"
+description = "Parent Home action with white text and icon; destination unchanged."
+logical_id = "8c9927a0-7fc6-484c-af23-f96088292184"
+content_hash = "sha256:acf83e95bc060adc88b0662fe0e22498018c4feccac71d2c31da17b433ffff0a"
+size = 178882
+mtime_ms = 1792355167244
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/8c9927a0-7fc6-484c-af23-f96088292184/9fe3375e-2fe5-45df-a2ab-7572a87786eb"
+storage_version_token = "1792355586466265"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "zfdlaAQcZ8b51rlDk5ZBu"
+uri = "file://generated-artifacts/help-now-restoration/04-behavior-selection-desktop.jpg"
+type = "image"
+title = "Behavior selection — desktop"
+description = "The selected test child’s actual behavior list; the available Elopement / Running Away support retains its yellow color."
+logical_id = "54fa8728-a7e1-4856-8e3f-93d46bb840e6"
+content_hash = "sha256:e1c6a1beb3ae11d5d1f71f95dd72f701e176a8ce458b0114372645d2c4322bca"
+size = 139799
+mtime_ms = 1792355168412
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/54fa8728-a7e1-4856-8e3f-93d46bb840e6/f641a1ca-aed6-4ca0-854f-979654a111f6"
+storage_version_token = "1792355587092435"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "Nu4y8vimPQCpkdByf3v0R"
+uri = "file://generated-artifacts/help-now-restoration/05-behavior-selection-mobile.jpg"
+type = "image"
+title = "Behavior selection — mobile"
+description = "Responsive single-column behavior card with no horizontal overflow."
+logical_id = "6990aefa-9145-434f-9395-00f7272d3778"
+content_hash = "sha256:c53bbfa4fb673da9cdbd4e209c8a4e25e7c355d574dff9b76539081e099cbc00"
+size = 52619
+mtime_ms = 1792355168860
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/6990aefa-9145-434f-9395-00f7272d3778/496baa60-222c-4a26-8888-2a374ebaa230"
+storage_version_token = "1792355587742605"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "XM1LLO8AsYm-N6Wr5HC1S"
+uri = "file://generated-artifacts/help-now-restoration/06-behavior-guidance-mobile.jpg"
+type = "image"
+title = "Behavior guidance — mobile"
+description = "Existing general-support guidance at the start of the flow. This test profile has no approved clinician strategies, so none were fabricated."
+logical_id = "70140f1f-fc97-4215-868d-d30a2a60b438"
+content_hash = "sha256:343e51c84e6b94539fe4f18a64e0c59597070689ad48421e39d47922925953b7"
+size = 68110
+mtime_ms = 1792355169360
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/70140f1f-fc97-4215-868d-d30a2a60b438/175ac6dd-01e6-40ad-8ab0-36e984cb383e"
+storage_version_token = "1792355588358598"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "9cEz_7K5gpHjvdhL24l5g"
+uri = "file://generated-artifacts/help-now-restoration/07-guidance-emergency-mobile.jpg"
+type = "image"
+title = "Guidance safety footer — mobile"
+description = "The emergency notice remains available at the end of long guidance after scrolling."
+logical_id = "a442443f-cab9-4457-bcb2-44bd48acbc12"
+content_hash = "sha256:f52685d83984d4e8c0e0452e6da0443c8ec42fb936795818f0c4e98a93810f52"
+size = 62918
+mtime_ms = 1792355169744
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/a442443f-cab9-4457-bcb2-44bd48acbc12/826ab7d4-6a46-4532-b401-84ac8985fa55"
+storage_version_token = "1792355588988071"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "c15_pC3N96qOaMqE-nkNW"
+uri = "file://generated-artifacts/help-now-restoration/08-behavior-guidance-desktop.jpg"
+type = "image"
+title = "Behavior guidance — desktop"
+description = "Existing warning, contextual, prevention, and emergency sections, shown at the end of the scrollable guidance."
+logical_id = "60ba4dcc-458f-4c68-b85f-172ad16384fa"
+content_hash = "sha256:c254cb36d46105e8a9f788dee0d5ff70300ff0b75c012b8563f88d89e219755f"
+size = 173802
+mtime_ms = 1792355170132
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/60ba4dcc-458f-4c68-b85f-172ad16384fa/82d3e4b9-e77c-4528-84fb-7346711775aa"
+storage_version_token = "1792355590337014"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "1lP7LqAOJtTaPjfHi5Jhw"
+uri = "file://generated-artifacts/help-now-restoration/09-login-popup-legacy-family-desktop.jpg"
+type = "image"
+title = "Legacy family login — child selection"
+description = "The authorized family bridge opens a child picker when two children are available and none is selected."
+logical_id = "64776171-4e65-43c1-9031-0a4b145dd445"
+content_hash = "sha256:adff3e9138f1d0f1f4de7a43ac81b427ec0956d53468c0773c22f72fb324da9f"
+size = 78955
+mtime_ms = 1792355283720
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/64776171-4e65-43c1-9031-0a4b145dd445/032ebbda-5d42-4460-b88d-1336aecdc3d7"
+storage_version_token = "1792355590974097"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "wZ3vlZH6-FQbZFj7-9CuY"
+uri = "file://generated-artifacts/help-now-restoration/14-legacy-selected-child-support-modal.jpg"
+type = "image"
+title = "Legacy family — support options after selection"
+description = "After explicit child selection, the same four support choices appear for that child."
+logical_id = "0b298b4a-7970-480a-ae40-f511b7736135"
+content_hash = "sha256:2b0d057f8023c3fb7165ff6828e2b213b0e08705039cae4df163ffa87580b86f"
+size = 106894
+mtime_ms = 1792355400984
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/0b298b4a-7970-480a-ae40-f511b7736135/b9181196-40d2-43d7-8629-68de738c5cbf"
+storage_version_token = "1792355591597757"
+content_type = "image/jpeg"

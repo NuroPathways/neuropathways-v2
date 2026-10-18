@@ -5,17 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { ArrowLeft, AlertTriangle, ChevronRight, CheckCircle2, ShieldAlert, Loader2, MessageSquare, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-
-const BEHAVIOR_COLORS = [
-  "bg-red-50 border-red-200 text-red-700",
-  "bg-orange-50 border-orange-200 text-orange-700",
-  "bg-yellow-50 border-yellow-200 text-yellow-700",
-  "bg-purple-50 border-purple-200 text-purple-700",
-  "bg-blue-50 border-blue-200 text-blue-700",
-  "bg-teal-50 border-teal-200 text-teal-700",
-  "bg-pink-50 border-pink-200 text-pink-700",
-  "bg-indigo-50 border-indigo-200 text-indigo-700",
-];
+import { getBehaviorAppearance } from "@/components/support/behaviorVisuals";
 
 function Section({ title, items, colorClass }) {
   if (!items || items.length === 0) return null;
@@ -240,6 +230,7 @@ export default function HelpNow() {
   ));
   const hasProfile = behaviors.length > 0;
   const docsExist = docsCount > 0;
+  const selectedBehaviorAppearance = selectedBehavior ? getBehaviorAppearance(selectedBehavior) : null;
 
   // All treatment goal titles on file — used as a fallback so Goal Mapping always shows.
   const goalsForBehavior = [];
@@ -256,7 +247,7 @@ export default function HelpNow() {
     return (
       <div className="min-h-screen font-inter" style={{ background: "#f4f5f7" }}>
         <div className="sticky top-0 z-10 bg-red-600 px-4 py-3 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-white/80 hover:text-white">
+          <button onClick={() => navigate(-1)} aria-label="Go back" className="text-white/80 hover:text-white">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
@@ -298,7 +289,7 @@ export default function HelpNow() {
   return (
     <div className="min-h-screen font-inter" style={{ background: "#f4f5f7" }}>
       <div className="sticky top-0 z-10 bg-red-600 px-4 py-3 flex items-center gap-3">
-        <button onClick={handleBack} className="text-white/80 hover:text-white">
+        <button onClick={handleBack} aria-label="Go back" className="text-white/80 hover:text-white">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2 flex-1">
@@ -355,17 +346,27 @@ export default function HelpNow() {
                     What is happening right now? Select the situation.
                   </p>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    {behaviors.map((behavior, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleSelectBehavior(behavior)}
-                        className={"border-2 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-100 " + BEHAVIOR_COLORS[i % BEHAVIOR_COLORS.length]}
-                      >
-                        <p className="text-sm font-semibold leading-snug">{behavior.name}</p>
-                        <ChevronRight className="w-4 h-4 mt-1 opacity-60" />
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {behaviors.map((behavior, i) => {
+                      const appearance = getBehaviorAppearance(behavior, i);
+                      const BehaviorIcon = appearance.Icon;
+                      return (
+                        <button
+                          key={behavior.id || i}
+                          onClick={() => handleSelectBehavior(behavior)}
+                          data-testid={`button-helpnow-behavior-${i}`}
+                          className={`min-h-[88px] border-2 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-100 ${appearance.classes}`}
+                        >
+                          <span className="flex items-start gap-3">
+                            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${appearance.iconClasses}`}>
+                              <BehaviorIcon className="h-5 w-5" aria-hidden="true" />
+                            </span>
+                            <span className="min-w-0 flex-1 pt-1 text-sm font-semibold leading-snug">{behavior.name}</span>
+                            <ChevronRight className="w-4 h-4 mt-1 flex-shrink-0 opacity-60" aria-hidden="true" />
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <p className="text-xs text-muted-foreground text-center mt-4">
@@ -382,6 +383,11 @@ export default function HelpNow() {
 
               <div className="bg-card border border-border rounded-2xl p-5 mb-5">
                 <div className="flex items-center gap-3 mb-2">
+                  {selectedBehaviorAppearance && (
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${selectedBehaviorAppearance.iconClasses}`} aria-hidden="true">
+                      <selectedBehaviorAppearance.Icon className="h-5 w-5" />
+                    </span>
+                  )}
                   <div>
                     <h2 className="font-bold text-foreground text-lg">{selectedBehavior.name}</h2>
                     <p className="text-xs text-primary font-medium">Clinician-approved guidance</p>

@@ -79,24 +79,31 @@ No backend changes are needed.
 - `src/pages/DataRequests.jsx`
 - `docs/phase-9-implementation-notes.md` (new)
 
-## Testing and remaining limitations
+## Verification and remaining limitations
 
-No browser tests were run and no workflow was started or restarted, as
-requested. Main-agent verification is pending.
+- `pnpm --filter @workspace/neuropath run test`: 236 tests passed across 20
+  files.
+- Production Vite build passed. The existing large-chunk warning remains.
+- `git diff --check` passed.
+- Restarted the existing `artifacts/neuropath: web` workflow; the Vite server
+  came up cleanly.
+- A direct headless-browser session used a fresh, isolated parent account and
+  fictional child created through the app's normal signup/setup screens. At a
+  390px viewport, verified the routine editor, saved a synthetic routine,
+  opened its Now player, exited it, and viewed Preferences, Reminders, History,
+  and Messages. The reminder delivery-unavailable notice remained visible.
+  The saved routine appeared in History.
+- Screenshots of the routine editor, routine player, reminders, preferences,
+  messages, and history are in `generated-artifacts/phase9-review/`.
 
-Suggested checks:
-
-1. Parent account matrix: independent, clinician-connected, and legacy family;
-   confirm selected-child context on FamilyTools, History, Log, and Messages.
-2. Verify profile editing and Clinic visibility/locked demographics remain
-   account-specific in each mode.
-3. Exercise routine editor and player shortcuts; verify reminder edits and
-   limitation notice, preference save, observation save, message send, privacy
-   request, and all existing settings actions.
-4. Check populated, loading, error, and empty states at narrow and desktop
-   widths, including long routine steps and message text.
-5. Confirm clinician, individual-client, and other shared-route views do not
-   receive parent-only styling.
+Not live-verified: independent vs. clinician-connected vs. legacy-family parity;
+profile edits, clinic actions, logs, reminder mutations or delivery, preference
+saving, message sending, privacy requests, all settings actions, and clinician
+or individual-client non-parent styling. No real user records or existing
+credentials were used. The isolated synthetic account and its synthetic child
+remain separate from real families; generated test credentials were not
+included in source or screenshots. Phase 10 should cover these remaining
+checks and broader responsive review.
 
 The direct `/ChildProfile` route is a shared client-portal page rather than the
 parent editor. Only its presentation is parent-opted-in; its clinical/portal

@@ -137,7 +137,7 @@
 
 .np-nav-item {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -410,8 +410,8 @@
 
   .np-nav-menu-toggle,
   .np-nav-drawer-close {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     flex: 0 0 auto;
     display: grid;
     place-items: center;
@@ -460,14 +460,23 @@
     display: none;
   }
 
+  .np-nav-context-control.is-compact .np-nav-select-wrap {
+    width: 100%;
+    min-width: 0;
+  }
+
   .np-nav-context-control.is-compact .np-nav-select-wrap select {
+    width: 100%;
+    min-width: 0;
     max-width: 132px;
+    box-sizing: border-box;
     min-height: 32px;
     padding-left: 6px;
     border: 1px solid var(--np-nav-line);
     border-radius: 8px;
     background: var(--np-nav-panel);
     font-size: 10px;
+    text-overflow: ellipsis;
   }
 
   .np-nav-context-control.is-compact .np-nav-select-wrap svg {
@@ -509,10 +518,14 @@
   }
 
   .np-nav-item-bottom span {
+    display: block;
     overflow: hidden;
     max-width: 100%;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    width: 100%;
+    text-overflow: clip;
+    line-height: 1.1;
+    white-space: normal;
+    overflow-wrap: normal;
   }
 
   .np-nav-item-bottom.is-active {
@@ -624,4 +637,10 @@
 .np-nav-mobile-header { background: hsl(var(--background) / .96); border-bottom-color: hsl(var(--border) / .7); }
 .np-nav-bottom { border-top-color: hsl(var(--border) / .8); background: hsl(var(--background) / .97); backdrop-filter: blur(14px); }
 .np-nav-item-bottom.is-active { color: hsl(var(--primary)); background: hsl(var(--primary) / .08); }
-@media (max-width: 767px) { .np-nav-mobile-header { padding-inline: 10px; } .np-nav-bottom { padding-inline: 8px; } }
+@media (max-width: 767px) {
+  .np-nav-mobile-header { padding-inline: 10px; }
+  .np-nav-bottom { padding-inline: 8px; }
+  .np-nav-shell .np-nav-item-bottom { min-height: 48px; padding: 3px 2px; }
+  .np-legacy .np-nav-bottom .np-nav-item-bottom { min-height: 48px; padding: 3px 2px; }
+}
+.np-legacy .np-nav-item:not(.np-nav-item-bottom) { min-height: 44px; }

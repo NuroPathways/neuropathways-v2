@@ -9,6 +9,12 @@ Chromium headless can report a 500px CSS viewport even when launched with a smal
 
 **How to apply:** For Chromium-based responsive checks in this workspace, configure width, height, scale factor, and mobile emulation directly, then verify `document.documentElement.clientWidth` before interpreting layout results.
 
+For route-specific horizontal overflow, check `document.documentElement.scrollWidth <= clientWidth` and inspect descendants that extend past the viewport. Fixed full-width notification containers and compact selects can overflow only on some screens even when the page cards appear to fit.
+
+**Why:** A narrow-screen sweep found a child selector whose intrinsic option width and a padded fixed notification layer widened History and Settings, while the same viewport appeared correct on Home.
+
+**How to apply:** Set metrics before each route navigation, then check viewport width and document scroll width on every screen that shares the shell, especially routes with forms, overlays, or selects.
+
 ## Animated dialog captures
 
 Treat screenshots of an entering dialog as animation samples until its computed opacity has settled. A browser reviewer can capture a partially transparent entrance frame and mistakenly report a persistent readability defect.

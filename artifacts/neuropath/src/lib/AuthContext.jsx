@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { getClientSession, clearClientSession, requireFamilyLogin, isFamilyLoginRequired, clearFamilyLoginRequirement } from '@/lib/clientSession';
 import { getParentToken, saveParentToken, clearParentToken, parentRequest } from '@/lib/parentSession';
+import { clearSupportPopupSession } from '@/lib/supportPopupSession';
 import { getParentSession, logoutParent } from '@workspace/api-client-react';
 
 function toParentUser(session) {
@@ -153,6 +154,7 @@ export const AuthProvider = ({ children }) => {
       // A server session supersedes any leftover localStorage client session.
       clearClientSession();
       clearFamilyLoginRequirement();
+      clearSupportPopupSession(currentUser.id);
       setUser(currentUser);
       setIsAuthenticated(true);
     } catch {
@@ -177,6 +179,7 @@ export const AuthProvider = ({ children }) => {
     clearFamilyLoginRequirement();
     if (result.token) saveParentToken(result.token);
     clearClientSession();
+    clearSupportPopupSession(result?.parent?.id);
     setUser(toParentUser(result));
     setIsAuthenticated(true);
     setAuthChecked(true);
@@ -193,6 +196,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logoutParentAccount = async () => {
+    clearSupportPopupSession(user?.id);
     try { await logoutParent(parentRequest({ method: 'POST' })); } catch { /* token is cleared locally regardless */ }
     clearParentToken();
     clearClientSession();
@@ -203,6 +207,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    clearSupportPopupSession(user?.id);
     if (['parent_free', 'legacy_family'].includes(user?.account_type)) { logoutParentAccount(); return; }
     clearClientSession();
     setUser(null);

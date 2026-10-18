@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import SupportNowOverlay from "./SupportNowOverlay";
 import BehaviorSelector from "./BehaviorSelector";
 import CrisisPlan from "./CrisisPlan";
 import CalmDownTool from "./CalmDownTool";
+import { clearSupportPopupSession } from "@/lib/supportPopupSession";
 
 const tracking = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 vi.mock("@/api/entities", () => ({
@@ -37,6 +38,11 @@ function mountOverlay(overrides = {}) {
 
 afterEach(() => {
   cleanup();
+  for (const userId of ["phase3-parent", "session-lifecycle-parent", "multi-parent"]) {
+    clearSupportPopupSession(userId);
+  }
+  try { window.sessionStorage.clear(); } catch { /* Storage may be unavailable. */ }
+  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
@@ -48,7 +54,83 @@ describe("Help Now preservation", () => {
     }
     expect(screen.getByText("Sam").closest("p").textContent).toBe("For: Sam");
     expect(screen.getByText("If there is immediate danger, call 911 or emergency services.")).toBeTruthy();
+    expect(screen.getByTestId("button-help-behavior").getAttribute("data-tone")).toBe("choice-behavior");
+    expect(screen.getByTestId("button-help-crisis").getAttribute("data-tone")).toBe("choice-crisis");
+    expect(screen.getByTestId("button-help-calm").getAttribute("data-tone")).toBe("choice-calm");
+    expect(screen.getByTestId("button-help-dashboard").getAttribute("data-tone")).toBe("choice-neutral");
     expect(tracking).not.toHaveBeenCalled();
+  });
+
+  it("opens automatically once for a parent session, waits for child readiness, and resets after logout/login", async () => {
+    vi.useFakeTimers();
+    const props = {
+      user: { id: "session-lifecycle-parent", account_type: "parent_free" },
+      children: [child],
+      initialChildId: child.id,
+      loadProfileForChild: async () => ({ behaviors: [behavior] }),
+      openRequest: 0,
+      autoOpen: true,
+      autoOpenReady: false,
+      logEngagement: false,
+    };
+    const first = render(<SupportNowOverlay {...props} />);
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    first.rerender(<SupportNowOverlay {...props} autoOpenReady />);
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close support" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    first.unmount();
+
+    render(<SupportNowOverlay {...props} autoOpenReady />);
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    clearSupportPopupSession("session-lifecycle-parent");
+    cleanup();
+    render(<SupportNowOverlay {...props} autoOpenReady />);
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("does not auto-open for clinicians or individual clients", () => {
+    vi.useFakeTimers();
+    const base = {
+      children: [child],
+      loadProfileForChild: async () => ({ behaviors: [behavior] }),
+      openRequest: 0,
+      autoOpen: true,
+      autoOpenReady: true,
+      logEngagement: false,
+    };
+    const clinician = render(<SupportNowOverlay {...base} user={{ id: "clinician-user", role: "clinician", app_role: "clinician" }} />);
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    clinician.unmount();
+
+    render(<SupportNowOverlay {...base} user={{ id: "individual-user", account_type: "individual", invite_token: "individual-token" }} />);
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("requires an authorized child selection instead of guessing between siblings", () => {
+    vi.useFakeTimers();
+    render(<SupportNowOverlay
+      user={{ id: "multi-parent", account_type: "legacy_family", app_role: "parent" }}
+      children={[child, { id: "other-child", child_name: "Alex" }]}
+      loadProfileForChild={async () => ({ behaviors: [behavior] })}
+      openRequest={0}
+      autoOpen
+      autoOpenReady
+      logEngagement={false}
+    />);
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(screen.getByRole("heading", { name: "Who do you need help with?" })).toBeTruthy();
+    fireEvent.click(screen.getByTestId("button-select-child-other-child"));
+    fireEvent.click(screen.getByTestId("button-continue-support"));
+    expect(screen.getByText("Alex").closest("p").textContent).toBe("For: Alex");
   });
 
   it("keeps selection bound to the requested child and the same logging contracts", async () => {
@@ -74,6 +156,56 @@ describe("Help Now preservation", () => {
       child_id: child.id, clinician_id: child.clinician_id,
       event_type: "behavior_viewed", topic: behavior.name,
     });
+  });
+
+  it("uses the restored color and icon mapping without changing the available behavior list", () => {
+    const names = [
+      ["Physical Aggression", "behavior-red"],
+      ["Self-Injury", "behavior-orange"],
+      ["Elopement", "behavior-yellow"],
+      ["Property Destruction", "behavior-purple"],
+      ["Tantrums & Meltdowns", "behavior-blue"],
+    ];
+    render(<BehaviorSelector
+      child={child}
+      parentDirect
+      profile={{ behaviors: names.map(([name]) => ({ name, parentDirectEligible: true, sourceLabel: "Saved support" })) }}
+      logEngagement={false}
+    />);
+    names.forEach(([name, tone], index) => {
+      const button = screen.getByTestId(`button-behavior-${index}`);
+      expect(button.textContent).toContain(name);
+      expect(button.getAttribute("data-tone")).toBe(tone);
+      expect(button.querySelector("svg")).toBeTruthy();
+    });
+  });
+
+  it("shows all saved strategies as numbered green blocks and labels approval only when verified", () => {
+    const strategyBehavior = {
+      name: "A saved transition",
+      parentDirectEligible: true,
+      sourceLabel: "Clinician plan",
+      do_this_right_now: [],
+      interventions: ["Existing strategy one", "Existing strategy two"],
+      reviewStatus: "approved",
+      reviewer: "Reviewer",
+      reviewerCredentials: "Credentials",
+      reviewedAt: "2026-01-01",
+      approvalScope: "This behavior",
+      renewalDate: new Date(Date.now() + 86_400_000).toISOString(),
+      version: "1",
+      publishable: true,
+      productionEligible: true,
+    };
+    render(<BehaviorSelector child={child} parentDirect profile={{ behaviors: [strategyBehavior] }} logEngagement={false} />);
+    fireEvent.click(screen.getByRole("button", { name: /^A saved transition/ }));
+    expect(screen.getByTestId("label-strategy-source").textContent).toBe("Clinician-approved strategies");
+    expect(screen.getByTestId("section-active-step").getAttribute("data-tone")).toBe("strategy");
+    expect(screen.getByText("Existing strategy one")).toBeTruthy();
+    expect(screen.getByText("Existing strategy two")).toBeTruthy();
+    expect(screen.getByTestId("text-active-step").textContent).toBe("Existing strategy one");
+    fireEvent.click(screen.getByRole("button", { name: /^Next/ }));
+    expect(screen.getByTestId("text-active-step").textContent).toBe("Existing strategy two");
   });
 
   it("retains every immediate step, bounded navigation and the existing simpler branch", () => {

@@ -9,10 +9,19 @@ import "./help-now.css";
 import BehaviorSelector from "./BehaviorSelector";
 import CrisisPlan from "./CrisisPlan";
 import CalmDownTool from "./CalmDownTool";
+import { hasSupportPopupBeenShown, markSupportPopupShown } from "@/lib/supportPopupSession";
 
-// Used as a fallback when sessionStorage is unavailable, and for legacy
-// authenticated users who do not have a client invite token.
-const shownThisLoad = new Set();
+export { clearSupportPopupSession } from "@/lib/supportPopupSession";
+
+function isParentSupportAccount(user) {
+  if (!user) return false;
+  const accountType = String(user.account_type || user.accountType || "").toLowerCase();
+  const role = String(user.app_role || user.appRole || user.role || "").toLowerCase();
+  if (accountType === "individual" || user.invite_token || user.client_session) return false;
+  if (["clinician", "admin"].includes(role) || ["clinician", "admin"].includes(accountType)) return false;
+  return ["parent", "parent_free", "parent_family", "family", "legacy_family", "caregiver"].includes(accountType)
+    || ["parent", "parent_free", "parent_family", "family", "legacy_family", "caregiver"].includes(role);
+}
 
 const splitGuidance = (value) => String(value || "")
   .split(/\n+|(?=\d+\.\s)/)
@@ -29,12 +38,6 @@ const behaviorFromPlan = (plan) => ({
   prevention_tips: splitGuidance(plan.common_triggers || plan.commonTriggers),
   reinforcement_rewards: splitGuidance(plan.reinforcement_method || plan.reinforcementMethod),
 });
-
-const SUPPORT_POPUP_DISMISSED_KEY = "np_support_popup_dismissed";
-
-export function clearSupportPopupSession(userId) {
-  if (userId) shownThisLoad.delete(userId);
-}
 
 function CloseButton({ onDismiss }) {
   return (
@@ -79,6 +82,7 @@ function ChildSelector({ children, selectedChildId, onSelect, onContinue, onDism
                 onClick={() => onSelect(child.id)}
                 aria-pressed={selectedChildId === child.id}
                 data-testid={`button-select-child-${child.id}`}
+                data-tone="child"
                 className="np-help-option"
                 icon={<span className="np-help-option-initial">{(child.child_name || child.childName || child.name)?.[0]?.toUpperCase() || "?"}</span>}
                 label={child.child_name || child.childName || child.name || "Child"}
@@ -125,7 +129,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
           <MenuRow
             onClick={() => onSelect("behavior")}
             data-testid="button-help-behavior"
-            data-tone="primary"
+            data-tone="choice-behavior"
             className="np-help-option"
             icon={<AlertTriangle />}
             label="Help With a Behavior"
@@ -134,7 +138,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
           <MenuRow
             onClick={() => onSelect("crisis")}
             data-testid="button-help-crisis"
-            data-tone="urgent"
+            data-tone="choice-crisis"
             className="np-help-option"
             icon={<ShieldAlert />}
             label="Safety / Crisis Plan"
@@ -143,6 +147,7 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
           <MenuRow
             onClick={() => onSelect("calm")}
             data-testid="button-help-calm"
+            data-tone="choice-calm"
             className="np-help-option"
             icon={<Wind />}
             label="Calm Down First"
@@ -151,10 +156,10 @@ function MainMenu({ child, onSelect, onDismiss, isIndividual }) {
           <MenuRow
             onClick={onDismiss}
             data-testid="button-help-dashboard"
-            data-tone="quiet"
+            data-tone="choice-neutral"
             className="np-help-option"
             label="I'm Okay — Go to Dashboard"
-            description="Continue to your regular dashboard"
+            description="Continue to your Home"
           />
         </div>
         <EmergencyLine />
@@ -170,7 +175,8 @@ export default function SupportNowOverlay({
   loadProfileForChild,
   logEngagement = true,
   openRequest = 0,
-  autoOpen = true,
+  autoOpen = false,
+  autoOpenReady = true,
   parentDirect,
   initialChildId = null,
 }) {
@@ -259,32 +265,30 @@ export default function SupportNowOverlay({
   }, [loadProfileForChild, user]);
 
   useEffect(() => {
-    if (!user || !autoOpen) return;
-    const key = user.invite_token || user.id;
-    if (user.invite_token) {
-      try {
-        if (sessionStorage.getItem(SUPPORT_POPUP_DISMISSED_KEY) === "1") return;
-      } catch {
-        if (shownThisLoad.has(key)) return;
-      }
-    } else if (shownThisLoad.has(key)) return;
-    // Short delay so the dashboard paints first
+    if (!autoOpen || !autoOpenReady || openRequest || !isParentSupportAccount(user) || !user.id) return;
+    if (hasSupportPopupBeenShown(user.id)) return;
+    // Let the current parent Home view paint before presenting support.
     const t = setTimeout(() => {
+      if (hasSupportPopupBeenShown(user.id)) return;
+      // Mark before changing state so Strict Mode/remounts cannot open it twice.
+      markSupportPopupShown(user.id);
       setStep("child_select");
+      setSelectedChild(null);
       setVisible(true);
     }, 300);
     return () => clearTimeout(t);
-  }, [user?.invite_token, user?.id, autoOpen]);
+  }, [user?.account_type, user?.accountType, user?.app_role, user?.appRole, user?.role, user?.invite_token, user?.client_session, user?.id, autoOpen, autoOpenReady, openRequest]);
 
   useEffect(() => {
     if (!user || !openRequest) return;
+    if (isParentSupportAccount(user)) markSupportPopupShown(user.id);
     setStep("child_select");
     setSelectedChild(null);
     setPendingChildId("");
     setProfile(null);
     setProfileLoadError(false);
     setVisible(true);
-  }, [openRequest, user?.id]);
+  }, [openRequest, user?.id, user?.account_type, user?.accountType, user?.app_role, user?.appRole, user?.role, user?.invite_token, user?.client_session]);
 
   useEffect(() => {
     if (!visible) return;
@@ -317,13 +321,9 @@ export default function SupportNowOverlay({
   }, [selectedChild?.id, loadProfile, logEngagement]);
 
   const handleDismiss = useCallback(() => {
-    const key = user?.invite_token || user?.id;
-    if (user?.invite_token) {
-      try { sessionStorage.setItem(SUPPORT_POPUP_DISMISSED_KEY, "1"); }
-      catch { if (key) shownThisLoad.add(key); }
-    } else if (key) shownThisLoad.add(key);
+    if (isParentSupportAccount(user)) markSupportPopupShown(user.id);
     setVisible(false);
-  }, [user?.invite_token, user?.id]);
+  }, [user?.account_type, user?.accountType, user?.app_role, user?.appRole, user?.role, user?.invite_token, user?.client_session, user?.id]);
 
   const dialogRef = useRef(null);
   useEffect(() => {
@@ -368,6 +368,10 @@ export default function SupportNowOverlay({
     };
   }, [visible, handleDismiss]);
 
+  useEffect(() => {
+    if (visible && dialogRef.current) dialogRef.current.scrollTop = 0;
+  }, [visible, step]);
+
   const handleSelectChild = (child) => {
     setProfile(null);
     setProfileLoadError(false);
@@ -404,11 +408,14 @@ export default function SupportNowOverlay({
         initial={reduceMotion ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex justify-center pointer-events-none"
+          className="np-help-overlay-shell fixed inset-0 z-50 flex justify-center pointer-events-none"
           style={{
             position: "fixed",
-            alignItems: "flex-start",
+            alignItems: "center",
             paddingTop: "max(16px, env(safe-area-inset-top))",
+            paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+            paddingLeft: "max(16px, env(safe-area-inset-left))",
+            paddingRight: "max(16px, env(safe-area-inset-right))",
           }}
       >
         {/* Dark backdrop — blocks background taps/clicks, sits behind the modal */}
@@ -418,13 +425,13 @@ export default function SupportNowOverlay({
           animate={{ y: 0, opacity: 1 }}
           exit={reduceMotion ? { opacity: 0 } : { y: 60, opacity: 0 }}
           transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 30 }}
-          className="np-foundations np-help pointer-events-auto relative w-full max-w-md overflow-y-auto"
+          className={`np-foundations np-help np-help-dialog pointer-events-auto relative w-full overflow-y-auto ${step === "behavior" ? "max-w-2xl" : "max-w-md"}`}
           role="dialog"
           ref={dialogRef}
           tabIndex={-1}
           aria-modal="true"
           aria-label="Choose support for a child"
-          style={{ zIndex: 1, maxHeight: "90vh" }}
+          style={{ zIndex: 1 }}
         >
           {step === "child_select" && (
             <ChildSelector

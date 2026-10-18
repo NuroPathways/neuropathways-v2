@@ -72,6 +72,7 @@
   min-height: var(--np-space-control);
   border-radius: calc(var(--np-radius) - 2px);
 }
+.np-parent-messages-v9 .pf-btn.small { min-height: var(--np-space-control); }
 .np-parent-log-v9 {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
@@ -234,6 +235,13 @@
 .np-parent-settings-v9 button:focus-visible {
   outline: 2px solid var(--np-color-ring);
   outline-offset: 2px;
+}
+.np-parent-settings-v9 button { min-height: var(--np-space-control); }
+.np-parent-settings-v9 .relative > button {
+  min-width: var(--np-space-control);
+  min-height: var(--np-space-control);
+  display: grid;
+  place-items: center;
 }
 .np-parent-privacy-v9 > div > header h1 {
   font: 700 var(--np-text-page-title)/var(--np-leading-page-title) var(--np-font-display);

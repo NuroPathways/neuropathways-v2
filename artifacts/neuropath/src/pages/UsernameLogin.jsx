@@ -4,6 +4,7 @@ import { base44 } from '@/api/entities';
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { saveClientSession } from "@/lib/clientSession";
+import { clearSupportPopupSession } from "@/lib/supportPopupSession";
 import { useAuth } from "@/lib/AuthContext";
 import { Shell, Field, ErrorBox } from "@/components/parentfree/common";
 
@@ -41,6 +42,7 @@ export default function UsernameLogin() {
       }
 
       // Store client session in localStorage — bypasses Base44 auth
+      clearSupportPopupSession(session.parent?.id || session.parent_id || session.id);
       saveClientSession(session);
 
       // Existing accounts keep their client session and records, but use the

@@ -30,16 +30,20 @@
 .np-home .pf-help-cta {
   margin: 0 0 var(--np-space-section);
   padding: var(--np-space-card-lg);
-  background: var(--np-color-card);
+  background: var(--np-color-destructive);
   border: 1px solid var(--np-color-destructive);
-  border-left-width: 4px;
   border-radius: var(--np-radius);
   box-shadow: var(--np-shadow-floating);
-  color: var(--np-color-destructive);
+  color: var(--np-color-destructive-foreground);
   min-height: var(--np-space-control);
+  text-align: left;
+  cursor: pointer;
 }
-.np-home .pf-help-cta strong { color: var(--np-color-destructive); font-size: var(--np-text-card-title); }
-.np-home .pf-help-cta small { color: var(--np-color-muted-foreground); font-size: var(--np-text-support); }
+.np-home .pf-help-cta:hover:not(:disabled) { filter: brightness(.96); }
+.np-home .pf-help-cta:disabled { opacity: 1; cursor: not-allowed; }
+.np-home .pf-help-cta .ico { background: transparent; color: var(--np-color-destructive-foreground); }
+.np-home .pf-help-cta strong { color: var(--np-color-destructive-foreground); font-size: var(--np-text-card-title); }
+.np-home .pf-help-cta small { color: var(--np-color-destructive-foreground); font-size: var(--np-text-support); }
 .np-home .pf-daily-home { gap: var(--np-space-section); padding-bottom: 0; }
 .np-home .pf-daily-section { gap: var(--np-space-related); }
 .np-home .pf-daily-section-heading { gap: var(--np-space-related); }
@@ -82,6 +86,7 @@
 .np-home .np-home-activity-details p { margin: 0; }
 .np-home .pf-tag { font-size: var(--np-text-support-sm); line-height: var(--np-leading-support-sm); white-space: normal; overflow-wrap: anywhere; }
 .np-home .pf-btn, .np-home .pf-daily-outcome { min-height: var(--np-space-control); font-size: var(--np-text-support); }
+.np-home .pf-btn.small { min-height: var(--np-space-control); }
 .np-home .pf-btn.primary { background: var(--np-color-primary); color: var(--np-color-primary-foreground); }
 .np-home .pf-btn:focus-visible, .np-home summary:focus-visible, .np-home a:focus-visible, .np-home button:focus-visible {
   outline: 2px solid var(--np-color-ring); outline-offset: 3px;
@@ -103,7 +108,6 @@
 .np-home .pf-library-preview-card { box-shadow: none; border-radius: var(--np-radius); padding: var(--np-space-card); }
 /* The approved blue is a fill, not small text on dark surfaces. */
 .dark .np-home .np-home-privacy,
-.dark .np-home .pf-help-cta strong,
 .dark .np-home .pf-daily-review-note { color: var(--np-color-foreground); }
 .dark .np-home .pf-tag { color: var(--np-color-foreground); background: var(--np-color-muted); }
 @media (min-width: 768px) {

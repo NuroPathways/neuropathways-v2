@@ -378,6 +378,7 @@ export default function Settings() {
                     placeholder={key === "current" ? "Your current password" : key === "next" ? "At least 8 characters" : "Repeat new password"}
                   />
                   <button type="button" onClick={() => setShowPw(p => ({ ...p, [key]: !p[key] }))}
+                    aria-label={`${showPw[key] ? "Hide" : "Show"} ${label.toLowerCase()}`}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1">
                     {showPw[key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -424,6 +425,7 @@ export default function Settings() {
                     spellCheck={false}
                   />
                   <button type="button" onClick={() => setShowAc(p => ({ ...p, [key]: !p[key] }))}
+                    aria-label={`${showAc[key] ? "Hide" : "Show"} ${label.toLowerCase()}`}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1">
                     {showAc[key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -454,7 +456,7 @@ export default function Settings() {
               <p className="text-xs text-muted-foreground">Toggle app theme</p>
             </div>
           </div>
-          <button onClick={toggleDarkMode}
+          <button onClick={toggleDarkMode} aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"} aria-pressed={darkMode}
             className={`relative w-12 h-6 rounded-full transition-colors ${darkMode ? "bg-primary" : "bg-border"}`}>
             <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${darkMode ? "translate-x-6" : "translate-x-0"}`} />
           </button>

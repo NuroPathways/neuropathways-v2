@@ -28,7 +28,8 @@ import ChildEditor from "@/components/parentfree/ChildEditor";
 import DailySupportHome from "@/components/parentfree/DailySupportHome";
 import PracticePage from "@/components/parentfree/PracticePage";
 import { parentDirectBehaviors } from "@/components/parentfree/parentDirectSupport";
-import SupportNowOverlay, { clearSupportPopupSession } from "@/components/support/SupportNowOverlay";
+import SupportNowOverlay from "@/components/support/SupportNowOverlay";
+import { clearSupportPopupSession, markSupportPopupShown } from "@/lib/supportPopupSession";
 import { AlertTriangle } from "lucide-react";
 
 const TABS = [["today", "Today's Support"], ["practice", "Practice"], ["steps", "Support Steps"], ["log", "Log What Happened"], ["docs", "Upload Plan"], ["ask", "Ask"], ["clinic", "Clinic"], ["messages", "Messages"], ["edit", "Edit Child Profile"]];
@@ -286,6 +287,9 @@ export default function ParentHome() {
   const activeTab = legacyPracticeRoute ? "practice" : TABS.some(([key]) => key === searchParams.get("tab")) ? searchParams.get("tab") : "today";
   const activeSection = legacyPracticeRoute ? "" : searchParams.get("section") || "";
   const goalsRoute = activeTab === "edit" && (activeSection === "goals" || activeSection === "goal-editor");
+  useEffect(() => {
+    if (user?.id && activeTab === "steps") markSupportPopupShown(user.id);
+  }, [user?.id, activeTab]);
   const goToTab = (tab, section) => {
     const params = new URLSearchParams();
     if (tab !== "today" || section) params.set("tab", tab);
@@ -414,7 +418,8 @@ export default function ParentHome() {
         loadProfileForChild={loadPopupProfile}
         logEngagement={false}
         openRequest={supportRequest}
-        autoOpen={false}
+        autoOpen={activeTab === "today" && !activeSection}
+        autoOpenReady={children.length > 0}
         parentDirect
         initialChildId={activeChild?.id || null}
       />
