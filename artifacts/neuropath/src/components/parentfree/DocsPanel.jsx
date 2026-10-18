@@ -4,16 +4,39 @@ import { useScanParentDocument, useSetParentDocumentSharing, getParentDocumentCo
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, errMsg } from "./common";
 import UploadBox from "./UploadBox";
+import { FileText } from "lucide-react";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
+import { Input } from "@workspace/neuropathways-foundations/components/ui/input";
+import { Disclosure } from "@workspace/neuropathways-foundations/components/ui/disclosure";
+import { StatusBadge } from "@workspace/neuropathways-foundations/components/ui/status-badge";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "./docs-phase-eight.css";
 
 const DONE = ["scanned", "complete", "completed", "done", "ready"];
+const NEEDS_REVIEW = ["needs_review", "needs-review", "needs review"];
 export function scanLabel(d) {
   const s = String(d.scanStatus || "").toLowerCase();
+  if (NEEDS_REVIEW.includes(s)) return { text: "Needs review", kind: "warn", retry: true };
   if (DONE.includes(s)) return d.scanError
     ? { text: "Read with safety note", kind: "warn", retry: true, actionLabel: "Read again" }
     : { text: "Read and added to guidance", kind: "", retry: true, actionLabel: "Read again" };
   if (s === "failed" || s === "error") return { text: "Could not be read", kind: "warn", retry: true };
   if (s === "scanning" || s === "processing") return { text: "Reading now (this may take a minute)", kind: "sun", retry: true };
   return { text: "Waiting to be read", kind: "sun", retry: true };
+}
+
+// One small processing status; the detailed scanLabel wording stays in details.
+export function processingStatus(d) {
+  const s = String(d.scanStatus || "").toLowerCase();
+  if (NEEDS_REVIEW.includes(s)) return { text: "Needs Review", tone: "info" };
+  if (DONE.includes(s)) return d.scanError ? { text: "Needs Review", tone: "info" } : { text: "Ready", tone: "neutral" };
+  if (s === "failed" || s === "error") return { text: "Failed", tone: "urgent" };
+  return { text: "Processing", tone: "outline" };
+}
+
+function formatDate(v) {
+  const dt = new Date(v);
+  return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 export default function DocsPanel({ child, documents }) {
@@ -113,55 +136,101 @@ export default function DocsPanel({ child, documents }) {
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (er) { setError(errMsg(er, "Could not open the document.")); }
   };
+  const download = async (d) => {
+    setError("");
+    try {
+      const blob = await getParentDocumentContent(d.id, { ...parentRequest(), responseType: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = d.fileName || d.title || "document";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (er) { setError(errMsg(er, "Could not download the document.")); }
+  };
 
   return (
-    <div className="pf-grid2">
-      <div className="pf-card" style={{ display: "grid", gap: 12 }}>
-        <h2>Document Center</h2>
-        <p className="pf-hint">Keep your child's plans and important documents organized in one place.</p>
+    <div className="np-foundations np-docs-v8">
+      <section className="pf-card np-docs-section" aria-labelledby="np-docs-title">
+        <h2 id="np-docs-title">Document Center</h2>
+        <p className="np-docs-hint">Keep your child's plans and important documents organized in one place. Documents are private until you choose to share them.</p>
         <ErrorBox error={error} />
         {documents.length > 1 && (
-          <div style={{ display: "grid", gap: 8 }}>
-            <button className="pf-btn primary" type="button" disabled={operationBusy} onClick={() => void readPlans(documents)} data-testid="button-read-all-plans">
+          <div className="np-docs-section">
+            <Button className="np-docs-btn primary" type="button" disabled={operationBusy} onClick={() => void readPlans(documents)} data-testid="button-read-all-plans">
               {operationBusy ? "Reading plans…" : `Read all ${documents.length} plans`}
-            </button>
-            <p className="pf-hint">Plans are read one at a time. If one fails, the rest will still be attempted.</p>
+            </Button>
+            <p className="np-docs-hint">Plans are read one at a time. If one fails, the rest will still be attempted.</p>
           </div>
         )}
-        {batchStatus && <p role="status" className="pf-hint" data-testid="text-read-batch-status">{batchStatus}</p>}
-        {documents.length === 0 && <p style={{ color: "var(--pf-ink-soft)" }} data-testid="text-no-documents">No documents yet. Your steps already work without one. Add a behavior plan any time and it will shape the guidance.</p>}
-        {documents.length > 0 && <div style={{ display: "grid", gap: 8 }}>
-          <label htmlFor="doc-search" className="pf-hint">Search documents</label>
-          <input id="doc-search" className="pf-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by title" data-testid="input-doc-search" />
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }} role="group" aria-label="Document categories">
-            {categories.map((c) => <button key={c} type="button" className="pf-chip" aria-pressed={category === c} onClick={() => setCategory(c)} data-testid={`button-doc-category-${c}`}>{c === "all" ? "All" : c}</button>)}
+        {batchStatus && <p role="status" className="np-docs-hint" data-testid="text-read-batch-status">{batchStatus}</p>}
+        {documents.length === 0 && (
+          <div className="np-docs-empty" data-testid="text-no-documents">
+            <FileText aria-hidden="true" className="np-docs-icon" />
+            <p>No documents yet. Your steps already work without one. Add a behavior plan any time and it will shape the guidance.</p>
+          </div>
+        )}
+        {documents.length > 0 && <div className="np-docs-section">
+          <label htmlFor="doc-search" className="np-docs-label">Search documents</label>
+          <Input id="doc-search" className="np-docs-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by title" data-testid="input-doc-search" />
+          <div className="np-docs-cats" role="group" aria-label="Document categories">
+            {categories.map((c) => <Button key={c} type="button" className="np-docs-btn np-docs-cat" aria-pressed={category === c} onClick={() => setCategory(c)} data-testid={`button-doc-category-${c}`}>{c === "all" ? "All" : c}</Button>)}
           </div>
         </div>}
-        {documents.length > 0 && shown.length === 0 && <p className="pf-hint" data-testid="text-no-doc-matches">No documents match this search.</p>}
-        {shown.map((d) => {
-          const st = scanLabel(d);
-          return (
-            <div key={d.id} style={{ borderTop: "1px solid var(--pf-line)", paddingTop: 12, display: "grid", gap: 8 }} data-testid={`row-document-${d.id}`}>
-              <strong style={{ wordBreak: "break-word" }}>{d.title || d.fileName}</strong>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                <span className={`pf-tag ${st.kind}`} data-testid={`status-scan-${d.id}`}>{st.text}</span>
-                <span className="pf-tag">{categoryOf(d)}</span>
-                <span className="pf-tag">Uploaded by {d.uploadedBy === "clinician" ? "Clinician" : "Parent"}</span>
-                <span className="pf-tag">{d.shared ? "Shared with clinician" : "Private to your account"}</span>
-                {d.reviewed && <span className="pf-tag">Clinician reviewed</span>}
-              </div>
-              {d.scanError && <p className="pf-hint" style={{ color: "#7a2d12" }}>{d.scanError}</p>}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                <button className="pf-btn small" onClick={() => view(d)} data-testid={`button-view-${d.id}`}>View</button>
-                {st.retry && d.canScan !== false && <button className="pf-btn small primary" disabled={operationBusy} onClick={() => retry(d)} data-testid={`button-retry-scan-${d.id}`}>{busyId === d.id ? "Reading..." : (st.actionLabel || "Retry reading")}</button>}
-                {d.canShare !== false && <button className="pf-btn small" disabled={operationBusy || (!child.clinicianId && !d.shared)} onClick={() => toggle(d)} data-testid={`button-share-${d.id}`}>{d.shared ? "Stop sharing" : "Share with clinician"}</button>}
-              </div>
-            </div>
-          );
-        })}
-        {!child.clinicianId && documents.length > 0 && <p className="pf-hint">Sharing opens once you connect a clinic.</p>}
-      </div>
-      <div className="pf-card"><h3 style={{ marginBottom: 12 }}>Upload Document</h3><UploadBox key={childId} childId={childId} /></div>
+        {documents.length > 0 && shown.length === 0 && <p className="np-docs-hint" data-testid="text-no-doc-matches">No documents match this search.</p>}
+        {shown.length > 0 && <ul className="np-docs-list">
+          {shown.map((d) => {
+            const st = scanLabel(d);
+            const ps = processingStatus(d);
+            const name = d.title || d.fileName;
+            const date = formatDate(d.createdAt);
+            return (
+              <li key={d.id} className="np-docs-row" data-testid={`row-document-${d.id}`}>
+                <div className="np-docs-row-head">
+                  <FileText aria-hidden="true" className="np-docs-icon" />
+                  <div className="np-docs-main">
+                    <span className="np-docs-name">{name}</span>
+                    <span className="np-docs-meta">
+                      {categoryOf(d)} · {d.uploadedBy === "clinician" ? "From clinician" : "Uploaded by parent"} · {d.shared ? "Shared with clinician" : "Private"}
+                    </span>
+                  </div>
+                  <StatusBadge tone={ps.tone} className="np-docs-badge" data-tone={ps.tone} data-testid={`status-scan-${d.id}`} title={st.text}>{ps.text}</StatusBadge>
+                </div>
+                {d.scanError && (ps.text === "Needs Review"
+                  ? <p className="np-docs-error" data-testid={`text-scan-error-${d.id}`}>{d.scanError}</p>
+                  : <p className="np-docs-error" data-testid={`text-scan-error-summary-${d.id}`}>This document could not be read. View details for the full note.</p>)}
+                <div className="np-docs-actions">
+                  <Button type="button" className="np-docs-btn" onClick={() => view(d)} aria-label={`View ${name}`} data-testid={`button-view-${d.id}`}>View</Button>
+                  <Button type="button" className="np-docs-btn" onClick={() => void download(d)} aria-label={`Download ${name}`} data-testid={`button-download-${d.id}`}>Download</Button>
+                  {st.retry && d.canScan !== false && <Button type="button" className="np-docs-btn primary" disabled={operationBusy} onClick={() => retry(d)} data-testid={`button-retry-scan-${d.id}`}>{busyId === d.id ? "Reading..." : (st.actionLabel || "Retry reading")}</Button>}
+                  {d.canShare !== false && <Button type="button" className="np-docs-btn" disabled={operationBusy || (!child.clinicianId && !d.shared)} onClick={() => toggle(d)} data-testid={`button-share-${d.id}`}>{d.shared ? "Stop sharing" : "Share with clinician"}</Button>}
+                </div>
+                <Disclosure className="np-docs-disclosure" title="View details" data-testid={`disclosure-document-details-${d.id}`}>
+                  <dl className="np-docs-details" data-testid={`details-document-${d.id}`}>
+                    <dt>Reading status</dt><dd data-testid={`text-scan-detail-${d.id}`}>{st.text}</dd>
+                    {d.scanError && ps.text !== "Needs Review" && <><dt>Note</dt><dd data-testid={`text-scan-error-${d.id}`}>{d.scanError}</dd></>}
+                    <dt>File name</dt><dd>{d.fileName}</dd>
+                    {d.documentType && <><dt>Type</dt><dd>{d.documentType}</dd></>}
+                    <dt>Category</dt><dd>{categoryOf(d)}</dd>
+                    <dt>Uploaded by</dt><dd>{d.uploadedBy === "clinician" ? "Clinician" : "Parent"}</dd>
+                    {date && <><dt>Added</dt><dd>{date}</dd></>}
+                    <dt>Child</dt><dd>{child.name}</dd>
+                    <dt>Privacy</dt><dd>{d.shared ? "Shared with clinician" : "Private to your account"}</dd>
+                    <dt>Clinician review</dt><dd>{d.reviewed ? "Clinician reviewed" : "Not reviewed by a clinician"}</dd>
+                  </dl>
+                </Disclosure>
+              </li>
+            );
+          })}
+        </ul>}
+        {!child.clinicianId && documents.length > 0 && <p className="np-docs-hint">Sharing opens once you connect a clinic.</p>}
+      </section>
+      <section className="pf-card np-docs-section np-docs-upload" aria-labelledby="np-docs-upload-title">
+        <h3 id="np-docs-upload-title">Upload Document</h3>
+        <UploadBox key={childId} childId={childId} />
+      </section>
     </div>
   );
 }

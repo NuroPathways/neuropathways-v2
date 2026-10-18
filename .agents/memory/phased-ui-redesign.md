@@ -28,3 +28,9 @@ Foundation adoption must also isolate legacy structural styles, not only colors 
 **Why:** Adding a disclosure can shift positional grid rows so an old reserved message row creates a large blank disclosure. Legacy important height rules can also override a correctly scoped new stylesheet.
 
 **How to apply:** Inspect inherited grid tracks, sticky positioning and height constraints when changing a component's child structure. Remove obsolete structural classes within the approved component rather than changing global rules used by other screens; verify closed disclosures and the composer in an actual browser.
+
+Document technical failures may use concise summaries and expandable diagnostics, but successful readings with safety notes must keep the complete note visible.
+
+**Why:** A safety note can contain clinical constraints or urgent warnings. Its length does not make it safe to collapse along with secondary metadata.
+
+**How to apply:** Use trusted processing/safety status rather than keyword guesses. Keep Needs Review safety notes outside disclosure while preserving full technical failure text in accessible details.
