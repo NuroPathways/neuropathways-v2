@@ -4,6 +4,8 @@ import { useAuth } from "@/lib/AuthContext";
 import { parentRequest } from "@/lib/parentSession";
 import LegalLinks from "@/components/legal/LegalLinks";
 import BackButton from "@/components/navigation/BackButton";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "../components/parentfree/parent-tools-phase-nine.css";
 
 const options = [
   ["data_export", "Request a copy/export of my data"],
@@ -79,7 +81,7 @@ export default function DataRequests() {
   };
 
   return (
-    <main className="min-h-screen bg-background px-5 py-8">
+    <main className={`min-h-screen bg-background px-5 py-8${isParent ? " np-foundations np-parent-privacy-v9" : ""}`}>
       <div className="mx-auto max-w-2xl space-y-6">
         <header>
           <BackButton fallback={isClinician ? "/ClinicianDashboard" : isParent ? "/ParentHome" : "/ClientHome"} />

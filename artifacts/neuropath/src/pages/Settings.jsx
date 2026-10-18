@@ -8,6 +8,8 @@ import { Moon, Sun, User, LogOut, Trash2, AlertTriangle, Check, Pencil, Phone, L
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "../components/parentfree/parent-tools-phase-nine.css";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -225,6 +227,8 @@ export default function Settings() {
 
   const isClinicianRole = !isClientSession && (user?.app_role === "clinician" || user?.app_role === "admin");
   const isParentFreeAccount = !isClientSession && user?.account_type === "parent_free";
+  const parentVisual = !isClientSession && (isParentFreeAccount || user?.app_role === "parent" ||
+    ["parent_family", "legacy_family"].includes(user?.account_type || user?.accountType));
 
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -233,7 +237,7 @@ export default function Settings() {
   );
 
   return (
-    <div className="p-6 md:p-8 max-w-xl mx-auto font-inter pb-16">
+    <div className={`p-6 md:p-8 max-w-xl mx-auto font-inter pb-16${parentVisual ? " np-foundations np-parent-settings-v9" : ""}`}>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
         <a href="/DataRequests" className="mt-2 inline-block text-sm text-primary underline underline-offset-4">Privacy &amp; data requests</a>

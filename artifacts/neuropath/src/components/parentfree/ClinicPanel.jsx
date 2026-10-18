@@ -4,6 +4,8 @@ import { usePreviewParentClinicInvite, useConnectParentClinic, useRevokeParentCl
 import { useAuth } from "@/lib/AuthContext";
 import { parentRequest, recallInvite, forgetInvite } from "@/lib/parentSession";
 import { ErrorBox, Field, errMsg } from "./common";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "./parent-tools-phase-nine.css";
 
 export default function ClinicPanel({ child, documents }) {
   const qc = useQueryClient();
@@ -62,7 +64,7 @@ export default function ClinicPanel({ child, documents }) {
   };
 
   return (
-    <div className="pf-grid2">
+    <div className="pf-grid2 np-foundations np-parent-clinic-v9">
       <div className="pf-card" style={{ display: "grid", gap: 14 }}>
         <h2>Connect to your clinic</h2>
         {child.clinicianId && (

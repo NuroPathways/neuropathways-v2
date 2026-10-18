@@ -3,6 +3,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getGetParentFamilyToolsQueryKey, saveParentFamilyTools, useGetParentFamilyTools } from "@workspace/api-client-react";
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, Skeleton, errMsg } from "./common";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "./family-tools-phase-nine.css";
 
 const EMPTY = { routines: [], routineRuns: [], preferences: { favoriteActivities: [], favoriteThings: [], communicationMethods: [], comfortSensoryPreferences: [], dislikes: [] }, reminders: [] };
 const CATEGORIES = [
@@ -123,23 +126,23 @@ export default function FamilyTools({ childId, childName = "your child", actions
     <section className="np-family-tools" aria-label={`Family tools for ${childName}`}>
       <header className="np-tools-heading"><p className="pf-eyebrow">Parent-owned · private to your family</p><h2>Family tools</h2><p className="pf-hint">Your notes and routines are separate from scanned clinical information. Saving here does not change a care plan.</p></header>
       <nav className="np-tools-tabs" aria-label="Family tools">
-        {["Routines", "Preferences", "Reminders"].map((name) => <button type="button" key={name} aria-pressed={tab === name} onClick={() => { setTab(name); setError(""); }}>{name}</button>)}
+        {["Routines", "Preferences", "Reminders"].map((name) => <Button variant={tab === name ? "secondary" : "outline"} size="sm" type="button" key={name} aria-pressed={tab === name} onClick={() => { setTab(name); setError(""); }}>{name}</Button>)}
       </nav>
       {error && <p className="np-tools-error" role="alert">{error}</p>}
       {saving && <p className="pf-hint" role="status">Saving your changes…</p>}
       {player ? <article className="np-routine-player">
-        <button type="button" className="pf-btn small" onClick={exitRoutine}>Exit routine</button>
+        <Button type="button" variant="outline" size="sm" className="pf-btn small" onClick={exitRoutine}>Exit routine</Button>
         <p className="pf-eyebrow">Routine · {player.name}</p><h3>Now</h3>
         <p className="np-now-step">{player.steps[player.run.currentStep]?.icon && <span className="np-icon-name">{player.steps[player.run.currentStep].icon} · </span>}{player.steps[player.run.currentStep]?.text || "Routine finished."}{player.steps[player.run.currentStep]?.time && <span className="np-step-time"> · {player.steps[player.run.currentStep].time}</span>}</p>
         {player.steps[player.run.currentStep + 1] && <p className="pf-hint"><strong>Next:</strong> {player.steps[player.run.currentStep + 1].text}</p>}
         <p className="pf-hint">Finishing a routine is not a measure of mastery.</p>
         <div className="np-tools-actions">
-          <button type="button" className="pf-btn" onClick={() => updateRun("paused")}>Pause</button>
-          {player.run.status === "paused" && <button type="button" className="pf-btn primary" onClick={() => updateRun("active")}>Resume</button>}
-          {player.run.currentStep > 0 && <button type="button" className="pf-btn" onClick={() => updateRun("active", player.run.currentStep - 1)}>Back</button>}
+          <Button type="button" variant="outline" className="pf-btn" onClick={() => updateRun("paused")}>Pause</Button>
+          {player.run.status === "paused" && <Button type="button" className="pf-btn primary" onClick={() => updateRun("active")}>Resume</Button>}
+          {player.run.currentStep > 0 && <Button type="button" variant="outline" className="pf-btn" onClick={() => updateRun("active", player.run.currentStep - 1)}>Back</Button>}
           {player.run.currentStep < player.steps.length - 1
-            ? <button type="button" className="pf-btn primary" onClick={() => updateRun("active", player.run.currentStep + 1)}>Next</button>
-            : <button type="button" className="pf-btn primary" onClick={() => updateRun("completed")}>Finished</button>}
+            ? <Button type="button" className="pf-btn primary" onClick={() => updateRun("active", player.run.currentStep + 1)}>Next</Button>
+            : <Button type="button" className="pf-btn primary" onClick={() => updateRun("completed")}>Finished</Button>}
         </div>
       </article> : tab === "Routines" ? <>
         <div className="np-tools-form">
@@ -148,17 +151,17 @@ export default function FamilyTools({ childId, childName = "your child", actions
           <label>Steps, one per line<textarea value={stepText} onChange={(e) => setStepText(e.target.value)} rows={4} placeholder={"Put on shoes\nPick up bag\nWalk to the door"} /></label>
           {parseLines(stepText).length > 0 && <div className="np-step-meta"><label>Optional details for step<select value={Math.min(metaIndex, parseLines(stepText).length - 1)} onChange={(e) => setMetaIndex(Number(e.target.value))}>{parseLines(stepText).map((step, index) => <option key={`${index}:${step}`} value={index}>{index + 1}. {step}</option>)}</select></label><label>Icon name<input value={stepMeta[metaIndex]?.icon || ""} onChange={(e) => setStepMeta((items) => items.map((item, index) => index === metaIndex ? { ...item, icon: e.target.value } : item))} placeholder="shoe, book, bag" /></label><label>Time (optional)<input type="time" value={stepMeta[metaIndex]?.time || ""} onChange={(e) => setStepMeta((items) => items.map((item, index) => index === metaIndex ? { ...item, time: e.target.value } : item))} /></label></div>}
           <p className="pf-hint">Use a short icon name, not an image. Private images are not available here.</p>
-          <div className="np-tools-actions"><button type="button" className="pf-btn primary" onClick={saveRoutine}>{editing ? "Save changes" : "Add routine"}</button>{editing && <button type="button" className="pf-btn" onClick={() => { setEditing(null); setRoutineName(""); setStepText(""); setStepMeta([]); }}>Cancel edit</button>}</div>
+           <div className="np-tools-actions"><Button type="button" className="pf-btn primary" onClick={saveRoutine}>{editing ? "Save changes" : "Add routine"}</Button>{editing && <Button type="button" variant="outline" className="pf-btn" onClick={() => { setEditing(null); setRoutineName(""); setStepText(""); setStepMeta([]); }}>Cancel edit</Button>}</div>
         </div>
         {!data.routines.length ? <div className="np-tools-empty"><h3>No routines saved</h3><p>Create a routine using steps that already feel familiar to your family.</p></div> : data.routines.map((routine) => <article className="np-routine-card" key={routine.id}>
-          <div className="np-routine-title"><h3>{routine.name}</h3><button type="button" className="pf-btn small primary" onClick={() => startRoutine(routine)}>Start</button></div>
-          <ol>{routine.steps.map((step, i) => <li key={step.id || i}><span>{step.text}</span><div className="np-inline-actions"><button type="button" aria-label={`Move ${step.text} up`} disabled={i === 0} onClick={() => moveRoutineStep(routine, i, -1)}>↑</button><button type="button" aria-label={`Move ${step.text} down`} disabled={i === routine.steps.length - 1} onClick={() => moveRoutineStep(routine, i, 1)}>↓</button><button type="button" aria-label={`Remove ${step.text}`} onClick={() => void patch("routines", data.routines.map((r) => r.id === routine.id ? { ...r, steps: r.steps.filter((s) => s.id !== step.id), updatedAt: new Date().toISOString() } : r))}>Remove</button></div></li>)}</ol>
-          <div className="np-tools-actions"><button type="button" className="pf-btn small" onClick={() => editRoutine(routine)}>Edit</button><button type="button" className="pf-btn small" onClick={() => window.confirm(`Remove “${routine.name}”?`) && void patch("routines", data.routines.filter((r) => r.id !== routine.id))}>Remove routine</button></div>
+           <div className="np-routine-title"><h3>{routine.name}</h3><Button type="button" className="pf-btn small primary" onClick={() => startRoutine(routine)}>Start</Button></div>
+           <ol>{routine.steps.map((step, i) => <li key={step.id || i}><span>{step.text}</span><div className="np-inline-actions"><Button type="button" variant="outline" size="sm" aria-label={`Move ${step.text} up`} disabled={i === 0} onClick={() => moveRoutineStep(routine, i, -1)}>↑</Button><Button type="button" variant="outline" size="sm" aria-label={`Move ${step.text} down`} disabled={i === routine.steps.length - 1} onClick={() => moveRoutineStep(routine, i, 1)}>↓</Button><Button type="button" variant="outline" size="sm" aria-label={`Remove ${step.text}`} onClick={() => void patch("routines", data.routines.map((r) => r.id === routine.id ? { ...r, steps: r.steps.filter((s) => s.id !== step.id), updatedAt: new Date().toISOString() } : r))}>Remove</Button></div></li>)}</ol>
+           <div className="np-tools-actions"><Button type="button" variant="outline" size="sm" className="pf-btn small" onClick={() => editRoutine(routine)}>Edit</Button><Button type="button" variant="outline" size="sm" className="pf-btn small" onClick={() => window.confirm(`Remove “${routine.name}”?`) && void patch("routines", data.routines.filter((r) => r.id !== routine.id))}>Remove routine</Button></div>
         </article>)}
       </> : tab === "Preferences" ? <div className="np-preferences">
         <h3>{childName}'s preferences</h3><p className="pf-hint">Editable family notes. These do not come from a scan and are not rewards to earn.</p>
         {CATEGORIES.map(([key, label]) => <label key={key}>{label}<textarea rows={key === "comfortSensoryPreferences" ? 3 : 2} value={arrText(preferenceDraft?.[key])} onChange={(e) => setPreferenceDraft((current) => ({ ...current, [key]: parseLines(e.target.value) }))} placeholder="One item per line" /></label>)}
-        <button type="button" className="pf-btn primary" onClick={() => patch("preferences", preferenceDraft)}>Save preferences</button>
+         <Button type="button" className="pf-btn primary" onClick={() => patch("preferences", preferenceDraft)}>Save preferences</Button>
       </div> : <div className="np-reminders">
         <h3>Recurring reminders</h3><p className="np-delivery-note"><strong>Delivery unavailable.</strong> Reminders can be saved, but no notifications will be sent. Lock-screen copy is kept generic.</p>
         <div className="np-tools-form"><h4>{editingReminder ? "Edit reminder" : "New reminder"}</h4><label>Activity or routine<select value={reminderTarget} onChange={(e) => setReminderTarget(e.target.value)}><option value="">Choose one</option>{targets.map((target) => <option key={`${target.type}:${target.id}`} value={`${target.type}:${target.id}`}>{target.title} · {target.type}</option>)}</select></label><label>Time<input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} /></label>
@@ -167,10 +170,10 @@ export default function FamilyTools({ childId, childName = "your child", actions
           <label>Quiet hours start<input type="time" value={quietStart} onChange={(e) => setQuietStart(e.target.value)} /></label>
           <label>Quiet hours end<input type="time" value={quietEnd} onChange={(e) => setQuietEnd(e.target.value)} /></label>
           <p className="pf-hint">Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"}</p>
-          <button type="button" className="pf-btn primary" onClick={addReminder} disabled={!targets.length}>{editingReminder ? "Save reminder changes" : "Save reminder"}</button></div>
+           <Button type="button" className="pf-btn primary" onClick={addReminder} disabled={!targets.length}>{editingReminder ? "Save reminder changes" : "Save reminder"}</Button></div>
         {!data.reminders.length ? <p className="np-tools-empty">No reminders saved. You can add one for an exact activity or routine.</p> : data.reminders.map((r) => {
           const target = targets.find((t) => t.id === r.targetId && t.type === r.targetType);
-          return <article className="np-routine-card" key={r.id}><h4>{target?.title || "Saved activity"} · {r.time}</h4><p className="pf-hint">{(r.days || []).map((d) => ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d] || d).join(", ")} · {r.timezone}</p><p className="pf-hint">Snooze {r.snoozeMinutes} min · quiet hours {r.quietHours?.start}–{r.quietHours?.end}</p><div className="np-tools-actions"><button type="button" className="pf-btn small" onClick={() => { setEditingReminder(r); setReminderTarget(`${r.targetType}:${r.targetId}`); setReminderTime(r.time); setReminderDays(r.days || []); setSnoozeMinutes(String(r.snoozeMinutes)); setQuietStart(r.quietHours?.start || "21:00"); setQuietEnd(r.quietHours?.end || "07:00"); }}>Edit</button><button type="button" className="pf-btn small" onClick={() => updateReminder(r, { paused: !r.paused })}>{r.paused ? "Resume" : "Pause"}</button><button type="button" className="pf-btn small" onClick={() => updateReminder(r, { enabled: !r.enabled })}>{r.enabled ? "Cancel" : "Enable"}</button><button type="button" className="pf-btn small" onClick={() => patch("reminders", data.reminders.filter((item) => item.id !== r.id))}>Remove</button></div></article>;
+           return <article className="np-routine-card" key={r.id}><h4>{target?.title || "Saved activity"} · {r.time}</h4><p className="pf-hint">{(r.days || []).map((d) => ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d] || d).join(", ")} · {r.timezone}</p><p className="pf-hint">Snooze {r.snoozeMinutes} min · quiet hours {r.quietHours?.start}–{r.quietHours?.end}</p><div className="np-tools-actions"><Button type="button" variant="outline" size="sm" className="pf-btn small" onClick={() => { setEditingReminder(r); setReminderTarget(`${r.targetType}:${r.targetId}`); setReminderTime(r.time); setReminderDays(r.days || []); setSnoozeMinutes(String(r.snoozeMinutes)); setQuietStart(r.quietHours?.start || "21:00"); setQuietEnd(r.quietHours?.end || "07:00"); }}>Edit</Button><Button type="button" variant="outline" size="sm" className="pf-btn small" onClick={() => updateReminder(r, { paused: !r.paused })}>{r.paused ? "Resume" : "Pause"}</Button><Button type="button" variant="outline" size="sm" className="pf-btn small" onClick={() => updateReminder(r, { enabled: !r.enabled })}>{r.enabled ? "Cancel" : "Enable"}</Button><Button type="button" variant="outline" size="sm" className="pf-btn small" onClick={() => patch("reminders", data.reminders.filter((item) => item.id !== r.id))}>Remove</Button></div></article>;
         })}
       </div>}
       <p className="pf-hint np-private-footnote">Private family tools. Opening this area or saving a routine never creates an incident or behavior log.</p>

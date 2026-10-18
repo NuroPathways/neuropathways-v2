@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "../components/parentfree/parent-tools-phase-nine.css";
 
 export default function Messages() {
   const navigate = useNavigate();
@@ -174,11 +176,13 @@ export default function Messages() {
   };
 
   const canSend = newMsg.trim() && (recipientId || user?.app_role === "clinician");
+  const parentVisual = user?.app_role === "parent" || user?.role === "parent" ||
+    ["parent_free", "parent_family", "legacy_family"].includes(user?.account_type || user?.accountType);
 
   // ── CHAT VIEW ──────────────────────────────────────────────
   if (selectedChild) {
     return (
-      <div className="flex flex-col h-screen bg-background font-inter">
+      <div className={`flex flex-col h-screen bg-background font-inter${parentVisual ? " np-foundations np-parent-messages-page-v9" : ""}`}>
         <div className="bg-card border-b border-border px-4 py-4 flex items-center gap-3 flex-shrink-0">
           <button onClick={() => isIndividual ? navigate("/ParentDashboard") : setSelectedChild(null)} className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-5 h-5" />
@@ -244,7 +248,7 @@ export default function Messages() {
 
   // ── LANDING / CLIENT LIST ──────────────────────────────────
   return (
-    <div className="min-h-screen bg-background font-inter">
+    <div className={`min-h-screen bg-background font-inter${parentVisual ? " np-foundations np-parent-messages-page-v9" : ""}`}>
       <div className="bg-card border-b border-border px-4 py-4 flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-5 h-5" />

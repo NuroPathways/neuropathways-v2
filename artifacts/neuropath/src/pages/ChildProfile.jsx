@@ -5,6 +5,8 @@ import { useAuth } from "@/lib/AuthContext";
 import { ArrowLeft, AlertCircle, FileText, Target, ClipboardList, MessageCircle, AlertTriangle, Stethoscope, Calendar, ChevronRight, ShieldAlert, Brain, Download, ChevronDown, ChevronUp, Zap, XCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { openAuthenticatedFile } from "@/lib/authenticatedFile";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "../components/parentfree/parent-tools-phase-nine.css";
 
 const SEVERITY_STYLES = {
   low: "bg-green-100 text-green-700",
@@ -25,6 +27,8 @@ export default function ChildProfile() {
   const [fileError, setFileError] = useState("");
 
   const childId = new URLSearchParams(window.location.search).get("child_id");
+  const parentVisual = user?.app_role === "parent" || user?.role === "parent" ||
+    ["parent_free", "parent_family", "legacy_family"].includes(user?.account_type || user?.accountType);
 
   useEffect(() => {
     if (!childId) { navigate("/ParentDashboard"); return; }
@@ -59,7 +63,7 @@ export default function ChildProfile() {
   );
 
   return (
-    <div className="min-h-screen bg-background font-inter">
+    <div className={`min-h-screen bg-background font-inter${parentVisual ? " np-foundations np-parent-child-profile-v9" : ""}`}>
       {/* Hero */}
       <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(216,38%,40%) 0%, hsl(180,34%,32%) 100%)" }}>
         <div className="absolute inset-0 opacity-10">

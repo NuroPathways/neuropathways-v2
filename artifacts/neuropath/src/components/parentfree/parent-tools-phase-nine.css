@@ -1,0 +1,267 @@
+/* Parent-only Phase 9 adapter. Every rule requires an explicit parent opt-in
+   class plus the foundation token scope; clinician/individual surfaces remain
+   unchanged. */
+.np-parent-child-editor-v9,
+.np-parent-messages-v9,
+.np-parent-clinic-v9,
+.np-parent-settings-v9,
+.np-parent-privacy-v9 {
+  color: var(--np-color-foreground);
+  font-family: var(--np-font-sans);
+}
+.np-parent-child-editor-v9 {
+  gap: var(--np-space-related-lg) !important;
+  padding: var(--np-space-card-lg);
+  border-color: var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-card);
+}
+.np-parent-child-editor-v9 h2 {
+  margin: 0;
+  font: 700 var(--np-text-page-title)/var(--np-leading-page-title) var(--np-font-display);
+}
+.np-parent-child-editor-v9 h3 {
+  margin: var(--np-space-related) 0 0;
+  font: 700 var(--np-text-section-title)/var(--np-leading-section-title) var(--np-font-display);
+}
+.np-parent-messages-v9,
+.np-parent-clinic-v9 .pf-card {
+  gap: var(--np-space-related-lg) !important;
+  min-width: 0;
+  padding: var(--np-space-card-lg);
+  border-color: var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-card);
+  color: var(--np-color-foreground);
+  box-shadow: var(--np-shadow-raised);
+}
+.np-parent-messages-v9 h2,
+.np-parent-clinic-v9 h2 {
+  margin: 0;
+  font: 700 var(--np-text-section-title)/var(--np-leading-section-title) var(--np-font-display);
+}
+.np-parent-messages-v9 textarea,
+.np-parent-clinic-v9 input:not([type="checkbox"]),
+.np-parent-clinic-v9 textarea,
+.np-parent-clinic-v9 select {
+  min-height: var(--np-space-control);
+  border-color: var(--np-color-input);
+  border-radius: calc(var(--np-radius) - 2px);
+  background: var(--np-color-background);
+  color: var(--np-color-foreground);
+  font: 400 var(--np-text-body-sm)/var(--np-leading-body-sm) var(--np-font-sans);
+}
+.np-parent-messages-v9 textarea:focus-visible,
+.np-parent-clinic-v9 input:focus-visible,
+.np-parent-clinic-v9 textarea:focus-visible,
+.np-parent-clinic-v9 select:focus-visible {
+  outline: 2px solid var(--np-color-ring);
+  outline-offset: 2px;
+}
+.np-parent-messages-v9 ol > li {
+  border-color: var(--np-color-border) !important;
+  background: var(--np-color-muted) !important;
+}
+.np-parent-messages-v9 ol > li p { line-height: var(--np-leading-body); }
+.np-parent-messages-v9 form > label {
+  color: var(--np-color-foreground);
+  font-size: var(--np-text-support);
+  font-weight: 600;
+}
+.np-parent-messages-v9 .pf-btn {
+  min-height: var(--np-space-control);
+  border-radius: calc(var(--np-radius) - 2px);
+}
+.np-parent-log-v9 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  align-items: start;
+  gap: var(--np-space-related-lg);
+  min-width: 0;
+}
+.np-parent-log-v9 .np-parent-log-form-v9,
+.np-parent-log-v9 .np-parent-log-recent-v9 {
+  display: grid;
+  gap: var(--np-space-related);
+  min-width: 0;
+  padding: var(--np-space-card-lg);
+  border: 1px solid var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-card);
+  color: var(--np-color-foreground);
+  box-shadow: var(--np-shadow-raised);
+}
+.np-parent-log-v9 h2,
+.np-parent-log-v9 h3 {
+  margin: 0;
+  font: 700 var(--np-text-section-title)/var(--np-leading-section-title) var(--np-font-display);
+}
+.np-parent-log-v9 .pf-chip {
+  min-height: var(--np-space-control);
+  border-color: var(--np-color-border);
+  border-radius: calc(var(--np-radius) - 2px);
+  color: var(--np-color-foreground);
+  background: var(--np-color-background);
+}
+.np-parent-log-v9 .pf-chip[aria-pressed="true"] {
+  border-color: var(--np-color-primary);
+  color: var(--np-color-primary-foreground);
+  background: var(--np-color-primary);
+}
+.np-parent-log-v9 input,
+.np-parent-log-v9 textarea {
+  border-color: var(--np-color-input);
+  border-radius: calc(var(--np-radius) - 2px);
+}
+.np-parent-log-v9 input:focus-visible,
+.np-parent-log-v9 textarea:focus-visible,
+.np-parent-log-v9 button:focus-visible {
+  outline: 2px solid var(--np-color-ring);
+  outline-offset: 2px;
+}
+.np-parent-log-v9 .pf-list li {
+  padding: var(--np-space-related) 0;
+  border-color: var(--np-color-border) !important;
+}
+.np-parent-log-page-v9 {
+  color: var(--np-color-foreground);
+  font-family: var(--np-font-sans);
+}
+.np-parent-log-page-v9 > .relative:first-child { background: var(--np-color-primary) !important; }
+.np-parent-log-page-v9 > .relative:first-child h1 { font: 700 var(--np-text-page-title)/var(--np-leading-page-title) var(--np-font-display); }
+.np-parent-log-page-v9 .bg-card,
+.np-parent-log-page-v9 .bg-card + .bg-card {
+  border-color: var(--np-color-border);
+  border-radius: var(--np-radius);
+}
+.np-parent-log-page-v9 input:focus-visible,
+.np-parent-log-page-v9 textarea:focus-visible,
+.np-parent-log-page-v9 button:focus-visible {
+  outline: 2px solid var(--np-color-ring);
+  outline-offset: 2px;
+}
+.np-parent-child-profile-v9 {
+  color: var(--np-color-foreground);
+  font-family: var(--np-font-sans);
+}
+.np-parent-child-profile-v9 > div:nth-child(2) > *:not(:first-child) {
+  border-color: var(--np-color-border);
+  border-radius: var(--np-radius);
+}
+.np-parent-child-profile-v9 > div:nth-child(2) > .grid button {
+  min-height: var(--np-space-control);
+}
+.np-parent-child-profile-v9 .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.np-parent-child-profile-v9 button:focus-visible,
+.np-parent-child-profile-v9 a:focus-visible {
+  outline: 2px solid var(--np-color-ring);
+  outline-offset: 2px;
+}
+.np-parent-clinic-v9 { gap: var(--np-space-related-lg); }
+.np-parent-clinic-v9 .pf-grid2 { gap: var(--np-space-related-lg); }
+.np-parent-clinic-v9 .pf-card h2 { margin: 0; }
+.np-parent-history-v9 .np-history-list { gap: var(--np-space-list-lg); }
+.np-parent-history-v9 .np-history-row {
+  gap: var(--np-space-related);
+  padding: var(--np-space-card);
+  border-color: var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-card);
+  box-shadow: var(--np-shadow-raised);
+}
+.np-parent-history-v9 .np-history-row h2 {
+  font: 700 var(--np-text-card-title)/var(--np-leading-card-title) var(--np-font-display);
+}
+.np-parent-history-v9 .np-history-row p {
+  font-size: var(--np-text-support);
+  line-height: var(--np-leading-support);
+  overflow-wrap: anywhere;
+}
+.np-parent-history-v9 .np-history-row time {
+  font-size: var(--np-text-support-sm);
+  line-height: var(--np-leading-support-sm);
+}
+.np-parent-history-v9 .np-history-state {
+  border-color: var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-card);
+}
+.np-parent-history-v9 .np-history-state button {
+  min-height: var(--np-space-control);
+  border-radius: calc(var(--np-radius) - 2px);
+}
+.np-parent-messages-page-v9 {
+  color: var(--np-color-foreground);
+  font-family: var(--np-font-sans);
+}
+.np-parent-messages-page-v9.flex { height: 100dvh; }
+.np-parent-messages-page-v9 > .bg-card {
+  border-color: var(--np-color-border);
+  background: var(--np-color-card);
+}
+.np-parent-messages-page-v9 > .flex-1.overflow-y-auto { overscroll-behavior: contain; }
+.np-parent-messages-page-v9 .max-w-xl > .flex > div {
+  line-height: var(--np-leading-body);
+  overflow-wrap: anywhere;
+}
+.np-parent-messages-page-v9 textarea {
+  min-height: var(--np-space-control);
+  border-color: var(--np-color-input);
+  border-radius: calc(var(--np-radius) - 2px);
+}
+.np-parent-messages-page-v9 textarea:focus-visible,
+.np-parent-messages-page-v9 button:focus-visible {
+  outline: 2px solid var(--np-color-ring);
+  outline-offset: 2px;
+}
+.np-parent-messages-page-v9 .cursor-pointer {
+  border-color: var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-card);
+}
+.np-parent-settings-v9 > .bg-card {
+  border-color: var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-card);
+}
+.np-parent-settings-v9 h1 {
+  font: 700 var(--np-text-page-title)/var(--np-leading-page-title) var(--np-font-display);
+}
+.np-parent-settings-v9 h2 {
+  font: 700 var(--np-text-card-title)/var(--np-leading-card-title) var(--np-font-display);
+}
+.np-parent-settings-v9 input:focus-visible,
+.np-parent-settings-v9 button:focus-visible {
+  outline: 2px solid var(--np-color-ring);
+  outline-offset: 2px;
+}
+.np-parent-privacy-v9 > div > header h1 {
+  font: 700 var(--np-text-page-title)/var(--np-leading-page-title) var(--np-font-display);
+}
+.np-parent-privacy-v9 > div > section,
+.np-parent-privacy-v9 > div > form,
+.np-parent-privacy-v9 > div > div {
+  border-color: var(--np-color-border);
+}
+.np-parent-privacy-v9 > div > form,
+.np-parent-privacy-v9 > div > section {
+  border-radius: var(--np-radius);
+  background: var(--np-color-card);
+}
+.np-parent-privacy-v9 select,
+.np-parent-privacy-v9 button {
+  min-height: var(--np-space-control);
+}
+.np-parent-privacy-v9 select:focus-visible,
+.np-parent-privacy-v9 button:focus-visible {
+  outline: 2px solid var(--np-color-ring);
+  outline-offset: 2px;
+}
+@media (max-width: 767px) {
+  .np-parent-log-v9 { grid-template-columns: minmax(0, 1fr); }
+  .np-parent-child-editor-v9 { padding: var(--np-space-related-lg); }
+  .np-parent-child-profile-v9 .grid-cols-3 { grid-template-columns: minmax(0, 1fr); }
+  .np-parent-history-v9 .np-history-row { grid-template-columns: 34px minmax(0, 1fr); }
+  .np-parent-history-v9 .np-history-row time { grid-column: 2; text-align: left; }
+  .np-parent-messages-page-v9 .max-w-xl > .flex > div { max-width: 92%; }
+}

@@ -3,6 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useGetParentMessages, getGetParentMessagesQueryKey, useSendParentMessage } from "@workspace/api-client-react";
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, Skeleton, errMsg } from "./common";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "./parent-tools-phase-nine.css";
 
 export default function MessagesPanel({ childId, childName }) {
   const qc = useQueryClient();
@@ -23,7 +25,7 @@ export default function MessagesPanel({ childId, childName }) {
     });
   };
   return (
-    <section className="pf-card" style={{ display: "grid", gap: 12 }} aria-labelledby="messages-heading" data-testid="panel-messages">
+    <section className="pf-card np-foundations np-parent-messages-v9" style={{ display: "grid", gap: 12 }} aria-labelledby="messages-heading" data-testid="panel-messages">
       <h2 id="messages-heading">Messages with your care team</h2>
       <p className="pf-hint">About {childName}. For urgent safety concerns, call your local emergency number.</p>
       {q.isLoading ? <Skeleton h={120} /> : q.isError ? <ErrorBox error={q.error} onRetry={() => q.refetch()} /> : msgs.length === 0 ? (

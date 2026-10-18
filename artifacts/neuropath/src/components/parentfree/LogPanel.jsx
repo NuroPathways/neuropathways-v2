@@ -4,6 +4,8 @@ import { useAddParentLog, getGetParentDashboardQueryKey } from "@workspace/api-c
 import { parentBehaviorIdentity } from "@workspace/api-client-react";
 import { parentRequest } from "@/lib/parentSession";
 import { Field, ErrorBox, errMsg } from "./common";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "./parent-tools-phase-nine.css";
 
 const blank = { happened: true, intensity: "medium", duration: "5", trigger: "", whatHelped: "", notes: "" };
 
@@ -27,8 +29,8 @@ export default function LogPanel({ childId, childName, logs, behaviors = [], def
   };
 
   return (
-    <div className="pf-grid2">
-      <form onSubmit={submit} className="pf-card" style={{ display: "grid", gap: 14 }}>
+    <div className="pf-grid2 np-foundations np-parent-log-v9">
+      <form onSubmit={submit} className="pf-card np-parent-log-form-v9" style={{ display: "grid", gap: 14 }}>
         <h2>Log a moment for {childName}</h2>
         {behaviors.length > 0 && (
           <Field label="Which behavior">
@@ -59,7 +61,7 @@ export default function LogPanel({ childId, childName, logs, behaviors = [], def
         {saved && <p className="pf-tag" style={{ justifySelf: "start" }} data-testid="text-log-saved">Saved</p>}
         <button className="pf-btn primary" disabled={add.isPending} data-testid="button-save-log">{add.isPending ? "Saving..." : "Save log"}</button>
       </form>
-      <div className="pf-card">
+      <div className="pf-card np-parent-log-recent-v9">
         <h3>Recent</h3>
         {(logs || []).length === 0 ? (
           <p style={{ color: "var(--pf-ink-soft)", marginTop: 8 }}>Nothing logged yet. After a hard moment, a quick note here helps you spot what works.</p>

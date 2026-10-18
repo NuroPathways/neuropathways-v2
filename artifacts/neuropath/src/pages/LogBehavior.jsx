@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "sonner";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "../components/parentfree/parent-tools-phase-nine.css";
 
 const LABEL = "text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5";
 
@@ -107,6 +109,8 @@ export default function LogBehavior() {
   });
 
   const user = authUser;
+  const parentVisual = user?.app_role === "parent" || user?.role === "parent" ||
+    ["parent_free", "parent_family", "legacy_family"].includes(user?.account_type || user?.accountType);
 
   // Load children
   useEffect(() => {
@@ -275,7 +279,7 @@ export default function LogBehavior() {
   );
 
   return (
-    <div className="min-h-screen bg-background font-inter">
+    <div className={`min-h-screen bg-background font-inter${parentVisual ? " np-foundations np-parent-log-page-v9" : ""}`}>
       {/* Compact header — back button inline */}
       <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(270,50%,55%) 0%, hsl(250,45%,60%) 100%)" }}>
         <div className="relative px-5 pt-4 pb-5 max-w-xl mx-auto">

@@ -7,6 +7,8 @@ import { parentRequest } from "@/lib/parentSession";
 import { useSelectedChild } from "@/components/parentfree/useParent";
 import { base44 } from "@/api/entities";
 import { Activity, CalendarDays, ClipboardList, ListChecks } from "lucide-react";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "../components/parentfree/parent-tools-phase-nine.css";
 
 function DateLabel({ value }) {
   if (!value) return "Date unavailable";
@@ -87,7 +89,7 @@ export default function ParentHistory() {
     .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0)), [logs, actions, isFree, legacyEvents, routineRuns, routines, carePractice]);
 
   return (
-    <main className="np-parent-history">
+    <main className={`np-parent-history${isFree || user?.app_role === "parent" || user?.role === "parent" ? " np-foundations np-parent-history-v9" : ""}`}>
       <header><span>Family records</span><h1>History</h1><p>Notes and activity already saved for {freeQuery.data?.child?.name || allowedChild?.name || "your child"}.</p></header>
       {loading ? <div className="np-history-loading" aria-label="Loading history"><i /><i /><i /></div> : error ? (
         <div className="np-history-state" role="alert"><strong>History could not load.</strong><p>Check your connection and try again.</p><button type="button" onClick={() => isFree ? freeQuery.refetch() : window.location.reload()}>Try again</button></div>

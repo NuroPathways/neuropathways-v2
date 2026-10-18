@@ -30,7 +30,7 @@ export default function ChildEditor({ child, section, onUpload, lockDemographics
   };
 
   return (
-    <form onSubmit={save} className="pf-card" style={{ display: "grid", gap: 14, maxWidth: 720 }}>
+    <form onSubmit={save} className="pf-card np-foundations np-parent-child-editor-v9" style={{ display: "grid", gap: 14, maxWidth: 720 }}>
       <h2>Edit Behaviors / Goals</h2>
       <p className="pf-hint">Change the behavior, goal, nickname or notes without starting over. Your uploaded documents and guidance are kept.</p>
       {onUpload && <div><button type="button" className="pf-btn small" onClick={onUpload} data-testid="button-profile-upload">Upload a Plan</button></div>}
