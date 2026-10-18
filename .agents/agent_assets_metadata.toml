@@ -126,3 +126,31 @@ mtime_ms = 1792285496782
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/868a0842-a824-43c2-95db-62471c2e6336/8734e5c5-c644-4531-ad74-29be9c0e851c"
 storage_version_token = "1792285576882799"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "PDuR8n73nbJG_rNVQeDBO"
+uri = "file://generated-artifacts/phase0-audit/NeuroPathways-Phase-0-Audit.html"
+type = "html"
+title = "Phase 0 audit, plan and 23 screenshots"
+description = "Read-only review of both parent experiences, current screenshots, screen inventory, 163 route/shortcut entries, risks and the approval-gated redesign plan. No UI changes."
+logical_id = "71274f3e-da2f-4268-be24-725459e1648b"
+content_hash = "sha256:ec8fa31237c3b48436c98ad383dcad1c160927afe8e378656e5379f852cfa817"
+size = 3815601
+mtime_ms = 1792290788754
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/71274f3e-da2f-4268-be24-725459e1648b/23b29cd5-162b-4281-9e7d-4ec86c5cc589"
+storage_version_token = "1792290796406984"
+content_type = "text/html"
+
+[[outputs]]
+id = "NtYuxtXXxEMnKXQc5wgww"
+uri = "file://generated-artifacts/phase0-audit/NeuroPathways-Phase-0-Audit-and-Recovery.zip"
+type = "unspecified"
+title = "Phase 0 evidence and recovery backup"
+description = "Download the report, route inventory, original screenshots and verified full-history Git backup. The recovery bundle covers code, not database records."
+logical_id = "3dcbc011-2e7b-449c-8e1d-e5860919112a"
+content_hash = "sha256:f5202f7787f9ff707355ae4501980f0a8d5448911903331cc55805df41b3b89c"
+size = 14348163
+mtime_ms = 1792290789350
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/3dcbc011-2e7b-449c-8e1d-e5860919112a/b6eb5342-82a9-4ce7-8ef7-8c75b90c2a4b"
+storage_version_token = "1792290797354205"
+content_type = "application/octet-stream"
