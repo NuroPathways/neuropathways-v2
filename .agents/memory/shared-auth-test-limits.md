@@ -20,3 +20,9 @@ Verify signed-in test access before relying on it for a later visual review. Per
 **Why:** A later protected-screen review lost both the prior browser sessions and its temporary fixture, despite earlier successful verification.
 
 **How to apply:** Check access early. If both are unavailable, disclose the screenshot gap and obtain permission for fresh isolated verification accounts; never reset existing accounts or weaken authentication to recover test access.
+
+For the remaining phased redesign reviews, the user explicitly authorizes fresh isolated verification accounts and the minimum synthetic data needed to test them.
+
+**Why:** Temporary verification sessions were lost between phase reviews, and the user approved replacement accounts for the remaining phases rather than repeated permission requests.
+
+**How to apply:** Reuse private fixtures when available. If they are lost, create clearly isolated synthetic parent/family/clinician fixtures as needed through normal application flows. Do not modify real records, reset existing credentials or weaken access controls. This permission is limited to the remaining redesign phases, not unrelated work.

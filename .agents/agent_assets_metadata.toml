@@ -252,3 +252,17 @@ mtime_ms = 1792302781451
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/d1bc0633-3e8e-4ac7-a3f6-9c712bb5a619/c60643ee-3751-4b60-befc-c574bac6bc81"
 storage_version_token = "1792302804197772"
 content_type = "text/html"
+
+[[outputs]]
+id = "IOX2h5rK5BkD7mguIbt81"
+uri = "file://generated-artifacts/phase8-review/NeuroPathways-Phase-8-Document-Center-Review.html"
+type = "html"
+title = "Phase 8 — Document Center Review"
+description = "Changes, verification results, screenshot references and remaining issues."
+logical_id = "deeec2a2-a778-4f50-934e-312712f801d4"
+content_hash = "sha256:7b305f0af2b9d94b04a2f3ac15998a118e18feaef13214b10029d4d79270c3e5"
+size = 13596
+mtime_ms = 1792341000191
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/deeec2a2-a778-4f50-934e-312712f801d4/0c4bcfc8-436b-4463-940d-617338d75d01"
+storage_version_token = "1792341005114714"
+content_type = "text/html"

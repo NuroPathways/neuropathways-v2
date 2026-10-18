@@ -178,7 +178,16 @@ describe("Parent Document Center presentation and existing contracts", () => {
     expect(api.invalidate).toHaveBeenCalled();
   });
 
-  it("keeps batch scans sequential and continues after a failed document", async () => {
+  it("retries only the chosen document for the selected child", async () => {
+    mount([doc(), doc({ id: "doc-b", scanStatus: "failed" })]);
+    await clickAsync("button-retry-scan-doc-b");
+    expect(api.scan.mock.calls.map(([value]) => value)).toEqual([
+      { childId: "child-a", documentId: "doc-b" },
+    ]);
+    expect(screen.getByTestId("text-read-batch-status").textContent).toContain("1 of 1 plans read");
+  });
+
+  it("keeps batch scans sequential", async () => {
     const first = deferred();
     api.scan.mockImplementationOnce(() => first.promise).mockResolvedValueOnce({});
     mount([doc(), doc({ id: "doc-b", title: "School IEP" })]);
