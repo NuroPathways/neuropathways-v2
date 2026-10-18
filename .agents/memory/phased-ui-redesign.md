@@ -10,3 +10,9 @@ Perform the NeuroPathways redesign one phase at a time. The initial audit phase 
 **How to apply:** Follow the uploaded phased redesign brief. Present the completed phase using its required headings: What Changed, Files Modified, Before and After, What Was Preserved, Testing, Remaining Issues and Approval Required. Supply actual running-app screenshots, distinguish inspected code from tested behavior, and stop for explicit approval. Revisions remain within the current phase. Obtain approval before shared-component side effects or unrelated blocking bug fixes.
 
 The redesign is visual and organizational only: preserve features, route names, shortcut destinations, the current palette and logo, desktop sidebar, emergency access, stored data, account relationships, permissions, and all supported account modes. Do not reset the working tree to GitHub or silently change clinical content.
+
+Phase 1 establishes isolated foundation/component previews before application-wide adoption. Approval to build those examples does not authorize changing Home or migrating global application styling.
+
+**Why:** The brief explicitly requires reviewing the foundation examples first, with Home and subsequent screens authorized in separate phases. A global theme or CSS-toolchain migration could change those screens prematurely.
+
+**How to apply:** Keep foundation adoption scoped to the individually approved screen phase. Do not treat a shared stylesheet migration as incidental setup; review its effects on unapproved roles and pages before applying it.

@@ -1,0 +1,126 @@
+/* GENERATED FROM tokens.json BY scripts/build-tokens.mjs -- DO NOT EDIT.
+ * Scoped NeuroPathways foundations: opt-in under .np-foundations only.
+ * Imports no Tailwind and sets nothing on :root, html or body. */
+.np-foundations {
+  --np-color-background: #f5f9f8;
+  --np-color-foreground: #1c313f;
+  --np-color-border: #d5e1de;
+  --np-color-card: #ffffff;
+  --np-color-card-foreground: #1c313f;
+  --np-color-popover: #ffffff;
+  --np-color-popover-foreground: #1c313f;
+  --np-color-primary: #496fa4;
+  --np-color-primary-foreground: #ffffff;
+  --np-color-secondary: #e7ecef;
+  --np-color-secondary-foreground: #233c4d;
+  --np-color-muted: #eaf0ef;
+  --np-color-muted-foreground: #546773;
+  --np-color-accent: #d6ebe5;
+  --np-color-accent-foreground: #233c4d;
+  --np-color-destructive: #d12929;
+  --np-color-destructive-foreground: #ffffff;
+  --np-color-input: #d5e1de;
+  --np-color-ring: #496fa4;
+  --np-color-chart-1: #496fa4;
+  --np-color-chart-2: #397471;
+  --np-color-chart-3: #255653;
+  --np-color-chart-4: #546773;
+  --np-color-chart-5: #d12929;
+  --np-color-sidebar: #f4f5f7;
+  --np-color-sidebar-foreground: #1c313f;
+  --np-color-sidebar-border: #e3e5e9;
+  --np-color-sidebar-primary: #496fa4;
+  --np-color-sidebar-primary-foreground: #ffffff;
+  --np-color-sidebar-accent: #d6ebe5;
+  --np-color-sidebar-accent-foreground: #233c4d;
+  --np-color-sidebar-ring: #496fa4;
+  --np-font-sans: DM Sans, Inter, ui-sans-serif, system-ui, sans-serif;
+  --np-font-display: Manrope, DM Sans, sans-serif;
+  --np-radius: 0.75rem;
+  --np-text-page-title: 1.625rem;
+  --np-text-section-title: 1.25rem;
+  --np-text-card-title: 1.0625rem;
+  --np-text-body: 1rem;
+  --np-text-body-sm: 0.9375rem;
+  --np-text-support: 0.875rem;
+  --np-text-support-sm: 0.8125rem;
+  --np-leading-page-title: 1.25;
+  --np-leading-section-title: 1.3;
+  --np-leading-card-title: 1.35;
+  --np-leading-body: 1.55;
+  --np-leading-body-sm: 1.55;
+  --np-leading-support: 1.45;
+  --np-leading-support-sm: 1.45;
+  --np-space-gutter: 1.25rem;
+  --np-space-section: 2rem;
+  --np-space-related: 0.75rem;
+  --np-space-related-lg: 1rem;
+  --np-space-card: 1rem;
+  --np-space-card-lg: 1.25rem;
+  --np-space-list: 0.5rem;
+  --np-space-list-lg: 0.75rem;
+  --np-space-control: 2.75rem;
+  --np-shadow-floating: 0 8px 24px -12px rgb(28 49 63 / 0.28), 0 2px 6px -2px rgb(28 49 63 / 0.10);
+  --np-shadow-raised: 0 1px 2px rgb(28 49 63 / 0.06);
+  font-family: var(--np-font-sans);
+  color: var(--np-color-foreground);
+}
+.dark .np-foundations, .np-foundations.dark {
+  --np-color-background: #121b21;
+  --np-color-foreground: #eaf1ef;
+  --np-color-border: #36454e;
+  --np-color-card: #1a262d;
+  --np-color-card-foreground: #eaf1ef;
+  --np-color-popover: #1a262d;
+  --np-color-popover-foreground: #eaf1ef;
+  --np-color-primary: #496fa4;
+  --np-color-primary-foreground: #ffffff;
+  --np-color-secondary: #2b3840;
+  --np-color-secondary-foreground: #eaf1ef;
+  --np-color-muted: #26323b;
+  --np-color-muted-foreground: #a1b5b0;
+  --np-color-accent: #2e4d48;
+  --np-color-accent-foreground: #eaf1ef;
+  --np-color-destructive: #d33636;
+  --np-color-destructive-foreground: #ffffff;
+  --np-color-input: #36454e;
+  --np-color-ring: #66b7ab;
+  --np-color-chart-1: #496fa4;
+  --np-color-chart-2: #66b7ab;
+  --np-color-chart-3: #a1b5b0;
+  --np-color-chart-4: #36454e;
+  --np-color-chart-5: #d33636;
+  --np-color-sidebar: #1a262d;
+  --np-color-sidebar-foreground: #eaf1ef;
+  --np-color-sidebar-border: #36454e;
+  --np-color-sidebar-primary: #496fa4;
+  --np-color-sidebar-primary-foreground: #ffffff;
+  --np-color-sidebar-accent: #2e4d48;
+  --np-color-sidebar-accent-foreground: #eaf1ef;
+  --np-color-sidebar-ring: #66b7ab;
+}
+.np-foundations :is(h1, h2, h3, h4) { font-family: var(--np-font-display); }
+.np-foundations .np-text-page-title { font-size: var(--np-text-page-title); line-height: var(--np-leading-page-title, 1.5); }
+.np-foundations .np-text-section-title { font-size: var(--np-text-section-title); line-height: var(--np-leading-section-title, 1.5); }
+.np-foundations .np-text-card-title { font-size: var(--np-text-card-title); line-height: var(--np-leading-card-title, 1.5); }
+.np-foundations .np-text-body { font-size: var(--np-text-body); line-height: var(--np-leading-body, 1.5); }
+.np-foundations .np-text-body-sm { font-size: var(--np-text-body-sm); line-height: var(--np-leading-body-sm, 1.5); }
+.np-foundations .np-text-support { font-size: var(--np-text-support); line-height: var(--np-leading-support, 1.5); }
+.np-foundations .np-text-support-sm { font-size: var(--np-text-support-sm); line-height: var(--np-leading-support-sm, 1.5); }
+.np-foundations .np-page-title { font-size: var(--np-text-page-title); line-height: var(--np-leading-page-title); font-weight: 700; }
+.np-foundations .np-section-title { font-size: var(--np-text-section-title); line-height: var(--np-leading-section-title); font-weight: 600; }
+.np-foundations .np-card-title { font-size: var(--np-text-card-title); line-height: var(--np-leading-card-title); font-weight: 600; }
+.np-foundations .np-muted { color: var(--np-color-muted-foreground); }
+.np-foundations .np-gutter { padding-inline: var(--np-space-gutter); }
+.np-foundations .np-section-stack > * + * { margin-top: var(--np-space-section); }
+.np-foundations .np-related-stack > * + * { margin-top: var(--np-space-related); }
+.np-foundations .np-control { min-height: var(--np-space-control); }
+.np-foundations .np-surface-separated { border: 1px solid var(--np-color-border); border-radius: var(--np-radius); background: var(--np-color-card); padding: var(--np-space-card); }
+.np-foundations .np-surface-floating { border: 1px solid var(--np-color-border); border-radius: calc(var(--np-radius) + 4px); background: var(--np-color-card); padding: var(--np-space-card); box-shadow: var(--np-shadow-floating); }
+.np-foundations .np-surface-urgent { border-left: 4px solid var(--np-color-destructive); }
+@media (min-width: 640px) {
+  .np-foundations .np-surface-separated, .np-foundations .np-surface-floating { padding: var(--np-space-card-lg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .np-foundations *, .np-foundations *::before, .np-foundations *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

@@ -1,0 +1,19 @@
+kind = "design-system"
+previewPath = "/neuropathways-foundations/"
+title = "NeuroPathways Design System"
+description = "Phase 1 isolated visual foundations and component examples for NeuroPathways. Preserves the existing palette, logo and behavioral-health safeguards. Not applied to application screens until their individually approved redesign phases."
+version = "1.0.0"
+id = "artifacts/neuropathways-foundations"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/neuropathways-foundations/" ]
+localPort = 21194
+
+[services.development]
+run = "pnpm --filter @workspace/neuropathways-foundations run dev"
+
+[services.env]
+PORT = "21194"
+BASE_PATH = "/neuropathways-foundations/"

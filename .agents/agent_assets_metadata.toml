@@ -154,3 +154,17 @@ mtime_ms = 1792290789350
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/3dcbc011-2e7b-449c-8e1d-e5860919112a/b6eb5342-82a9-4ce7-8ef7-8c75b90c2a4b"
 storage_version_token = "1792290797354205"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "thR84tKopQDVKJFKeWgTb"
+uri = "file://generated-artifacts/phase1-review/NeuroPathways-Phase-1-Review.html"
+type = "html"
+title = "Phase 1 review — before and isolated examples"
+description = "Downloadable review with the unchanged app baseline, three actual foundation screenshots, design decisions, checks and remaining integration boundaries."
+logical_id = "20db4246-a1b9-4714-aa70-79ff450b9176"
+content_hash = "sha256:59dee2f573cfd2208cc5901c7f8b22a86bb44ff2d008b39c1d5a42dd2eab551c"
+size = 1188062
+mtime_ms = 1792291678828
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/20db4246-a1b9-4714-aa70-79ff450b9176/e3cbd490-d694-4166-98b8-a9a57aa888a4"
+storage_version_token = "1792291689926748"
+content_type = "text/html"
