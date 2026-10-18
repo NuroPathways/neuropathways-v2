@@ -266,17 +266,16 @@
 .dark .np-help .np-help-urgent-section { @apply bg-red-950 border-red-800 text-red-100; }
 
 /* Disclosure adapter (non-urgent content only) */
-.np-help .np-help-disclosures { display: grid; }
+.np-help .np-help-disclosures { display: grid; background: var(--np-color-card); }
+.np-help .np-help-disclosures > .np-help-disclosure {
+  background: var(--np-color-card);
+  border: 0;
+  border-top: 1px solid var(--np-color-border);
+  border-radius: 0;
+  padding-inline: 0;
+}
 .np-help .np-help-disclosures > .np-help-disclosure + .np-help-disclosure { border-top: 0; }
-.np-help .np-help-disclosure { border-top: 1px solid var(--np-color-border); border-bottom: 1px solid var(--np-color-border); }
-.np-help .np-help-disclosure--context { @apply bg-yellow-50 border border-yellow-200; padding-inline: var(--np-space-related); border-radius: var(--np-radius); }
-.np-help .np-help-disclosure--prevention { @apply bg-blue-50 border border-blue-200; padding-inline: var(--np-space-related); }
-.np-help .np-help-disclosure--encouragement,
-.np-help .np-help-disclosure--skill { @apply bg-teal-50 border border-teal-200; padding-inline: var(--np-space-related); }
-.dark .np-help .np-help-disclosure--context { @apply bg-yellow-950 border-yellow-800; }
-.dark .np-help .np-help-disclosure--prevention { @apply bg-blue-950 border-blue-800; }
-.dark .np-help .np-help-disclosure--encouragement,
-.dark .np-help .np-help-disclosure--skill { @apply bg-teal-950 border-teal-800; }
+.np-help .np-help-disclosures > .np-help-disclosure:last-child { border-bottom: 1px solid var(--np-color-border); }
 .np-help .np-help-disclosure > button {
   display: flex; align-items: center; justify-content: space-between; gap: var(--np-space-related);
   width: 100%; min-height: var(--np-space-control); padding: var(--np-space-list) 0;
