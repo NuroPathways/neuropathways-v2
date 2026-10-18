@@ -238,3 +238,17 @@ mtime_ms = 1792301535146
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/046f138c-bf0d-4d22-86e8-29353b9d8f08/e4c8eab5-1938-4793-b565-be8c0b5b7c65"
 storage_version_token = "1792301563228041"
 content_type = "text/html"
+
+[[outputs]]
+id = "sdcLKWIqWeihDDScCGJV0"
+uri = "file://generated-artifacts/phase7-review/NeuroPathways-Phase-7-AI-Chat-Review.html"
+type = "html"
+title = "Phase 7 — AI Chat Review"
+description = "Changes, safety boundaries, test results, screenshots and remaining issues."
+logical_id = "d1bc0633-3e8e-4ac7-a3f6-9c712bb5a619"
+content_hash = "sha256:3c675f6bf550713d4470cc9b1795444075f234d71c50c92a99be002d01889d23"
+size = 13117
+mtime_ms = 1792302781451
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/d1bc0633-3e8e-4ac7-a3f6-9c712bb5a619/c60643ee-3751-4b60-befc-c574bac6bc81"
+storage_version_token = "1792302804197772"
+content_type = "text/html"

@@ -3,6 +3,23 @@ import ReactMarkdown from "react-markdown";
 import { useParentChat } from "@workspace/api-client-react";
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, errMsg } from "./common";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
+import { Input } from "@workspace/neuropathways-foundations/components/ui/input";
+import { Disclosure } from "@workspace/neuropathways-foundations/components/ui/disclosure";
+import "@workspace/neuropathways-foundations/scoped.css";
+import "./chat-phase-seven.css";
+
+const MD = {
+  p: ({ children }) => <p>{children}</p>,
+  strong: ({ children }) => <strong>{children}</strong>,
+  ul: ({ children }) => <ul>{children}</ul>,
+  ol: ({ children }) => <ol>{children}</ol>,
+  li: ({ children }) => <li>{children}</li>,
+  h1: ({ children }) => <h3>{children}</h3>,
+  h2: ({ children }) => <h3>{children}</h3>,
+  h3: ({ children }) => <h3>{children}</h3>,
+  blockquote: ({ children }) => <blockquote>{children}</blockquote>,
+};
 
 // A reference counts as reviewed only if a clinician-reviewed card cites that document.
 function allRefsReviewed(refs, cards) {
@@ -40,42 +57,49 @@ export default function ChatPanel({ childId, childName, cards = [] }) {
   };
 
   return (
-    <div className="pf-card pf-chat" style={{ display: "grid", gap: 14 }}>
+    <div className="pf-card np-foundations np-chat-v7">
       <h2>Ask about {childName}</h2>
-      <p className="pf-hint">Answers may use readable information from your uploaded plans or saved support. If they do not cover your question, NeuroPath may offer general information. This is not medical or professional advice. If there is immediate danger, call 911 or your local emergency services.</p>
-      <div className="pf-chat-scroll" style={{ display: "grid", gap: 10, minHeight: 160, maxHeight: "50dvh", overflowY: "auto" }} aria-live="polite">
-        {msgs.length === 0 && <p style={{ color: "var(--pf-ink-soft)" }}>Try: "What should I say when the meltdown starts?"</p>}
+      <div className="np-chat-safety" data-testid="text-chat-safety">
+        <p className="np-chat-emergency">If there is immediate danger, call 911 or your local emergency services.</p>
+        <p className="np-chat-notice">This is not medical or professional advice.</p>
+      </div>
+      <Disclosure className="np-chat-disclosure" title="Important information" data-testid="disclosure-chat-info">
+        <p>Answers may use readable information from your uploaded plans or saved support. If they do not cover your question, NeuroPath may offer general information.</p>
+      </Disclosure>
+      <div className="np-chat-scroll" aria-live="polite">
+        {msgs.length === 0 && <p className="np-chat-empty">Try: "What should I say when the meltdown starts?"</p>}
         {msgs.map((m, i) => (
-          <div key={i} className={`pf-bubble ${m.role}`} data-testid={`bubble-${m.role}-${i}`}>
-            {m.role === "me" ? m.text : (
-              <ReactMarkdown
-                components={{
-                  p: ({ children }) => <p style={{ margin: "4px 0" }}>{children}</p>,
-                  strong: ({ children }) => <strong>{children}</strong>,
-                  ul: ({ children }) => <ul style={{ margin: "6px 0 6px 20px", listStyle: "disc" }}>{children}</ul>,
-                  ol: ({ children }) => <ol style={{ margin: "6px 0 6px 20px", listStyle: "decimal" }}>{children}</ol>,
-                  li: ({ children }) => <li style={{ margin: "2px 0" }}>{children}</li>,
-                  h1: ({ children }) => <h3 style={{ margin: "10px 0 4px", fontSize: "1.05rem" }}>{children}</h3>,
-                  h2: ({ children }) => <h3 style={{ margin: "10px 0 4px", fontSize: "1rem" }}>{children}</h3>,
-                  h3: ({ children }) => <h3 style={{ margin: "8px 0 4px", fontSize: ".95rem" }}>{children}</h3>,
-                  blockquote: ({ children }) => <blockquote style={{ margin: "8px 0", paddingLeft: 12, borderLeft: "3px solid var(--pf-line)" }}>{children}</blockquote>,
-                }}
-              >
-                {m.text}
-              </ReactMarkdown>
+          <div key={i} className={`pf-bubble ${m.role} np-chat-bubble`} data-testid={`bubble-${m.role}-${i}`}>
+            {m.role === "me" ? <p className="np-chat-user-text">{m.text}</p> : (
+              <div className="np-chat-answer">
+                <ReactMarkdown components={MD}>{m.text}</ReactMarkdown>
+              </div>
             )}
-            {m.refs?.length > 0 && <p className="pf-hint" style={{ marginTop: 8 }}>Sources: {m.refs.map((r) => r.title).join(", ")}</p>}
-            {(!m.refs?.length || !allRefsReviewed(m.refs, cards)) && <p className="pf-hint" style={{ marginTop: 6 }} data-testid="text-unreviewed">This answer is based on starter support or your uploaded information. It has not been reviewed by a clinician.</p>}
-            {m.disclaimer && <p className="pf-hint" style={{ marginTop: 6 }}>{m.disclaimer}</p>}
+            {m.role === "ai" && (!m.refs?.length || !allRefsReviewed(m.refs, cards)) && <p className="np-chat-provenance" data-testid="text-unreviewed">This answer is based on starter support or your uploaded information. It has not been reviewed by a clinician.</p>}
+            {m.disclaimer && <p className="np-chat-disclaimer" data-testid={`text-disclaimer-${i}`}>{m.disclaimer}</p>}
+            {m.refs?.length > 0 && (
+              <Disclosure className="np-chat-disclosure np-chat-sources" title={`Sources (${m.refs.length})`} data-testid={`disclosure-sources-${i}`}>
+                <ul className="np-chat-source-list">
+                  {m.refs.map((r, j) => (
+                    <li key={`${r.documentId}-${j}`} data-testid={`source-${i}-${j}`}>
+                      <p className="np-chat-source-title">{r.title}</p>
+                      {r.excerpt && <p className="np-chat-source-excerpt">{r.excerpt}</p>}
+                      <p className="np-chat-source-id">Document ID: {r.documentId}</p>
+                    </li>
+                  ))}
+                </ul>
+              </Disclosure>
+            )}
           </div>
         ))}
-        {chat.isPending && <div className="pf-skel" style={{ height: 48, width: "60%" }} />}
+        {chat.isPending && <div className="pf-skel np-chat-skel" aria-label="Waiting for an answer" />}
         <div ref={end} />
       </div>
       <ErrorBox error={error} />
-      <form className="pf-chat-form" onSubmit={send} style={{ display: "flex", gap: 8 }}>
-        <input className="pf-input" value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask a question" data-testid="input-chat" />
-        <button className="pf-btn primary" disabled={!text.trim() || chat.isPending} data-testid="button-send-chat">Send</button>
+      <form className="pf-chat-form np-chat-form" onSubmit={send}>
+        <label htmlFor="np-chat-input" className="np-chat-sr">Ask a question about {childName}</label>
+        <Input id="np-chat-input" className="np-chat-input" value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask a question" data-testid="input-chat" />
+        <Button type="submit" className="np-chat-send" disabled={!text.trim() || chat.isPending} data-testid="button-send-chat">Send</Button>
       </form>
     </div>
   );

@@ -22,3 +22,9 @@ Help Now may collapse optional explanations and prevention/background material, 
 **Why:** The user's redesign brief prioritizes caregivers who may have limited time or attention during a stressful event; reducing visual density must not make critical guidance harder to reach.
 
 **How to apply:** Keep source text intact, emphasize the current saved action and retain every step/control. If a note's urgency is unclear, keep it visible rather than assuming that long text is nonurgent. Presentation changes must not change eligibility, branching or logging contracts.
+
+Foundation adoption must also isolate legacy structural styles, not only colors and typography.
+
+**Why:** Adding a disclosure can shift positional grid rows so an old reserved message row creates a large blank disclosure. Legacy important height rules can also override a correctly scoped new stylesheet.
+
+**How to apply:** Inspect inherited grid tracks, sticky positioning and height constraints when changing a component's child structure. Remove obsolete structural classes within the approved component rather than changing global rules used by other screens; verify closed disclosures and the composer in an actual browser.

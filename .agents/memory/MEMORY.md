@@ -20,3 +20,4 @@
 - [Sandboxed document previews](sandboxed-document-previews.md) — verify visible content without frame introspection that can reset the authenticated test worker.
 - [Redesign approval gates](phased-ui-redesign.md) — audit before UI edits; stop after each redesign phase and require explicit approval to advance.
 - [Goal source and draft safety](goal-source-presentation.md) — group by goal origin, retain raw technical titles, and keep edit drafts when details collapse.
+- [Chat safety presentation](chat-safety-presentation.md) — collapse only known nonurgent boilerplate; retain complete answers, disclaimers and source provenance.
