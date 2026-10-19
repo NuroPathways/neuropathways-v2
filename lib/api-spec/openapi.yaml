@@ -266,6 +266,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ParentAuthResult"
+  /auth/password-reset/request:
+    post:
+      operationId: requestPasswordReset
+      tags: [auth]
+      summary: Request a password reset link for a local parent or clinician account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequestInput"
+      responses:
+        "202":
+          description: Request accepted without disclosing whether an account exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordResetRequestResult"
+        "400":
+          description: Invalid request
+        "429":
+          description: Too many reset requests
+  /auth/password-reset/complete:
+    post:
+      operationId: completePasswordReset
+      tags: [auth]
+      summary: Set a new password using a one-time reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetCompleteInput"
+      responses:
+        "200":
+          description: Password changed and existing sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResult"
+        "400":
+          description: Invalid or expired reset token, or invalid password
+        "429":
+          description: Too many reset attempts
   /parent/auth/login:
     post:
       operationId: loginParent
@@ -2181,3 +2225,36 @@ components:
           minLength: 8
           maxLength: 128
       required: [currentPassword, newPassword]
+    PasswordResetRequestInput:
+      type: object
+      properties:
+        accountType:
+          type: string
+          enum: [parent, clinician]
+        email:
+          type: string
+          format: email
+          minLength: 6
+          maxLength: 254
+      required: [accountType, email]
+    PasswordResetRequestResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+        message:
+          type: string
+      required: [ok, message]
+    PasswordResetCompleteInput:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 128
+        newPassword:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required: [token, newPassword]

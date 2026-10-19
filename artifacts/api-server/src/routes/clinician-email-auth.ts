@@ -5,17 +5,9 @@ import { userProfilesTable, clinicianCredentialsTable, consentEventsTable } from
 import { eq } from "drizzle-orm";
 import { createSession, deleteSession, getSessionId, SESSION_COOKIE, SESSION_TTL } from "../lib/auth";
 import { accountAuthorityEvent, validateAccountAuthority } from "../lib/accountAuthority";
+import { createClinicianPasswordHash, verifyClinicianPassword } from "../lib/clinicianPassword";
 
 const router = Router();
-
-function hashPassword(password: string, salt: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(password, salt, 64, (err, key) => {
-      if (err) reject(err);
-      else resolve(key.toString("hex"));
-    });
-  });
-}
 
 function setSessionCookie(res: any, sid: string) {
   res.cookie(SESSION_COOKIE, sid, {
@@ -62,8 +54,7 @@ async function registerClinician(req: any, res: any) {
       });
 
     const userId = crypto.randomUUID();
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hash = await hashPassword(password, salt);
+    const passwordHash = await createClinicianPasswordHash(password);
 
     // Create the three rows atomically so a mid-way failure can't leave an
     // orphan users row that blocks future registration attempts.
@@ -88,7 +79,7 @@ async function registerClinician(req: any, res: any) {
       await tx.insert(clinicianCredentialsTable).values({
         userId,
         email: normEmail,
-        passwordHash: `${salt}:${hash}`,
+        passwordHash,
       });
       await tx.insert(consentEventsTable).values({
         subjectId: userId,
@@ -144,10 +135,7 @@ async function loginClinician(req: any, res: any) {
     if (!creds)
       return res.status(401).json({ error: "Invalid email or password" });
 
-    const [salt, storedHash] = creds.passwordHash.split(":");
-    const inputHash = await hashPassword(password, salt);
-
-    if (inputHash.length !== storedHash.length || !crypto.timingSafeEqual(Buffer.from(inputHash), Buffer.from(storedHash)))
+    if (!await verifyClinicianPassword(password, creds.passwordHash))
       return res.status(401).json({ error: "Invalid email or password" });
 
     const [user] = await db
@@ -201,13 +189,10 @@ router.post("/clinician/change-password", async (req: any, res) => {
     const [creds] = await db.select().from(clinicianCredentialsTable).where(eq(clinicianCredentialsTable.userId, req.user.id));
     if (!creds) return res.status(404).json({ error: "No email/password account found. You may have signed in with a different method." });
 
-    const [salt, storedHash] = creds.passwordHash.split(":");
-    const inputHash = await hashPassword(current_password, salt);
-    if (inputHash !== storedHash) return res.status(401).json({ error: "Current password is incorrect" });
+    if (!await verifyClinicianPassword(current_password, creds.passwordHash)) return res.status(401).json({ error: "Current password is incorrect" });
 
-    const newSalt = crypto.randomBytes(16).toString("hex");
-    const newHash = await hashPassword(new_password, newSalt);
-    await db.update(clinicianCredentialsTable).set({ passwordHash: `${newSalt}:${newHash}` }).where(eq(clinicianCredentialsTable.userId, req.user.id));
+    const passwordHash = await createClinicianPasswordHash(new_password);
+    await db.update(clinicianCredentialsTable).set({ passwordHash }).where(eq(clinicianCredentialsTable.userId, req.user.id));
 
     return res.json({ ok: true });
   } catch (e: any) {

@@ -55,6 +55,22 @@ const accessCodeResetCompleteLimiter = rateLimit({
   message: { error: "Too many access-code reset attempts, please try again later" },
   skip: () => RATE_LIMIT_DISABLED,
 });
+const passwordResetRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many reset links requested, please try again later" },
+  skip: () => RATE_LIMIT_DISABLED,
+});
+const passwordResetCompleteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many reset attempts, please try again later" },
+  skip: () => RATE_LIMIT_DISABLED,
+});
 app.use([
   "/api/client-session/login",
   "/api/verify-client-credentials",
@@ -64,6 +80,8 @@ app.use([
 ], authLimiter);
 app.use("/api/client-access-code-reset/request", accessCodeResetRequestLimiter);
 app.use("/api/client-access-code-reset/complete", accessCodeResetCompleteLimiter);
+app.use("/api/auth/password-reset/request", passwordResetRequestLimiter);
+app.use("/api/auth/password-reset/complete", passwordResetCompleteLimiter);
 
 app.use(
   pinoHttp({

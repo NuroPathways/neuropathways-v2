@@ -34,6 +34,7 @@ import GoalsMilestones from './pages/GoalsMilestones';
 import ParentUpload from './pages/ParentUpload';
 import ParentSignup from './pages/ParentSignup';
 import ResetAccessCode from './pages/ResetAccessCode';
+import PasswordRecovery from './pages/PasswordRecovery';
 import ParentQuickStart from './pages/ParentQuickStart';
 import ParentHome from './pages/ParentHome';
 import ParentSignupUsername from './pages/ParentSignupUsername';
@@ -160,6 +161,8 @@ const AuthenticatedApp = () => {
       ))}
       <Route path="/ClinicianLogin" element={<ClinicianLogin />} />
       <Route path="/ParentLogin" element={<ParentLogin />} />
+      <Route path="/ForgotPassword" element={<PasswordRecovery />} />
+      <Route path="/ResetPassword" element={<PasswordRecovery />} />
       <Route path="/ClientLogin" element={<ClientLogin />} />
       <Route path="/ClientDashboard" element={<LayoutWrapper currentPageName="ClientDashboard"><ClientDashboard /></LayoutWrapper>} />
       <Route path="/ParentDashboard" element={<LayoutWrapper currentPageName="ParentDashboard"><ParentDashboard /></LayoutWrapper>} />

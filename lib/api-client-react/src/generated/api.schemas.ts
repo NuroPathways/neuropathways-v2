@@ -1044,6 +1044,41 @@ export interface ParentPasswordChangeInput {
   newPassword: string;
 }
 
+export type PasswordResetRequestInputAccountType = typeof PasswordResetRequestInputAccountType[keyof typeof PasswordResetRequestInputAccountType];
+
+
+export const PasswordResetRequestInputAccountType = {
+  parent: 'parent',
+  clinician: 'clinician',
+} as const;
+
+export interface PasswordResetRequestInput {
+  accountType: PasswordResetRequestInputAccountType;
+  /**
+     * @minLength 6
+     * @maxLength 254
+     */
+  email: string;
+}
+
+export interface PasswordResetRequestResult {
+  ok: true;
+  message: string;
+}
+
+export interface PasswordResetCompleteInput {
+  /**
+     * @minLength 32
+     * @maxLength 128
+     */
+  token: string;
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
+  newPassword: string;
+}
+
 export type RecordClinicianObservationFeedback200 = {
   ok: boolean;
   clinicianFeedback: string;

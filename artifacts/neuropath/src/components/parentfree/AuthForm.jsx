@@ -69,6 +69,11 @@ export default function AuthForm({ mode }) {
           <Field label="Password" hint={signup ? "At least 8 characters." : undefined}>
             <input className="pf-input" type="password" value={f.password} onChange={set("password")} autoComplete={signup ? "new-password" : "current-password"} data-testid="input-password" />
           </Field>
+          {!signup && (
+            <p style={{ marginTop: -8, textAlign: "right", fontSize: ".88rem" }}>
+              <Link to="/ForgotPassword?accountType=parent" className="pf-link" data-testid="link-forgot-password">Forgot your password?</Link>
+            </p>
+          )}
           {signup && (
             <>
               <Field label="Confirm password">

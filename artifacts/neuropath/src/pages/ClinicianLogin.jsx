@@ -137,6 +137,9 @@ export default function ClinicianLogin() {
                     </button>
                   </div>
                 </div>
+                <p className="-mt-2 text-right text-sm">
+                  <Link to="/ForgotPassword?accountType=clinician" className="text-primary font-medium hover:underline" data-testid="link-clinician-forgot-password">Forgot your password?</Link>
+                </p>
 
                 {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
 

@@ -782,6 +782,46 @@ export const RegisterParentResponse = zod.object({
 
 
 /**
+ * @summary Request a password reset link for a local parent or clinician account
+ */
+export const requestPasswordResetBodyEmailMin = 6;
+export const requestPasswordResetBodyEmailMax = 254;
+
+
+
+export const RequestPasswordResetBody = zod.object({
+  "accountType": zod.enum(['parent', 'clinician']),
+  "email": zod.string().email().min(requestPasswordResetBodyEmailMin).max(requestPasswordResetBodyEmailMax)
+})
+
+export const RequestPasswordResetResponse = zod.object({
+  "ok": zod.literal(true),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Set a new password using a one-time reset token
+ */
+export const completePasswordResetBodyTokenMin = 32;
+export const completePasswordResetBodyTokenMax = 128;
+
+export const completePasswordResetBodyNewPasswordMin = 8;
+export const completePasswordResetBodyNewPasswordMax = 128;
+
+
+
+export const CompletePasswordResetBody = zod.object({
+  "token": zod.string().min(completePasswordResetBodyTokenMin).max(completePasswordResetBodyTokenMax),
+  "newPassword": zod.string().min(completePasswordResetBodyNewPasswordMin).max(completePasswordResetBodyNewPasswordMax)
+})
+
+export const CompletePasswordResetResponse = zod.object({
+  "ok": zod.literal(true)
+})
+
+
+/**
  * @summary Sign in to a parent account
  */
 export const LoginParentBody = zod.object({
