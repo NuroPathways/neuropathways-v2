@@ -9,6 +9,7 @@ import {
   aiConversationsTable, dailyCheckInsTable, winLogsTable, engagementEventsTable,
   clientProfilesTable, userProfilesTable, usersTable, auditLogsTable, invitationsTable,
   clientSessionsTable, mobileTokensTable, clientAccessCodeResetsTable, consentEventsTable, parentClinicConsentsTable,
+  documentExtractionRunsTable,
 } from "@workspace/db";
 import { eq, and, inArray, or, isNull, gt, ne, sql, desc } from "drizzle-orm";
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
@@ -16,6 +17,13 @@ import { decryptBuffer } from "./upload";
 import { legacyVisibleDocuments, isParentOwnedChild, isParentOwnedDocument, familyHasParentOwnedChildren } from "../lib/documentVisibility";
 import { isParentDocument, readParentDocumentBytes, extractParentDocumentText } from "../lib/parentDocuments";
 import { prepareClinicalPdf, clinicalScanServiceError } from "../lib/clinicalPdf";
+import {
+  DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE,
+  documentExtractionsToolProperty,
+  normalizeDocumentExtractions,
+  persistDocumentExtractionBatch,
+  type DocumentExtractionSource,
+} from "../lib/documentExtractions";
 import {
   accountAuthorityEvent,
   validateAccountAuthority,
@@ -1145,16 +1153,38 @@ router.post("/build-client-profile", async (req: any, res) => {
     const allScannableDocs = [...docsWithFiles, ...docsWithNotes];
     const existingSourceIds: string[] = Array.isArray((existingProfile as any)?.sourceDocIds) ? (existingProfile as any).sourceDocIds : [];
     const hasUnscannedDoc = allScannableDocs.some(d => !existingSourceIds.includes(d.id));
+    const priorExtractionRuns = allScannableDocs.length
+      ? await db.select().from(documentExtractionRunsTable)
+        .where(inArray(documentExtractionRunsTable.documentId, allScannableDocs.map((doc) => doc.id)))
+        .orderBy(desc(documentExtractionRunsTable.updatedAt))
+      : [];
+    const processedExtractionDocIds = new Set(
+      priorExtractionRuns
+        .filter((run) => ["completed", "partial", "no_relevant_content"].includes(run.scanStatus))
+        .map((run) => run.documentId),
+    );
+    const hasUnclassifiedDoc = allScannableDocs.some((doc) =>
+      !processedExtractionDocIds.has(doc.id) || doc.scanStatus !== "done",
+    );
     if (
       existingProfile &&
       Array.isArray((existingProfile as any).behaviors) &&
       (existingProfile as any).behaviors.length > 0 &&
       !force_rebuild &&
       existingSourceIds.every(id => docs.some(doc => doc.id === id)) &&
-      !hasUnscannedDoc
+      !hasUnscannedDoc &&
+      !hasUnclassifiedDoc
     ) {
       console.info(`[NeuroPath] buildClientProfile: returning cached profile child=${child_id} (all ${docsWithFiles.length} docs already scanned)`);
-      return res.json(serialize({ profile: existingProfile }));
+      const latestByDocument = new Map<string, typeof priorExtractionRuns[number]>();
+      for (const run of priorExtractionRuns) {
+        if (!latestByDocument.has(run.documentId)) latestByDocument.set(run.documentId, run);
+      }
+      const response: Record<string, unknown> = { profile: existingProfile };
+      if (req.isAuthenticated?.()) {
+        response.documentExtractions = [...latestByDocument.values()].flatMap((run) => run.records || []);
+      }
+      return res.json(serialize(response));
     }
 
     // If no documents, save a placeholder profile so the UI can show a clear message
@@ -1174,6 +1204,7 @@ router.post("/build-client-profile", async (req: any, res) => {
     const includedDocIds: string[] = [];
     const failedDocs: { id: string; reason: string }[] = [];
     const warnings: string[] = [];
+    const extractionSourceById = new Map<string, DocumentExtractionSource>();
     const MAX_BYTES = 20 * 1024 * 1024;
     const IMAGE_MIME: Record<string, string> = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp" };
     const TEXT_EXT = [".txt", ".md", ".csv", ".json", ".rtf"];
@@ -1182,6 +1213,25 @@ router.post("/build-client-profile", async (req: any, res) => {
       const label = doc.title || doc.category || doc.fileName || "Clinical Document";
       const parentMetadata = await isParentDocument(doc.id);
       const urlMatch = String(doc.fileUrl).match(/\/api\/uploads\/(.+)$/);
+      const documentFilename = parentMetadata ? (doc.fileName || "") : path.basename(urlMatch?.[1] || doc.fileName || "");
+      const extension = path.extname(documentFilename).toLowerCase();
+      const fallbackVersion = parentMetadata?.sha256 ||
+        crypto.createHash("sha256").update(JSON.stringify({
+          id: doc.id,
+          fileUrl: doc.fileUrl,
+          fileName: doc.fileName,
+          createdDate: doc.createdDate,
+        })).digest("hex");
+      extractionSourceById.set(doc.id, {
+        childId: child_id,
+        documentId: doc.id,
+        documentVersion: fallbackVersion,
+        documentType: parentMetadata?.mimeType || IMAGE_MIME[extension] ||
+          (extension === ".pdf" ? "application/pdf" :
+            extension === ".docx" ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" :
+              TEXT_EXT.includes(extension) ? "text/plain" : "application/octet-stream"),
+        searchableText: "",
+      });
       if (!parentMetadata && !urlMatch) { failedDocs.push({ id: doc.id, reason: "The file link is invalid." }); continue; }
       const filename = parentMetadata ? (doc.fileName || "") : path.basename(urlMatch![1]);
       const safePath = path.normalize(path.join(UPLOAD_DIR, filename));
@@ -1198,11 +1248,13 @@ router.post("/build-client-profile", async (req: any, res) => {
         failedDocs.push({ id: doc.id, reason: "The file could not be found on the server." });
         continue;
       }
+      const extractionSource = extractionSourceById.get(doc.id)!;
+      extractionSource.documentVersion = crypto.createHash("sha256").update(fileContent).digest("hex");
       if (fileContent.byteLength > MAX_BYTES) { failedDocs.push({ id: doc.id, reason: "The file is too large to scan (over 20MB)." }); continue; }
-      const ext = path.extname(filename).toLowerCase();
+      const ext = extension;
       try {
         if (IMAGE_MIME[ext]) {
-          contentParts.push({ type: "text", text: `[Document: ${label}]` });
+          contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]` });
           contentParts.push({ type: "image", source: { type: "base64", media_type: IMAGE_MIME[ext], data: fileContent.toString("base64") } });
           includedDocIds.push(doc.id);
         } else if (ext === ".pdf") {
@@ -1213,7 +1265,14 @@ router.post("/build-client-profile", async (req: any, res) => {
             failedDocs.push({ id: doc.id, reason: error instanceof Error ? error.message : "This PDF could not be read." });
             continue;
           }
-          contentParts.push({ type: "text", text: `[Document: ${label}]` });
+          let searchableText = "";
+          try {
+            searchableText = await extractParentDocumentText(filename, fileContent);
+          } catch {
+            // Visual extraction can still succeed; unverified source excerpts remain review-required.
+          }
+          extractionSource.searchableText = searchableText.slice(0, 200_000);
+          contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]` });
           contentParts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: prepared.toString("base64") } });
           includedDocIds.push(doc.id);
         } else if (ext === ".docx") {
@@ -1222,17 +1281,20 @@ router.post("/build-client-profile", async (req: any, res) => {
           const result = await extractRawText({ buffer: fileContent });
           const text = String(result?.value || "").trim();
           if (!text) { failedDocs.push({ id: doc.id, reason: "No readable text was found in this Word document." }); continue; }
-          contentParts.push({ type: "text", text: `[Document: ${label}]\n${text.substring(0, 20000)}` });
+          extractionSource.searchableText = text.substring(0, 20_000);
+          contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]\n${text.substring(0, 20000)}` });
           includedDocIds.push(doc.id);
         } else if (ext === ".doc" && parentMetadata) {
            const text = await extractParentDocumentText(filename, fileContent);
           if (!text.trim()) { failedDocs.push({ id: doc.id, reason: "No readable text was found in this Word document." }); continue; }
-          contentParts.push({ type: "text", text: `[Document: ${label}]\n${text.substring(0, 20000)}` });
+           extractionSource.searchableText = text.substring(0, 20_000);
+           contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]\n${text.substring(0, 20000)}` });
           includedDocIds.push(doc.id);
         } else if (TEXT_EXT.includes(ext)) {
           const text = fileContent.toString("utf-8").trim();
           if (!text) { failedDocs.push({ id: doc.id, reason: "The file is empty." }); continue; }
-          contentParts.push({ type: "text", text: `[Document: ${label}]\n${text.substring(0, 20000)}` });
+          extractionSource.searchableText = text.substring(0, 20_000);
+          contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]\n${text.substring(0, 20000)}` });
           includedDocIds.push(doc.id);
         } else {
           failedDocs.push({ id: doc.id, reason: `Unsupported file type (${ext || "unknown"}). Upload a PDF, image, Word (.docx), or text file.` });
@@ -1245,7 +1307,15 @@ router.post("/build-client-profile", async (req: any, res) => {
     for (const doc of docsWithNotes) {
       const label = doc.title || doc.category || "Clinical Notes";
       const text = String(doc.notes).trim().substring(0, 20000);
-      contentParts.push({ type: "text", text: `[Document: ${label}]\n${text}` });
+      const version = crypto.createHash("sha256").update(text).digest("hex");
+      extractionSourceById.set(doc.id, {
+        childId: child_id,
+        documentId: doc.id,
+        documentVersion: version,
+        documentType: "text/clinical-notes",
+        searchableText: text,
+      });
+      contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]\n${text}` });
       includedDocIds.push(doc.id);
     }
 
@@ -1260,9 +1330,23 @@ router.post("/build-client-profile", async (req: any, res) => {
     // Nothing usable to scan → return a clear, specific error.
     if (includedDocIds.length === 0) {
       const detail = failedDocs.map(f => f.reason).find(Boolean) || "The documents could not be read.";
+      const sources = [...extractionSourceById.values()];
+      await persistDocumentExtractionBatch({
+        sources,
+        normalized: normalizeDocumentExtractions([], sources),
+        scannedBy: clinicianId,
+        errorMessage: detail,
+      }).catch(() => undefined);
       return res.status(422).json({ error: { code: "no_readable_content", message: `Couldn't read any of the client's documents. ${detail}` }, failed: failedDocs });
     }
     if (failedDocs.length > 0 && existingProfile) {
+      const sources = [...extractionSourceById.values()];
+      await persistDocumentExtractionBatch({
+        sources,
+        normalized: normalizeDocumentExtractions([], sources),
+        scannedBy: clinicianId,
+        errorMessage: failedDocs[0].reason,
+      }).catch(() => undefined);
       return res.status(422).json({
         error: { code: "partial_scan_failed", message: `The combined scan was not saved because ${failedDocs.length} document(s) could not be read. ${failedDocs[0].reason} Other documents have not been marked as failed. Previously extracted information has been preserved.` },
         failed: failedDocs,
@@ -1272,7 +1356,9 @@ router.post("/build-client-profile", async (req: any, res) => {
     // Instruct Claude to record the profile via the structured tool below.
     contentParts.push({
       type: "text",
-      text: `You are a clinical assistant. Analyze the clinical documents above for ${childName}${diagnosis ? ` (diagnosis: ${diagnosis})` : ""} and record a structured behavioral profile by calling the save_behavioral_profile tool.
+      text: `${DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE}
+
+You are a clinical assistant. Analyze the clinical documents above for ${childName}${diagnosis ? ` (diagnosis: ${diagnosis})` : ""} and record a structured behavioral profile by calling the save_behavioral_profile tool. Also populate document_extractions with separate source-cited records for each explicit profile fact, behavior, goal, support strategy, safety instruction, and potential home activity. Use the exact document id shown with each source heading, and an exact excerpt from that source. Do not classify an activity from a goal alone. Keep the legacy profile fields and the document_extractions classifications consistent.
 
 Base every field only on the documents. Use an empty array for any list not supported by the documents.
 
@@ -1353,8 +1439,9 @@ Example: do not write only "${childName} will complete a graduated exposure hier
             },
           },
           safety_procedures: { type: "array", items: { type: "string" } },
+          document_extractions: documentExtractionsToolProperty(),
         },
-        required: ["behaviors", "goals", "diagnoses", "objectives", "safety_procedures"],
+        required: ["behaviors", "goals", "diagnoses", "objectives", "safety_procedures", "document_extractions"],
       },
     };
 
@@ -1373,6 +1460,15 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       // A batch rejection is not evidence that every included file is bad.
       // Preserve each file's existing status and the last successful profile.
       const failure = clinicalScanServiceError(ex);
+      const sources = includedDocIds
+        .map((id) => extractionSourceById.get(id))
+        .filter((source): source is DocumentExtractionSource => Boolean(source));
+      await persistDocumentExtractionBatch({
+        sources,
+        normalized: normalizeDocumentExtractions([], sources),
+        scannedBy: clinicianId,
+        errorMessage: failure.message,
+      }).catch(() => undefined);
       req.log.error({ status: ex?.status, code: failure.code }, "Clinical document reader rejected the scan");
       return res.status(failure.status).json({ error: { code: failure.code, message: failure.message }, failed: failedDocs });
     }
@@ -1380,14 +1476,69 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     const toolUse = message.content.find((b: any) => b.type === "tool_use") as any;
     const extracted: any = toolUse?.input;
     if (!extracted || typeof extracted !== "object" || Array.isArray(extracted)) {
+      const sources = includedDocIds
+        .map((id) => extractionSourceById.get(id))
+        .filter((source): source is DocumentExtractionSource => Boolean(source));
+      await persistDocumentExtractionBatch({
+        sources,
+        normalized: normalizeDocumentExtractions(undefined, sources),
+        scannedBy: clinicianId,
+        errorMessage: "The document classification was unreadable. Please retry the scan.",
+      }).catch(() => undefined);
       for (const id of includedDocIds) {
         await db.update(documentsTable).set({ scanStatus: "error", scanError: "The AI returned an unreadable result. Please try again.", scannedAt: now }).where(eq(documentsTable.id, id)).catch(() => {});
       }
       console.error(`[NeuroPath] buildClientProfile: no tool_use output child=${child_id} stop_reason=${message.stop_reason}`);
       return fail(502, "ai_invalid_response", "The AI returned an unexpected result. Please try scanning again.");
     }
+    if (!Array.isArray(extracted.document_extractions)) {
+      const sources = includedDocIds
+        .map((id) => extractionSourceById.get(id))
+        .filter((source): source is DocumentExtractionSource => Boolean(source));
+      await persistDocumentExtractionBatch({
+        sources,
+        normalized: normalizeDocumentExtractions(undefined, sources),
+        scannedBy: clinicianId,
+        errorMessage: "The document classification was incomplete. Please retry the scan.",
+      }).catch(() => undefined);
+      for (const id of includedDocIds) {
+        await db.update(documentsTable).set({
+          scanStatus: "error",
+          scanError: "The document classification was incomplete. Please try again.",
+          scannedAt: now,
+        }).where(eq(documentsTable.id, id)).catch(() => {});
+      }
+      return fail(502, "classification_incomplete", "The document classification was incomplete. Please try scanning again.");
+    }
+
+    const extractionSources = includedDocIds
+      .map((id) => extractionSourceById.get(id))
+      .filter((source): source is DocumentExtractionSource => Boolean(source));
+    const normalizedExtractions = normalizeDocumentExtractions(extracted.document_extractions, extractionSources);
+    const extractionRuns = await persistDocumentExtractionBatch({
+      sources: extractionSources,
+      normalized: normalizedExtractions,
+      scannedBy: clinicianId,
+      forcePartial: message.stop_reason === "max_tokens",
+    });
+    const failedExtractionSources = failedDocs
+      .map(({ id }) => extractionSourceById.get(id))
+      .filter((source): source is DocumentExtractionSource => Boolean(source));
+    if (failedExtractionSources.length) {
+      const firstError = failedDocs.find((item) => failedExtractionSources.some((source) => source.documentId === item.id))?.reason;
+      await persistDocumentExtractionBatch({
+        sources: failedExtractionSources,
+        normalized: normalizeDocumentExtractions([], failedExtractionSources),
+        scannedBy: clinicianId,
+        errorMessage: firstError || "The document could not be read. Please retry the scan.",
+      }).catch(() => undefined);
+    }
     if (message.stop_reason === "max_tokens") {
       console.warn(`[NeuroPath] buildClientProfile: output truncated at max_tokens child=${child_id} behaviors=${(extracted.behaviors || []).length}`);
+      warnings.push("The source classification was truncated. Review the extracted items and retry the scan if needed.");
+    }
+    if (extractionRuns.some((run) => run.scanStatus === "partial")) {
+      warnings.push("Some source excerpts or classifications need review before they are used.");
     }
 
     const profileData = {
@@ -1481,7 +1632,22 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     }
 
     console.info(`[NeuroPath] buildClientProfile: done child=${child_id} behaviors=${(extracted.behaviors || []).length} docs=${includedDocIds.length}`);
-    return res.json(serialize({ profile, warnings, scanned: includedDocIds, failed: failedDocs }));
+    const response: Record<string, unknown> = {
+      profile,
+      warnings,
+      scanned: includedDocIds,
+      failed: failedDocs,
+    };
+    if (req.isAuthenticated?.()) {
+      response.documentExtractions = extractionRuns.flatMap((run) => run.records || []);
+      response.documentExtractionStatuses = extractionRuns.map((run) => ({
+        documentId: run.documentId,
+        documentVersion: run.documentVersion,
+        status: run.scanStatus,
+        errorMessage: run.errorMessage,
+      }));
+    }
+    return res.json(serialize(response));
   } catch (e: any) {
     console.error("[NeuroPath] buildClientProfile error:", e?.message);
     return res.status(500).json({ error: { code: "scan_failed", message: "Something went wrong while scanning. Please try again." } });

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 import DocScanButton from "@/components/clinician/DocScanButton";
+import DocumentExtractionDisclosure from "@/components/clinician/DocumentExtractionDisclosure";
 
 // Rebuilds the child's full ClientProfile from their documents (the reliable, single source of truth
 // used by Help Now). Returns the backend result or throws on failure.
@@ -52,6 +53,17 @@ export default function ClinicianDocuments() {
   const [uploading, setUploading] = useState(false);
   const [scanStatus, setScanStatus] = useState({});
   const [scanErrors, setScanErrors] = useState({});
+  const [extractionsByDocument, setExtractionsByDocument] = useState({});
+
+  const storeDocumentExtractions = (result) => {
+    if (!Array.isArray(result?.document_extractions)) return;
+    const grouped = {};
+    for (const record of result.document_extractions) {
+      if (!record?.document_id) continue;
+      (grouped[record.document_id] ||= []).push(record);
+    }
+    setExtractionsByDocument((current) => ({ ...current, ...grouped }));
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -117,7 +129,8 @@ export default function ClinicianDocuments() {
 
         if (AUTO_SYNC.includes(item.category)) {
           setScanStatus(s => ({ ...s, [doc.id]: "scanning" }));
-          rebuildProfile(childId).then(() => {
+          rebuildProfile(childId).then((result) => {
+            storeDocumentExtractions(result);
             setScanStatus(s => ({ ...s, [doc.id]: "done" }));
             setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, scan_status: "done" } : d));
             base44.entities.Document.update(doc.id, { scan_status: "done" }).catch(() => {});
@@ -299,29 +312,39 @@ export default function ClinicianDocuments() {
                       <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{childDocs.length} doc{childDocs.length !== 1 ? "s" : ""}</span>
                     </div>
                     <div className="space-y-2">
-                      {childDocs.map((doc) => {
+                       {childDocs.map((doc) => {
                         const docStatus = getDocScanStatus(doc);
                         return (
-                          <div
-                            key={doc.id}
-                            className="flex items-center gap-4 p-4 bg-card border border-border rounded-2xl"
-                          >
-                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                              <FileText className="w-4 h-4 text-primary" />
+                           <div key={doc.id} className="space-y-2">
+                             <div className="flex items-center gap-4 p-4 bg-card border border-border rounded-2xl">
+                               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                 <FileText className="w-4 h-4 text-primary" />
+                               </div>
+                               <div className="flex-1 min-w-0">
+                                 <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-foreground hover:text-primary truncate block">
+                                   {doc.title}
+                                 </a>
+                                 <p className="text-xs text-muted-foreground">{doc.category && doc.category.replace(/_/g, " ")}</p>
+                               </div>
+                               <div className="flex items-center gap-2 flex-shrink-0">
+                                 <DocScanButton doc={{ ...doc, scan_status: docStatus === "error" ? "error" : docStatus === "scanning" ? "scanning" : doc.scan_status, scan_error: scanErrors[doc.id] || doc.scan_error }} clinicianId={clinicianId}
+                                   onScanned={(id, result) => {
+                                     storeDocumentExtractions(result);
+                                     const failedEntry = result?.failed?.find((failure) => failure.id === id);
+                                     const scanError = failedEntry?.reason || (result?.error ? result.message : "");
+                                     const nextStatus = scanError ? "error" : "done";
+                                     setDocuments(prev => prev.map(d => d.id === id
+                                       ? { ...d, scan_status: nextStatus, scan_error: scanError || null }
+                                       : d));
+                                     setScanStatus(st => ({ ...st, [id]: nextStatus }));
+                                     if (scanError) setScanErrors(st => ({ ...st, [id]: scanError }));
+                                   }} />
+                                 <button onClick={() => handleDelete(doc.id)} className="text-muted-foreground hover:text-destructive">
+                                   <Trash2 className="w-4 h-4" />
+                                 </button>
+                               </div>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-foreground hover:text-primary truncate block">
-                                {doc.title}
-                              </a>
-                              <p className="text-xs text-muted-foreground">{doc.category && doc.category.replace(/_/g, " ")}</p>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <DocScanButton doc={{ ...doc, scan_status: docStatus === "error" ? "error" : docStatus === "scanning" ? "scanning" : doc.scan_status, scan_error: scanErrors[doc.id] || doc.scan_error }} clinicianId={clinicianId}
-                                onScanned={(id) => { setDocuments(prev => prev.map(d => d.id === id ? { ...d, scan_status: "done" } : d)); setScanStatus(st => ({ ...st, [id]: "done" })); base44.entities.Document.update(id, { scan_status: "done" }).catch(() => {}); }} />
-                              <button onClick={() => handleDelete(doc.id)} className="text-muted-foreground hover:text-destructive">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
+                             <DocumentExtractionDisclosure records={extractionsByDocument[doc.id] || []} />
                           </div>
                         );
                       })}

@@ -353,7 +353,7 @@ export function documentExtractionsToolProperty() {
         category: { type: "string", enum: [...CATEGORIES] },
         source_document_id: text("The exact id of the source document containing the excerpt.", 160),
         source_section: text("Section heading when present; otherwise an empty string.", 200),
-        source_page: { type: "integer", minimum: 1, description: "Page number when available; otherwise 0." },
+        source_page: { type: "integer", minimum: 0, description: "Page number when available; otherwise 0." },
         source_excerpt: text("A verbatim excerpt from this exact source document.", MAX_EXCERPT_LENGTH),
         ambiguous: { type: "boolean" },
         ambiguity_reason: text("Why the item is unclear; otherwise an empty string.", 500),

@@ -98,16 +98,17 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned
       } else {
         setStatus("done");
       }
-      onScanned?.(doc.id);
+      onScanned?.(doc.id, data);
     } catch (e) {
       const failed = failedDocuments(e);
       const ownFailure = failed.find(f => f.id === doc.id);
-      setErrorMsg(ownFailure?.reason || parseErrorMessage(e));
+      const reason = ownFailure?.reason || parseErrorMessage(e);
+      setErrorMsg(reason);
       setStatus(failed.length && !ownFailure ? "blocked" : "error");
       setShowError(true);
       // Refresh the list so the actual failed document gets its own persisted
       // reason; never label the selected healthy file as corrupt by association.
-      onScanned?.(doc.id);
+      onScanned?.(doc.id, { error: true, message: reason });
     }
   };
 
