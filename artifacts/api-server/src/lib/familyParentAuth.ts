@@ -107,19 +107,20 @@ export async function readFamilySettings(owner: string, childId: string, workspa
     eq(parentFamilyToolsTable.parentId, owner), eq(parentFamilyToolsTable.childId, childId),
   ));
   const saved = (tools?.state?.legacyParentSettings ?? {}) as Record<string, any>;
-  const plans = await db.select().from(behaviorPlansTable).where(and(eq(behaviorPlansTable.childId, childId),
-    family?.clinicianId ? eq(behaviorPlansTable.clinicianId, family.clinicianId) : isNull(behaviorPlansTable.clinicianId)));
-  const derived = plans.filter(p => p.behaviorName?.trim()).map(p => {
-    const name = p.behaviorName!;
-    const template = starterLibrary.find(t => t.name.toLowerCase() === name.toLowerCase() || name.toLowerCase().includes(t.key) ||
-      (t.key === "elopement" && /running away|bolting|wandering/i.test(name)));
-    return { behaviorKey: template?.key || "custom", customBehavior: template ? null : name, behaviorName: template?.name || name, goal: null };
-  });
-  const unique = [...new Map(derived.map(b => [`${b.behaviorKey}:${b.customBehavior || ""}`, b])).values()];
+  const explicitSelections = Array.isArray(saved.behaviors)
+    ? saved.behaviors
+    : saved.behaviorKey || saved.customBehavior
+      ? [{
+          behaviorKey: saved.behaviorKey || "custom",
+          customBehavior: saved.customBehavior || null,
+          behaviorName: saved.behaviorName || saved.customBehavior || null,
+          goal: saved.goal || null,
+        }]
+      : [];
   return {
     childId, parentId: owner, workspaceId, behaviorKey: saved.behaviorKey ?? null,
     customBehavior: saved.customBehavior ?? null, goal: saved.goal ?? null,
-    behaviors: saved.behaviors ?? unique, supportCards: saved.supportCards ?? [],
+    behaviors: explicitSelections, supportCards: saved.supportCards ?? [],
     profileNotes: typeof saved.profileNotes === "string" ? saved.profileNotes : undefined,
     updatedAt: tools?.updatedAt ?? new Date(),
   };
@@ -160,7 +161,7 @@ export async function familySupportCards(owner: string, childId: string): Promis
       } else cards.push(saved);
     }
   }
-  return cards.length ? cards : starterLibrary.map(t => makeStarterCard(t.key, null, null));
+  return cards;
 }
 export async function saveFamilySettings(owner: string, childId: string, values: Record<string, unknown>) {
   const child = (await familyChildrenForOwner(owner)).find(c => c.id === childId);

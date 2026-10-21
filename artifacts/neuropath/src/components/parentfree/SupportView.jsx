@@ -1,11 +1,16 @@
 import GoalLines from "./GoalLines";
 
 export function sourceLabel(card) {
+  if (card?.helpNowSourceLabel || card?.sourceLabel) {
+    return { text: card.helpNowSourceLabel || card.sourceLabel, kind: card?.source === "starter" ? "sun" : "" };
+  }
   switch (card.source) {
-    case "starter": return { text: "Starter support", kind: "sun" };
-    case "parent_document": return { text: "Based on your uploaded plan · not clinician-reviewed", kind: "" };
-    case "clinician_reviewed": return { text: "Clinician reviewed", kind: "" };
-    case "clinician_document": return { text: "Clinician-uploaded plan", kind: "" };
+    case "starter": return { text: "General starter support — not individualized", kind: "sun" };
+    case "parent_document": return { text: "From your uploaded plan · not clinician-reviewed", kind: "" };
+    case "clinician_reviewed": return card.reviewedBy && card.reviewedAt
+      ? { text: "Clinician-approved support", kind: "" }
+      : { text: "Needs review", kind: "warn" };
+    case "clinician_document": return { text: "Clinician-uploaded plan · not approved", kind: "warn" };
     default: return { text: "Source not available", kind: "sun" };
   }
 }
@@ -41,20 +46,35 @@ export function HelpNowView({ card, onClose, onLog, onAdd, embedded = false, act
         </div>
         <p className="pf-eyebrow">Support Now</p>
         <h1 style={{ fontSize: "clamp(1.8rem,7vw,2.6rem)" }}>{card.behaviorName} Support</h1>
-        <GoalLines card={card} active={active} />
-        {card.guidanceGoal && <p className="pf-hint">These saved steps were written for the earlier goal: {card.guidanceGoal}.</p>}
-        <Block title="Try these steps first" tone="now">
-        <Steps items={card.rightNow} big />
-        </Block>
-        <Block title="What to avoid" tone="avoid"><Steps items={card.avoid} dash /></Block>
-        <Block title="Why this may be happening" tone="context"><p>{card.whatMayBeHappening}</p></Block>
-        <Block title="Practice a helpful skill" tone="skill">
-          <p>{card.replacementSkill}</p>
-          <p className="pf-support-detail"><strong>Reinforce:</strong> {card.reinforcementIdea}</p>
-        </Block>
-        {onLog && <button className="pf-btn" onClick={onLog} data-testid="button-help-log">Log what happened</button>}
-        {onAdd && <><p className="pf-hint">You can use these plan steps now. Add this behavior to your active list before logging it.</p><button className="pf-btn" onClick={onAdd} data-testid="button-help-add-found">Add this behavior</button></>}
-        <Block title="When to get help" tone="help"><p>If anyone is in danger or hurt, call your local emergency number. {card.seekHelp}</p></Block>
+        {card.emergencyOnly ? (
+          <Block title="Immediate safety" tone="help">
+            <p>No individualized support steps are available for this situation yet.</p>
+            <p>Follow the child’s current written safety plan, if available. If anyone is in immediate danger or hurt, call 911 or local emergency services.</p>
+          </Block>
+        ) : card.documentReferencedOnly ? (
+          <Block title="From your uploaded plan" tone="context">
+            <blockquote data-testid="text-help-source-excerpt">{card.documentExcerpt}</blockquote>
+            <p className="pf-hint">This excerpt is shown as written. It has not been reviewed by your clinician, and no new strategy has been added.</p>
+            <p>If anyone is in immediate danger, call 911 or local emergency services.</p>
+          </Block>
+        ) : (
+          <>
+            <GoalLines card={card} active={active} />
+            {card.guidanceGoal && <p className="pf-hint">These saved steps were written for the earlier goal: {card.guidanceGoal}.</p>}
+            <Block title="Try these steps first" tone="now">
+              <Steps items={card.rightNow} big />
+            </Block>
+            <Block title="What to avoid" tone="avoid"><Steps items={card.avoid} dash /></Block>
+            <Block title="Why this may be happening" tone="context"><p>{card.whatMayBeHappening}</p></Block>
+            <Block title="Practice a helpful skill" tone="skill">
+              <p>{card.replacementSkill}</p>
+              <p className="pf-support-detail"><strong>Reinforce:</strong> {card.reinforcementIdea}</p>
+            </Block>
+            {onLog && <button className="pf-btn" onClick={onLog} data-testid="button-help-log">Log what happened</button>}
+            {onAdd && <><p className="pf-hint">You can use these plan steps now. Add this behavior to your active list before logging it.</p><button className="pf-btn" onClick={onAdd} data-testid="button-help-add-found">Add this behavior</button></>}
+            <Block title="When to get help" tone="help"><p>If anyone is in danger or hurt, call your local emergency number. {card.seekHelp}</p></Block>
+          </>
+        )}
       </div>
   );
   return embedded ? content : <div className="pf-overlay" role="dialog" aria-label="Support Now" data-testid="dialog-help-now">{content}</div>;
@@ -68,28 +88,47 @@ export default function SupportCardView({ card, childName, onHelp, onUpload, act
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           <span className={`pf-tag ${src.kind}`} data-testid="text-source-label">{src.text}</span>
         </div>
-        {card.source === "starter" && <p className="pf-hint">Starter support is general guidance based on common behavior patterns. It is not a clinician-approved treatment plan.</p>}
+        {card.source === "starter" && <p className="pf-hint">General starter support is educational information, not a clinician-approved treatment plan.</p>}
         <p className="pf-eyebrow">Behavior Support Card{childName ? ` for ${childName}` : ""}</p>
         <h2>{card.behaviorName}</h2>
-        <GoalLines card={card} active={active} />
-        {onUpload && <button className="pf-btn small" style={{ marginTop: 12 }} onClick={onUpload} data-testid={`button-source-upload-${card.id}`}>Upload a Plan</button>}
+        {card.emergencyOnly ? (
+          <Block title="Immediate safety" tone="help">
+            <p>No individualized support steps are available for this situation yet.</p>
+            <p>Follow the child’s current written safety plan, if available. If anyone is in immediate danger or hurt, call 911 or local emergency services.</p>
+          </Block>
+        ) : card.documentReferencedOnly ? (
+          <Block title="From your uploaded plan" tone="context">
+            <blockquote data-testid="text-support-source-excerpt">{card.documentExcerpt}</blockquote>
+            <p className="pf-hint">This excerpt is shown as written. It has not been reviewed by your clinician, and no new strategy has been added.</p>
+            <p>If anyone is in immediate danger, call 911 or local emergency services.</p>
+          </Block>
+        ) : (
+          <>
+            <GoalLines card={card} active={active} />
+            {onUpload && <button className="pf-btn small" style={{ marginTop: 12 }} onClick={onUpload} data-testid={`button-source-upload-${card.id}`}>Upload a Plan</button>}
+          </>
+        )}
       </div>
-      <Block title="Try these steps first" tone="now"><Steps items={card.rightNow} big /></Block>
-      <div className="pf-grid2 even">
-        <Block title="What to avoid" tone="avoid"><Steps items={card.avoid} dash /></Block>
-        <Block title="Why this may be happening" tone="context"><p>{card.whatMayBeHappening}</p></Block>
-      </div>
-      <div className="pf-grid2 even">
-        <Block title="Prevent it next time" tone="prevention"><Steps items={card.prevention} dash /></Block>
-        <Block title="Practice a helpful skill" tone="skill">
-          <p>{card.replacementSkill}</p>
-          <p className="pf-support-detail"><strong>Reinforce:</strong> {card.reinforcementIdea}</p>
-        </Block>
-      </div>
-      <div className="pf-grid2 even">
-        <Block title="What to notice" tone="track"><Steps items={card.track} dash /></Block>
-        <Block title="When to get help" tone="help"><p>{card.seekHelp}</p></Block>
-      </div>
+      {!card.emergencyOnly && !card.documentReferencedOnly && (
+        <>
+          <Block title="Try these steps first" tone="now"><Steps items={card.rightNow} big /></Block>
+          <div className="pf-grid2 even">
+            <Block title="What to avoid" tone="avoid"><Steps items={card.avoid} dash /></Block>
+            <Block title="Why this may be happening" tone="context"><p>{card.whatMayBeHappening}</p></Block>
+          </div>
+          <div className="pf-grid2 even">
+            <Block title="Prevent it next time" tone="prevention"><Steps items={card.prevention} dash /></Block>
+            <Block title="Practice a helpful skill" tone="skill">
+              <p>{card.replacementSkill}</p>
+              <p className="pf-support-detail"><strong>Reinforce:</strong> {card.reinforcementIdea}</p>
+            </Block>
+          </div>
+          <div className="pf-grid2 even">
+            <Block title="What to notice" tone="track"><Steps items={card.track} dash /></Block>
+            <Block title="When to get help" tone="help"><p>{card.seekHelp}</p></Block>
+          </div>
+        </>
+      )}
     </div>
   );
 }

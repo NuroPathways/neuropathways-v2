@@ -673,10 +673,18 @@ async function extractDocumentContent(
   throw new Error("Unsupported document type for scanning.");
 }
 
-function sourceReferences(documents: Array<{ id: string; title: string }>, requestedIds: string[]): SourceReference[] {
+function sourceReferences(
+  documents: Array<{ id: string; title: string }>,
+  requestedIds: string[],
+  excerptsByDocumentId: Map<string, string> = new Map(),
+): SourceReference[] {
   const byId = new Map(documents.map((document) => [document.id, document]));
   const ids = [...new Set(requestedIds)].filter((id) => byId.has(id)).slice(0, MAX_REFERENCES);
-  return ids.map((documentId) => ({ documentId, title: byId.get(documentId)!.title, excerpt: null }));
+  return ids.map((documentId) => ({
+    documentId,
+    title: byId.get(documentId)!.title,
+    excerpt: excerptsByDocumentId.get(documentId) || null,
+  }));
 }
 
 type ParentScanResult = { ok: true; supportCards: SupportCard[]; message: string };
@@ -944,6 +952,17 @@ async function readParentDocument(
       async (behavior) => {
       const starter = makeStarterCard(behavior.behaviorKey, behavior.customBehavior, behavior.goal);
       const behaviorName = behavior.behaviorName || getStarterTemplate(behavior.behaviorKey)?.name || starter.behaviorName;
+      const excerptsByDocumentId = new Map(
+        normalizedExtractions.records
+          .filter((record) =>
+            record.category === "behavior" &&
+            record.extractionStatus === "extracted" &&
+            record.reviewStatus === "unreviewed" &&
+            record.sourceExcerptVerified &&
+            normalizedParentText(String(record.interpretation.name || "")) === normalizedParentText(behaviorName),
+          )
+          .map((record) => [record.documentId, record.sourceExcerpt]),
+      );
       const content = buildParentDocumentGenerationContent(
         generationDocuments,
         behaviorName,
@@ -976,7 +995,7 @@ async function readParentDocument(
       const refs = sourceReferences(sources.map((source) => ({
         id: source.document.id,
         title: source.document.title || source.document.fileName || "Uploaded support plan",
-      })), sourceIds);
+      })), sourceIds, excerptsByDocumentId);
       const explicitPlanGoal = discoveredTargets.find((target) =>
         supportBehaviorIdentity(target) === supportBehaviorIdentity(behavior),
       )?.goal || null;

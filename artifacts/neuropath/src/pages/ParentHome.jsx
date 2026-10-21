@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { getParentBehaviors, getParentDashboard, getStarterLibrary, parentBehaviorIdentity, useGetParentDashboard, getGetParentDashboardQueryKey, useGetParentCareTeam, getGetParentCareTeamQueryKey, saveCareTeamPracticeProgress, recordCareTeamPractice } from "@workspace/api-client-react";
+import { getParentBehaviors, getParentDashboard, getStarterLibrary, parentBehaviorIdentity, useGetParentDashboard, useGetStarterLibrary, getGetParentDashboardQueryKey, useGetParentCareTeam, getGetParentCareTeamQueryKey, saveCareTeamPracticeProgress, recordCareTeamPractice } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CARE_OUTCOME, newRequestId } from "@/lib/careTeam";
 import { useAuth } from "@/lib/AuthContext";
@@ -70,6 +70,7 @@ function Body({ child }) {
   const dashboardHeaders = new Headers(dashboardRequest.headers);
   dashboardHeaders.set("X-Parent-Local-Date", currentLocalDay());
   const q = useGetParentDashboard(child.id, { query: { queryKey: getGetParentDashboardQueryKey(child.id), staleTime: 0, refetchOnMount: "always" }, request: { ...dashboardRequest, headers: dashboardHeaders } });
+  const starterLibraryQuery = useGetStarterLibrary({ request: parentRequest() });
   const queryClient = useQueryClient();
   const careKey = getGetParentCareTeamQueryKey(child.id);
   // Optional enhancement: errors or an empty result simply hide care-team sections.
@@ -115,7 +116,7 @@ function Body({ child }) {
   });
   const cards = allCards.filter((c) => mine.some((b) => parentBehaviorIdentity(b) === parentBehaviorIdentity(c)));
   const archivedCards = allCards.filter((c) => !cards.includes(c));
-  const helpCards = allCards.filter((c) => cards.includes(c) || c.source !== "starter");
+  const helpCards = parentDirectBehaviors(d?.child || child, allCards, starterLibraryQuery.data || []);
   const activeIds = new Set(cards.map(cardIdentity));
   const card = cards.find((c) => cardIdentity(c) === selId) || cards[0];
   const supportStepCard = helpCards.find((c) => cardIdentity(c) === supportStepId);
@@ -230,13 +231,18 @@ function Body({ child }) {
             </>
           ) : (
             <div className="pf-card" data-testid="empty-support-steps">
-              <h2>No support blocks yet</h2>
+              <h2>No individualized support steps are available for this situation yet.</h2>
               <p className="pf-hint" style={{ marginTop: 6 }}>
-                Add a behavior or upload a support plan to see behavior-specific steps here.
+                Add general starter support from the Support Library, review an uploaded document, or contact your care team.
               </p>
-              <button type="button" className="pf-btn small" style={{ marginTop: 14 }} onClick={() => go("docs")}>
-                Upload a plan
-              </button>
+              <p role="note" className="pf-hint" style={{ marginTop: 10 }}>
+                If anyone is in immediate danger, call 911 or local emergency services.
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+                <button type="button" className="pf-btn small" onClick={() => go("today", "library")}>Open Support Library</button>
+                <button type="button" className="pf-btn small" onClick={() => go("docs")}>Review Documents</button>
+                <button type="button" className="pf-btn small" onClick={() => go("messages")}>Contact Care Team</button>
+              </div>
             </div>
           )}
         </div>
