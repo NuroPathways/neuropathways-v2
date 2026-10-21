@@ -1,16 +1,14 @@
 import GoalLines from "./GoalLines";
 
 export function sourceLabel(card) {
-  if (card?.helpNowSourceLabel || card?.sourceLabel) {
-    return { text: card.helpNowSourceLabel || card.sourceLabel, kind: card?.source === "starter" ? "sun" : "" };
+  if (card?.helpNowSourceLabel) {
+    return { text: card.helpNowSourceLabel, kind: card?.source === "starter" ? "sun" : "" };
   }
   switch (card.source) {
-    case "starter": return { text: "General starter support — not individualized", kind: "sun" };
-    case "parent_document": return { text: "From your uploaded plan · not clinician-reviewed", kind: "" };
-    case "clinician_reviewed": return card.reviewedBy && card.reviewedAt
-      ? { text: "Clinician-approved support", kind: "" }
-      : { text: "Needs review", kind: "warn" };
-    case "clinician_document": return { text: "Clinician-uploaded plan · not approved", kind: "warn" };
+    case "starter": return { text: "Starter support", kind: "sun" };
+    case "parent_document": return { text: "Based on your uploaded plan · not clinician-reviewed", kind: "" };
+    case "clinician_reviewed": return { text: "Clinician reviewed", kind: "" };
+    case "clinician_document": return { text: "Clinician-uploaded plan", kind: "" };
     default: return { text: "Source not available", kind: "sun" };
   }
 }
@@ -50,6 +48,7 @@ export function HelpNowView({ card, onClose, onLog, onAdd, embedded = false, act
           <Block title="Immediate safety" tone="help">
             <p>No individualized support steps are available for this situation yet.</p>
             <p>Follow the child’s current written safety plan, if available. If anyone is in immediate danger or hurt, call 911 or local emergency services.</p>
+            <p>Use the Help Now action to open the existing Safety / Crisis Plan.</p>
           </Block>
         ) : card.documentReferencedOnly ? (
           <Block title="From your uploaded plan" tone="context">
@@ -95,6 +94,7 @@ export default function SupportCardView({ card, childName, onHelp, onUpload, act
           <Block title="Immediate safety" tone="help">
             <p>No individualized support steps are available for this situation yet.</p>
             <p>Follow the child’s current written safety plan, if available. If anyone is in immediate danger or hurt, call 911 or local emergency services.</p>
+            <p>Use the Help Now action to open the existing Safety / Crisis Plan.</p>
           </Block>
         ) : card.documentReferencedOnly ? (
           <Block title="From your uploaded plan" tone="context">

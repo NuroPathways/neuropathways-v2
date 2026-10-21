@@ -138,7 +138,7 @@ function Section({ title, items, testId, tone = "default" }) {
   );
 }
 
-function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack }) {
+function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onOpenSafety }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [showSimpler, setShowSimpler] = useState(false);
   const directSteps = behavior.do_this_right_now || [];
@@ -156,6 +156,43 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack }) {
     || behavior.reinforcement_rewards?.length > 0
     || Boolean(behavior.replacement_skill)
     || behavior.track?.length > 0;
+
+  if (behavior.emergencyOnly || behavior.documentReferencedOnly) {
+    return (
+      <div>
+        <div className="np-help-bar">
+          <button type="button" onClick={onBack} aria-label="Back to behavior list" data-testid="button-back-behaviors" className="np-help-icon-btn">
+            <ArrowLeft aria-hidden="true" />
+          </button>
+          <div className="np-help-bar-title">
+            <h2 data-testid="text-behavior-name">
+              <span className={`np-help-guidance-icon ${appearance.iconClasses}`} aria-hidden="true"><BehaviorIcon /></span>
+              {behavior.name}
+            </h2>
+            <p>{behavior.sourceLabel || "Support guidance"}</p>
+          </div>
+        </div>
+        <div className="np-help-body">
+          {behavior.emergencyOnly ? (
+            <div className="np-help-notice" data-tone="urgent" data-testid="notice-emergency-only">
+              <p className="np-help-text np-help-strong">No individualized support steps are available for this situation yet.</p>
+              <p className="np-help-text">Follow the child’s current written safety plan, if available. If anyone is in immediate danger or hurt, call 911 or local emergency services.</p>
+            </div>
+          ) : (
+            <div className="np-help-notice" data-tone="caution" data-testid="notice-document-excerpt">
+              <p className="np-help-text np-help-strong">From your uploaded plan: {behavior.documentTitle || "Document excerpt"}</p>
+              <blockquote className="np-help-text" data-testid="text-source-excerpt">{behavior.documentExcerpt}</blockquote>
+              <p className="np-help-text">This excerpt is shown as written. It has not been reviewed by your clinician, and no new strategy has been added.</p>
+              <p className="np-help-text">If anyone is in immediate danger, call 911 or local emergency services.</p>
+            </div>
+          )}
+          <button type="button" onClick={onOpenSafety || onBack} data-testid="button-open-safety-restricted" data-variant="urgent" className="np-help-btn">
+            Open safety information
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -351,7 +388,7 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
   if (selectedBehavior) {
     return (
       <div ref={viewRef}>
-        <BehaviorCard behavior={selectedBehavior} child={child} isIndividual={isIndividual} parentDirect={parentDirect} onBack={() => setSelectedBehavior(null)} />
+        <BehaviorCard behavior={selectedBehavior} child={child} isIndividual={isIndividual} parentDirect={parentDirect} onBack={() => setSelectedBehavior(null)} onOpenSafety={onOpenSafety} />
       </div>
     );
   }
@@ -389,18 +426,17 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
         ) : behaviors.length === 0 ? (
           <div className="np-help-notice" data-tone="caution">
             <p className="np-help-text np-help-strong">
-              {parentDirect ? "No active support behaviors are available yet." : "No current approved behavior steps are available."}
+              {parentDirect ? "No individualized support steps are available for this situation yet." : "No current approved behavior steps are available."}
             </p>
             <p className="np-help-text">
               {parentDirect
-                ? "Return to the dashboard to add a behavior or upload a support plan. Only active, non-conflicting support guidance appears here."
+                ? "Open the Support Library to choose general starter support, review an uploaded document, or contact your care team."
                 : "This screen only shows guidance with current clinical review details. It will not use draft, expired, or unreviewed guidance. You can still check the safety plan or contact your care team."}
             </p>
-            {!parentDirect && (
-              <button type="button" onClick={onOpenSafety || onBack} data-testid="button-open-safety-plan" data-variant="urgent" className="np-help-btn">
-                Open safety plan
-              </button>
-            )}
+            <p className="np-help-text">If anyone is in immediate danger or hurt, call 911 or local emergency services.</p>
+            <button type="button" onClick={onOpenSafety || onBack} data-testid="button-open-safety-plan" data-variant="urgent" className="np-help-btn">
+              Open safety plan
+            </button>
           </div>
         ) : (
           <div className="np-help-group">

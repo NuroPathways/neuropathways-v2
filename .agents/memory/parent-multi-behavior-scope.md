@@ -45,13 +45,13 @@ Dashboard metrics, actions, and urgent guidance must be visible on first paint. 
 
 **How to apply:** When revising the restored dashboard and Help Now screens, keep essential content visible independently of animation timing.
 
-## Document discoveries remain parent-controlled
+## Help Now eligibility and document discoveries
 
-Surface newly discovered plan behaviors automatically in Help Now and the library, not as replacements for the parent's active selections.
+Plan discoveries remain available in the Support Library, but they do not automatically authorize behavior-specific Help Now guidance. Help Now may show an active clinician-approved strategy with current review provenance; general starter support only after the parent explicitly enables that area for the child and with the label “General starter support — not individualized”; or a low-risk, exact excerpt from that parent's verified upload, clearly labeled not clinician-reviewed and without generated treatment steps. Unreviewed clinician documents, inferred behavior matches, and generic fallbacks are not eligible. For high-risk situations, show no general treatment steps; preserve the written safety plan and emergency access.
 
-**Why:** A plan upload should personalize support without undoing the parent's choices or sending a completed account back through setup because a new target has no chosen goal.
+**Why:** The user explicitly limited automatic Help Now eligibility to guidance with a valid approval or consent/source path, while requiring immediate safety access and preserving the parent's existing selections.
 
-**How to apply:** Let the parent use discovered support and goal-based daily practice without adding it first. Require parent confirmation before adding it to active behaviors for logging. Keep source provenance, do not write activity feedback as clinical progress, and distinguish plan guidance from the parent's current goal. If plan guidance conflicts, do not show families a review-only activity; use safe Behavior Support Library guidance only for an already selected behavior, otherwise omit it.
+**How to apply:** Keep source provenance on each Help Now projection. Never let clinician-assigned discoveries silently become parent-selected starter areas. Keep discoveries in the library and preserve independent goals, practice, history, and logging. Do not infer diagnosis or behavioral function, change clinical text, or treat an unreviewed upload as clinician approval.
 
 ## Help Now blocks and separate plan goals
 

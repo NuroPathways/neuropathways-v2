@@ -107,7 +107,27 @@ export async function readFamilySettings(owner: string, childId: string, workspa
     eq(parentFamilyToolsTable.parentId, owner), eq(parentFamilyToolsTable.childId, childId),
   ));
   const saved = (tools?.state?.legacyParentSettings ?? {}) as Record<string, any>;
-  const explicitSelections = Array.isArray(saved.behaviors)
+  const plans = await db.select().from(behaviorPlansTable).where(and(
+    eq(behaviorPlansTable.childId, childId),
+    family?.clinicianId ? eq(behaviorPlansTable.clinicianId, family.clinicianId) : isNull(behaviorPlansTable.clinicianId),
+  ));
+  const derived = plans.filter((plan) => plan.behaviorName?.trim()).map((plan) => {
+    const name = plan.behaviorName!;
+    const template = starterLibrary.find((item) =>
+      item.name.toLowerCase() === name.toLowerCase() ||
+      name.toLowerCase().includes(item.key) ||
+      (item.key === "elopement" && /running away|bolting|wandering/i.test(name)),
+    );
+    return {
+      behaviorKey: template?.key || "custom",
+      customBehavior: template ? null : name,
+      behaviorName: template?.name || name,
+      goal: null,
+      selectionSource: "clinician_plan_discovery",
+    };
+  });
+  const derivedUnique = [...new Map(derived.map((behavior) => [`${behavior.behaviorKey}:${behavior.customBehavior || ""}`, behavior])).values()];
+  const selections = Array.isArray(saved.behaviors)
     ? saved.behaviors
     : saved.behaviorKey || saved.customBehavior
       ? [{
@@ -116,11 +136,11 @@ export async function readFamilySettings(owner: string, childId: string, workspa
           behaviorName: saved.behaviorName || saved.customBehavior || null,
           goal: saved.goal || null,
         }]
-      : [];
+      : derivedUnique;
   return {
     childId, parentId: owner, workspaceId, behaviorKey: saved.behaviorKey ?? null,
     customBehavior: saved.customBehavior ?? null, goal: saved.goal ?? null,
-    behaviors: explicitSelections, supportCards: saved.supportCards ?? [],
+    behaviors: selections, supportCards: saved.supportCards ?? [],
     profileNotes: typeof saved.profileNotes === "string" ? saved.profileNotes : undefined,
     updatedAt: tools?.updatedAt ?? new Date(),
   };
@@ -161,7 +181,7 @@ export async function familySupportCards(owner: string, childId: string): Promis
       } else cards.push(saved);
     }
   }
-  return cards;
+  return cards.length ? cards : starterLibrary.map((item) => makeStarterCard(item.key, null, null));
 }
 export async function saveFamilySettings(owner: string, childId: string, values: Record<string, unknown>) {
   const child = (await familyChildrenForOwner(owner)).find(c => c.id === childId);

@@ -197,4 +197,22 @@ describe("parentDirectBehaviors", () => {
       sourceLabel: "Safety information only — not individualized",
     });
   });
+
+  it("does not treat a clinician plan discovery as parent-enabled starter support", () => {
+    const behaviors = parentDirectBehaviors(
+      {
+        behaviors: [{
+          behaviorKey: "task_refusal",
+          customBehavior: null,
+          behaviorName: "Task refusal",
+          goal: null,
+          selectionSource: "clinician_plan_discovery",
+        }],
+      },
+      [{ behaviorKey: "task_refusal", behaviorName: "Task refusal", source: "starter" }],
+      [{ key: "task_refusal", rightNow: ["General starter step"] }],
+    );
+
+    expect(behaviors).toEqual([]);
+  });
 });

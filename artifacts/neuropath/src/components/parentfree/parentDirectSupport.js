@@ -9,12 +9,13 @@ const sourceLabel = (source) => {
   }
 };
 
-const HIGH_RISK_BEHAVIOR = /\b(aggression|hitting|biting|self[- ]?injury|self[- ]?harm|elopement|wandering|leaving the area|crisis|unsafe)\b/i;
+const HIGH_RISK_BEHAVIOR = /\b(aggression|hitting|biting|injury|self[- ]?harm|elopement|wandering|leaving the area|crisis|unsafe|medical|seizure|choking|breathing|overdose|suicid)\b/i;
 
 export function isHighRiskSupportArea(value) {
+  if (typeof value === "object" && value && /^(high|urgent|critical)$/i.test(String(value.riskTier ?? value.risk_tier ?? ""))) return true;
   const name = typeof value === "string"
     ? value
-    : [value?.name, value?.behaviorName, value?.behavior_name, value?.behaviorKey, value?.behavior_key, value?.riskTier, value?.risk_tier]
+    : [value?.name, value?.behaviorName, value?.behavior_name, value?.behaviorKey, value?.behavior_key, value?.key, value?.riskTier, value?.risk_tier]
       .filter(Boolean)
       .join(" ");
   return HIGH_RISK_BEHAVIOR.test(name);
@@ -116,7 +117,8 @@ export function parentDirectBehaviors(child, supportCards, starterLibrary) {
     : [];
   const templates = Array.isArray(starterLibrary) ? starterLibrary : [];
 
-  const selections = getParentBehaviors(child || {});
+  const selections = getParentBehaviors(child || {})
+    .filter((selection) => selection?.selectionSource !== "clinician_plan_discovery");
   const selectedIds = new Set(selections.map(parentBehaviorIdentity));
 
   const toBehavior = (base, identity, name, source) => ({

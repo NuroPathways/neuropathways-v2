@@ -955,13 +955,16 @@ async function readParentDocument(
       const excerptsByDocumentId = new Map(
         normalizedExtractions.records
           .filter((record) =>
+            record.documentId === documentId &&
             record.category === "behavior" &&
             record.extractionStatus === "extracted" &&
             record.reviewStatus === "unreviewed" &&
             record.sourceExcerptVerified &&
+            typeof record.sourceExcerpt === "string" &&
+            record.sourceExcerpt.trim().length > 0 &&
             normalizedParentText(String(record.interpretation.name || "")) === normalizedParentText(behaviorName),
           )
-          .map((record) => [record.documentId, record.sourceExcerpt]),
+          .map((record) => [record.documentId, record.sourceExcerpt as string]),
       );
       const content = buildParentDocumentGenerationContent(
         generationDocuments,
