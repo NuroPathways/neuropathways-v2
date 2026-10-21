@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readableGoalTitle, resolveAssignment, careGoalWire } from "./careTeam";
 import { careTeamActivityLibrary } from "./parentDailyActions";
+import { isActivityPublishConfirmationSatisfied } from "./parentActivityLibrary";
 
 describe("care-team source and clinical progress boundaries", () => {
   it("uses meaningful saved titles/descriptions without writing invented clinical objectives", () => {
@@ -34,5 +35,15 @@ describe("care-team source and clinical progress boundaries", () => {
   it("does not label starter-library content as clinician-reviewed", () => {
     assert.equal(careTeamActivityLibrary().every(a => a.steps.length > 0 && !/reviewed/i.test(a.source)), true);
     assert.equal(new Set(careTeamActivityLibrary().map(a => a.id)).size, careTeamActivityLibrary().length);
+  });
+  it("returns research context with library assignments and gates plan-required publication", () => {
+    const safetyTemplate = careTeamActivityLibrary().find(a => a.id === "indoor-stop-and-return")!;
+    const resolved = resolveAssignment({ libraryId: safetyTemplate.id, libraryVersion: safetyTemplate.version });
+    assert.equal(resolved.skillDomain, "transitions");
+    assert.ok(resolved.evidenceReferences?.length);
+    assert.equal(resolved.riskTier, "requires_authorized_plan");
+    assert.equal(isActivityPublishConfirmationSatisfied(safetyTemplate, false), false);
+    assert.equal(isActivityPublishConfirmationSatisfied(safetyTemplate, true), true);
+    assert.equal(isActivityPublishConfirmationSatisfied(null, false), true);
   });
 });

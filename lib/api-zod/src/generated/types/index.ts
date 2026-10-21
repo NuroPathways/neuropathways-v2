@@ -8,6 +8,10 @@
 
 export * from './authUser';
 export * from './careActivity';
+export * from './careActivityEvidenceReference';
+export * from './careActivityRiskTier';
+export * from './careActivitySkillDomain';
+export * from './careActivitySourceClassification';
 export * from './careAssignmentInput';
 export * from './careGoal';
 export * from './careGoalInput';

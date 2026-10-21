@@ -11,6 +11,7 @@ import {
 } from "@workspace/api-zod";
 import { requireParent, parentActor, ownedParentChild } from "../lib/parentAuth";
 import { careTeamActivityLibrary } from "../lib/parentDailyActions";
+import { isActivityPublishConfirmationSatisfied } from "../lib/parentActivityLibrary";
 import { assignmentWire, careGoalWire, careWorkspace, readableGoalTitle, carePracticeHistory, resolveAssignment } from "../lib/careTeam";
 
 const router = Router();
@@ -142,12 +143,17 @@ async function saveAssignment(req: Request, res: Response, update: boolean) {
       if (status === "published" && goal && goal.publicationStatus !== "published") throw new Conflict("Publish the related goal before publishing this assignment.");
       const library = libraryId ? careTeamActivityLibrary().find(a => a.id === libraryId) : null;
       if (libraryId && !library) throw new Conflict("That library activity is unavailable.");
+      const planConfirmed = input.planConfirmed ?? old?.definition.planConfirmed === true;
+      if (status === "published" && !isActivityPublishConfirmationSatisfied(library, Boolean(planConfirmed))) {
+        throw new Conflict("Review the child-specific context and confirm that the current support plan authorizes this activity before publishing.");
+      }
       const definition: Record<string, unknown> = library ? {
         libraryId, libraryVersion: library.version,
+        planConfirmed: Boolean(planConfirmed),
         notes: input.notes ?? old?.definition.notes ?? "", schedule: input.schedule ?? old?.definition.schedule ?? "",
       } : {
         ...(old?.libraryId ? {} : old?.definition || {}),
-        ...Object.fromEntries(Object.entries(input).filter(([key]) => !["expectedVersion", "status", "goalId", "libraryId"].includes(key))),
+        ...Object.fromEntries(Object.entries(input).filter(([key]) => !["expectedVersion", "status", "goalId", "libraryId", "planConfirmed"].includes(key))),
       };
       const resolved = resolveAssignment(definition);
       if (!library && (!resolved.title.trim() || !resolved.description.trim() || !resolved.skill.trim() ||

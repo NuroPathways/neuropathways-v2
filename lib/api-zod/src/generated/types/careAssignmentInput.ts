@@ -43,4 +43,5 @@ export interface CareAssignmentInput {
   status?: CareStatus;
   /** @minimum 0 */
   expectedVersion?: number;
+  planConfirmed?: boolean;
 }

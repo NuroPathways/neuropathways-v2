@@ -38,6 +38,19 @@ export function resolveAssignment(snapshot: Record<string, unknown>) {
   if (snapshot.libraryId && !library) throw new Error("Original library version is unavailable; instructions were not replaced.");
   const d = library || snapshot;
   return {
+    ...(library ? {
+      skillDomain: library.skillDomain,
+      appropriateContexts: library.appropriateContexts,
+      requiredInformation: library.requiredInformation,
+      caregiverPhrases: library.caregiverPhrases,
+      stopConditions: library.stopConditions,
+      riskTier: library.riskTier,
+      evidenceReferences: library.evidenceReferences,
+      exclusionCriteria: library.exclusionCriteria,
+      sourceClassification: library.sourceClassification,
+      personalizationFields: library.personalizationFields,
+      requiresClinicianConfirmation: library.requiresClinicianConfirmation,
+    } : {}),
     title: String(d.title || ""), description: String(d.description || ""), skill: String(d.skill || ""),
     estimatedMinutes: typeof d.estimatedMinutes === "number" ? d.estimatedMinutes : null,
     materials: String(d.materials || ""), steps: Array.isArray(d.steps) ? d.steps.map(String) : [],
@@ -62,6 +75,7 @@ export async function assignmentWire(row: typeof careTeamAssignmentsTable.$infer
     goalTitle: parentId && !visibleGoal ? null : String(snapshot.goalTitle || (goal ? readableGoalTitle(goal) : "")) || null,
     status: row.status, version: row.version, source: row.libraryId ? "Care team · NeuroPathways starter library" : "Care team · custom activity",
     currentStep: progress?.currentStep || 0, bookmarked: progress?.bookmarked || false,
+    ...(parentId ? {} : { planConfirmed: snapshot.planConfirmed === true }),
   };
 }
 

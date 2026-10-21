@@ -1,0 +1,92 @@
+{
+  "communication-play-01-project-impact": {
+    "title": "Initial Efficacy of Project ImPACT: A Parent-Mediated Social Communication Intervention for Young Children with ASD",
+    "url": "https://doi.org/10.1007/s10803-013-1840-9",
+    "publicationDate": "2013",
+    "tier": 1,
+    "sourceType": "Peer-reviewed primary single-case multiple-baseline study",
+    "savedEvidence": "research/sources/communication-play-01-project-impact.md",
+    "limitation": "Eight parent-child pairs; useful for design context, not broad causal claims."
+  },
+  "communication-play-02-more-than-words": {
+    "title": "A randomized controlled trial of Hanen’s More Than Words in toddlers with early autism symptoms",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4783130/",
+    "publicationDate": "2011",
+    "tier": 1,
+    "sourceType": "Peer-reviewed randomized controlled trial",
+    "savedEvidence": "research/sources/communication-play-02-more-than-words.md",
+    "limitation": "Modest toddler sample; no significant overall child-outcome effect, and subgroup findings need replication."
+  },
+  "communication-play-03-play-review": {
+    "title": "Play-based interventions to support social and communication development in autistic children aged 2–8 years: A scoping review",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9620698/",
+    "publicationDate": "2021",
+    "tier": 1,
+    "sourceType": "Peer-reviewed scoping review",
+    "savedEvidence": "research/sources/communication-play-03-play-review.md",
+    "limitation": "Maps diverse approaches but does not appraise study quality or synthesize efficacy."
+  },
+  "visual-transitions-01-home-community-scoping": {
+    "title": "Visual supports at home and in the community for individuals with autism spectrum disorders: A scoping review",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/31451016/",
+    "publicationDate": "2019",
+    "tier": 1,
+    "sourceType": "Peer-reviewed scoping review",
+    "savedEvidence": "research/sources/visual-transitions-01-home-community-scoping.md",
+    "limitation": "Home evidence is limited and heterogeneous; emphasizes fit, accessibility, participation, and training."
+  },
+  "visual-transitions-02-teacch-review": {
+    "title": "The effectiveness of TEACCH-based interventions in improving adaptive skills in children with autism spectrum disorders: a systematic review and meta-analysis",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12771134/",
+    "publicationDate": "2025",
+    "tier": 1,
+    "sourceType": "Peer-reviewed systematic review and meta-analysis",
+    "savedEvidence": "research/sources/visual-transitions-02-teacch-review.md",
+    "limitation": "Interventions and settings varied; authors note study-quality, reporting, and publication-bias limitations."
+  },
+  "visual-transitions-03-transition-study": {
+    "title": "Separate and combined effects of visual schedules and extinction plus differential reinforcement on problem behavior occasioned by transitions",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC2695333/",
+    "publicationDate": "2009",
+    "tier": 1,
+    "sourceType": "Peer-reviewed small-N experimental study",
+    "savedEvidence": "research/sources/visual-transitions-03-transition-study.md",
+    "limitation": "Two participants in a narrow treatment context; visual schedules alone did not reduce transition-related behavior."
+  },
+  "parent-coaching-01-rubi-rct": {
+    "title": "Effect of parent training vs parent education on behavioral problems in children with autism spectrum disorder: a randomized clinical trial",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/25898050/",
+    "publicationDate": "2015",
+    "tier": 1,
+    "sourceType": "Peer-reviewed six-site randomized clinical trial",
+    "savedEvidence": "research/sources/parent-coaching-01-rubi-rct.md",
+    "limitation": "Enrolled children had disruptive behavior; parent-rated outcome differences did not meet prespecified minimal clinically important differences."
+  },
+  "parent-coaching-02-stepping-stones-triple-p": {
+    "title": "Stepping Stones Triple P: an RCT of a parenting program with parents of a child diagnosed with an autism spectrum disorder",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/19023654/",
+    "publicationDate": "2009",
+    "tier": 1,
+    "sourceType": "Peer-reviewed randomized controlled trial",
+    "savedEvidence": "research/sources/parent-coaching-02-stepping-stones-triple-p.md",
+    "limitation": "Small sample of 59 families; not evidence that a generic activity template reproduces a branded program."
+  },
+  "parent-coaching-03-parent-implemented-fct-review": {
+    "title": "A Systematic Review of Parent-Implemented Functional Communication Training for Children With ASD",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/29199433/",
+    "publicationDate": "2018",
+    "tier": 1,
+    "sourceType": "Peer-reviewed systematic review",
+    "savedEvidence": "research/sources/parent-coaching-03-parent-implemented-fct-review.md",
+    "limitation": "Included intervention studies had fidelity, sustainability, and access gaps; not equivalent to unsupervised generic practice."
+  },
+  "parent-coaching-04-assent-safety-review": {
+    "title": "Assent in applied behaviour analysis and positive behaviour support: ethical considerations and practical recommendations",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9897747/",
+    "publicationDate": "2023",
+    "tier": 1,
+    "sourceType": "Peer-reviewed ethics and practice review",
+    "savedEvidence": "research/sources/parent-coaching-04-assent-safety-review.md",
+    "limitation": "Ethical/practice guidance, not a controlled efficacy or safety trial."
+  }
+}

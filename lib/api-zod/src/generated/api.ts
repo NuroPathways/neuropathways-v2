@@ -28,7 +28,27 @@ export const GetCareTeamActivityLibraryResponseItem = zod.object({
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
-  "bookmarked": zod.boolean().optional()
+  "bookmarked": zod.boolean().optional(),
+  "skillDomain": zod.enum(['communication', 'transitions', 'daily_living', 'social_play', 'coping', 'parent_preparation']).optional(),
+  "appropriateContexts": zod.array(zod.string()).optional(),
+  "requiredInformation": zod.array(zod.string()).optional(),
+  "caregiverPhrases": zod.array(zod.string()).optional(),
+  "stopConditions": zod.array(zod.string()).optional(),
+  "riskTier": zod.enum(['low', 'context_sensitive', 'requires_authorized_plan']).optional(),
+  "evidenceReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+})).optional(),
+  "exclusionCriteria": zod.array(zod.string()).optional(),
+  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "personalizationFields": zod.array(zod.string()).optional(),
+  "requiresClinicianConfirmation": zod.boolean().optional(),
+  "planConfirmed": zod.boolean().optional()
 })
 export const GetCareTeamActivityLibraryResponse = zod.array(GetCareTeamActivityLibraryResponseItem)
 
@@ -95,7 +115,27 @@ export const GetClinicianGoalsActivitiesResponse = zod.object({
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
-  "bookmarked": zod.boolean().optional()
+  "bookmarked": zod.boolean().optional(),
+  "skillDomain": zod.enum(['communication', 'transitions', 'daily_living', 'social_play', 'coping', 'parent_preparation']).optional(),
+  "appropriateContexts": zod.array(zod.string()).optional(),
+  "requiredInformation": zod.array(zod.string()).optional(),
+  "caregiverPhrases": zod.array(zod.string()).optional(),
+  "stopConditions": zod.array(zod.string()).optional(),
+  "riskTier": zod.enum(['low', 'context_sensitive', 'requires_authorized_plan']).optional(),
+  "evidenceReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+})).optional(),
+  "exclusionCriteria": zod.array(zod.string()).optional(),
+  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "personalizationFields": zod.array(zod.string()).optional(),
+  "requiresClinicianConfirmation": zod.boolean().optional(),
+  "planConfirmed": zod.boolean().optional()
 })),
   "recentPractice": zod.array(zod.object({
   "id": zod.string(),
@@ -311,7 +351,8 @@ export const CreateCareTeamAssignmentBody = zod.object({
   "notes": zod.string().max(createCareTeamAssignmentBodyNotesMax).optional(),
   "schedule": zod.string().max(createCareTeamAssignmentBodyScheduleMax).optional(),
   "status": zod.enum(['draft', 'published', 'paused', 'archived']).optional(),
-  "expectedVersion": zod.number().int().min(createCareTeamAssignmentBodyExpectedVersionMin).optional()
+  "expectedVersion": zod.number().int().min(createCareTeamAssignmentBodyExpectedVersionMin).optional(),
+  "planConfirmed": zod.boolean().optional()
 })
 
 export const CreateCareTeamAssignmentResponse = zod.object({
@@ -334,7 +375,27 @@ export const CreateCareTeamAssignmentResponse = zod.object({
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
-  "bookmarked": zod.boolean().optional()
+  "bookmarked": zod.boolean().optional(),
+  "skillDomain": zod.enum(['communication', 'transitions', 'daily_living', 'social_play', 'coping', 'parent_preparation']).optional(),
+  "appropriateContexts": zod.array(zod.string()).optional(),
+  "requiredInformation": zod.array(zod.string()).optional(),
+  "caregiverPhrases": zod.array(zod.string()).optional(),
+  "stopConditions": zod.array(zod.string()).optional(),
+  "riskTier": zod.enum(['low', 'context_sensitive', 'requires_authorized_plan']).optional(),
+  "evidenceReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+})).optional(),
+  "exclusionCriteria": zod.array(zod.string()).optional(),
+  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "personalizationFields": zod.array(zod.string()).optional(),
+  "requiresClinicianConfirmation": zod.boolean().optional(),
+  "planConfirmed": zod.boolean().optional()
 })
 
 
@@ -383,7 +444,8 @@ export const UpdateCareTeamAssignmentBody = zod.object({
   "notes": zod.string().max(updateCareTeamAssignmentBodyNotesMax).optional(),
   "schedule": zod.string().max(updateCareTeamAssignmentBodyScheduleMax).optional(),
   "status": zod.enum(['draft', 'published', 'paused', 'archived']).optional(),
-  "expectedVersion": zod.number().int().min(updateCareTeamAssignmentBodyExpectedVersionMin).optional()
+  "expectedVersion": zod.number().int().min(updateCareTeamAssignmentBodyExpectedVersionMin).optional(),
+  "planConfirmed": zod.boolean().optional()
 })
 
 export const UpdateCareTeamAssignmentResponse = zod.object({
@@ -406,7 +468,27 @@ export const UpdateCareTeamAssignmentResponse = zod.object({
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
-  "bookmarked": zod.boolean().optional()
+  "bookmarked": zod.boolean().optional(),
+  "skillDomain": zod.enum(['communication', 'transitions', 'daily_living', 'social_play', 'coping', 'parent_preparation']).optional(),
+  "appropriateContexts": zod.array(zod.string()).optional(),
+  "requiredInformation": zod.array(zod.string()).optional(),
+  "caregiverPhrases": zod.array(zod.string()).optional(),
+  "stopConditions": zod.array(zod.string()).optional(),
+  "riskTier": zod.enum(['low', 'context_sensitive', 'requires_authorized_plan']).optional(),
+  "evidenceReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+})).optional(),
+  "exclusionCriteria": zod.array(zod.string()).optional(),
+  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "personalizationFields": zod.array(zod.string()).optional(),
+  "requiresClinicianConfirmation": zod.boolean().optional(),
+  "planConfirmed": zod.boolean().optional()
 })
 
 
@@ -472,7 +554,27 @@ export const GetParentCareTeamResponse = zod.object({
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
-  "bookmarked": zod.boolean().optional()
+  "bookmarked": zod.boolean().optional(),
+  "skillDomain": zod.enum(['communication', 'transitions', 'daily_living', 'social_play', 'coping', 'parent_preparation']).optional(),
+  "appropriateContexts": zod.array(zod.string()).optional(),
+  "requiredInformation": zod.array(zod.string()).optional(),
+  "caregiverPhrases": zod.array(zod.string()).optional(),
+  "stopConditions": zod.array(zod.string()).optional(),
+  "riskTier": zod.enum(['low', 'context_sensitive', 'requires_authorized_plan']).optional(),
+  "evidenceReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+})).optional(),
+  "exclusionCriteria": zod.array(zod.string()).optional(),
+  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "personalizationFields": zod.array(zod.string()).optional(),
+  "requiresClinicianConfirmation": zod.boolean().optional(),
+  "planConfirmed": zod.boolean().optional()
 })),
   "recentPractice": zod.array(zod.object({
   "id": zod.string(),
@@ -534,7 +636,27 @@ export const SaveCareTeamPracticeProgressResponse = zod.object({
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
-  "bookmarked": zod.boolean().optional()
+  "bookmarked": zod.boolean().optional(),
+  "skillDomain": zod.enum(['communication', 'transitions', 'daily_living', 'social_play', 'coping', 'parent_preparation']).optional(),
+  "appropriateContexts": zod.array(zod.string()).optional(),
+  "requiredInformation": zod.array(zod.string()).optional(),
+  "caregiverPhrases": zod.array(zod.string()).optional(),
+  "stopConditions": zod.array(zod.string()).optional(),
+  "riskTier": zod.enum(['low', 'context_sensitive', 'requires_authorized_plan']).optional(),
+  "evidenceReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+})).optional(),
+  "exclusionCriteria": zod.array(zod.string()).optional(),
+  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "personalizationFields": zod.array(zod.string()).optional(),
+  "requiresClinicianConfirmation": zod.boolean().optional(),
+  "planConfirmed": zod.boolean().optional()
 })
 
 

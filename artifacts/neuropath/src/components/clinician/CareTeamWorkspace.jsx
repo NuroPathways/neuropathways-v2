@@ -77,17 +77,17 @@ export const goalPayload = (form, status, version) => ({
 });
 const needsTarget = (m) => ["frequency", "duration", "percentage", "completed_steps"].includes(m);
 
-const emptyActivity = { mode: "library", libraryId: "", goalId: "", schedule: "", title: "", description: "", skill: "Communication", estimatedMinutes: "", materials: "", steps: [""], whyItMayHelp: "", ifDifficult: "", notes: "" };
+const emptyActivity = { mode: "library", libraryId: "", goalId: "", schedule: "", title: "", description: "", skill: "Communication", estimatedMinutes: "", materials: "", steps: [""], whyItMayHelp: "", ifDifficult: "", notes: "", planConfirmed: false };
 const activityToForm = (a) => ({
   mode: a.libraryId ? "library" : "custom", libraryId: a.libraryId || "", goalId: a.goalId || "", schedule: a.schedule || "",
   title: a.title || "", description: a.description || "", skill: a.skill || "Other", estimatedMinutes: a.estimatedMinutes ?? "",
-  materials: a.materials || "", steps: a.steps?.length ? [...a.steps] : [""], whyItMayHelp: a.whyItMayHelp || "", ifDifficult: a.ifDifficult || "", notes: a.notes || "",
+  materials: a.materials || "", steps: a.steps?.length ? [...a.steps] : [""], whyItMayHelp: a.whyItMayHelp || "", ifDifficult: a.ifDifficult || "", notes: a.notes || "", planConfirmed: a.planConfirmed === true,
 });
 // Library assignments reference the definition: steps/instructions are never copied into the save.
 const activityPayload = (form, status, version) => ({
   goalId: form.goalId || null, schedule: form.schedule.trim(), status,
   ...(version != null ? { expectedVersion: version } : {}),
-  ...(form.mode === "library" ? { libraryId: form.libraryId } : {
+  ...(form.mode === "library" ? { libraryId: form.libraryId, planConfirmed: form.planConfirmed } : {
     libraryId: null, title: form.title.trim(), description: form.description.trim(), skill: form.skill,
     estimatedMinutes: form.estimatedMinutes === "" ? null : Number(form.estimatedMinutes),
     materials: form.materials.trim(), steps: form.steps.map((s) => s.trim()).filter(Boolean),
@@ -115,12 +115,12 @@ function LinesEditor({ label, items, onChange, placeholder, testid }) {
   );
 }
 
-function FormActions({ busy, canSave, onDraft, onPreview, onPublish, published }) {
+function FormActions({ busy, canSave, canPublish = canSave, onDraft, onPreview, onPublish, published }) {
   return (
     <div className="flex flex-wrap gap-2 pt-2">
       {!published && <Button type="button" variant="outline" className="rounded-xl" disabled={busy || !canSave} onClick={onDraft} data-testid="button-save-draft">Save Draft</Button>}
       <Button type="button" variant="outline" className="rounded-xl" disabled={!canSave} onClick={onPreview} data-testid="button-preview-parent">Preview as Parent</Button>
-      <Button type="button" className="rounded-xl" disabled={busy || !canSave} onClick={onPublish} data-testid="button-publish-parent">{busy ? "Saving..." : published ? "Save Published Changes" : "Publish to Parent"}</Button>
+      <Button type="button" className="rounded-xl" disabled={busy || !canPublish} onClick={onPublish} data-testid="button-publish-parent">{busy ? "Saving..." : published ? "Save Published Changes" : "Publish to Parent"}</Button>
     </div>
   );
 }
@@ -158,6 +158,7 @@ export function AssignActivityForm({ initial, library = [], libraryLoading, goal
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const chosen = library.find((item) => item.id === form.libraryId);
   const canSave = form.mode === "library" ? Boolean(form.libraryId) : Boolean(form.title.trim() && form.steps.some((s) => s.trim()));
+  const canPublish = canSave && (!chosen?.requiresClinicianConfirmation || form.planConfirmed);
   const selectable = goals.filter((g) => g.status !== "archived");
   const previewActivity = () => form.mode === "library" && chosen
     ? { ...chosen, goalId: form.goalId || null }
@@ -174,17 +175,41 @@ export function AssignActivityForm({ initial, library = [], libraryLoading, goal
       {form.mode === "library" ? (
         libraryLoading ? <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-14 rounded-xl bg-muted animate-pulse" />)}</div>
           : library.length === 0 ? <p className="text-sm text-muted-foreground">The activity library is empty. Create a custom activity instead.</p>
-            : <div className="max-h-72 overflow-y-auto space-y-2 pr-1" role="radiogroup" aria-label="Activity library">
+            : <>
+              <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs text-foreground space-y-1.5">
+                <p className="font-semibold">Original general starter activities</p>
+                <p className="text-muted-foreground">Research informs the design principles; it does not prove that a specific template works for every child. These are not RUBI, Triple P, Project ImPACT, or TEACCH materials.</p>
+                <p className="text-muted-foreground">Select only when the context and required information below match. Do not guess missing details, require participation, or use an activity as a compliance test. For context-sensitive items, review the child's current plan; publish plan-required items only when an authorized child-specific plan explicitly supports them.</p>
+                <p className="text-muted-foreground">Use “Preview as Parent” to see the exact family-facing instructions before publishing.</p>
+              </div>
+              <div className="max-h-72 overflow-y-auto space-y-2 pr-1" role="radiogroup" aria-label="Activity library">
               {library.map((item) => (
-                <button type="button" key={item.id} role="radio" aria-checked={form.libraryId === item.id} onClick={() => setForm((f) => ({ ...f, libraryId: item.id }))}
-                  className={`w-full text-left rounded-xl border p-3 transition-colors ${form.libraryId === item.id ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}
-                  data-testid={`library-activity-${item.id}`}>
-                  <p className="text-sm font-semibold text-foreground">{item.title}</p>
-                  <p className="text-xs text-muted-foreground">{[item.skill, item.estimatedMinutes ? `${item.estimatedMinutes} min` : null, item.source].filter(Boolean).join(" · ")}</p>
-                  {item.description && <p className="text-xs text-foreground/80 mt-1 line-clamp-2">{item.description}</p>}
-                </button>
+                <div key={item.id} className="space-y-1.5">
+                  <button type="button" role="radio" aria-checked={form.libraryId === item.id} onClick={() => setForm((f) => ({ ...f, libraryId: item.id, planConfirmed: f.libraryId === item.id && f.planConfirmed }))}
+                    className={`w-full text-left rounded-xl border p-3 transition-colors ${form.libraryId === item.id ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}
+                    data-testid={`library-activity-${item.id}`}>
+                    <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                    <p className="text-xs text-muted-foreground">{[item.skillDomain?.replaceAll("_", " "), item.skill, item.estimatedMinutes ? `${item.estimatedMinutes} min` : null, item.riskTier && item.riskTier !== "low" ? item.riskTier.replaceAll("_", " ") : null].filter(Boolean).join(" · ")}</p>
+                    {item.description && <p className="text-xs text-foreground/80 mt-1 line-clamp-2">{item.description}</p>}
+                  </button>
+                  <details className="rounded-xl border border-border px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-medium text-foreground">Contexts, safety, steps, and research</summary>
+                    <div className="mt-3 space-y-2.5 text-xs">
+                      <div><p className="font-semibold text-foreground">Appropriate context</p><ul className="mt-1 list-disc pl-4 text-muted-foreground">{(item.appropriateContexts || []).map((text, i) => <li key={i}>{text}</li>)}</ul></div>
+                      <div><p className="font-semibold text-foreground">Confirm first</p><ul className="mt-1 list-disc pl-4 text-muted-foreground">{(item.requiredInformation || []).map((text, i) => <li key={i}>{text}</li>)}</ul></div>
+                      {item.materials && <p><span className="font-semibold text-foreground">Materials: </span><span className="text-muted-foreground">{item.materials}</span></p>}
+                      <div><p className="font-semibold text-foreground">Parent-facing steps</p><ol className="mt-1 list-decimal pl-4 text-muted-foreground">{(item.steps || []).map((text, i) => <li key={i}>{text}</li>)}</ol></div>
+                      {!!item.caregiverPhrases?.length && <div><p className="font-semibold text-foreground">Optional words</p><ul className="mt-1 list-disc pl-4 text-muted-foreground">{item.caregiverPhrases.map((text, i) => <li key={i}>{text}</li>)}</ul></div>}
+                      {!!item.stopConditions?.length && <div><p className="font-semibold text-foreground">Pause or stop</p><ul className="mt-1 list-disc pl-4 text-muted-foreground">{item.stopConditions.map((text, i) => <li key={i}>{text}</li>)}</ul></div>}
+                      {!!item.exclusionCriteria?.length && <div><p className="font-semibold text-foreground">Do not use when</p><ul className="mt-1 list-disc pl-4 text-muted-foreground">{item.exclusionCriteria.map((text, i) => <li key={i}>{text}</li>)}</ul></div>}
+                      {!!item.personalizationFields?.length && <p><span className="font-semibold text-foreground">Personalize for: </span><span className="text-muted-foreground">{item.personalizationFields.join(", ")}</span></p>}
+                      {!!item.evidenceReferences?.length && <div><p className="font-semibold text-foreground">Research design references</p><ul className="mt-1 list-disc space-y-1 pl-4 text-muted-foreground">{item.evidenceReferences.map((reference) => <li key={reference.key}><a href={reference.url} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">{reference.title} ({reference.publishedYear})</a> — {reference.evidenceType}. {reference.designImplication} Limitation: {reference.limitation}</li>)}</ul><p className="mt-1 text-muted-foreground">References inform general design only; they do not establish this template’s effectiveness.</p></div>}
+                    </div>
+                  </details>
+                </div>
               ))}
-            </div>
+              </div>
+            </>
       ) : <>
         <Field label="Activity Title (required)"><Input value={form.title} onChange={set("title")} maxLength={180} placeholder="AAC Break Request Practice" className="rounded-xl" data-testid="input-activity-title" /></Field>
         <Field label="Short Description"><Textarea value={form.description} onChange={set("description")} rows={2} className="rounded-xl" data-testid="input-activity-description" /></Field>
@@ -210,8 +235,16 @@ export function AssignActivityForm({ initial, library = [], libraryLoading, goal
         </select></Field>
         <Field label="Suggested Schedule (optional)"><Input value={form.schedule} onChange={set("schedule")} maxLength={300} placeholder="A few times this week" className="rounded-xl" data-testid="input-activity-schedule" /></Field>
       </div>
+      {chosen?.requiresClinicianConfirmation && (
+        <label className="flex items-start gap-2 rounded-xl border border-border p-3 text-xs text-foreground">
+          <input type="checkbox" className="mt-0.5 accent-primary" checked={form.planConfirmed} onChange={(e) => setForm((f) => ({ ...f, planConfirmed: e.target.checked }))} data-testid="checkbox-activity-plan-confirmation" />
+          <span>{chosen.riskTier === "requires_authorized_plan"
+            ? "I confirm an authorized, current child-specific safety plan explicitly supports this activity."
+            : "I reviewed the child-specific context and current support or safety plan, and confirm this activity is appropriate."} This confirmation is required before publishing.</span>
+        </label>
+      )}
       {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-      <FormActions busy={busy} canSave={canSave} published={initial?.status === "published"}
+      <FormActions busy={busy} canSave={canSave} canPublish={canPublish} published={initial?.status === "published"}
         onDraft={() => onSubmit(activityPayload(form, initial?.status && initial.status !== "draft" ? initial.status : "draft", initial?.version))}
         onPreview={() => onPreview({ ...previewActivity(), goalTitle: goals.find((g) => g.id === form.goalId)?.title || null })}
         onPublish={() => onSubmit(activityPayload(form, "published", initial?.version))} />

@@ -5,6 +5,10 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CareActivityEvidenceReference } from './careActivityEvidenceReference';
+import type { CareActivityRiskTier } from './careActivityRiskTier';
+import type { CareActivitySkillDomain } from './careActivitySkillDomain';
+import type { CareActivitySourceClassification } from './careActivitySourceClassification';
 import type { CareStatus } from './careStatus';
 
 export interface CareActivity {
@@ -32,4 +36,16 @@ export interface CareActivity {
   source: string;
   currentStep?: number;
   bookmarked?: boolean;
+  skillDomain?: CareActivitySkillDomain;
+  appropriateContexts?: string[];
+  requiredInformation?: string[];
+  caregiverPhrases?: string[];
+  stopConditions?: string[];
+  riskTier?: CareActivityRiskTier;
+  evidenceReferences?: CareActivityEvidenceReference[];
+  exclusionCriteria?: string[];
+  sourceClassification?: CareActivitySourceClassification;
+  personalizationFields?: string[];
+  requiresClinicianConfirmation?: boolean;
+  planConfirmed?: boolean;
 }

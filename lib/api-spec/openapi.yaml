@@ -1139,6 +1139,18 @@ components:
         schedule: { type: string, maxLength: 300 }
         status: { $ref: "#/components/schemas/CareStatus" }
         expectedVersion: { type: integer, minimum: 0 }
+        planConfirmed: { type: boolean }
+    CareActivityEvidenceReference:
+      type: object
+      required: [key, title, url, publishedYear, evidenceType, designImplication, limitation]
+      properties:
+        key: { type: string }
+        title: { type: string }
+        url: { type: string, format: uri }
+        publishedYear: { type: integer }
+        evidenceType: { type: string }
+        designImplication: { type: string }
+        limitation: { type: string }
     CareActivity:
       type: object
       required: [id, childId, title, description, skill, steps, status, version, source]
@@ -1163,6 +1175,24 @@ components:
         source: { type: string }
         currentStep: { type: integer }
         bookmarked: { type: boolean }
+        skillDomain:
+          type: string
+          enum: [communication, transitions, daily_living, social_play, coping, parent_preparation]
+        appropriateContexts: { type: array, items: { type: string } }
+        requiredInformation: { type: array, items: { type: string } }
+        caregiverPhrases: { type: array, items: { type: string } }
+        stopConditions: { type: array, items: { type: string } }
+        riskTier:
+          type: string
+          enum: [low, context_sensitive, requires_authorized_plan]
+        evidenceReferences:
+          type: array
+          items: { $ref: "#/components/schemas/CareActivityEvidenceReference" }
+        exclusionCriteria: { type: array, items: { type: string } }
+        sourceClassification: { type: string, enum: [general_starter] }
+        personalizationFields: { type: array, items: { type: string } }
+        requiresClinicianConfirmation: { type: boolean }
+        planConfirmed: { type: boolean }
     CarePracticeProgressInput:
       type: object
       required: [version, currentStep, bookmarked]

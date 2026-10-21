@@ -14,6 +14,10 @@ import { parentBehaviorIdentity, type ParentBehavior } from "./parentAuth";
 import { makeStarterCard, type SupportCard } from "./parentStarterLibrary";
 import type { ParentPlanActivity } from "./parentStarterLibrary";
 import { isValidParentPlanActivity } from "./parentDocumentPolicy";
+import {
+  activityResearchMetadata,
+  ADDITIONAL_PARENT_ACTIVITY_TEMPLATES,
+} from "./parentActivityLibrary";
 
 type ParentLogInput = {
   behaviorKey: string | null;
@@ -241,32 +245,47 @@ export function careTeamActivityLibrary() {
     property_destruction: "Playing Together", daily_living: "Daily Routines", custom: "Communication",
   };
   const seen = new Set<string>();
-  return [...Object.entries(STARTER_PRACTICE_ACTIVITIES), ["custom", CUSTOM_PRACTICE_ACTIVITIES] as const]
+  const existing = [...Object.entries(STARTER_PRACTICE_ACTIVITIES), ["custom", CUSTOM_PRACTICE_ACTIVITIES] as const]
     .flatMap(([category, activities]) => activities.map(activity => ({ category, activity })))
     .filter(({ activity }) => {
-      if (seen.has(activity.id) || !ACTIVITY_GUIDANCE[activity.id]) return false;
+      if (seen.has(activity.id) || !ACTIVITY_GUIDANCE[activity.id] || !activityResearchMetadata(activity.id, activity.ifHard)) return false;
       seen.add(activity.id); return true;
     }).map(({ category, activity }) => ({
+      ...activityResearchMetadata(activity.id, activity.ifHard)!,
       id: activity.id, childId: "", libraryId: activity.id, goalId: null, goalTitle: null,
       title: activity.title, description: activity.description, skill: categories[category] || "Communication",
-      estimatedMinutes: activity.minutes, materials: "", steps: ACTIVITY_GUIDANCE[activity.id].steps,
+      estimatedMinutes: activity.minutes, steps: ACTIVITY_GUIDANCE[activity.id].steps,
       whyItMayHelp: "", ifDifficult: activity.ifHard, notes: "", schedule: "",
       status: "published" as const, version: 1, source: "NeuroPathways starter library",
       currentStep: 0, bookmarked: false,
     }));
+  const additions = ADDITIONAL_PARENT_ACTIVITY_TEMPLATES.map((activity) => ({
+    ...activity.metadata,
+    id: activity.id, childId: "", libraryId: activity.id, goalId: null, goalTitle: null,
+    title: activity.title, description: activity.description, skill: activity.skill,
+    estimatedMinutes: activity.estimatedMinutes, materials: activity.materials, steps: activity.steps,
+    whyItMayHelp: "", ifDifficult: activity.ifDifficult, notes: "", schedule: "",
+    status: "published" as const, version: 1, source: "NeuroPathways starter library",
+    currentStep: 0, bookmarked: false,
+  }));
+  return [...existing, ...additions];
 }
 
 function practiceActivitiesFor(behavior: Pick<ParentBehavior, "behaviorKey" | "behaviorName">): PracticeActivity[] {
   const identity = `${behavior.behaviorKey || ""} ${behavior.behaviorName || ""}`.normalize("NFKC").toLowerCase();
-  if (identity.includes("elopement") || identity.includes("running away")) return STARTER_PRACTICE_ACTIVITIES.elopement;
-  if (identity.includes("self_injury") || identity.includes("self-injury") || identity.includes("self injury")) return STARTER_PRACTICE_ACTIVITIES.self_injury;
-  if (identity.includes("aggression")) return STARTER_PRACTICE_ACTIVITIES.aggression;
-  if (identity.includes("meltdown") || identity.includes("dysregulation")) return STARTER_PRACTICE_ACTIVITIES.meltdowns;
-  if (identity.includes("task_refusal") || identity.includes("task refusal")) return STARTER_PRACTICE_ACTIVITIES.task_refusal;
-  if (identity.includes("transition")) return STARTER_PRACTICE_ACTIVITIES.transition_difficulty;
-  if (identity.includes("property_destruction") || identity.includes("property destruction")) return STARTER_PRACTICE_ACTIVITIES.property_destruction;
-  if (identity.includes("daily_living") || identity.includes("daily living") || identity.includes("hygiene")) return STARTER_PRACTICE_ACTIVITIES.daily_living;
-  return CUSTOM_PRACTICE_ACTIVITIES;
+  let activities: PracticeActivity[];
+  if (identity.includes("elopement") || identity.includes("running away")) activities = STARTER_PRACTICE_ACTIVITIES.elopement;
+  else if (identity.includes("self_injury") || identity.includes("self-injury") || identity.includes("self injury")) activities = STARTER_PRACTICE_ACTIVITIES.self_injury;
+  else if (identity.includes("aggression")) activities = STARTER_PRACTICE_ACTIVITIES.aggression;
+  else if (identity.includes("meltdown") || identity.includes("dysregulation")) activities = STARTER_PRACTICE_ACTIVITIES.meltdowns;
+  else if (identity.includes("task_refusal") || identity.includes("task refusal")) activities = STARTER_PRACTICE_ACTIVITIES.task_refusal;
+  else if (identity.includes("transition")) activities = STARTER_PRACTICE_ACTIVITIES.transition_difficulty;
+  else if (identity.includes("property_destruction") || identity.includes("property destruction")) activities = STARTER_PRACTICE_ACTIVITIES.property_destruction;
+  else if (identity.includes("daily_living") || identity.includes("daily living") || identity.includes("hygiene")) activities = STARTER_PRACTICE_ACTIVITIES.daily_living;
+  else activities = CUSTOM_PRACTICE_ACTIVITIES;
+  return activities.filter((activity) =>
+    activityResearchMetadata(activity.id, activity.ifHard)?.riskTier === "low"
+  );
 }
 
 function parseGoalMilestones(notes: string | null | undefined): string[] {

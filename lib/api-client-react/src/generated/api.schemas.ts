@@ -114,7 +114,46 @@ export interface CareAssignmentInput {
   status?: CareStatus;
   /** @minimum 0 */
   expectedVersion?: number;
+  planConfirmed?: boolean;
 }
+
+export interface CareActivityEvidenceReference {
+  key: string;
+  title: string;
+  url: string;
+  publishedYear: number;
+  evidenceType: string;
+  designImplication: string;
+  limitation: string;
+}
+
+export type CareActivitySkillDomain = typeof CareActivitySkillDomain[keyof typeof CareActivitySkillDomain];
+
+
+export const CareActivitySkillDomain = {
+  communication: 'communication',
+  transitions: 'transitions',
+  daily_living: 'daily_living',
+  social_play: 'social_play',
+  coping: 'coping',
+  parent_preparation: 'parent_preparation',
+} as const;
+
+export type CareActivityRiskTier = typeof CareActivityRiskTier[keyof typeof CareActivityRiskTier];
+
+
+export const CareActivityRiskTier = {
+  low: 'low',
+  context_sensitive: 'context_sensitive',
+  requires_authorized_plan: 'requires_authorized_plan',
+} as const;
+
+export type CareActivitySourceClassification = typeof CareActivitySourceClassification[keyof typeof CareActivitySourceClassification];
+
+
+export const CareActivitySourceClassification = {
+  general_starter: 'general_starter',
+} as const;
 
 export interface CareActivity {
   id: string;
@@ -141,6 +180,18 @@ export interface CareActivity {
   source: string;
   currentStep?: number;
   bookmarked?: boolean;
+  skillDomain?: CareActivitySkillDomain;
+  appropriateContexts?: string[];
+  requiredInformation?: string[];
+  caregiverPhrases?: string[];
+  stopConditions?: string[];
+  riskTier?: CareActivityRiskTier;
+  evidenceReferences?: CareActivityEvidenceReference[];
+  exclusionCriteria?: string[];
+  sourceClassification?: CareActivitySourceClassification;
+  personalizationFields?: string[];
+  requiresClinicianConfirmation?: boolean;
+  planConfirmed?: boolean;
 }
 
 export interface CarePracticeProgressInput {

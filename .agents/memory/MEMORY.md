@@ -21,3 +21,4 @@
 - [Redesign approval gates](phased-ui-redesign.md) — audit before UI edits; stop after each redesign phase and require explicit approval to advance.
 - [Goal source and draft safety](goal-source-presentation.md) — group by goal origin, retain raw technical titles, and keep edit drafts when details collapse.
 - [Chat safety presentation](chat-safety-presentation.md) — collapse only known nonurgent boilerplate; retain complete answers, disclaimers and source provenance.
+- [Research-informed parent activities](parent-activity-evidence.md) — cite research with its limits; a general template is not proven treatment or a substitute for an authorized child-specific plan.

@@ -574,3 +574,31 @@ mtime_ms = 1792355400984
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/0b298b4a-7970-480a-ae40-f511b7736135/b9181196-40d2-43d7-8629-68de738c5cbf"
 storage_version_token = "1792355591597757"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "6Gn-b3oPw1XqTXi8zJ81c"
+uri = "file://research/notes.md"
+type = "text"
+title = "NeuroPathways activity library research notes"
+description = "Scope, evidence questions, and the source plan for the approved Phase 4 library."
+logical_id = "e29c7130-25a1-42a6-a6a2-0f630df7b0c7"
+content_hash = "sha256:61a02fb17909321839848bec4f900f5addfac25ab674d91af8849479fc6aa061"
+size = 2397
+mtime_ms = 1792623711648
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/e29c7130-25a1-42a6-a6a2-0f630df7b0c7/c9c2a17e-3224-483b-8a2e-afeff635389e"
+storage_version_token = "1792623739557947"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "ljIG0ADhREj2nh4DkZF7e"
+uri = "file://research/neuropathways-parent-activity-library.html"
+type = "html"
+title = "NeuroPathways Parent Activity Library — Research Notes"
+description = "A downloadable summary of the research limits, selection rules, and sources used for the new curated activity library."
+logical_id = "5168a057-e645-4814-b5b1-22428f6a7110"
+content_hash = "sha256:12b06f08bd5e44adb7c872d9d6fad40e674d8ed0509af866d6bd74046abaa3f6"
+size = 6836
+mtime_ms = 1792625027789
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/5168a057-e645-4814-b5b1-22428f6a7110/40fcf597-b977-481d-82a0-cfac946c3620"
+storage_version_token = "1792625035864849"
+content_type = "text/html"

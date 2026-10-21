@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildParentDailyActionDrafts,
+  careTeamActivityLibrary,
   normalizeParentActionDate,
 } from "./parentDailyActions";
 import type { ParentPlanGoal } from "./parentDailyActions";
@@ -218,7 +219,7 @@ test("starter practice is behavior-specific and excludes unsafe rehearsal", () =
   });
   const elopement = makeActions("elopement", "Elopement / Running Away");
   const selfInjury = makeActions("self_injury", "Self-Injury");
-  assert.ok(elopement.some((action) => action.title === "Indoor Stop-and-Return Game"));
+  assert.ok(elopement.every((action) => action.title !== "Indoor Stop-and-Return Game"));
   assert.ok(selfInjury.some((action) => action.title === "Practice Asking for Help"));
   const puzzle = elopement.find((action) => action.title === "Puzzle Together");
   assert.ok(puzzle);
@@ -401,4 +402,44 @@ test("parent action dates accept real calendar days and reject malformed dates",
   assert.equal(normalizeParentActionDate("2024-02-29"), "2024-02-29");
   assert.equal(normalizeParentActionDate("not-a-date").match(/^\d{4}-\d{2}-\d{2}$/)?.[0] !== undefined, true);
   assert.equal(normalizeParentActionDate("2024-02-30"), today);
+});
+
+test("curated clinician activity library includes research and safety metadata across all requested domains", () => {
+  const library = careTeamActivityLibrary();
+  assert.ok(library.length >= 35);
+  assert.equal(new Set(library.map((item) => item.id)).size, library.length);
+  assert.deepEqual(
+    new Set(library.map((item) => item.skillDomain)),
+    new Set(["communication", "transitions", "daily_living", "social_play", "coping", "parent_preparation"]),
+  );
+  for (const item of library) {
+    assert.ok(item.appropriateContexts.length > 0, `${item.id} needs a use context`);
+    assert.ok(item.requiredInformation.length > 0, `${item.id} needs prerequisites`);
+    assert.ok(item.materials.trim(), `${item.id} needs materials guidance`);
+    assert.ok(item.steps.length > 0, `${item.id} needs concrete steps`);
+    assert.ok(item.stopConditions.length > 0, `${item.id} needs stop conditions`);
+    assert.ok(item.evidenceReferences.length > 0, `${item.id} needs research context`);
+    assert.ok(item.exclusionCriteria.length > 0, `${item.id} needs exclusions`);
+    assert.ok(item.personalizationFields.length > 0, `${item.id} needs personalization fields`);
+    assert.equal(item.sourceClassification, "general_starter");
+    assert.doesNotMatch(`${item.source} ${item.description}`, /licensed curriculum|clinician-approved plan/i);
+  }
+  assert.ok(library.some((item) => item.title === "Choose Between Two Activities"));
+  assert.ok(library.some((item) => item.title === "Use a Familiar AAC Choice"));
+  assert.ok(library.some((item) => item.title === "Gather Familiar Supports"));
+  const safetyRehearsal = library.find((item) => item.id === "indoor-stop-and-return");
+  assert.equal(safetyRehearsal?.riskTier, "requires_authorized_plan");
+  assert.equal(safetyRehearsal?.requiresClinicianConfirmation, true);
+});
+
+test("general parent starter suggestions do not include activities requiring a child-specific plan", () => {
+  const actions = buildParentDailyActionDrafts({
+    date: "2026-10-07",
+    selectedBehaviors: [selectedBehavior("elopement", "Elopement")],
+    supportCards: [makeStarterCard("elopement", null, "Use a safe replacement")],
+    logs: [],
+  });
+  assert.ok(actions.length > 0);
+  assert.ok(actions.every((action) => action.sourceType === "starter_template"));
+  assert.doesNotMatch(actions.map((action) => `${action.title} ${action.steps.join(" ")}`).join(" "), /stop-and-return|rehearsal|exit practice/i);
 });

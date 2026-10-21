@@ -49,6 +49,35 @@ describe("Care team forms", () => {
     expect(body).toMatchObject({ libraryId: "lib1", goalId: "g1", status: "published" });
     expect(body.steps).toBeUndefined();
   });
+  it("shows library selection guidance and requires confirmation for a plan-required activity", () => {
+    const onSubmit = vi.fn();
+    const library = [{
+      id: "safety-rehearsal", title: "Safety Rehearsal", skill: "Safety Skills", skillDomain: "transitions",
+      description: "Only use when a current authorized plan supports it.", estimatedMinutes: 5,
+      source: "NeuroPathways starter library", steps: ["Follow the current plan."],
+      appropriateContexts: ["A calm, safe setting."], requiredInformation: ["Confirm the current authorized plan."],
+      materials: "The plan's familiar cue.", caregiverPhrases: [], stopConditions: ["Stop if unsafe."],
+      riskTier: "requires_authorized_plan", evidenceReferences: [{
+        key: "safety", title: "Safety source", url: "https://example.org/research", publishedYear: 2024,
+        evidenceType: "review", designImplication: "Use context carefully.", limitation: "Not a template efficacy study.",
+      }],
+      exclusionCriteria: ["Never use in a crisis."], sourceClassification: "general_starter",
+      personalizationFields: ["child's current plan"], requiresClinicianConfirmation: true,
+    }];
+    wrap(<AssignActivityForm library={library} onSubmit={onSubmit} onPreview={() => {}} />);
+    expect(screen.getByText(/not RUBI, Triple P, Project ImPACT, or TEACCH materials/i)).toBeTruthy();
+    fireEvent.click(screen.getByTestId("library-activity-safety-rehearsal"));
+    fireEvent.click(screen.getByText("Contexts, safety, steps, and research"));
+    expect(screen.getByText("Research design references")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Safety source (2024)" })).toBeTruthy();
+    expect(screen.getByTestId("button-publish-parent").disabled).toBe(true);
+    fireEvent.click(screen.getByTestId("checkbox-activity-plan-confirmation"));
+    expect(screen.getByTestId("button-publish-parent").disabled).toBe(false);
+    fireEvent.click(screen.getByTestId("button-publish-parent"));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      libraryId: "safety-rehearsal", planConfirmed: true, status: "published",
+    }));
+  });
   it("renders the parent preview with a preview label and no saving", () => {
     wrap(<div className="np-practice"><ActivityGuide preview assigned requireOutcome childName="John" activity={{ id: "p", title: "AAC Break Request Practice", steps: ["Step one"], skill: "Communication" }} onExit={() => {}} onSkip={() => {}} /></div>);
     expect(screen.getByTestId("label-preview")).toBeTruthy();
