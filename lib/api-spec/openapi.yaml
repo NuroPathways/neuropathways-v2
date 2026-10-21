@@ -1646,6 +1646,30 @@ components:
                 type: string
               skill:
                 type: string
+              relatedGoal:
+                type: [string, "null"]
+              estimatedMinutes:
+                type: [integer, "null"]
+              materials:
+                type: array
+                items:
+                  type: string
+              startAction:
+                type: string
+              steps:
+                type: array
+                items:
+                  type: string
+              ending:
+                type: string
+              pauseConditions:
+                type: array
+                items:
+                  type: string
+              observationPrompts:
+                type: array
+                items:
+                  type: string
               reinforcement:
                 type: [string, "null"]
               sourceDocumentId:
@@ -1665,6 +1689,15 @@ components:
               sourceType:
                 type: string
                 enum: [clinician_reviewed, clinician_uploaded_plan, parent_uploaded_plan]
+              readiness:
+                type: string
+                enum: [ready, needs_details, needs_clinician_review]
+              readinessReasons:
+                type: array
+                items:
+                  type: string
+              sourceExcerptVerified:
+                type: boolean
             required: [title, routineContext, opportunity, skill, reinforcement, sourceDocumentId, sourceExcerpt, sourceType]
         reviewedBy:
           type: [string, "null"]

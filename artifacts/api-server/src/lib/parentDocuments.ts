@@ -1321,7 +1321,7 @@ export async function getParentSharedSupport(
         const contentVersion = parentActivityContentVersion(activity);
         const currentReview = activity.contentVersion === contentVersion && activity.reviewedBy && activity.reviewedAt;
         const currentAssignment = currentReview && activity.assignedBy === activity.reviewedBy && activity.assignedAt;
-        const readiness = activity.readiness === "needs_details"
+        const readiness = activity.readiness === undefined || activity.readiness === "needs_details"
           ? "needs_details" as const
           : activity.sourceExcerptVerified !== true
             ? "needs_clinician_review" as const
@@ -1441,7 +1441,7 @@ export async function getParentSupportCards(parentId: string, childId: string): 
         const contentVersion = parentActivityContentVersion(activity);
         const currentReview = activity.contentVersion === contentVersion && Boolean(activity.reviewedBy && activity.reviewedAt);
         const currentAssignment = currentReview && activity.assignedBy === activity.reviewedBy && activity.assignedAt;
-        const readiness = activity.readiness === "needs_details"
+        const readiness = activity.readiness === undefined || activity.readiness === "needs_details"
           ? "needs_details" as const
           : activity.sourceExcerptVerified !== true
             ? "needs_clinician_review" as const

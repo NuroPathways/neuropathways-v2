@@ -513,11 +513,30 @@ export const SupportCardDailyActivitiesItemSourceType = {
   parent_uploaded_plan: 'parent_uploaded_plan',
 } as const;
 
+export type SupportCardDailyActivitiesItemReadiness = typeof SupportCardDailyActivitiesItemReadiness[keyof typeof SupportCardDailyActivitiesItemReadiness];
+
+
+export const SupportCardDailyActivitiesItemReadiness = {
+  ready: 'ready',
+  needs_details: 'needs_details',
+  needs_clinician_review: 'needs_clinician_review',
+} as const;
+
 export type SupportCardDailyActivitiesItem = {
   title: string;
   routineContext: string;
   opportunity: string;
   skill: string;
+  /** @nullable */
+  relatedGoal?: string | null;
+  /** @nullable */
+  estimatedMinutes?: number | null;
+  materials?: string[];
+  startAction?: string;
+  steps?: string[];
+  ending?: string;
+  pauseConditions?: string[];
+  observationPrompts?: string[];
   /** @nullable */
   reinforcement: string | null;
   sourceDocumentId: string;
@@ -532,6 +551,9 @@ export type SupportCardDailyActivitiesItem = {
   /** @nullable */
   assignedAt?: string | null;
   sourceType: SupportCardDailyActivitiesItemSourceType;
+  readiness?: SupportCardDailyActivitiesItemReadiness;
+  readinessReasons?: string[];
+  sourceExcerptVerified?: boolean;
 };
 
 export interface SupportCard {

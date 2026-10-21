@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { SupportCardDailyActivitiesItemReadiness } from './supportCardDailyActivitiesItemReadiness';
 import type { SupportCardDailyActivitiesItemSourceType } from './supportCardDailyActivitiesItemSourceType';
 
 export type SupportCardDailyActivitiesItem = {
@@ -12,6 +13,16 @@ export type SupportCardDailyActivitiesItem = {
   routineContext: string;
   opportunity: string;
   skill: string;
+  /** @nullable */
+  relatedGoal?: string | null;
+  /** @nullable */
+  estimatedMinutes?: number | null;
+  materials?: string[];
+  startAction?: string;
+  steps?: string[];
+  ending?: string;
+  pauseConditions?: string[];
+  observationPrompts?: string[];
   /** @nullable */
   reinforcement: string | null;
   sourceDocumentId: string;
@@ -26,4 +37,7 @@ export type SupportCardDailyActivitiesItem = {
   /** @nullable */
   assignedAt?: string | null;
   sourceType: SupportCardDailyActivitiesItemSourceType;
+  readiness?: SupportCardDailyActivitiesItemReadiness;
+  readinessReasons?: string[];
+  sourceExcerptVerified?: boolean;
 };

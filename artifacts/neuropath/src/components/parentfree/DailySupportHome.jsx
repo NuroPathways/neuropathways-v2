@@ -36,6 +36,15 @@ function stepField(steps, prefix) {
   return value ? value.slice(prefix.length).trim() : "";
 }
 
+function hasCompleteActivityStructure(action) {
+  const steps = Array.isArray(action.steps) ? action.steps : [];
+  const start = stepField(steps, "Start: ");
+  const finish = stepField(steps, "Finish: ");
+  const pause = stepField(steps, "Pause or stop if: ");
+  const activitySteps = steps.filter((step) => /^Activity step \d+:\s*/.test(step));
+  return Boolean(start && activitySteps.length >= 2 && activitySteps.length <= 5 && finish && pause);
+}
+
 const RATINGS = [
   ["helped", "Worked well"],
   ["somewhat_helped", "Helped somewhat"],
@@ -78,8 +87,8 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
   const activitySteps = steps
     .filter((step) => /^Activity step \d+:\s*/.test(step))
     .map((step) => step.replace(/^Activity step \d+:\s*/, ""));
-  const hasCompleteActivityStructure = Boolean(startAction && activitySteps.length >= 2 && activitySteps.length <= 5 && finish && pauseConditions);
-  const activityNeedsDetails = action.status !== "needs_review" && !hasCompleteActivityStructure;
+  const completeActivity = hasCompleteActivityStructure(action);
+  const activityNeedsDetails = action.status !== "needs_review" && !completeActivity;
   const needsReview = action.status === "needs_review" || activityNeedsDetails;
   const hasActions = !needsReview && (action.status === "not_started" || action.status === "saved_for_later");
   const feedback = action.logs?.[0];
@@ -284,7 +293,7 @@ export default function DailySupportHome({
             <p className="pf-eyebrow">Things to Try Today</p>
             <h2 id="daily-tasks-heading">Activities for {childName}</h2>
           </div>
-          <span className="pf-daily-count">{tasks.filter((task) => task.status === "not_started").length} ready</span>
+          <span className="pf-daily-count">{tasks.filter((task) => task.status === "not_started" && hasCompleteActivityStructure(task)).length} ready</span>
         </div>
         <p className="pf-hint">Simple activities connected to selected behaviors and their support sources.</p>
         <p className="pf-hint">Only try activities that feel safe and realistic today. Stop if an activity becomes stressful or unsafe.</p>

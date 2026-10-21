@@ -142,6 +142,7 @@ For safety or medical uncertainty, say to follow an existing individualized plan
 
 const PLAN_ACTIVITY_UNSAFE = /\b(restraint|seclusion|pin(?:ning)?|hold(?:ing)? (?:down|still)|physical block(?:ing)?|punish(?:ment)?|extinction|force them|ignore (?:all|the) safety)\b/i;
 const GOAL_ONLY_ACTIVITY = /^(?:practice\s+(?:goal\s*#?\s*\d+|reducing|decreasing|improving|increasing|anxiety symptoms|functional communication|reassurance seeking)|work on\b|use an opportunity to practice|practice goal\b)/i;
+const GENERIC_ACTIVITY_PLACEHOLDER = /^(?:try (?:one )?(?:low[- ]pressure )?practice opportunity|follow (?:the|your) (?:existing )?plan|offer a chance to practice|practice this skill|do the activity)$/i;
 
 function boundedActivityText(value: unknown, maxLength: number): string {
   return typeof value === "string"
@@ -188,8 +189,13 @@ export function normalizeParentPlanActivities(
     const durationMinutes = typeof candidate.duration_minutes === "number" && Number.isInteger(candidate.duration_minutes)
       ? candidate.duration_minutes
       : null;
-    const relatedGoal = boundedActivityText(candidate.related_goal, 320) || null;
     const searchableSource = sourceTextByDocumentId.get(sourceDocumentId) || "";
+    const relatedGoalCandidate = boundedActivityText(candidate.related_goal, 320);
+    const normalizedSource = normalizedParentText(searchableSource);
+    const relatedGoal = relatedGoalCandidate &&
+      normalizedSource.includes(normalizedParentText(relatedGoalCandidate))
+      ? relatedGoalCandidate
+      : null;
     const normalizedExcerpt = normalizedParentText(sourceExcerpt);
     if (!allowedIds.has(sourceDocumentId) || !title) continue;
     const sourceExcerptVerified = normalizedExcerpt.length >= 24 &&
@@ -202,13 +208,15 @@ export function normalizeParentPlanActivities(
     const detailsNeeded: string[] = [];
     if (!routineContext) detailsNeeded.push("Add the specific routine or context.");
     if (!materialsProvided) detailsNeeded.push("Specify the materials, or confirm none are needed.");
-    if (!startAction) detailsNeeded.push("Add a clear starting action.");
+    if (!startAction || GOAL_ONLY_ACTIVITY.test(startAction) || GENERIC_ACTIVITY_PLACEHOLDER.test(startAction)) {
+      detailsNeeded.push("Add a clear starting action.");
+    }
     if (
       steps.length < 2 ||
       steps.length > 5 ||
       stepsProvidedCount > 5 ||
       steps.length !== stepsProvidedCount ||
-      steps.some((step) => GOAL_ONLY_ACTIVITY.test(step))
+      steps.some((step) => GOAL_ONLY_ACTIVITY.test(step) || GENERIC_ACTIVITY_PLACEHOLDER.test(step))
     ) {
       detailsNeeded.push("Provide two to five concrete activity steps.");
     }
@@ -219,7 +227,12 @@ export function normalizeParentPlanActivities(
     }
     if (!opportunity) detailsNeeded.push("Describe an opportunity the caregiver can offer safely.");
     if (!skill || GOAL_ONLY_ACTIVITY.test(skill)) detailsNeeded.push("Name the specific skill to practice or notice.");
-    if (GOAL_ONLY_ACTIVITY.test(title) || GOAL_ONLY_ACTIVITY.test(opportunity)) {
+    if (
+      GOAL_ONLY_ACTIVITY.test(title) ||
+      GOAL_ONLY_ACTIVITY.test(opportunity) ||
+      GENERIC_ACTIVITY_PLACEHOLDER.test(title) ||
+      GENERIC_ACTIVITY_PLACEHOLDER.test(opportunity)
+    ) {
       detailsNeeded.push("Replace goal-only wording with an activity the family can do.");
     }
     const needsClinicianSourceCheck = !sourceExcerptVerified;
@@ -293,9 +306,9 @@ export function isValidParentPlanActivity(value: unknown): value is ParentPlanAc
         Array.isArray(activity.readinessReasons));
   }
   return Boolean(
-    activity.routineContext.trim() &&
-    activity.opportunity.trim() &&
-    activity.skill.trim() &&
+    activity.routineContext!.trim() &&
+    activity.opportunity!.trim() &&
+    activity.skill!.trim() &&
     Number.isInteger(activity.estimatedMinutes) &&
     activity.estimatedMinutes! >= 1 &&
     activity.estimatedMinutes! <= 60 &&
@@ -310,10 +323,18 @@ export function isValidParentPlanActivity(value: unknown): value is ParentPlanAc
     Array.isArray(activity.pauseConditions) &&
     activity.pauseConditions.length > 0 &&
     activity.sourceExcerptVerified === true &&
-    activity.sourceExcerpt.trim().length >= 24 &&
-    !GOAL_ONLY_ACTIVITY.test(activity.title) &&
-    !GOAL_ONLY_ACTIVITY.test(activity.opportunity) &&
-    activity.steps.every((step) => typeof step === "string" && !GOAL_ONLY_ACTIVITY.test(step))
+    activity.sourceExcerpt!.trim().length >= 24 &&
+    !GOAL_ONLY_ACTIVITY.test(activity.title!) &&
+    !GOAL_ONLY_ACTIVITY.test(activity.opportunity!) &&
+    !GENERIC_ACTIVITY_PLACEHOLDER.test(activity.title!) &&
+    !GENERIC_ACTIVITY_PLACEHOLDER.test(activity.opportunity!) &&
+    !GOAL_ONLY_ACTIVITY.test(activity.startAction!) &&
+    !GENERIC_ACTIVITY_PLACEHOLDER.test(activity.startAction!) &&
+    activity.steps.every((step) =>
+      typeof step === "string" &&
+      !GOAL_ONLY_ACTIVITY.test(step) &&
+      !GENERIC_ACTIVITY_PLACEHOLDER.test(step),
+    )
   );
 }
 

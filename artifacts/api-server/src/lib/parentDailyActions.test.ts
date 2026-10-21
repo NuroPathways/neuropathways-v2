@@ -46,6 +46,7 @@ const breakRequestActivity: ParentPlanActivity = {
   routineContext: "During homework at the kitchen table",
   opportunity: "Before a short assignment, offer the familiar break card and wait",
   skill: "Requests a break using the card",
+  relatedGoal: "Independently requests a break during homework",
   reinforcement: "Provide the planned break after the request",
   estimatedMinutes: 5,
   materials: ["Familiar break card"],
@@ -88,7 +89,7 @@ test("daily actions turn plan activities into concrete steps and keep their prov
     "Activity step 1: Point to the card before starting one short homework item.",
     "Activity step 2: Pause so the child can use the card or decline to practice.",
     "Skill practiced: Requests a break using the card",
-    "Related goal: Independently requests a break during homework.",
+    "Related goal: Independently requests a break during homework",
     "Finish: End after one request or when the child signals they are done.",
     "Pause or stop if: Pause the homework if the child becomes distressed.",
     "Materials: Familiar break card",
@@ -97,7 +98,7 @@ test("daily actions turn plan activities into concrete steps and keep their prov
   ]);
   assert.match(actions[0].whyItMayHelp, /Maya/);
   assert.match(actions[0].whyItMayHelp, /Independently requests a break during homework/);
-  assert.match(actions[0].whyItMayHelp, /Requests a break using the card/);
+  assert.match(actions[0].steps.join(" "), /Requests a break using the card/);
 });
 
 test("daily actions round-robin across selected behaviors and cap the list at five plan activities", () => {
@@ -171,10 +172,41 @@ test("a selected goal creates varied task-refusal activities without copying par
     "First-Then Choice",
   ]);
   assert.ok(actions.every((action) => action.sourceType === "starter_template"));
-  assert.ok(actions.every((action) => /saved goal: Ask for a break/.test(action.whyItMayHelp)));
+  assert.match(actions[0].whyItMayHelp, /saved goal: Ask for a break/);
+  assert.doesNotMatch(actions[1].whyItMayHelp, /saved goal/);
   assert.ok(actions.every((action) => action.sourceDocumentId === null));
   assert.ok(actions.every((action) => action.steps.some((step) => step.startsWith("Pause or stop if:"))));
   assert.ok(actions.every((action) => !action.steps.some((step) => step.includes(repeatedNote))));
+});
+
+test("five published starter activities contain a start, concrete steps, finish, stop conditions, and accurate source", () => {
+  const actions = buildParentDailyActionDrafts({
+    date: "2026-10-07",
+    selectedBehaviors: [
+      selectedBehavior("task_refusal", "Task refusal"),
+      { ...selectedBehavior("elopement", "Elopement"), goal: null },
+    ],
+    supportCards: [
+      makeStarterCard("task_refusal", null, "Ask for a break"),
+      makeStarterCard("elopement", null, null),
+    ],
+    logs: [],
+  });
+
+  assert.equal(actions.length, 5);
+  for (const action of actions) {
+    assert.ok(action.title.length > 4);
+    assert.match(action.description, /Suggested context:/);
+    assert.match(action.description, /Materials:/);
+    assert.ok(action.steps.some((step) => step.startsWith("Start: ")));
+    assert.ok(action.steps.filter((step) => /^Activity step \d+:/.test(step)).length >= 2);
+    assert.ok(action.steps.some((step) => step.startsWith("Skill practiced: ")));
+    assert.ok(action.steps.some((step) => step.startsWith("Finish: ")));
+    assert.ok(action.steps.some((step) => step.startsWith("Pause or stop if: ")));
+    assert.equal(action.sourceType, "starter_template");
+    assert.equal(action.sourceDocumentId, null);
+    assert.doesNotMatch(`${action.title} ${action.steps.join(" ")}`, /^Practice:|Practice goal \d/i);
+  }
 });
 
 test("starter practice is behavior-specific and excludes unsafe rehearsal", () => {
@@ -246,6 +278,39 @@ test("an unselected plan-discovered goal remains a goal and never becomes a dail
   });
 
   assert.deepEqual(actions, []);
+});
+
+test("unselected plan activity stays out of Practice unless a clinician explicitly assigns it", () => {
+  const unselected = supportCard("task_refusal", "Task refusal", "parent_document", {
+    dailyActivities: [breakRequestActivity],
+  });
+  assert.deepEqual(buildParentDailyActionDrafts({
+    date: "2026-10-07",
+    selectedBehaviors: [],
+    supportCards: [unselected],
+    logs: [],
+  }), []);
+
+  const assignedActivity: ParentPlanActivity = {
+    ...breakRequestActivity,
+    sourceType: "clinician_uploaded_plan",
+    assignedBy: "clinician-1",
+    assignedAt: "2026-10-07T09:00:00.000Z",
+  };
+  const assigned = buildParentDailyActionDrafts({
+    date: "2026-10-07",
+    selectedBehaviors: [],
+    supportCards: [
+      supportCard("task_refusal", "Task refusal", "clinician_document", {
+        sourceDocumentIds: ["parent-plan-1"],
+        dailyActivities: [assignedActivity],
+      }),
+    ],
+    logs: [],
+  });
+  assert.equal(assigned.length, 1);
+  assert.equal(assigned[0].title, breakRequestActivity.title);
+  assert.equal(assigned[0].sourceType, "clinician_uploaded_plan");
 });
 
 test("clinician goals and milestones remain goals instead of being published as practice actions", () => {

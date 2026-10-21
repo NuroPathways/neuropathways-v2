@@ -109,5 +109,6 @@ export * from './sourceReference';
 export * from './starterTemplate';
 export * from './supportCard';
 export * from './supportCardDailyActivitiesItem';
+export * from './supportCardDailyActivitiesItemReadiness';
 export * from './supportCardDailyActivitiesItemSourceType';
 export * from './supportCardSource';

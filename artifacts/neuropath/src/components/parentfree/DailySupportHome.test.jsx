@@ -85,9 +85,17 @@ describe("DailySupportHome", () => {
       status: "not_started",
       behaviorName: "Task refusal",
       title: "One-Step Start",
-      description: "Choose one tiny part of a familiar task and notice any attempt.",
+      description: "Suggested context: During an easy homework task. Materials: One familiar homework item.",
       whyItMayHelp: "Practices starting one manageable step.",
-      steps: ["Skill practiced: Starting a task", "If it gets hard: Make the step smaller or offer a break."],
+      steps: [
+        "Start: Choose one tiny part of a familiar task.",
+        "Activity step 1: Offer one small step and let your child choose whether to begin.",
+        "Activity step 2: Notice any attempt and stop after this short turn.",
+        "Skill practiced: Starting a task",
+        "Finish: End after one step or when your child signals they are done.",
+        "Pause or stop if: Make the step smaller or offer a break.",
+        "Materials: One familiar homework item",
+      ],
       estimatedMinutes: 3,
       sourceType: "starter_template",
       sourceDocumentId: null,
@@ -112,7 +120,7 @@ describe("DailySupportHome", () => {
     expect(screen.getByRole("button", { name: "Done" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "We struggled" })).toBeTruthy();
     expect(screen.getByText("Starting a task")).toBeTruthy();
-    expect(screen.getByText(/If it gets hard: Make the step smaller/)).toBeTruthy();
+    expect(screen.getByText("Make the step smaller or offer a break.")).toBeTruthy();
   });
 });
 
@@ -120,7 +128,15 @@ const savedAction = {
   id: "a1", childId: "child-a", kind: "task", title: "Saved activity",
   behaviorName: "Transitions", estimatedMinutes: 3, status: "not_started",
   sourceType: "starter_template", description: "Use the saved plan. Stop if unsafe.",
-  steps: ["Skill practiced: Saved replacement skill", "An unchanged first step."],
+  steps: [
+    "Start: Begin with one familiar, easy step.",
+    "Activity step 1: Offer the first small action and wait.",
+    "Activity step 2: Follow the child's lead for one short turn.",
+    "Skill practiced: Saved replacement skill",
+    "Finish: End after this short turn.",
+    "Pause or stop if: Stop if the child becomes distressed.",
+    "Materials: No extra materials needed.",
+  ],
   whyItMayHelp: "Existing explanation.",
 };
 const support = {
@@ -173,6 +189,21 @@ describe("Home redesign preservation", () => {
     expect(screen.getByText(/Only try activities that feel safe/)).toBeTruthy();
     expect(screen.getByText(/Ask your clinician which plan step/)).toBeTruthy();
     openActivity();
+    expect(screen.queryByTestId("button-outcome-a1-used_skill")).toBeNull();
+  });
+
+  it("classifies an old goal-only action as Needs Details and blocks trying it", () => {
+    renderHome({
+      actions: [{
+        ...savedAction,
+        title: "Practice improving functional communication",
+        steps: ["Skill practiced: Improve communication"],
+      }],
+    });
+    expect(screen.getByText("Needs Details")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Review Activity" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Review Activity" }));
+    expect(screen.getByText(/missing a clear start/)).toBeTruthy();
     expect(screen.queryByTestId("button-outcome-a1-used_skill")).toBeNull();
   });
 

@@ -379,7 +379,7 @@ function planActivityDraft(
     ].join("|"))
     .digest("hex")
     .slice(0, 20);
-  const relatedGoal = activity.relatedGoal?.trim() || card.planGoal?.trim() || "";
+  const relatedGoal = activity.relatedGoal?.trim() || "";
   const steps = [
     `Start: ${activity.startAction}`,
     ...(activity.steps || []).map((step, index) => `Activity step ${index + 1}: ${step}`),
@@ -519,8 +519,11 @@ export function buildParentDailyActionDrafts(input: {
         input.childName?.trim() || "your child",
       );
     }
+    const hasExplicitAssignment = (card.dailyActivities || []).some((activity) => Boolean(activity.assignedAt));
+    if (!selectedBehavior && !hasExplicitAssignment) return [];
     const planActivities = (card.dailyActivities || [])
       .filter(isReadyPlanActivity)
+      .filter((activity) => Boolean(selectedBehavior) || Boolean(activity.assignedAt))
       .filter((activity) => activity.sourceType !== "clinician_uploaded_plan" || Boolean(activity.assignedAt))
       .map((activity) =>
       planActivityDraft(card, activity, input.date, input.childName?.trim() || "your child"),

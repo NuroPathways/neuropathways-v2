@@ -122,7 +122,7 @@ test("document generation requires complete real activities and preserves safety
   assert.match(serializedPrompt, /two to five concrete steps/);
   assert.match(serializedPrompt, /Do not turn a goal or milestone into an activity/);
   assert.match(serializedPrompt, /classify it as Needs Details/);
-  assert.match(serializedPrompt, /never fill gaps with a typical routine, assumed prompt, invented reinforcement/);
+  assert.match(serializedPrompt, /never fill gaps with a typical routine, assumed prompt, invented reinforcement/i);
 });
 
 test("daily activity candidates require complete instructions and classify incomplete or unapproved output", () => {
@@ -221,13 +221,11 @@ test("daily activity candidates require complete instructions and classify incom
     ["clinician-plan", sourceExcerpt],
   ]));
 
-  assert.equal(activities.length, 5);
+  assert.equal(activities.length, 3);
   assert.deepEqual(activities.map((activity) => activity.readiness), [
     "ready",
     "needs_details",
     "needs_details",
-    "needs_clinician_review",
-    "needs_clinician_review",
   ]);
   assert.equal(activities[0].sourceType, "parent_uploaded_plan");
   assert.equal(activities[0].sourceDocumentId, "plan-1");
@@ -236,8 +234,53 @@ test("daily activity candidates require complete instructions and classify incom
   assert.equal(activities[0].steps?.length, 2);
   assert.equal(activities[0].sourceExcerptVerified, true);
   assert.match(activities[1].readinessReasons?.join(" ") || "", /goal-only wording/);
-  assert.match(activities[3].readinessReasons?.join(" ") || "", /source excerpt could not be verified/);
-  assert.match(activities[4].readinessReasons?.join(" ") || "", /clinician must review and assign/);
+});
+
+test("unverified citations and complete clinician-uploaded activities are held for clinician review", () => {
+  const sourceExcerpt = "During homework, the child may use the break card before a short task.";
+  const candidate = (sourceDocumentId: string, overrides: Record<string, unknown> = {}) => ({
+    title: "Use the break card before homework",
+    routine_context: "During a calm homework start",
+    opportunity: "Before one short task, put the familiar card within reach.",
+    skill: "Requesting a break with the familiar card",
+    related_goal: "",
+    duration_minutes: 5,
+    materials: ["Familiar break card"],
+    start_action: "Place the familiar break card beside the homework.",
+    steps: [
+      "Point to the card before starting one short task.",
+      "Pause and allow the child to use the card or decline.",
+    ],
+    ending: "End after one request or when the child signals they are done.",
+    pause_conditions: ["Pause if the child becomes distressed."],
+    observation_prompts: [],
+    reinforcement: "",
+    source_document_id: sourceDocumentId,
+    source_excerpt: sourceExcerpt,
+    ...overrides,
+  });
+  const sourceText = new Map([
+    ["parent-plan", sourceExcerpt],
+    ["clinician-plan", sourceExcerpt],
+  ]);
+
+  const badCitation = normalizeParentPlanActivities(
+    [candidate("parent-plan", { source_excerpt: "A quote absent from the document." })],
+    ["parent-plan"],
+    () => "parent_uploaded_plan",
+    sourceText,
+  );
+  const clinicianActivity = normalizeParentPlanActivities(
+    [candidate("clinician-plan")],
+    ["clinician-plan"],
+    () => "clinician_uploaded_plan",
+    sourceText,
+  );
+
+  assert.equal(badCitation[0]?.readiness, "needs_clinician_review");
+  assert.equal(badCitation[0]?.sourceExcerptVerified, false);
+  assert.equal(clinicianActivity[0]?.readiness, "needs_clinician_review");
+  assert.match(clinicianActivity[0]?.readinessReasons?.join(" ") || "", /review and assign/);
 });
 
 test("discovery prompt uses only fetched documents and never receives prior document-derived cards", () => {
