@@ -15,6 +15,12 @@ Technical goal titles require source review, not silent record cleanup. Display 
 
 **How to apply:** Keep title presentation separate from mutations and avoid changing shared display helpers on unapproved screens.
 
+A clinical goal or milestone is not automatically a parent-child activity. Create a practice activity only when the source supports a concrete activity; do not fill missing activity details from a generic library and present the result as plan-derived.
+
+**Why:** Turning an objective into an instruction can change its meaning and falsely present generic content as an individualized recommendation.
+
+**How to apply:** Keep goals and activities in their existing separate models. Require source evidence for plan-derived activities, retain the source and approval state, and label any explicitly chosen starter activity as general support.
+
 Collapsing goal details must not discard an in-progress edit.
 
 **Why:** A presentation-only disclosure can otherwise unmount a stateful form and silently erase its draft.
