@@ -9,6 +9,7 @@ import {
   clientProfilesTable,
   consentEventsTable,
   documentsTable,
+  documentExtractionRunsTable,
   parentChildSettingsTable,
   parentLogsTable,
   parentDocumentsTable,
@@ -33,6 +34,13 @@ import {
   type SourceReference,
   type SupportCard,
 } from "./parentStarterLibrary";
+import {
+  DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE,
+  documentExtractionsToolProperty,
+  normalizeDocumentExtractions,
+  persistDocumentExtractionBatch,
+  type DocumentExtractionSource,
+} from "./documentExtractions";
 import {
   canAccessParentDocument,
   buildParentDocumentGenerationContent,
@@ -505,7 +513,7 @@ function toolSchema() {
 function discoveryToolSchema() {
   return {
     name: "discover_parent_targets",
-    description: "Return explicitly identified support targets and their explicitly assigned goals.",
+    description: "Classify document information into source-cited categories and return explicitly identified support targets.",
     input_schema: {
       type: "object",
       properties: {
@@ -526,8 +534,9 @@ function discoveryToolSchema() {
             required: ["behavior_key", "behavior_name", "goal"],
           },
         },
+        extractions: documentExtractionsToolProperty(),
       },
-      required: ["targets"],
+      required: ["targets", "extractions"],
     },
   };
 }
