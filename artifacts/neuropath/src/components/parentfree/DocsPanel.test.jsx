@@ -38,6 +38,7 @@ const deferred = () => {
   const promise = new Promise((done) => { resolve = done; });
   return { promise, resolve };
 };
+let openedPopup;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -47,7 +48,13 @@ beforeEach(() => {
   api.content.mockReset().mockResolvedValue(new Blob(["Synthetic document bytes"], { type: "text/plain" }));
   Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: vi.fn(() => "blob:synthetic-fixture") });
   Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: vi.fn() });
-  vi.spyOn(window, "open").mockImplementation(() => null);
+  openedPopup = {
+    close: vi.fn(),
+    opener: window,
+    document: { title: "" },
+    location: { replace: vi.fn() },
+  };
+  vi.spyOn(window, "open").mockImplementation(() => openedPopup);
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
@@ -126,12 +133,25 @@ describe("Parent Document Center presentation and existing contracts", () => {
     expect(screen.getByTestId("text-scan-detail-doc-a").textContent).toBe("Could not be read");
   });
 
-  it("views the exact document using authenticated binary decoding", async () => {
-    mount();
-    await clickAsync("button-view-doc-a");
+  it("opens the authenticated PDF tab during the click, then loads the document into it", async () => {
+    const pending = deferred();
+    api.content.mockReturnValue(pending.promise);
+    mount([doc({ fileName: "behavior-plan.pdf" })]);
+    fireEvent.click(screen.getByTestId("button-view-doc-a"));
+
+    expect(window.open).toHaveBeenCalledWith("about:blank", "_blank");
     expect(api.content).toHaveBeenCalledWith("doc-a", { headers: { "X-Test-Context": "fixture" }, responseType: "blob" });
+    expect(window.open.mock.invocationCallOrder[0]).toBeLessThan(api.content.mock.invocationCallOrder[0]);
+    expect(openedPopup.opener).toBeNull();
+    expect(openedPopup.location.replace).not.toHaveBeenCalled();
+
+    await act(async () => {
+      pending.resolve(new Blob(["%PDF-1.7"], { type: "application/pdf" }));
+      await pending.promise;
+    });
+
     expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
-    expect(window.open).toHaveBeenCalledWith("blob:synthetic-fixture", "_blank", "noopener");
+    expect(openedPopup.location.replace).toHaveBeenCalledWith("blob:synthetic-fixture");
   });
 
   it("downloads authenticated bytes with the original file name and removes the temporary link", async () => {
@@ -152,7 +172,16 @@ describe("Parent Document Center presentation and existing contracts", () => {
     await clickAsync(`button-${action}-doc-a`);
     expect(screen.getByText("Synthetic forbidden access")).toBeTruthy();
     expect(URL.createObjectURL).not.toHaveBeenCalled();
-    expect(window.open).not.toHaveBeenCalled();
+    if (action === "view") expect(openedPopup.close).toHaveBeenCalled();
+    else expect(window.open).not.toHaveBeenCalled();
+  });
+
+  it("does not request document bytes if the browser blocks the viewer tab", async () => {
+    window.open.mockReturnValue(null);
+    mount([doc({ fileName: "behavior-plan.pdf" })]);
+    await clickAsync("button-view-doc-a");
+    expect(api.content).not.toHaveBeenCalled();
+    expect(screen.getByText("Please allow pop-ups to view this document.")).toBeTruthy();
   });
 
   it("preserves read-only scan/share controls", () => {

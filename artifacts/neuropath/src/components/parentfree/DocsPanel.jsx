@@ -129,12 +129,29 @@ export default function DocsPanel({ child, documents }) {
   };
   const view = async (d) => {
     setError("");
+    // Open during the click gesture. Browsers block tabs opened only after an
+    // authenticated fetch has awaited, which made otherwise valid PDFs appear
+    // not to open in the regular app.
+    const popup = window.open("about:blank", "_blank");
+    if (!popup) {
+      setError("Please allow pop-ups to view this document.");
+      return;
+    }
+    try {
+      popup.opener = null;
+      popup.document.title = "Opening document…";
+    } catch {
+      // The tab can still be navigated if its document is not yet available.
+    }
     try {
       const blob = await getParentDocumentContent(d.id, { ...parentRequest(), responseType: "blob" });
       const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener");
+      popup.location.replace(url);
       setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch (er) { setError(errMsg(er, "Could not open the document.")); }
+    } catch (er) {
+      popup.close();
+      setError(errMsg(er, "Could not open the document."));
+    }
   };
   const download = async (d) => {
     setError("");
