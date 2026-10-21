@@ -1,0 +1,1403 @@
+# NEUROPATHWAYS — COMPLETE DOCUMENT-TO-SUPPORT & ACTIVITY SYSTEM REBUILD
+
+## Master Replit Implementation Prompt
+
+**Repository:** https://github.com/NuroPathways/neuropathways-v2
+
+**Reference materials:**
+- Screen Recording — October 21, 2026, 1:20 PM
+- Evidence-Based Parent-Mediated Autism Programs: Implementation Blueprint for NeuroPathways
+- Deep Research Report: Parent-Facing ABA and Behavioral Support Systems for NeuroPathways
+- Existing NeuroPathways research, treatment-support specifications, and prior redesign decisions
+
+---
+
+# PRIMARY OBJECTIVE
+
+I want to fix one of the most important underlying systems in NeuroPathways: **how clinical documents become individualized support strategies, real parent-child activities, goals, and clinician assignments.**
+
+The application's visual redesign is largely complete, and I like its current appearance.
+
+Do not redesign the app again.
+
+The current problem is not primarily the interface. It is that NeuroPathways is incorrectly interpreting, generating, and displaying information extracted from client documents.
+
+In the October 21 screen recording, I noticed three major issues:
+
+**Problem 1 — Goals are being displayed as activities.**
+
+In Emily Carter's account, activities contain descriptions such as:
+
+- Practice decreasing reassurance-seeking behaviors by 50%.
+- Practice independently using three coping skills.
+- Practice decreasing overall anxiety symptoms.
+- Practice achieving a long-term goal.
+
+These are clinical goals, not actual activities.
+
+A parent needs something concrete they can do with their child, including materials, instructions, a clear beginning, and an ending.
+
+**Problem 2 — Generalized behaviors are appearing automatically in Help Now.**
+
+Emily's account includes generalized support for behaviors such as:
+
+- Elopement
+- Self-Injury
+- Aggression
+- Meltdowns
+- Task Refusal
+- Transition Difficulty
+
+These should not automatically appear simply because generic content exists in the application's Support Library.
+
+If an individualized strategy is not supported by an applicable authorized plan, it should not be presented as the child's treatment guidance.
+
+A parent should be able to explicitly select appropriate general starter support when desired, but it must remain clearly labeled as general information rather than individualized clinical guidance.
+
+**Problem 3 — Documents are not always being successfully processed and connected to the correct support features.**
+
+The recording shows document reading failures.
+
+I want the system to distinguish a failed document scan from a document that genuinely contains no relevant information.
+
+It must never compensate for missing clinical information by inventing interventions or generating generic activities disguised as personalized recommendations.
+
+## What I Want NeuroPathways to Become
+
+The system should work like this:
+
+**Clinical Document → Structured Extraction → Goals & Strategies → Activity Suggestions → Review & Approval → Parent Practice → Feedback → Clinician Review**
+
+For immediate support:
+
+**Clinical Document → Applicable Authorized Strategy → Help Now**
+
+These are separate workflows.
+
+A goal is not an activity.
+
+A behavior category is not an individualized intervention.
+
+A document upload is not automatically clinical approval.
+
+AI may help extract, organize, simplify, and propose content.
+
+Clinicians must retain control over individualized treatment recommendations.
+
+Parents without clinicians must still have access to clearly labeled, appropriate general educational support.
+
+---
+
+# NON-NEGOTIABLE REQUIREMENTS
+
+Preserve all existing functionality unless I explicitly authorize a change.
+
+Specifically:
+
+- Keep the current NeuroPathways design and color scheme.
+- Keep the current Home screen.
+- Keep the automatic Help Now pop-up after parent login.
+- Keep the original colored Help Now options.
+- Keep the solid red Help Now bar.
+- Keep color-coded behavior cards.
+- Keep the existing navigation and shortcuts.
+- Keep the unified parent experience.
+- Keep independent parent accounts.
+- Keep clinician-connected parent accounts.
+- Keep legacy family-scoped accounts.
+- Keep individual self-managed client accounts.
+- Keep the clinician dashboard.
+- Keep the current Document Center.
+- Keep Goals & Milestones.
+- Keep the simplified Practice interface.
+- Keep Assigned by Your Care Team.
+- Keep clinician-created goals and activities.
+- Keep parent-created goals.
+- Keep the existing Support Library.
+- Keep activity and behavior logging.
+- Keep existing client documents.
+- Keep child profiles and preferences.
+- Keep existing account permissions and data isolation.
+
+Do not introduce a new parent interface.
+
+Do not create another activity system if a working activity model already exists.
+
+Do not overwrite newer Replit code with an older GitHub version.
+
+Do not delete existing clinical data or historical records.
+
+Do not implement new dinner, lunch, breakfast, or school-transition scheduling during this project.
+
+The goal is to repair and strengthen the current system before building time-based prevention features.
+
+---
+
+# MANDATORY PHASE APPROVAL PROCESS
+
+**Work through this implementation one phase at a time.**
+
+You must not automatically continue from one phase to another.
+
+For every phase:
+
+1. Complete the authorized work.
+2. Run relevant tests.
+3. Demonstrate the actual results.
+4. Explain what changed.
+5. Identify any limitations.
+6. Create or preserve a recovery checkpoint.
+7. Ask for my approval.
+8. Stop and wait for my response.
+
+Only proceed when I explicitly approve the next phase.
+
+If I request modifications, revise the current phase rather than moving forward.
+
+If a phase exposes a security-critical issue, do not bypass security to continue.
+
+Do not interpret remaining time, credits, or autonomous execution as approval.
+
+**Begin with Phase 0 only.**
+
+---
+
+# PHASE 0 — COMPLETE CURRENT-SYSTEM AUDIT
+
+## Objective
+
+Determine exactly why the existing application is generating generalized support and goal-based activity placeholders.
+
+Do not modify production data during this phase.
+
+## Step 1 — Inspect the Working Code
+
+Review the current Replit working tree and GitHub repository.
+
+The current Replit version may contain functionality newer than the GitHub main branch.
+
+Identify the current implementations of:
+
+- Document upload
+- Document scanning
+- Document extraction
+- Child profile extraction
+- Goal extraction
+- Behavior extraction
+- Strategy extraction
+- Support Library
+- Help Now eligibility
+- Help Now guidance retrieval
+- Practice activity generation
+- Activity recommendations
+- Clinician assignment
+- Clinician publication
+- Parent feedback
+- Source labeling
+- Approval status
+- Child selection
+
+Inspect actual services, frontend components, backend endpoints, database entities, and background processing functions.
+
+## Step 2 — Trace Existing Document Data
+
+Using authorized synthetic verification data, trace:
+
+**Uploaded Document → Database Record → Scanner → Extracted Information → Parent-Facing Content**
+
+Identify each transformation.
+
+Determine whether the system currently uses:
+
+- AI extraction
+- Hardcoded templates
+- Generic fallback values
+- Goal-to-activity conversion
+- Behavior keyword matching
+- Clinician-approved records
+- Parent-uploaded plans
+- Previously generated support cards
+
+Do not assume a function is working merely because its API returns success.
+
+## Step 3 — Investigate Emily Carter's Recorded Experience
+
+Investigate the mechanisms responsible for the visible examples:
+
+- Reassurance-seeking goal presented as an activity
+- Anxiety reduction goal presented as an activity
+- Coping-skills goal presented as an activity
+- Generic Elopement support
+- Generic Self-Injury support
+- Generic Aggression support
+- Generic Meltdown support
+- Generic Task Refusal support
+- Generic Transition Difficulty support
+
+For each displayed item, determine:
+
+1. Which record supplied it?
+2. Is there an actual source document?
+3. Was that document processed successfully?
+4. Is the item a goal, strategy, safety instruction, activity, or general educational resource?
+5. Was it explicitly approved or selected?
+6. Why was it assigned to this child?
+7. Why does it appear in that part of the application?
+8. Is the source badge truthful?
+
+Do not expose real client information in test logs or reports.
+
+## Step 4 — Audit Existing Activity Models
+
+Determine whether the application currently stores:
+
+- Activity definitions
+- Activity instances
+- Goal relationships
+- Clinician assignments
+- Parent-created activities
+- Activity templates
+- Practice records
+- Source references
+- Approval status
+
+Identify duplicates or conflicting representations.
+
+## Phase 0 Deliverables
+
+Provide:
+
+- Current data-flow diagram
+- Exact code files involved
+- Root cause of generic Help Now content
+- Root cause of goal-as-activity placeholders
+- Status of document parsing
+- Current source and approval rules
+- Existing models that can be reused
+- Proposed implementation changes
+- Risks to existing accounts and records
+
+**STOP. Ask me to approve Phase 1.**
+
+---
+
+# PHASE 1 — REBUILD DOCUMENT EXTRACTION AND CLASSIFICATION
+
+## Objective
+
+Make NeuroPathways correctly understand the different information types contained in clinical documents.
+
+A treatment plan may contain goals, observations, strategies, safety information, and home-practice recommendations.
+
+Those should not all become the same kind of card.
+
+## Required Classification System
+
+Extract and store information in distinct categories.
+
+### 1. Child Profile Information
+
+When explicitly documented, extract:
+
+- Relevant age/developmental information
+- Communication preferences
+- AAC or other established communication methods
+- Sensory preferences
+- Interests and preferred activities
+- Existing accommodations
+- Known support needs
+- Relevant safety considerations
+
+Do not invent missing profile information.
+
+### 2. Behaviors
+
+Extract:
+
+- Documented behavior name
+- Observable description
+- Relevant contexts
+- Antecedents when documented
+- Warning signs when documented
+- Known risk factors
+- Supporting document reference
+
+Do not infer the function of behavior merely from its name.
+
+### 3. Goals
+
+Extract:
+
+- Goal title
+- Full clinical description
+- Skill domain
+- Measurement method
+- Target criteria
+- Milestones
+- Relevant dates
+- Related behaviors
+- Original source
+
+A goal should remain a goal until explicitly connected to an actual activity or intervention.
+
+### 4. Support Strategies
+
+Extract:
+
+- Applicable behavior or situation
+- Exact documented strategy
+- Required materials
+- Communication support
+- Applicable context
+- Preconditions
+- Limitations
+- Stop conditions
+- Escalation rules
+- Source reference
+
+Preserve the distinction between what a document says and what a clinician has approved for publication.
+
+### 5. Safety and Crisis Plans
+
+Extract these separately.
+
+Safety plans should not become routine Practice activities.
+
+Keep emergency guidance and safety-plan access distinct from general behavior education.
+
+### 6. Potential Home Activities
+
+Look for:
+
+- Explicit home-practice assignments
+- Communication practice
+- Visual schedules
+- Task-analysis sequences
+- Previously taught coping strategies
+- Parent-child play opportunities
+- Daily-living practice
+- Clinician-modeled exercises
+- Existing reinforcement or support procedures where appropriately authorized
+
+These become **activity candidates**, not automatically published treatments.
+
+## Provenance and Source Tracking
+
+Each extracted object should retain:
+
+- Child ID
+- Document ID
+- Document version
+- Document type
+- Source section or page when available
+- Original supporting excerpt
+- Extracted interpretation
+- Extraction status
+- Ambiguity indicator
+- Review status
+- Approval information
+- Creation and update timestamps
+
+A clinician should be able to see the exact information that supports a proposed strategy or activity.
+
+## Conflicting Documents
+
+Do not automatically merge contradictory instructions.
+
+Identify:
+
+- Superseded plans
+- Expired plans
+- Conflicting strategies
+- Unclear approval status
+- Missing instructions
+- Unreadable documents
+
+Flag these for review.
+
+## Failed Scans
+
+If scanning fails:
+
+- Preserve the original document.
+- Record the failure.
+- Display an understandable error.
+- Allow supported retries.
+- Avoid duplicate extraction.
+- Do not fabricate source content.
+- Do not create supposedly document-based cards.
+
+Previously generated cards tied to a source that cannot be validated should be flagged for review rather than silently deleted.
+
+## Phase 1 Acceptance Criteria
+
+Demonstrate that one synthetic document can produce distinct records for:
+
+- Goal
+- Behavior
+- Support strategy
+- Safety instruction
+- Potential activity
+
+Show the source of every extracted item.
+
+**STOP. Request approval for Phase 2.**
+
+---
+
+# PHASE 2 — FIX HELP NOW CONTENT ELIGIBILITY
+
+## Objective
+
+Stop automatically presenting generic support as if it belongs to an individual child's plan.
+
+This is a critical product and safety requirement.
+
+## New Help Now Eligibility Rule
+
+A behavior-specific Help Now card may appear only through an authorized route.
+
+### Route A — Clinician-Approved Support
+
+The child has a relevant, active, published, clinician-approved strategy.
+
+The strategy must apply to the selected behavior and context.
+
+Show the appropriate source and approval status.
+
+### Route B — Parent-Selected General Support
+
+A parent explicitly chooses a general support area from the Support Library and enables it for the selected child.
+
+Label it clearly:
+
+**General starter support — not individualized**
+
+This is general educational information, not a clinical treatment plan.
+
+Do not imply clinician approval.
+
+For higher-risk behaviors, restrict the content to safe educational and emergency-access information unless applicable individualized guidance has been verified.
+
+### Route C — Parent-Uploaded Document Information
+
+Independent parents may upload their own documents.
+
+Allow them to access and understand their document information.
+
+For suitable low-risk content, provide clearly labeled document-referenced support consistent with the application's safety controls.
+
+Do not automatically label parent-uploaded content as clinician-reviewed.
+
+Do not automatically transform unreviewed documents into novel treatment instructions.
+
+Clinician approval is required before presenting newly generated individualized clinical strategies as care-team-approved guidance.
+
+## What Must NOT Trigger Help Now Content
+
+A behavior should not appear as an individualized support card merely because:
+
+- The behavior exists in a generic library.
+- It is common among autistic children.
+- The child has an autism diagnosis.
+- The behavior appears in an unrelated document.
+- A generic template exists.
+- AI guesses that the child might experience it.
+- The goal mentions a related behavior without applicable instructions.
+- A failed document scan leaves missing information.
+
+## Support Library
+
+Keep the Support Library completely functional.
+
+Do not delete general educational resources.
+
+The change is that general library content should not automatically populate individualized Help Now guidance.
+
+## What Happens When No Guidance Exists
+
+Show an accurate, concise message:
+
+**No individualized support steps are available for this situation yet.**
+
+Where relevant, preserve access to:
+
+- Uploaded documents
+- Support Library
+- Care-team contact
+- Existing safety plan
+- Emergency information
+
+Do not invent a replacement intervention.
+
+## High-Risk Content
+
+For self-injury, severe aggression, elopement, medical concerns, or immediate danger:
+
+- Require appropriate individualized guidance for treatment-specific steps.
+- Do not improvise restraint, blocking, extinction, or crisis procedures.
+- Preserve access to the active safety plan where one exists.
+- Keep emergency assistance instructions visible.
+- Do not present general activities as a substitute for a safety plan.
+
+## Preserve Existing Visual Design
+
+Do not change:
+
+- Automatic Help Now opening pop-up
+- Solid red Help Now button
+- Colored Support Now options
+- Color-coded behavior cards
+- Step-by-step interaction
+- Existing emergency-access shortcuts
+
+Only correct eligibility, provenance, and authorization.
+
+## Existing Data
+
+Do not delete old generalized cards.
+
+Classify them properly and stop displaying unauthorized items.
+
+Preserve legitimate parent selections.
+
+Provide a safe migration or reclassification process.
+
+## Phase 2 Acceptance Criteria
+
+Demonstrate:
+
+1. A generic behavior is not automatically shown.
+2. A parent can explicitly enable eligible general support.
+3. General support displays its correct label.
+4. An approved child-specific strategy appears correctly.
+5. Emergency information remains accessible.
+
+**STOP. Request approval for Phase 3.**
+
+---
+
+# PHASE 3 — REBUILD ACTIVITY GENERATION
+
+## Objective
+
+Make Practice contain actual activities rather than reworded goals.
+
+## Definition of a Real Activity
+
+Every activity must answer:
+
+**What can the parent and child actually do together?**
+
+A valid activity should contain:
+
+1. Short activity title
+2. Target skill
+3. Related goal when applicable
+4. Suggested context
+5. Estimated duration
+6. Materials
+7. Clear starting action
+8. Two to five concrete steps
+9. Clear ending
+10. Pause or stop conditions
+11. Optional observation prompts
+12. Accurate source information
+
+## Examples of Invalid Activities
+
+Do not publish:
+
+"Practice reducing anxiety symptoms."
+
+"Practice improving functional communication."
+
+"Practice goal 4."
+
+"Work on decreasing reassurance seeking."
+
+"Use an opportunity to practice the goal."
+
+These are not complete activities.
+
+## Examples of Valid Activity Formats
+
+### Activity: Build a Train Together
+
+Skill: Communication and shared play
+
+Duration: 5 minutes
+
+Materials: Familiar train toys
+
+Steps:
+
+1. Invite the child to select train pieces.
+2. Join the child's play.
+3. Take turns adding pieces if the child is comfortable.
+4. Respond to communication using the child's preferred method.
+5. Finish when interest decreases or the activity naturally ends.
+
+Why it may be useful:
+
+Supports enjoyable shared interaction and natural communication opportunities.
+
+Only personalize this with trains if that preference is actually documented or selected.
+
+### Activity: What Happens Next?
+
+Skill: Transitions
+
+Duration: 3 minutes
+
+Materials: Two-picture visual sequence
+
+Steps:
+
+1. Choose two familiar activities.
+2. Show the current activity.
+3. Show what happens next.
+4. Allow the child time to understand or respond.
+5. Finish the short sequence.
+
+Use this as a general educational activity or appropriately approved plan-linked activity depending on source and context.
+
+### Activity: Choose a Familiar Coping Tool
+
+Skill: Coping and self-advocacy
+
+Duration: 3–5 minutes
+
+Materials: Two coping tools already known to the child
+
+Steps:
+
+1. Review the two familiar options while calm.
+2. Invite the child to choose.
+3. Practice the selected existing strategy using its actual instructions.
+4. Finish and ask which option felt more comfortable.
+
+This is only an individualized plan-based activity if the relevant tools and instructions are actually documented and authorized.
+
+## Activity Generation Rules
+
+Do not simply prepend "Practice:" to a goal.
+
+Do not copy a goal sentence into the activity description.
+
+Do not make every activity say:
+
+"Try one low-pressure practice opportunity."
+
+Do not generate vague steps such as:
+
+"Work toward this goal."
+
+Do not invent clinical procedures.
+
+Do not use the same generic instructions for completely different behaviors.
+
+Do not fill empty activity lists with placeholder cards.
+
+## Activity Validation
+
+Before publication, verify:
+
+- The title describes an action.
+- The activity has actual steps.
+- A parent can understand how to begin.
+- The activity has a clear finish.
+- The context is appropriate.
+- The source label is accurate.
+- Required clinical details exist.
+- Safety conditions are respected.
+- The content is not simply a goal statement.
+
+If incomplete, classify as:
+
+**Needs Details**
+
+or
+
+**Needs Clinician Review**
+
+Do not publish an unfinished activity as usable.
+
+## Phase 3 Acceptance Criteria
+
+Demonstrate at least five real activities and several examples rejected because they were merely goals or lacked instructions.
+
+**STOP. Request approval for Phase 4.**
+
+---
+
+# PHASE 4 — INTEGRATE THE DEEP RESEARCH ACTIVITY LIBRARY
+
+## Objective
+
+Use the supplied NeuroPathways research to build a curated collection of original, practical activity templates.
+
+This should be a source-grounded starter library, not a collection of generic AI-generated advice.
+
+## Research Foundations
+
+Use appropriate general principles from:
+
+- RUBI Parent Training
+- Stepping Stones Triple P
+- Project ImPACT
+- TEACCH / Structured TEACCHing
+- More Than Words
+- Parent-child interaction approaches
+- Functional communication training research
+- Relevant visual-support and caregiver-coaching literature
+
+These are inspiration and evidence sources.
+
+Do not reproduce proprietary program manuals, worksheets, videos, branded curricula, or licensed scripts without authorization.
+
+Do not claim NeuroPathways delivers a licensed program unless that is true.
+
+## Library Categories
+
+### Communication
+
+Develop original templates such as:
+
+- Choose Between Two Activities
+- Practice a Familiar Help Request
+- Take Turns With a Toy
+- Request More During Play
+- Use a Familiar AAC Choice
+- Pause and Notice Communication
+
+### Transitions
+
+- First-Then Picture Game
+- What Happens Next?
+- Visual Timer Rehearsal
+- Simple Routine Transition
+- Prepare Materials Together
+
+### Daily Living
+
+- One Step of Handwashing
+- Shoes in Sequence
+- Finished Basket
+- Three-Step Morning Routine
+- Put One Item Away
+
+### Social Play and Engagement
+
+- Five Minutes of Child-Led Play
+- Build Together
+- Follow the Interest
+- Copy a Play Action
+- Take Turns in a Familiar Game
+
+### Coping and Emotional Regulation
+
+- Choose a Familiar Coping Tool
+- Calm Space Walkthrough
+- Identify a Comfortable Environment
+- Create a Coping Choice Card
+- Practice an Existing Help Signal
+
+### Parent Preparation
+
+- Review a Visual Routine
+- Gather Familiar Supports
+- Preview a Simple Transition
+- Practice Before a Predictable Event
+- Parent Reset and Preparation
+
+## Required Library Structure
+
+Each template should have:
+
+- Template ID
+- Title
+- Skill domain
+- Appropriate contexts
+- Required information
+- Materials
+- Suggested duration
+- Concrete steps
+- Optional caregiver phrases
+- Stop conditions
+- Risk tier
+- Evidence/reference metadata
+- Exclusion criteria
+- Source classification
+- Personalization fields
+
+## Safety and Evidence
+
+Research-based does not mean universally appropriate.
+
+Do not apply the same intervention to all children who share a diagnosis.
+
+Avoid forcing participation, eye contact, speech, prolonged sitting, food consumption, or other distressing actions.
+
+Do not convert enjoyable activities into behavior-compliance tests.
+
+Do not generate exposure hierarchies or other individualized anxiety protocols without appropriate clinical direction.
+
+High-risk behavior interventions require applicable authorized plans.
+
+## Phase 4 Acceptance Criteria
+
+Show the activity library, its selection rules, research grounding, and parent-facing examples.
+
+**STOP. Request approval for Phase 5.**
+
+---
+
+# PHASE 5 — BUILD CHILD-SPECIFIC ACTIVITY MATCHING
+
+## Objective
+
+Use actual extracted document information to determine which activities may be relevant to each child.
+
+## Matching Inputs
+
+Consider:
+
+- Child's documented goals
+- Target skills
+- Explicit home-practice instructions
+- Applicable approved strategies
+- Preferred activities
+- Communication methods
+- Sensory preferences
+- Relevant contexts
+- Existing routines
+- Contraindications
+- Safety information
+- Current clinician assignments
+
+Use only information genuinely available for that child.
+
+## Ranking Order
+
+Prioritize:
+
+1. Published clinician-assigned activities.
+2. Clinician-approved document-derived activities.
+3. Eligible low-risk suggestions grounded in documented information.
+4. Parent-selected general starter activity suggestions.
+
+Do not promote an unapproved draft above an approved assignment.
+
+Do not present a suggested activity as clinician-assigned unless a clinician actually assigned it.
+
+## Example: Emily Carter
+
+The recording shows goals relating to:
+
+- Anxiety reduction
+- Coping skills
+- Reassurance seeking
+- Independent functioning
+
+NeuroPathways should not convert those statements directly into activities.
+
+Instead, inspect Emily's actual source documents.
+
+If a plan specifies particular coping strategies, create a reviewable activity candidate based on those strategies.
+
+If the document contains only:
+
+"Emily will independently use three coping skills"
+
+without naming the actual skills, the application should not invent individualized coping procedures.
+
+Mark the suggestion as requiring more detail.
+
+Allow the clinician to add the missing information or select an appropriate existing activity.
+
+## Important Reassurance-Seeking Restriction
+
+Do not infer an exposure-based treatment program simply because a goal references reassurance seeking.
+
+Do not automatically recommend withholding reassurance, imposing exposure tasks, response prevention, or anxiety-provoking exercises.
+
+If the clinician has documented and approved a specific exercise, use the applicable instructions.
+
+Otherwise, propose only suitable clearly labeled low-risk educational activities or request clinician review.
+
+## Avoid Duplicate Recommendations
+
+Do not generate three identical activities with slightly different names.
+
+Use stable template and assignment IDs.
+
+If an existing valid assignment already addresses a goal and context, prioritize it.
+
+Do not repeatedly regenerate unchanged suggestions from the same document version.
+
+## Reprocessing
+
+When a new document arrives:
+
+- Identify changed information.
+- Preserve existing approved content unless properly superseded.
+- Flag conflicts.
+- Generate new drafts only when warranted.
+- Do not automatically change published clinical instructions.
+
+## Phase 5 Acceptance Criteria
+
+Demonstrate child-specific recommendations that genuinely differ based on documented needs and preferences.
+
+Show which records support each recommendation.
+
+**STOP. Request approval for Phase 6.**
+
+---
+
+# PHASE 6 — CONNECT CLINICIAN REVIEW, ACTIVITIES, AND ASSIGNMENTS
+
+## Objective
+
+Enable clinicians to review document-derived suggestions and publish suitable activities directly into the parent's existing Practice experience.
+
+Use the current clinician client workspace.
+
+Do not create another clinician dashboard.
+
+## Clinician Workflow
+
+Clinician Dashboard
+
+→ Select Client
+
+→ Goals & Activities
+
+→ Activity Suggestions From Documents
+
+Each candidate should show:
+
+- Proposed activity title
+- Related goal
+- Related skill
+- Source document
+- Original supporting text
+- Proposed parent-facing steps
+- Missing information
+- Risk classification
+- Review status
+
+## Clinician Actions
+
+Allow:
+
+- Review
+- Edit
+- Approve
+- Publish
+- Reject
+- Request More Detail
+- Assign Existing Activity
+- Create Custom Activity
+- Pause
+- Archive
+
+Keep controls organized and easy to use.
+
+## Publication States
+
+Support:
+
+- Draft
+- Needs Review
+- Approved
+- Published
+- Paused
+- Archived
+- Superseded
+
+Do not show drafts as published care-team assignments.
+
+Only authorized clinicians may approve individualized clinical content.
+
+A substantive revision should receive a new version and any required renewed approval.
+
+## Parent Display
+
+When published, the activity should appear under:
+
+**Assigned by Your Care Team**
+
+inside the existing Practice section.
+
+If linked to a goal, it should also be accessible from Goals & Milestones.
+
+The two screens must reference the same underlying activity.
+
+Do not create duplicate assignments.
+
+## Preserve Manual Activity Creation
+
+Clinicians must continue to be able to:
+
+- Create activities manually
+- Assign existing library activities
+- Connect activities to goals
+- Edit drafts
+- Preview as Parent
+- Publish to authorized families
+- Review parent feedback
+
+Do not require a document upload every time a clinician wants to assign a new activity.
+
+## Phase 6 Acceptance Criteria
+
+Demonstrate:
+
+Document → Extracted Goal → Candidate Activity → Clinician Review → Publish → Parent Practice
+
+Also demonstrate manual clinician activity assignment.
+
+**STOP. Request approval for Phase 7.**
+
+---
+
+# PHASE 7 — CONNECT THE CORRECT CONTENT TO THE EXISTING PARENT INTERFACE
+
+## Objective
+
+Keep the current parent UI but correct what each section displays.
+
+## Goals & Milestones
+
+Goals should contain:
+
+- Goal title
+- Clinical or family description
+- Source
+- Milestones
+- Measurement criteria
+- Progress information
+- Related activities
+
+A goal may exist without a related activity.
+
+One goal may support multiple activities.
+
+Do not automatically generate a fake activity for every goal.
+
+## Practice
+
+Practice should display actual activities.
+
+Keep the current simple layout:
+
+- Assigned by Your Care Team
+- Activities for the Child
+- Explore More Activities
+- My Routines
+- Saved Activities
+
+Only show sections when they have relevant content.
+
+Activity cards should include:
+
+- Activity title
+- Related skill
+- Duration
+- Short description
+- Source label
+- Start Activity
+
+Inside the activity, provide real steps.
+
+## Help Now
+
+Display only appropriately authorized or explicitly parent-selected support content.
+
+Do not automatically import general Practice suggestions into Help Now.
+
+Do not treat a daily activity as a crisis intervention.
+
+Keep existing emergency information and approved safety plans available.
+
+## Support Library
+
+Keep the general educational Support Library separate.
+
+Allow explicit selection of eligible starter support where appropriate.
+
+## Parent Feedback
+
+After a Practice activity, offer:
+
+- We tried it
+- We needed support
+- Didn't get a chance
+- Optional note
+
+Make logging optional.
+
+Preserve the correct child, activity ID, and version.
+
+Do not automatically increase clinical goal progress when a parent records participation.
+
+## Clinician Feedback
+
+Authorized clinicians should see relevant parent-recorded practice information:
+
+- Activity
+- Related goal
+- Date
+- Parent response
+- Optional note
+- Activity version used
+
+Do not automatically diagnose clinical progress from the parent's check-in.
+
+## UI Requirements
+
+Preserve:
+
+- Existing colors
+- Spacious design
+- Help Now modal
+- Colored behavior cards
+- Navigation
+- Existing shortcuts
+- Existing source labels where accurate
+
+Do not introduce new tabs or large dashboards.
+
+## Phase 7 Acceptance Criteria
+
+Show the same synthetic child's information in:
+
+- Home
+- Goals
+- Practice
+- Help Now
+- Support Library
+- Clinician Goals & Activities
+
+Verify that each displays the correct type of content.
+
+**STOP. Request approval for Phase 8.**
+
+---
+
+# PHASE 8 — DATA INTEGRITY, SECURITY, MIGRATION, AND QUALITY ASSURANCE
+
+## Objective
+
+Verify that the rebuilt system works reliably without compromising existing accounts or data.
+
+## Database
+
+Reuse current database models where possible.
+
+The underlying relationships should support:
+
+**Child → Documents → Extracted Goals/Strategies → Activity Candidates → Published Activities → Practice Records**
+
+Separately:
+
+**Child → Authorized Support Strategies → Help Now**
+
+General Help Now support should require an explicit child-level selection when not sourced from applicable approved care content.
+
+## Migration
+
+Preserve:
+
+- Existing documents
+- Existing goals
+- Existing custom activities
+- Previous activity attempts
+- Historical logs
+- Clinician assignments
+- Parent-created content
+- Approval history
+
+Do not delete incorrect old placeholders before making their history recoverable.
+
+Where appropriate, reclassify them as:
+
+- Legacy Placeholder
+- Needs Review
+- Superseded
+- Invalid for Publication
+
+Do not let those statuses masquerade as currently approved content.
+
+Use additive, reversible migrations.
+
+## Access Control
+
+Verify:
+
+- Correct child selection
+- Parent-to-child authorization
+- Family/clinician tenant boundaries
+- Parent-direct independence
+- Legacy family-scoped access
+- Clinician-only approval permissions
+- Draft publication restrictions
+- Document visibility permissions
+- Audit events for significant clinical-content changes
+
+Do not grant broader access merely to make an activity visible.
+
+Use synthetic test data.
+
+Do not send real test notifications or invitations.
+
+## Mandatory Negative Tests
+
+The following must all pass:
+
+1. A clinical goal without concrete activity instructions does not become a fake activity.
+2. A failed document scan does not generate invented document-based support.
+3. A generic behavior template does not automatically appear in Help Now.
+4. A clinician draft does not appear as an approved assignment.
+5. A superseded plan does not silently override a newer active plan.
+6. High-risk behavior content cannot trigger invented crisis interventions.
+7. One child's recommendations cannot appear in another child's account.
+8. Parent-uploaded content is not automatically labeled clinician-approved.
+9. Parent-uploaded private documents are not automatically shared with a clinic.
+10. Completing an activity does not automatically establish goal mastery.
+11. A missing coping strategy does not cause AI to invent one.
+12. A behavior label alone does not create an individualized intervention.
+13. An expired session cannot retrieve clinical records.
+14. Previously rejected suggestions are not automatically republished.
+15. Reprocessing a document does not create uncontrolled duplicates.
+
+## Mandatory Positive Tests
+
+Demonstrate:
+
+1. Accurate document classification.
+2. Source traceability.
+3. Correct goal extraction.
+4. Correct strategy extraction.
+5. Correct safety-plan separation.
+6. A real activity candidate from documented information.
+7. Appropriate clinician review.
+8. Successful activity publication.
+9. Correct parent-side display.
+10. Correct related-goal display.
+11. Optional practice recording.
+12. Clinician feedback retrieval.
+13. Explicit selection of eligible general starter support.
+14. Correct approved Help Now strategy retrieval.
+15. Full parent-direct functionality without clinician connection.
+16. Legacy family account compatibility.
+17. Existing data preservation.
+18. No UI or navigation regressions.
+
+## Regression Testing
+
+Run appropriate automated checks, integration tests, and actual signed-in workflows.
+
+Test mobile and desktop.
+
+Do not treat TypeScript or build success alone as proof the application works.
+
+## Final Report
+
+Provide:
+
+1. Root causes of the original problems.
+2. Exact code files modified.
+3. Database changes.
+4. Source-classification rules.
+5. Activity-generation logic.
+6. Help Now eligibility rules.
+7. Clinician approval workflow.
+8. Parent-direct behavior.
+9. Legacy account behavior.
+10. Examples of valid activities.
+11. Examples rejected for insufficient information.
+12. Tests executed.
+13. Test results.
+14. Screenshots.
+15. Known remaining limitations.
+
+Demonstrate actual functionality, not merely improved card titles.
+
+**STOP. Request final approval.**
+
+---
+
+# FUTURE WORK — DO NOT IMPLEMENT TIME-BASED SCHEDULING YET
+
+After this system is working correctly, we will build the new prevention and scheduling experience.
+
+That future feature will help parents prepare for:
+
+- Breakfast
+- Lunch
+- Dinner
+- Getting home from school
+
+Eventually, other difficult routines may be added.
+
+The scheduling experience will provide:
+
+**Before → During → After**
+
+Examples:
+
+- Advance preparation
+- Transition guidance
+- Support during the activity
+- Post-activity reflection
+
+However, this should be built only after the activity and strategy systems are reliable.
+
+Do not implement recurring reminders, scheduling logic, or notifications in the current project.
+
+The future system must use existing verified strategies and activities rather than generating new treatment guidance whenever a reminder occurs.
+
+---
+
+# FINAL PRODUCT REQUIREMENT
+
+NeuroPathways must distinguish three separate things:
+
+## GOALS
+
+What the child is working toward.
+
+Goals may contain outcomes, milestones, and measurement criteria.
+
+## HELP NOW
+
+What relevant authorized guidance is available when a real situation occurs.
+
+This is not a generic autism advice generator.
+
+## PRACTICE
+
+What the parent and child can actually do together.
+
+Activities must have a beginning, meaningful steps, and an ending.
+
+The application should connect all three without confusing them.
+
+**AI extracts and proposes.**
+
+**Clinicians govern individualized clinical treatment.**
+
+**Parents receive practical, understandable support.**
+
+**Independent parents can still choose appropriate general educational activities without a clinician.**
+
+Keep the current application design, routes, accounts, colors, safety access, and working features.
+
+Do not create duplicate systems.
+
+Do not implement scheduling yet.
+
+**START WITH PHASE 0 ONLY. COMPLETE THE AUDIT, SHOW ME THE ROOT CAUSES, AND WAIT FOR MY APPROVAL BEFORE IMPLEMENTING PHASE 1.**
