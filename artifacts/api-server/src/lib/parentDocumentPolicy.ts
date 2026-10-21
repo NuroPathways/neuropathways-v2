@@ -133,7 +133,7 @@ Write for a caregiver who needs quick steps: use everyday words, short direct se
 
 Use only source document IDs provided above. Choose IDs that directly support the guidance. If the documents explicitly state a goal for this selected behavior, return its exact wording in selected_goal; otherwise return an empty string. Never invent a goal.
 
-Create daily_activities only when a source gives enough detail for a caregiver to do a real, low-risk practice activity in an ordinary routine. Each activity must have an explicitly supported routine_context, an opportunity the caregiver can provide without provoking distress or unsafe behavior, a skill to notice, and one source_document_id that directly supports the activity. Include reinforcement only when the source specifies it. Include a short exact source_excerpt supporting the routine and skill. The server checks that this excerpt appears in searchable source text; if a document has no searchable text, do not create an activity from it. If any of these pieces is missing, return no activity for that idea; never fill gaps with a typical routine, assumed prompt, invented reinforcement, or general behavior advice. Return at most three activities. Do not turn crisis response, restraint, punishment, extinction, or other emergency/safety procedures into daily activities. Immediate help remains separate from daily practice.
+Create daily_activities only when a source supports a real, low-risk activity in an ordinary routine. Each candidate must include an action-focused title, routine_context, materials (use an empty list only when no materials are needed), start_action, two to five concrete steps, a clear ending, pause_conditions, duration_minutes, a skill, and one source_document_id with a short exact source_excerpt. Include related_goal only when the source directly supports it and reinforcement only when the source specifies it. The server verifies the excerpt against searchable source text. If required details are missing, return the candidate with empty fields so the server can classify it as Needs Details; if the source or citation requires human verification, classify it Needs Clinician Review. Never fill gaps with a typical routine, assumed prompt, invented reinforcement, or general behavior advice. Return at most three candidates. Do not turn a goal or milestone into an activity, or turn crisis response, restraint, punishment, extinction, or other emergency/safety procedures into daily practice. Immediate help remains separate from daily practice.
 
 For safety or medical uncertainty, say to follow an existing individualized plan and contact the child’s clinician. If immediate danger is described, recommend emergency services. Do not invent that a clinician reviewed or approved anything.`,
   });
@@ -141,11 +141,20 @@ For safety or medical uncertainty, say to follow an existing individualized plan
 }
 
 const PLAN_ACTIVITY_UNSAFE = /\b(restraint|seclusion|pin(?:ning)?|hold(?:ing)? (?:down|still)|physical block(?:ing)?|punish(?:ment)?|extinction|force them|ignore (?:all|the) safety)\b/i;
+const GOAL_ONLY_ACTIVITY = /^(?:practice\s+(?:goal\s*#?\s*\d+|reducing|decreasing|improving|increasing|anxiety symptoms|functional communication|reassurance seeking)|work on\b|use an opportunity to practice|practice goal\b)/i;
 
 function boundedActivityText(value: unknown, maxLength: number): string {
   return typeof value === "string"
     ? value.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, maxLength)
     : "";
+}
+
+function boundedActivityList(value: unknown, maxItems: number, maxLength: number): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const text = boundedActivityText(item, maxLength);
+    return text ? [text] : [];
+  }).slice(0, maxItems);
 }
 
 export function normalizeParentPlanActivities(
@@ -168,19 +177,66 @@ export function normalizeParentPlanActivities(
     const skill = boundedActivityText(candidate.skill, 240);
     const reinforcement = boundedActivityText(candidate.reinforcement, 320) || null;
     const sourceExcerpt = boundedActivityText(candidate.source_excerpt, 420);
+    const startAction = boundedActivityText(candidate.start_action, 320);
+    const stepsProvidedCount = Array.isArray(candidate.steps) ? candidate.steps.length : 0;
+    const steps = boundedActivityList(candidate.steps, 5, 320);
+    const ending = boundedActivityText(candidate.ending, 320);
+    const pauseConditions = boundedActivityList(candidate.pause_conditions, 5, 320);
+    const observationPrompts = boundedActivityList(candidate.observation_prompts, 5, 240);
+    const materialsProvided = Array.isArray(candidate.materials);
+    const materials = boundedActivityList(candidate.materials, 8, 160);
+    const durationMinutes = typeof candidate.duration_minutes === "number" && Number.isInteger(candidate.duration_minutes)
+      ? candidate.duration_minutes
+      : null;
+    const relatedGoal = boundedActivityText(candidate.related_goal, 320) || null;
     const searchableSource = sourceTextByDocumentId.get(sourceDocumentId) || "";
     const normalizedExcerpt = normalizedParentText(sourceExcerpt);
-    if (
-      !allowedIds.has(sourceDocumentId) ||
-      !title ||
-      !routineContext ||
-      !opportunity ||
-      !skill ||
-      normalizedExcerpt.length < 24 ||
-      !normalizedParentText(searchableSource).includes(normalizedExcerpt)
-    ) continue;
-    const fullText = [title, routineContext, opportunity, skill, reinforcement || ""].join(" ");
+    if (!allowedIds.has(sourceDocumentId) || !title) continue;
+    const sourceExcerptVerified = normalizedExcerpt.length >= 24 &&
+      normalizedParentText(searchableSource).includes(normalizedExcerpt);
+    const fullText = [
+      title, routineContext, opportunity, skill, reinforcement || "", startAction,
+      ...steps, ending, ...pauseConditions,
+    ].join(" ");
     if (PLAN_ACTIVITY_UNSAFE.test(fullText)) continue;
+    const detailsNeeded: string[] = [];
+    if (!routineContext) detailsNeeded.push("Add the specific routine or context.");
+    if (!materialsProvided) detailsNeeded.push("Specify the materials, or confirm none are needed.");
+    if (!startAction) detailsNeeded.push("Add a clear starting action.");
+    if (
+      steps.length < 2 ||
+      steps.length > 5 ||
+      stepsProvidedCount > 5 ||
+      steps.length !== stepsProvidedCount ||
+      steps.some((step) => GOAL_ONLY_ACTIVITY.test(step))
+    ) {
+      detailsNeeded.push("Provide two to five concrete activity steps.");
+    }
+    if (!ending) detailsNeeded.push("Explain how the activity ends.");
+    if (!pauseConditions.length) detailsNeeded.push("Add conditions for pausing or stopping.");
+    if (!durationMinutes || durationMinutes < 1 || durationMinutes > 60) {
+      detailsNeeded.push("Add a realistic duration from 1 to 60 minutes.");
+    }
+    if (!opportunity) detailsNeeded.push("Describe an opportunity the caregiver can offer safely.");
+    if (!skill || GOAL_ONLY_ACTIVITY.test(skill)) detailsNeeded.push("Name the specific skill to practice or notice.");
+    if (GOAL_ONLY_ACTIVITY.test(title) || GOAL_ONLY_ACTIVITY.test(opportunity)) {
+      detailsNeeded.push("Replace goal-only wording with an activity the family can do.");
+    }
+    const needsClinicianSourceCheck = !sourceExcerptVerified;
+    if (needsClinicianSourceCheck) detailsNeeded.push("The supporting source excerpt could not be verified.");
+    const requiredDetailsMissing = detailsNeeded.some((reason) =>
+      !reason.startsWith("The supporting source excerpt"),
+    );
+    const readiness = requiredDetailsMissing
+      ? "needs_details" as const
+      : needsClinicianSourceCheck
+        ? "needs_clinician_review" as const
+      : sourceTypeForDocument(sourceDocumentId) === "clinician_uploaded_plan"
+        ? "needs_clinician_review" as const
+        : "ready" as const;
+    if (readiness === "needs_clinician_review" && sourceTypeForDocument(sourceDocumentId) === "clinician_uploaded_plan") {
+      detailsNeeded.push("A clinician must review and assign this plan activity before family practice.");
+    }
     const identity = `${sourceDocumentId}:${normalizedParentText(`${title} ${routineContext} ${opportunity}`)}`;
     if (seen.has(identity)) continue;
     seen.add(identity);
@@ -190,9 +246,20 @@ export function normalizeParentPlanActivities(
       opportunity,
       skill,
       reinforcement,
+      relatedGoal,
+      estimatedMinutes: durationMinutes,
+      materials,
+      startAction,
+      steps,
+      ending,
+      pauseConditions,
+      observationPrompts,
       sourceDocumentId,
-      sourceExcerpt,
+      sourceExcerpt: sourceExcerptVerified ? sourceExcerpt : "",
       sourceType: sourceTypeForDocument(sourceDocumentId),
+      readiness,
+      readinessReasons: detailsNeeded,
+      sourceExcerptVerified,
     });
     if (activities.length >= 3) break;
   }
@@ -202,7 +269,7 @@ export function normalizeParentPlanActivities(
 export function isValidParentPlanActivity(value: unknown): value is ParentPlanActivity {
   if (!value || typeof value !== "object") return false;
   const activity = value as Partial<ParentPlanActivity>;
-  return typeof activity.title === "string" &&
+  const basicFields = typeof activity.title === "string" &&
     typeof activity.routineContext === "string" &&
     typeof activity.opportunity === "string" &&
     typeof activity.skill === "string" &&
@@ -210,6 +277,44 @@ export function isValidParentPlanActivity(value: unknown): value is ParentPlanAc
     typeof activity.sourceDocumentId === "string" &&
     typeof activity.sourceExcerpt === "string" &&
     ["clinician_reviewed", "clinician_uploaded_plan", "parent_uploaded_plan"].includes(activity.sourceType || "");
+  if (!basicFields) return false;
+  const safeSteps = Array.isArray(activity.steps)
+    ? activity.steps.filter((step): step is string => typeof step === "string")
+    : [];
+  const text = [
+    activity.title, activity.routineContext, activity.opportunity, activity.skill,
+    activity.reinforcement || "", activity.startAction || "", ...safeSteps,
+    activity.ending || "", ...(Array.isArray(activity.pauseConditions) ? activity.pauseConditions : []),
+  ].join(" ");
+  if (PLAN_ACTIVITY_UNSAFE.test(text)) return false;
+  if (activity.readiness !== "ready") {
+    return activity.readiness === undefined ||
+      (["needs_details", "needs_clinician_review"].includes(activity.readiness) &&
+        Array.isArray(activity.readinessReasons));
+  }
+  return Boolean(
+    activity.routineContext.trim() &&
+    activity.opportunity.trim() &&
+    activity.skill.trim() &&
+    Number.isInteger(activity.estimatedMinutes) &&
+    activity.estimatedMinutes! >= 1 &&
+    activity.estimatedMinutes! <= 60 &&
+    Array.isArray(activity.materials) &&
+    typeof activity.startAction === "string" &&
+    activity.startAction.trim() &&
+    Array.isArray(activity.steps) &&
+    activity.steps.length >= 2 &&
+    activity.steps.length <= 5 &&
+    typeof activity.ending === "string" &&
+    activity.ending.trim() &&
+    Array.isArray(activity.pauseConditions) &&
+    activity.pauseConditions.length > 0 &&
+    activity.sourceExcerptVerified === true &&
+    activity.sourceExcerpt.trim().length >= 24 &&
+    !GOAL_ONLY_ACTIVITY.test(activity.title) &&
+    !GOAL_ONLY_ACTIVITY.test(activity.opportunity) &&
+    activity.steps.every((step) => typeof step === "string" && !GOAL_ONLY_ACTIVITY.test(step))
+  );
 }
 
 export type DiscoveredParentTarget = {

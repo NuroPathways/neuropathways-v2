@@ -47,9 +47,22 @@ const breakRequestActivity: ParentPlanActivity = {
   opportunity: "Before a short assignment, offer the familiar break card and wait",
   skill: "Requests a break using the card",
   reinforcement: "Provide the planned break after the request",
+  estimatedMinutes: 5,
+  materials: ["Familiar break card"],
+  startAction: "Place the familiar break card beside the homework.",
+  steps: [
+    "Point to the card before starting one short homework item.",
+    "Pause so the child can use the card or decline to practice.",
+  ],
+  ending: "End after one request or when the child signals they are done.",
+  pauseConditions: ["Pause the homework if the child becomes distressed."],
+  observationPrompts: ["Notice whether the card was offered before the task."],
   sourceDocumentId: "parent-plan-1",
   sourceExcerpt: "During homework, practice requesting a break with the break card.",
   sourceType: "parent_uploaded_plan",
+  readiness: "ready",
+  readinessReasons: [],
+  sourceExcerptVerified: true,
 };
 
 test("daily actions turn plan activities into concrete steps and keep their provenance", () => {
@@ -71,9 +84,15 @@ test("daily actions turn plan activities into concrete steps and keep their prov
   assert.equal(actions[0].sourceDocumentId, "parent-plan-1");
   assert.equal(actions[0].title, "Practice requesting a break");
   assert.deepEqual(actions[0].steps, [
-    "In this routine: During homework at the kitchen table",
-    "Offer this opportunity: Before a short assignment, offer the familiar break card and wait",
+    "Start: Place the familiar break card beside the homework.",
+    "Activity step 1: Point to the card before starting one short homework item.",
+    "Activity step 2: Pause so the child can use the card or decline to practice.",
     "Skill practiced: Requests a break using the card",
+    "Related goal: Independently requests a break during homework.",
+    "Finish: End after one request or when the child signals they are done.",
+    "Pause or stop if: Pause the homework if the child becomes distressed.",
+    "Materials: Familiar break card",
+    "Optional observation: Notice whether the card was offered before the task.",
     "Plan-listed reinforcement: Provide the planned break after the request",
   ]);
   assert.match(actions[0].whyItMayHelp, /Maya/);
@@ -88,9 +107,20 @@ test("daily actions round-robin across selected behaviors and cap the list at fi
     ...breakRequestActivity,
     title,
     routineContext: `During ${title.toLowerCase()}`,
+    opportunity: `Offer ${title.toLowerCase()} during a familiar activity`,
+    startAction: `Set up the familiar materials for ${title.toLowerCase()}.`,
+    steps: [
+      `Offer one voluntary step for ${title.toLowerCase()}.`,
+      "Wait for the child to respond, and follow their lead.",
+    ],
+    ending: "End after one turn or when the child signals they are done.",
+    pauseConditions: ["Pause if the child becomes distressed."],
     sourceDocumentId: "clinician-plan-1",
     sourceType: "clinician_reviewed",
     reinforcement: null,
+    relatedGoal: null,
+    readiness: "ready",
+    readinessReasons: [],
     sourceExcerpt: `The plan says to ${title.toLowerCase()} as a supported skill.`,
   });
   const firstCardActivities = [
@@ -143,7 +173,7 @@ test("a selected goal creates varied task-refusal activities without copying par
   assert.ok(actions.every((action) => action.sourceType === "starter_template"));
   assert.ok(actions.every((action) => /saved goal: Ask for a break/.test(action.whyItMayHelp)));
   assert.ok(actions.every((action) => action.sourceDocumentId === null));
-  assert.ok(actions.every((action) => action.steps.some((step) => step.startsWith("If it gets hard:"))));
+  assert.ok(actions.every((action) => action.steps.some((step) => step.startsWith("Pause or stop if:"))));
   assert.ok(actions.every((action) => !action.steps.some((step) => step.includes(repeatedNote))));
 });
 
@@ -161,7 +191,7 @@ test("starter practice is behavior-specific and excludes unsafe rehearsal", () =
   const puzzle = elopement.find((action) => action.title === "Puzzle Together");
   assert.ok(puzzle);
   assert.ok(puzzle.steps.some((step) => /familiar, easy puzzle/.test(step)));
-  assert.ok(puzzle.steps.some((step) => /Positive reinforcement/.test(step)));
+  assert.ok(puzzle.steps.some((step) => /Pause or stop if:/.test(step)));
   assert.ok(puzzle.steps.some((step) => /never use the puzzle to prevent leaving/.test(step)));
   assert.notDeepEqual(elopement.map((action) => action.title), selfInjury.map((action) => action.title));
   assert.doesNotMatch(elopement.map((action) => `${action.title} ${action.description} ${action.steps.join(" ")}`).join(" "), /restraint|physical block|create a difficult situation/i);
@@ -180,8 +210,8 @@ test("calm space tour gets steps for that activity, choice, and low-pressure par
   assert.ok(tour);
   assert.ok(tour.steps.some((step) => /familiar quiet space the child can enter and leave freely/.test(step)));
   assert.ok(tour.steps.some((step) => /child to choose one item/.test(step)));
-  assert.ok(tour.steps.some((step) => /Positive reinforcement/.test(step)));
-  assert.ok(tour.steps.some((step) => /do not assume physical touch is welcome/i.test(step)));
+  assert.ok(tour.steps.some((step) => /Finish:/.test(step)));
+  assert.ok(tour.steps.some((step) => /Pause or stop if:/.test(step)));
 });
 
 test("an unselected conflicted plan does not become a family-facing review activity", () => {
@@ -200,7 +230,7 @@ test("an unselected conflicted plan does not become a family-facing review activ
   assert.deepEqual(actions, []);
 });
 
-test("a plan-discovered goal creates a sourced daily activity even when the behavior is not selected", () => {
+test("an unselected plan-discovered goal remains a goal and never becomes a daily activity", () => {
   const card = supportCard("custom", "Requesting breaks", "parent_document", {
     sourceDocumentIds: ["parent-plan-1"],
     planGoal: "Request a break independently during homework.",
@@ -215,15 +245,10 @@ test("a plan-discovered goal creates a sourced daily activity even when the beha
     logs: [],
   });
 
-  assert.equal(actions.length, 1);
-  assert.equal(actions[0].sourceType, "parent_uploaded_plan");
-  assert.equal(actions[0].sourceDocumentId, "parent-plan-1");
-  assert.match(actions[0].whyItMayHelp, /Maya's plan goal: Request a break independently during homework/);
-  assert.match(actions[0].description, /communication signal/);
-  assert.match(actions[0].steps[0], /^Skill practiced:/);
+  assert.deepEqual(actions, []);
 });
 
-test("clinician report goals and explicit milestones generate distinct daily practice actions", () => {
+test("clinician goals and milestones remain goals instead of being published as practice actions", () => {
   const goal: ParentPlanGoal = {
     id: "report-goal-1",
     title: "Request a break during homework",
@@ -243,13 +268,7 @@ test("clinician report goals and explicit milestones generate distinct daily pra
     logs: [],
   });
 
-  assert.equal(actions.length, 2);
-  assert.ok(actions.every((action) => action.sourceType === "clinician_uploaded_plan"));
-  assert.ok(actions.every((action) => action.supportCardId === null));
-  assert.ok(actions.every((action) => action.sourceDocumentId === null));
-  assert.deepEqual(actions.map((action) => action.steps[0]), goal.milestones.map((milestone) => `Skill practiced: ${milestone}`));
-  assert.ok(actions.every((action) => action.whyItMayHelp.includes("Maya's plan goal")));
-  assert.notEqual(actions[0].actionKey, actions[1].actionKey);
+  assert.deepEqual(actions, []);
 });
 
 test("unsafe instructions in a document goal never become a daily activity", () => {
@@ -270,7 +289,7 @@ test("unsafe instructions in a document goal never become a daily activity", () 
   assert.deepEqual(actions, []);
 });
 
-test("clinical-sounding placeholder goals are rendered in parent-friendly language", () => {
+test("clinical-sounding placeholder goals are not turned into practice activities", () => {
   const actions = buildParentDailyActionDrafts({
     date: "2026-10-07",
     selectedBehaviors: [],
@@ -284,8 +303,7 @@ test("clinical-sounding placeholder goals are rendered in parent-friendly langua
     }],
     logs: [],
   });
-  assert.equal(actions[0]?.title, "Practice: Use safe hands and safe objects");
-  assert.match(actions[0]?.whyItMayHelp || "", /Use safe hands and safe objects/);
+  assert.deepEqual(actions, []);
 });
 
 test("conflicted plan guidance falls back to safe library support for an active behavior", () => {

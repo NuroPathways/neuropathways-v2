@@ -13,6 +13,7 @@ import {
 import { parentBehaviorIdentity, type ParentBehavior } from "./parentAuth";
 import { makeStarterCard, type SupportCard } from "./parentStarterLibrary";
 import type { ParentPlanActivity } from "./parentStarterLibrary";
+import { isValidParentPlanActivity } from "./parentDocumentPolicy";
 
 type ParentLogInput = {
   behaviorKey: string | null;
@@ -57,6 +58,21 @@ type PracticeActivity = {
   minutes: number;
   ifHard: string;
 };
+
+type ReadyPlanActivity = ParentPlanActivity & {
+  readiness: "ready";
+  estimatedMinutes: number;
+  materials: string[];
+  startAction: string;
+  steps: string[];
+  ending: string;
+  pauseConditions: string[];
+  sourceExcerptVerified: true;
+};
+
+function isReadyPlanActivity(activity: ParentPlanActivity): activity is ReadyPlanActivity {
+  return activity.readiness === "ready" && isValidParentPlanActivity(activity);
+}
 
 const STARTER_PRACTICE_ACTIVITIES: Record<string, PracticeActivity[]> = {
   elopement: [
@@ -341,59 +357,9 @@ function actionKey(kind: ParentDailyActionKind, behaviorIdentity: string, slot: 
   return `${kind}:${stableIdentity || "selected"}:${slot}`.slice(0, 255);
 }
 
-function cleanSteps(values: Array<string | null | undefined>, limit = 3) {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const value of values) {
-    const step = typeof value === "string" ? value.trim() : "";
-    const identity = step.toLocaleLowerCase();
-    if (!step || seen.has(identity)) continue;
-    seen.add(identity);
-    result.push(step.slice(0, 600));
-    if (result.length === limit) break;
-  }
-  return result;
-}
-
-function shortTitle(text: string, fallback: string) {
-  const firstSentence = text.trim().split(/(?<=[.!?])\s+/)[0]?.replace(/[.!?]+$/g, "").trim();
-  if (!firstSentence) return fallback;
-  return firstSentence.length <= 78 ? firstSentence : `${firstSentence.slice(0, 75).trimEnd()}…`;
-}
-
-function cardDraft(
-  card: SupportCard,
-  date: string,
-  kind: ParentDailyActionKind,
-  slot: string,
-  title: string,
-  description: string,
-  steps: string[],
-  estimatedMinutes: number,
-  status: "not_started" | "needs_review" = "not_started",
-): DailyActionDraft {
-  const sourceType = sourceTypeFor(card);
-  return {
-    actionDate: date,
-    actionKey: actionKey(kind, identityForCard(card), slot),
-    kind,
-    behaviorKey: card.behaviorKey || null,
-    behaviorName: card.behaviorName,
-    supportCardId: card.id || null,
-    sourceType,
-    sourceDocumentId: card.sourceDocumentIds?.[0] || null,
-    title,
-    description,
-    whyItMayHelp: `This step uses saved guidance for ${card.behaviorName}. Notice whether it fits your child and the situation; it may not help every time.`,
-    steps,
-    estimatedMinutes,
-    status,
-  };
-}
-
 function planActivityDraft(
   card: SupportCard,
-  activity: ParentPlanActivity,
+  activity: ReadyPlanActivity,
   date: string,
   childName: string,
 ): DailyActionDraft {
@@ -405,17 +371,26 @@ function planActivityDraft(
       activity.opportunity,
       activity.skill,
       activity.reinforcement || "",
+      activity.startAction || "",
+      ...(activity.steps || []),
+      activity.ending || "",
+      ...(activity.pauseConditions || []),
+      ...(activity.materials || []),
     ].join("|"))
     .digest("hex")
     .slice(0, 20);
-  const steps = cleanSteps([
-    `In this routine: ${activity.routineContext}`,
-    `Offer this opportunity: ${activity.opportunity}`,
+  const relatedGoal = activity.relatedGoal?.trim() || card.planGoal?.trim() || "";
+  const steps = [
+    `Start: ${activity.startAction}`,
+    ...(activity.steps || []).map((step, index) => `Activity step ${index + 1}: ${step}`),
     `Skill practiced: ${activity.skill}`,
-    activity.reinforcement
-      ? `Plan-listed reinforcement: ${activity.reinforcement}`
-      : null,
-  ], 4);
+    ...(relatedGoal ? [`Related goal: ${relatedGoal}`] : []),
+    `Finish: ${activity.ending}`,
+    `Pause or stop if: ${(activity.pauseConditions || []).join(" ")}`,
+    ...(activity.materials?.length ? [`Materials: ${activity.materials.join(", ")}`] : ["Materials: None needed"]),
+    ...(activity.observationPrompts || []).map((prompt) => `Optional observation: ${prompt}`),
+    ...(activity.reinforcement ? [`Plan-listed reinforcement: ${activity.reinforcement}`] : []),
+  ];
   return {
     actionDate: date,
     actionKey: actionKey("task", identityForCard(card), `plan-${activityKey}`),
@@ -426,141 +401,12 @@ function planActivityDraft(
     sourceType: activity.sourceType || sourceTypeFor(card),
     sourceDocumentId: activity.sourceDocumentId,
     title: activity.title,
-    description: `${activity.routineContext}: ${activity.opportunity}`,
-    whyItMayHelp: card.planGoal
-      ? `This gives ${childName} a chance to practice ${activity.skill} during ${activity.routineContext}, supporting the plan goal: ${card.planGoal}`
-      : `This gives ${childName} a chance to practice ${activity.skill} during ${activity.routineContext}, as described in the linked plan.`,
+    description: `Suggested context: ${activity.routineContext}. Materials: ${activity.materials?.length ? activity.materials.join(", ") : "none needed"}. ${activity.opportunity}`,
+    whyItMayHelp: relatedGoal
+      ? `This activity supports ${childName}'s related goal: ${relatedGoal}`
+      : `This activity practices ${activity.skill} in the source-listed routine.`,
     steps,
-    estimatedMinutes: 5,
-    status: "not_started",
-  };
-}
-
-function cardActivity(card: SupportCard, date: string, slot: string, activityText?: string): DailyActionDraft {
-  if (card.conflict) {
-    return cardDraft(
-      card,
-      date,
-      "activity",
-      slot,
-      "Review the plan before trying an activity",
-      card.conflictMessage || "The uploaded guidance needs review before you use plan-specific activities.",
-      [],
-      2,
-      "needs_review",
-    );
-  }
-
-  const step = activityText || cleanSteps(card.prevention, 1)[0];
-  const reinforcement = card.reinforcementIdea?.trim();
-  const title = step
-    ? `Try: ${shortTitle(step, `an activity for ${card.behaviorName}`)}`
-    : `Review support for ${card.behaviorName}`;
-  const steps = cleanSteps([
-    step,
-    reinforcement ? `Notice and support this response: ${reinforcement}` : null,
-  ]);
-  return cardDraft(
-    card,
-    date,
-    "activity",
-    slot,
-    title,
-    step
-      ? `Try this saved ${card.behaviorName} guidance in an ordinary routine. Do not create or provoke a difficult situation to practice it.`
-      : `This support card does not include a specific activity step. Open the card to review its guidance for ${card.behaviorName}.`,
-    steps,
-    5,
-  );
-}
-
-function cardPractice(card: SupportCard, date: string): DailyActionDraft {
-  if (card.conflict) {
-    return cardDraft(
-      card,
-      date,
-      "practice",
-      "practice-skill",
-      "Review this skill with your clinician",
-      card.conflictMessage || "The uploaded guidance needs review before you use plan-specific steps.",
-      [],
-      2,
-      "needs_review",
-    );
-  }
-  const skill = card.replacementSkill?.trim();
-  if (!skill) {
-    return cardDraft(
-      card,
-      date,
-      "practice",
-      "practice-skill",
-      `Review a skill for ${card.behaviorName}`,
-      `This support card does not include a specific replacement skill for ${card.behaviorName}.`,
-      [],
-      2,
-      "needs_review",
-    );
-  }
-  return cardDraft(
-    card,
-    date,
-    "practice",
-    "practice-skill",
-    `Practice: ${shortTitle(skill, card.behaviorName)}`,
-    `Practice this skill for ${card.behaviorName} during a calm moment, using only communication supports already familiar to your child.`,
-    cleanSteps([skill], 1),
-    3,
-  );
-}
-
-function planGuidedPracticeDraft(
-  card: SupportCard,
-  selectedBehavior: ParentBehavior | undefined,
-  date: string,
-  childName: string,
-): DailyActionDraft | null {
-  const sourceDocumentId =
-    card.planGoalSourceDocumentIds?.[0] || card.sourceDocumentIds?.[0] || null;
-  const skill = cleanSteps([card.replacementSkill, ...card.prevention], 1)[0];
-  if (!sourceDocumentId || !skill) return null;
-
-  const activity = practiceActivitiesFor(card).find((candidate) =>
-    /\b(break|help|communicat|signal|request)\b/i.test(skill)
-      ? /break|help|signal|communication/i.test(`${candidate.title} ${candidate.skill}`)
-      : /\b(stay|near|stop|boundary|return)\b/i.test(skill)
-        ? /stay|stop|return|safe area/i.test(`${candidate.title} ${candidate.skill}`)
-        : /\b(transition|move|next activity|warning)\b/i.test(skill)
-          ? /transition|next|move/i.test(`${candidate.title} ${candidate.skill}`)
-          : false,
-  ) || practiceActivitiesFor(card)[0];
-  if (!activity) return null;
-  const goal = card.planGoal?.trim() || selectedBehavior?.goal?.trim() || "";
-  const fingerprint = crypto.createHash("sha256")
-    .update(`${sourceDocumentId}|${goal}|${skill}|${activity.id}`)
-    .digest("hex")
-    .slice(0, 20);
-  return {
-    actionDate: date,
-    actionKey: actionKey("task", identityForCard(card), `plan-practice-${fingerprint}`),
-    kind: "task",
-    behaviorKey: card.behaviorKey || null,
-    behaviorName: card.behaviorName,
-    supportCardId: card.id || null,
-    sourceType: sourceTypeFor(card),
-    sourceDocumentId,
-    title: activity.title,
-    description: activity.description,
-    whyItMayHelp: goal
-      ? `Practices ${skill} and connects to ${childName}'s ${card.planGoal?.trim() ? "plan goal" : "saved goal"}: ${goal}`
-      : `Practices the plan-listed skill: ${skill}`,
-    steps: cleanSteps([
-      `Skill practiced: ${skill}`,
-      card.prevention?.[0] ? `Plan support: ${card.prevention[0]}` : null,
-      card.reinforcementIdea ? `Plan-supported reinforcement: ${card.reinforcementIdea}` : null,
-      `If it gets hard: ${activity.ifHard}`,
-    ]),
-    estimatedMinutes: activity.minutes,
+    estimatedMinutes: activity.estimatedMinutes || 5,
     status: "not_started",
   };
 }
@@ -587,7 +433,12 @@ function selectedGoalPracticeDraft(
     if (seen.has(activity.id)) return false;
     seen.add(activity.id);
     return true;
-  }).map((activity) => ({
+  }).map((activity) => {
+    const activityTerms = `${activity.title} ${activity.skill}`.toLocaleLowerCase();
+    const relatedGoal = safeGoal && goalTerms.some((word) => activityTerms.includes(word))
+      ? displayGoal
+      : "";
+    return {
     actionDate: date,
     actionKey: actionKey("task", parentBehaviorIdentity(behavior), `starter-practice-${activity.id}`),
     kind: "task",
@@ -597,132 +448,26 @@ function selectedGoalPracticeDraft(
     sourceType: "starter_template",
     sourceDocumentId: null,
     title: activity.title,
-    description: activity.description,
-    whyItMayHelp: safeGoal
+    description: `Suggested context: During a calm, familiar moment. ${activity.description} Materials: Only familiar items named in this activity; do not introduce new materials.`,
+    whyItMayHelp: relatedGoal
       ? `Practices ${activity.skill} and connects to ${childName}'s saved goal: ${displayGoal}`
       : `Practices ${activity.skill} during a familiar activity. This is starter support, not an individualized plan.`,
-    steps: cleanSteps([
-      ...(ACTIVITY_GUIDANCE[activity.id]?.steps || [
-        `Set up the activity as described: ${activity.description}`,
-        `Offer one voluntary chance to practice ${activity.skill.toLocaleLowerCase()}.`,
-      ]),
+    steps: [
+      `Start: ${ACTIVITY_GUIDANCE[activity.id]?.steps[0] || activity.description}`,
+      ...(ACTIVITY_GUIDANCE[activity.id]?.steps.slice(1, 3) || [
+        `Activity step 1: Offer one voluntary chance to practice ${activity.skill.toLocaleLowerCase()}.`,
+        `Activity step 2: Pause and follow your child's lead.`,
+      ]).map((step, index) => `Activity step ${index + 1}: ${step}`),
       `Skill practiced: ${activity.skill}`,
-      card.source !== "starter"
-        ? card.reinforcementIdea?.trim()
-          ? `Positive reinforcement from the support plan: ${card.reinforcementIdea.trim()}`
-          : null
-        : `Positive reinforcement: after your child ${ACTIVITY_GUIDANCE[activity.id]?.reinforcementTarget || `practices ${activity.skill.toLocaleLowerCase()}`}, give immediate, behavior-specific praise and, if you know it is welcome, a preferred item or activity. Do not assume physical touch is welcome or withhold breaks or communication.`,
-      card.source === "starter" && card.prevention?.[0]
-        ? `Starter support: ${card.prevention[0]}`
-        : null,
-      `If it gets hard: ${activity.ifHard}`,
-    ], 7),
+      ...(relatedGoal ? [`Related goal: ${relatedGoal}`] : []),
+      "Finish: End after these short steps or sooner if your child signals they are done.",
+      `Pause or stop if: ${activity.ifHard}`,
+      `Materials: Only familiar items named in this activity; no new materials are needed.`,
+    ],
     estimatedMinutes: activity.minutes,
     status: "not_started",
-  }));
-}
-
-function documentGoalDrafts(goal: ParentPlanGoal, date: string, childName: string): DailyActionDraft[] {
-  const goalText = goal.title.trim();
-  const displayGoal = parentFacingGoalText(goalText);
-  const steps = goal.milestones.length
-    ? goal.milestones
-    : [goal.description.trim() || displayGoal];
-  return steps.flatMap((step, index) => {
-    const cleanStep = step.trim().slice(0, 400);
-    if (!cleanStep || UNSAFE_PLAN_PRACTICE.test(`${goalText} ${cleanStep}`)) return [];
-    const fingerprint = crypto.createHash("sha256")
-      .update(`${goal.id}|${goalText}|${cleanStep}`)
-      .digest("hex")
-      .slice(0, 20);
-    return [{
-      actionDate: date,
-      actionKey: actionKey("task", `plan-goal:${goal.id}`, `milestone-${index}-${fingerprint}`),
-      kind: "task",
-      behaviorKey: null,
-      behaviorName: goalText,
-      supportCardId: null,
-      sourceType: goal.sourceType,
-      sourceDocumentId: null,
-      title: `Practice: ${shortTitle(cleanStep === goalText ? displayGoal : cleanStep, displayGoal)}`,
-      description: goal.sourceType === "selected_behavior"
-        ? "This activity supports a saved goal. Participation does not establish clinical mastery. Try one small step during a calm, safe, naturally occurring opportunity."
-        : goal.milestones.length
-        ? `This is a milestone read from the plan. Try it only in a calm, naturally occurring opportunity; do not create a difficult situation to practice.`
-        : `Use a calm, naturally occurring opportunity to work toward this goal. Follow any specific steps in the uploaded plan; do not create a difficult situation to practice.`,
-      whyItMayHelp: `Supports ${childName}'s plan goal: ${displayGoal}`,
-      steps: cleanSteps([`Skill practiced: ${cleanStep}`]),
-      estimatedMinutes: 5,
-      status: "not_started",
-    }];
-  });
-}
-
-function recentHelpfulPattern(
-  selected: ParentBehavior[],
-  cards: SupportCard[],
-  logs: ParentLogInput[],
-  date: string,
-): DailyActionDraft | null {
-  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  const groups = new Map<string, { text: string; behaviorKey: string | null; customBehavior: string | null; count: number }>();
-  for (const log of logs) {
-    const timestamp = new Date(log.createdAt).getTime();
-    const text = typeof log.whatHelped === "string" ? log.whatHelped.trim() : "";
-    if (!text || text.length > 180 || timestamp < cutoff) continue;
-    if (/\b(restraint|hold them down|hit|punish|medicat|dose|ignore (?:all|the) safety|force them)\b/i.test(text)) continue;
-    const key = text.toLocaleLowerCase().replace(/\s+/g, " ");
-    const current = groups.get(key) || {
-      text,
-      behaviorKey: log.behaviorKey,
-      customBehavior: log.customBehavior,
-      count: 0,
     };
-    current.count += 1;
-    groups.set(key, current);
-  }
-  const match = [...groups.values()].sort((a, b) => b.count - a.count)[0];
-  if (!match || match.count < 2) return null;
-
-  const selectedBehavior = selected.find((behavior) =>
-    behavior.behaviorKey === match.behaviorKey &&
-    (behavior.behaviorKey !== "custom" ||
-      parentBehaviorIdentity(behavior) === parentBehaviorIdentity({
-        behaviorKey: "custom",
-        customBehavior: match.customBehavior,
-        behaviorName: match.customBehavior || "",
-      })),
-  );
-  const card = cards.find((candidate) =>
-    candidate.behaviorKey === match.behaviorKey &&
-    (!match.customBehavior || identityForCard(candidate) === parentBehaviorIdentity({
-      behaviorKey: "custom",
-      customBehavior: match.customBehavior,
-      behaviorName: match.customBehavior,
-    })),
-  );
-  const behaviorName = selectedBehavior?.behaviorName || card?.behaviorName || match.customBehavior || "your child";
-  const identity = selectedBehavior
-    ? parentBehaviorIdentity(selectedBehavior)
-    : card
-      ? identityForCard(card)
-      : "recent-log-pattern";
-  return {
-    actionDate: date,
-    actionKey: actionKey("task", identity, "repeated-log"),
-    kind: "task",
-    behaviorKey: match.behaviorKey,
-    behaviorName,
-    supportCardId: card?.id || null,
-    sourceType: "recent_log_pattern",
-    sourceDocumentId: null,
-    title: "Try what helped before",
-    description: match.text,
-    whyItMayHelp: "You noted this as helpful more than once. See whether it is useful again today.",
-    steps: [match.text],
-    estimatedMinutes: 5,
-    status: "not_started",
-  };
+  });
 }
 
 export function buildParentDailyActionDrafts(input: {
@@ -756,7 +501,7 @@ export function buildParentDailyActionDrafts(input: {
     .filter((card, index, sorted) =>
       sorted.findIndex((candidate) => identityForCard(candidate) === identityForCard(card)) === index,
     );
-  const activitiesByCard = cards.map((card, index) => {
+  const activitiesByCard = cards.map((card) => {
     const selectedBehavior = input.selectedBehaviors.find(
       (behavior) => parentBehaviorIdentity(behavior) === identityForCard(card),
     );
@@ -774,44 +519,30 @@ export function buildParentDailyActionDrafts(input: {
         input.childName?.trim() || "your child",
       );
     }
-    const planActivities = (card.dailyActivities || []).map((activity) =>
+    const planActivities = (card.dailyActivities || [])
+      .filter(isReadyPlanActivity)
+      .filter((activity) => activity.sourceType !== "clinician_uploaded_plan" || Boolean(activity.assignedAt))
+      .map((activity) =>
       planActivityDraft(card, activity, input.date, input.childName?.trim() || "your child"),
     );
     if (planActivities.length) return planActivities;
 
-    if (card.source !== "starter") {
-      const practice = planGuidedPracticeDraft(
-        card,
-        selectedBehavior,
-        input.date,
-        input.childName?.trim() || "your child",
-      );
-      if (practice) return [practice];
-    }
     return selectedBehavior
       ? selectedGoalPracticeDraft(
           selectedBehavior,
-          card,
+          makeStarterCard(selectedBehavior.behaviorKey, selectedBehavior.customBehavior, selectedBehavior.goal),
           input.date,
           input.childName?.trim() || "your child",
         )
       : [];
   });
-  const cardGoalKeys = new Set(cards
-    .map((card) => card.planGoal?.trim())
-    .filter((goal): goal is string => Boolean(goal))
-    .map((goal) => goal.normalize("NFKC").toLowerCase().replace(/\s+/g, " ")));
-  const documentGoalGroups = (input.planGoals || [])
-    .filter((goal) => !cardGoalKeys.has(goal.title.normalize("NFKC").toLowerCase().replace(/\s+/g, " ")))
-    .map((goal) => documentGoalDrafts(goal, input.date, input.childName?.trim() || "your child"))
-    .filter((group) => group.length > 0);
 
   // Round-robin across selected support areas so one child goal cannot crowd out the rest.
   const actions: DailyActionDraft[] = [];
   const seenActionKeys = new Set<string>();
   for (let activityIndex = 0; actions.length < 5; activityIndex += 1) {
     let added = false;
-    for (const activities of [...documentGoalGroups, ...activitiesByCard]) {
+    for (const activities of activitiesByCard) {
       const action = activities[activityIndex];
       if (!action || seenActionKeys.has(action.actionKey)) continue;
       seenActionKeys.add(action.actionKey);

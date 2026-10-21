@@ -15,15 +15,27 @@ export type StarterTemplate = {
 
 export type SourceReference = { documentId: string; title: string; excerpt: string | null };
 export type ParentPlanActivitySource = "clinician_reviewed" | "clinician_uploaded_plan" | "parent_uploaded_plan";
+export type ParentPlanActivityReadiness = "ready" | "needs_details" | "needs_clinician_review";
 export type ParentPlanActivity = {
   title: string;
   routineContext: string;
   opportunity: string;
   skill: string;
   reinforcement: string | null;
+  relatedGoal?: string | null;
+  estimatedMinutes?: number | null;
+  materials?: string[];
+  startAction?: string;
+  steps?: string[];
+  ending?: string;
+  pauseConditions?: string[];
+  observationPrompts?: string[];
   sourceDocumentId: string;
   sourceExcerpt: string;
   sourceType: ParentPlanActivitySource;
+  readiness?: ParentPlanActivityReadiness;
+  readinessReasons?: string[];
+  sourceExcerptVerified?: boolean;
   contentVersion?: string;
   reviewedBy?: string | null;
   reviewedAt?: string | null;

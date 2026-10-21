@@ -446,6 +446,11 @@ function toolSchema() {
     maxLength: 90,
     description: "One plain-language action or reminder, short enough to read at a glance.",
   };
+  const activityText = {
+    type: "string",
+    maxLength: 320,
+    description: "One concrete, plain-language activity instruction grounded in the source.",
+  };
   return {
     name: "save_parent_support",
     description: "Return brief, plain-language, safe support steps grounded only in the supplied child support document(s).",
@@ -469,7 +474,7 @@ function toolSchema() {
         daily_activities: {
           type: "array",
           maxItems: 3,
-          description: "Caregiver-ready activities only when the supplied plan explicitly supports the routine, opportunity, and skill.",
+          description: "Return only structured activities the source supports; return empty fields for missing details so the server can classify them, never invent details.",
           items: {
             type: "object",
             properties: {
@@ -477,6 +482,14 @@ function toolSchema() {
               routine_context: { type: "string", maxLength: 180 },
               opportunity: { type: "string", maxLength: 320 },
               skill: { type: "string", maxLength: 240 },
+              related_goal: { type: "string", maxLength: 320, description: "Exact source-linked goal, or an empty string when none is stated." },
+              duration_minutes: { type: "integer", minimum: 0, maximum: 60, description: "Use 0 when the source gives no reasonable duration." },
+              materials: { type: "array", maxItems: 8, items: { type: "string", maxLength: 160 }, description: "Use an empty array only when no materials are needed." },
+              start_action: activityText,
+              steps: { type: "array", maxItems: 5, items: activityText, description: "Two to five concrete actions the caregiver and child can do." },
+              ending: activityText,
+              pause_conditions: { type: "array", maxItems: 5, items: activityText },
+              observation_prompts: { type: "array", maxItems: 5, items: shortStep, description: "Optional and source-grounded; use an empty list if not supported." },
               reinforcement: {
                 type: "string",
                 maxLength: 320,
@@ -490,8 +503,9 @@ function toolSchema() {
               },
             },
             required: [
-              "title", "routine_context", "opportunity", "skill", "reinforcement",
-              "source_document_id", "source_excerpt",
+              "title", "routine_context", "opportunity", "skill", "related_goal", "duration_minutes",
+              "materials", "start_action", "steps", "ending", "pause_conditions", "observation_prompts",
+              "reinforcement", "source_document_id", "source_excerpt",
             ],
           },
         },
@@ -1307,9 +1321,17 @@ export async function getParentSharedSupport(
         const contentVersion = parentActivityContentVersion(activity);
         const currentReview = activity.contentVersion === contentVersion && activity.reviewedBy && activity.reviewedAt;
         const currentAssignment = currentReview && activity.assignedBy === activity.reviewedBy && activity.assignedAt;
+        const readiness = activity.readiness === "needs_details"
+          ? "needs_details" as const
+          : activity.sourceExcerptVerified !== true
+            ? "needs_clinician_review" as const
+            : activity.readiness === "needs_clinician_review" && !currentReview
+              ? "needs_clinician_review" as const
+              : "ready" as const;
         return [{
           ...activity,
           contentVersion,
+          readiness,
           reviewedBy: currentReview ? activity.reviewedBy : null,
           reviewedAt: currentReview ? activity.reviewedAt : null,
           assignedBy: currentAssignment ? activity.assignedBy : null,
@@ -1419,9 +1441,17 @@ export async function getParentSupportCards(parentId: string, childId: string): 
         const contentVersion = parentActivityContentVersion(activity);
         const currentReview = activity.contentVersion === contentVersion && Boolean(activity.reviewedBy && activity.reviewedAt);
         const currentAssignment = currentReview && activity.assignedBy === activity.reviewedBy && activity.assignedAt;
+        const readiness = activity.readiness === "needs_details"
+          ? "needs_details" as const
+          : activity.sourceExcerptVerified !== true
+            ? "needs_clinician_review" as const
+            : activity.readiness === "needs_clinician_review" && !currentReview
+              ? "needs_clinician_review" as const
+              : "ready" as const;
         return [{
           ...activity,
           contentVersion,
+          readiness,
           reviewedBy: currentReview ? activity.reviewedBy : null,
           reviewedAt: currentReview ? activity.reviewedAt : null,
           assignedBy: currentAssignment ? activity.assignedBy : null,
@@ -1605,13 +1635,21 @@ export async function reviewParentSupport(
   return { ok: true, supportCards: clinicianProjection.supportCards };
 }
 
-export function parentActivityContentVersion(activity: Pick<NonNullable<SupportCard["dailyActivities"]>[number], "title" | "routineContext" | "opportunity" | "skill" | "reinforcement" | "sourceDocumentId" | "sourceExcerpt">): string {
+export function parentActivityContentVersion(activity: Pick<NonNullable<SupportCard["dailyActivities"]>[number], "title" | "routineContext" | "opportunity" | "skill" | "reinforcement" | "sourceDocumentId" | "sourceExcerpt" | "relatedGoal" | "estimatedMinutes" | "materials" | "startAction" | "steps" | "ending" | "pauseConditions" | "observationPrompts">): string {
   const canonical = [
     activity.title,
     activity.routineContext,
     activity.opportunity,
     activity.skill,
     activity.reinforcement,
+    activity.relatedGoal,
+    activity.estimatedMinutes,
+    activity.materials,
+    activity.startAction,
+    activity.steps,
+    activity.ending,
+    activity.pauseConditions,
+    activity.observationPrompts,
     activity.sourceDocumentId,
     activity.sourceExcerpt,
   ].map((value) => value ?? "");
@@ -1630,6 +1668,9 @@ export async function reviewOrAssignParentActivity(
   const visibleCard = visible.supportCards.find((card) => card.id === cardId);
   const visibleActivity = visibleCard?.dailyActivities?.[activityIndex];
   if (!visibleActivity) throw new Error("Activity is not available in the shared support");
+  if (visibleActivity.readiness === "needs_details" || visibleActivity.sourceExcerptVerified !== true) {
+    throw new Error("Complete the missing activity details and verify its source before clinician review.");
+  }
   const currentVersion = parentActivityContentVersion(visibleActivity);
   if (currentVersion !== contentVersion) throw new Error("Activity changed. Reload it before reviewing or assigning.");
 
@@ -1639,6 +1680,9 @@ export async function reviewOrAssignParentActivity(
   const activity = cards[cardIndex]?.dailyActivities?.[activityIndex];
   if (!activity || parentActivityContentVersion(activity) !== currentVersion) {
     throw new Error("Activity changed. Reload it before reviewing or assigning.");
+  }
+  if (activity.readiness === "needs_details" || activity.sourceExcerptVerified !== true) {
+    throw new Error("Complete the missing activity details and verify its source before clinician review.");
   }
   const now = new Date().toISOString();
   const currentReviewValid = activity.contentVersion === currentVersion && activity.reviewedBy === clinicianId;

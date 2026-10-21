@@ -101,7 +101,7 @@ test("document B generation prompt excludes existing private card A content", ()
   assert.doesNotMatch(serializedPrompt, /Current support cards|Starter guidance for context/);
 });
 
-test("document generation asks for brief, one-action caregiver steps without dropping safety instructions", () => {
+test("document generation requires complete real activities and preserves safety instructions", () => {
   const prompt = buildParentDocumentGenerationContent(
     [{
       id: "brief-plan",
@@ -118,29 +118,79 @@ test("document generation asks for brief, one-action caregiver steps without dro
   assert.match(serializedPrompt, /one or two short lines per item/);
   assert.match(serializedPrompt, /no more than four items/);
   assert.match(serializedPrompt, /Do not drop a safety condition or escalation instruction/);
-  assert.match(serializedPrompt, /Create daily_activities only when a source gives enough detail/);
+  assert.match(serializedPrompt, /Create daily_activities only when a source supports a real, low-risk activity/);
+  assert.match(serializedPrompt, /two to five concrete steps/);
+  assert.match(serializedPrompt, /Do not turn a goal or milestone into an activity/);
+  assert.match(serializedPrompt, /classify it as Needs Details/);
   assert.match(serializedPrompt, /never fill gaps with a typical routine, assumed prompt, invented reinforcement/);
 });
 
-test("daily plan activities require a routine, caregiver opportunity, skill, evidence, and an allowed source", () => {
+test("daily activity candidates require complete instructions and classify incomplete or unapproved output", () => {
+  const sourceExcerpt = "During homework, the child may use the break card before a short task.";
+  const completeCandidate = (overrides: Record<string, unknown> = {}) => ({
+    title: "Use the break card before homework",
+    routine_context: "During a calm homework start",
+    opportunity: "Before one short task, put the familiar card within reach.",
+    skill: "Requesting a break with the familiar card",
+    related_goal: "Request a break before leaving the work area",
+    duration_minutes: 5,
+    materials: ["Familiar break card"],
+    start_action: "Place the familiar break card beside the homework.",
+    steps: [
+      "Point to the card before starting one short task.",
+      "Pause and allow the child to use the card or decline.",
+    ],
+    ending: "End after one request or when the child signals they are done.",
+    pause_conditions: ["Pause if the child becomes distressed."],
+    observation_prompts: [],
+    reinforcement: "",
+    source_document_id: "plan-1",
+    source_excerpt: sourceExcerpt,
+    ...overrides,
+  });
   const activities = normalizeParentPlanActivities([
+    completeCandidate(),
     {
-      title: "Practice requesting a break",
-      routine_context: "During homework at the kitchen table",
-      opportunity: "Before a short assignment, offer the familiar break card and wait",
-      skill: "Requests a break using the card",
-      reinforcement: "Provide the planned break after the request",
+      title: "Practice reducing anxiety symptoms",
+      routine_context: "",
+      opportunity: "Use an opportunity to practice the goal.",
+      skill: "Reducing anxiety symptoms",
+      materials: [],
+      start_action: "",
+      steps: [],
+      ending: "",
+      pause_conditions: [],
+      duration_minutes: 0,
       source_document_id: "plan-1",
-      source_excerpt: "During homework, practice requesting a break with the break card.",
+      source_excerpt: sourceExcerpt,
+      reinforcement: "",
     },
     {
-      title: "Assumed bedtime activity",
-      routine_context: "At bedtime",
-      opportunity: "Offer a visual schedule",
-      skill: "Follows a bedtime routine",
-      reinforcement: "",
+      title: "Practice goal 4",
+      routine_context: "During the evening routine",
+      opportunity: "Work toward the goal.",
+      skill: "Complete goal 4",
+      materials: [],
+      start_action: "Start the routine.",
+      steps: ["Try the goal."],
+      ending: "",
+      pause_conditions: [],
+      duration_minutes: 0,
       source_document_id: "plan-1",
-      source_excerpt: "An unrelated source excerpt.",
+      source_excerpt: sourceExcerpt,
+      reinforcement: "",
+    },
+    {
+      ...completeCandidate({
+        title: "One short break-card activity",
+        source_excerpt: "This sentence does not appear in the source.",
+      }),
+    },
+    {
+      ...completeCandidate({
+        title: "Clinician plan activity",
+        source_document_id: "clinician-plan",
+      }),
     },
     {
       title: "Unsupported activity",
@@ -158,16 +208,36 @@ test("daily plan activities require a routine, caregiver opportunity, skill, evi
       skill: "Requests a break",
       reinforcement: "",
       source_document_id: "plan-1",
-      source_excerpt: "An unsafe procedure.",
+      source_excerpt: sourceExcerpt,
+      materials: [],
+      start_action: "Hold the child still.",
+      steps: ["Hold the child still.", "Continue the task."],
+      ending: "End the task.",
+      pause_conditions: ["Stop if unsafe."],
+      duration_minutes: 5,
     },
-  ], ["plan-1"], () => "parent_uploaded_plan", new Map([
-    ["plan-1", "During homework, practice requesting a break with the break card."],
+  ], ["plan-1", "clinician-plan"], (id) => id === "clinician-plan" ? "clinician_uploaded_plan" : "parent_uploaded_plan", new Map([
+    ["plan-1", sourceExcerpt],
+    ["clinician-plan", sourceExcerpt],
   ]));
 
-  assert.equal(activities.length, 1);
+  assert.equal(activities.length, 5);
+  assert.deepEqual(activities.map((activity) => activity.readiness), [
+    "ready",
+    "needs_details",
+    "needs_details",
+    "needs_clinician_review",
+    "needs_clinician_review",
+  ]);
   assert.equal(activities[0].sourceType, "parent_uploaded_plan");
   assert.equal(activities[0].sourceDocumentId, "plan-1");
-  assert.equal(activities[0].routineContext, "During homework at the kitchen table");
+  assert.equal(activities[0].routineContext, "During a calm homework start");
+  assert.equal(activities[0].estimatedMinutes, 5);
+  assert.equal(activities[0].steps?.length, 2);
+  assert.equal(activities[0].sourceExcerptVerified, true);
+  assert.match(activities[1].readinessReasons?.join(" ") || "", /goal-only wording/);
+  assert.match(activities[3].readinessReasons?.join(" ") || "", /source excerpt could not be verified/);
+  assert.match(activities[4].readinessReasons?.join(" ") || "", /clinician must review and assign/);
 });
 
 test("discovery prompt uses only fetched documents and never receives prior document-derived cards", () => {

@@ -99,18 +99,38 @@ export default function SupportReview({ childId }) {
           {(c.dailyActivities || []).map((activity, index) => {
             const key = `${c.id}:${index}`;
             const busy = activityBusy === key;
+            const readiness = activity.readiness || "needs_details";
+            const canReviewActivity = readiness !== "needs_details" && activity.sourceExcerptVerified === true;
             return (
               <div key={`${activity.title}:${activity.sourceDocumentId}`} className="rounded-lg border border-border bg-background p-3 space-y-2" data-testid={`review-activity-${c.id}-${index}`}>
-                <p className="font-semibold">Activity: {activity.title}</p>
-                <p>{activity.routineContext} {activity.opportunity}</p>
-                <p><strong>Skill:</strong> {activity.skill}</p>
-                {activity.reinforcement && <p><strong>Plan reinforcement:</strong> {activity.reinforcement}</p>}
-                <p className="text-muted-foreground">Version {activity.contentVersion?.slice(0, 12)} · {activity.reviewedAt ? "Reviewed" : "Not reviewed"} · {activity.assignedAt ? "Assigned" : "Not assigned"}</p>
-                <div className="flex flex-wrap gap-2">
-                  {!activity.reviewedAt
-                    ? <Button size="sm" variant="outline" disabled={busy} onClick={() => runActivity(c, activity, index, "review")} data-testid={`button-review-activity-${index}`}>Review this version</Button>
-                    : <Button size="sm" variant="outline" disabled={busy} onClick={() => runActivity(c, activity, index, activity.assignedAt ? "unassign" : "assign")} data-testid={`button-assign-activity-${index}`}>{activity.assignedAt ? "Remove assignment" : "Assign to family"}</Button>}
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold">Activity: {activity.title}</p>
+                  <span className="rounded-full border px-2 py-0.5 text-muted-foreground">
+                    {readiness === "needs_details" ? "Needs Details" : readiness === "needs_clinician_review" ? "Needs Clinician Review" : activity.reviewedAt ? "Reviewed" : "Ready for Review"}
+                  </span>
                 </div>
+                {activity.routineContext && <p><strong>Context:</strong> {activity.routineContext}</p>}
+                {activity.opportunity && <p><strong>Opportunity:</strong> {activity.opportunity}</p>}
+                <p><strong>Materials:</strong> {activity.materials?.length ? activity.materials.join(", ") : readiness === "ready" ? "None needed" : "Not specified"}</p>
+                {activity.startAction && <p><strong>Start action:</strong> {activity.startAction}</p>}
+                {!!activity.steps?.length && <div><strong>Activity steps:</strong><List items={activity.steps} /></div>}
+                <p><strong>Skill:</strong> {activity.skill}</p>
+                {activity.relatedGoal && <p><strong>Related goal:</strong> {activity.relatedGoal}</p>}
+                {activity.estimatedMinutes && <p><strong>Estimated duration:</strong> {activity.estimatedMinutes} minutes</p>}
+                {activity.ending && <p><strong>Finish:</strong> {activity.ending}</p>}
+                {!!activity.pauseConditions?.length && <div><strong>Pause or stop if:</strong><List items={activity.pauseConditions} /></div>}
+                {!!activity.observationPrompts?.length && <div><strong>Optional observations:</strong><List items={activity.observationPrompts} /></div>}
+                {activity.reinforcement && <p><strong>Plan reinforcement:</strong> {activity.reinforcement}</p>}
+                {!!activity.readinessReasons?.length && <div className="text-muted-foreground"><strong>What is needed:</strong><List items={activity.readinessReasons} /></div>}
+                {activity.sourceExcerpt && <p><strong>Source excerpt:</strong> “{activity.sourceExcerpt}”</p>}
+                <p className="text-muted-foreground">Version {activity.contentVersion?.slice(0, 12)} · {activity.reviewedAt ? "Reviewed" : "Not reviewed"} · {activity.assignedAt ? "Assigned" : "Not assigned"}</p>
+                {canReviewActivity && (
+                  <div className="flex flex-wrap gap-2">
+                    {!activity.reviewedAt
+                      ? <Button size="sm" variant="outline" disabled={busy} onClick={() => runActivity(c, activity, index, "review")} data-testid={`button-review-activity-${index}`}>Review this version</Button>
+                      : <Button size="sm" variant="outline" disabled={busy} onClick={() => runActivity(c, activity, index, activity.assignedAt ? "unassign" : "assign")} data-testid={`button-assign-activity-${index}`}>{activity.assignedAt ? "Remove assignment" : "Assign to family"}</Button>}
+                  </div>
+                )}
               </div>
             );
           })}

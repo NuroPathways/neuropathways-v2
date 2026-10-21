@@ -31,6 +31,11 @@ const STATUS_LABELS = {
   needs_review: "Needs review",
 };
 
+function stepField(steps, prefix) {
+  const value = steps.find((step) => step.startsWith(prefix));
+  return value ? value.slice(prefix.length).trim() : "";
+}
+
 const RATINGS = [
   ["helped", "Worked well"],
   ["somewhat_helped", "Helped somewhat"],
@@ -60,12 +65,30 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
   const document = action.sourceDocumentId
     ? documents.find((item) => item.id === action.sourceDocumentId)
     : null;
-  const hasActions = action.status === "not_started" || action.status === "saved_for_later";
+  const steps = Array.isArray(action.steps) ? action.steps : [];
+  const startAction = stepField(steps, "Start: ");
+  const practicedSkill = stepField(steps, "Skill practiced: ");
+  const finish = stepField(steps, "Finish: ");
+  const pauseConditions = stepField(steps, "Pause or stop if: ");
+  const materials = stepField(steps, "Materials: ");
+  const relatedGoal = stepField(steps, "Related goal: ");
+  const observationPrompts = steps
+    .filter((step) => step.startsWith("Optional observation: "))
+    .map((step) => step.replace(/^Optional observation:\s*/, ""));
+  const activitySteps = steps
+    .filter((step) => /^Activity step \d+:\s*/.test(step))
+    .map((step) => step.replace(/^Activity step \d+:\s*/, ""));
+  const hasCompleteActivityStructure = Boolean(startAction && activitySteps.length >= 2 && activitySteps.length <= 5 && finish && pauseConditions);
+  const activityNeedsDetails = action.status !== "needs_review" && !hasCompleteActivityStructure;
+  const needsReview = action.status === "needs_review" || activityNeedsDetails;
+  const hasActions = !needsReview && (action.status === "not_started" || action.status === "saved_for_later");
   const feedback = action.logs?.[0];
   const busy = onStatus.isPending && onStatus.variables?.actionId === action.id;
   const saving = onOutcome.isPending && onOutcome.variables?.actionId === action.id;
-  const practicedSkill = action.steps?.find((step) => step.startsWith("Skill practiced: "));
-  const practiceSteps = action.steps?.filter((step) => step !== practicedSkill) || [];
+  const legacySteps = steps.filter((step) =>
+    !/^(Start: |Activity step \d+: |Skill practiced: |Related goal: |Finish: |Pause or stop if: |Materials: |Optional observation: )/.test(step),
+  );
+  const practiceSteps = activitySteps.length ? activitySteps : legacySteps;
 
   const updateStatus = (status) => {
     setError("");
@@ -77,7 +100,7 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
 
   return (
     <CompactCard
-      className={`pf-daily-action np-home-activity ${action.status === "needs_review" ? "needs-review" : ""}`}
+      className={`pf-daily-action np-home-activity ${needsReview ? "needs-review" : ""}`}
       data-testid={`card-daily-action-${action.id}`}
       title={action.title}
       current={showPracticeSteps}
@@ -85,36 +108,47 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
       description={action.description}
       badges={<>
         <span className={`pf-tag ${action.sourceType === "starter_template" ? "sun" : ""}`}>{sourceText(action)}</span>
-        <span className={`pf-tag ${statusTone(action.status)}`}>{STATUS_LABELS[action.status] || "Ready when you are"}</span>
+        <span className={`pf-tag ${statusTone(needsReview ? "needs_review" : action.status)}`}>{activityNeedsDetails ? "Needs Details" : STATUS_LABELS[action.status] || "Ready when you are"}</span>
       </>}
     >
       {document && <p className="pf-hint np-home-plan-source">Plan: {document.title || document.fileName}</p>}
-      {action.status === "needs_review" && (
-        <p className="pf-hint pf-daily-review-note">Ask your clinician which plan step to use before trying plan-specific guidance.</p>
+      {needsReview && (
+        <p className="pf-hint pf-daily-review-note">
+          {activityNeedsDetails
+            ? "This saved item is missing a clear start, two or more concrete steps, an ending, or pause conditions. It is not available to try."
+            : "Ask your clinician which plan step to use before trying plan-specific guidance."}
+        </p>
       )}
       <div className="np-home-activity-controls">
           <button
             type="button"
-            className={`pf-btn ${hasActions && action.status !== "needs_review" ? "primary" : ""}`}
+            className={`pf-btn ${hasActions ? "primary" : ""}`}
             aria-expanded={showPracticeSteps}
             aria-controls={`home-activity-details-${action.id}`}
             data-testid={`button-home-activity-${action.id}`}
             onClick={() => setShowPracticeSteps((shown) => !shown)}
           >
-            {showPracticeSteps ? "Close Activity" : action.status === "needs_review" ? "Review Activity" : hasActions ? "Try Today" : "View Activity"}
+            {showPracticeSteps ? "Close Activity" : needsReview ? "Review Activity" : hasActions ? "Try Today" : "View Activity"}
           </button>
       </div>
       {showPracticeSteps && (
         <div id={`home-activity-details-${action.id}`} className="np-home-activity-details">
-          {practicedSkill && <p className="pf-daily-skill"><strong>Skill practiced:</strong> {practicedSkill.replace(/^Skill practiced:\s*/, "")}</p>}
+          {startAction && <p><strong>Start action:</strong> {startAction}</p>}
+          {materials && <p><strong>Materials:</strong> {materials}</p>}
+          {practicedSkill && <p className="pf-daily-skill"><strong>Target skill:</strong> {practicedSkill}</p>}
+          {relatedGoal && <p><strong>Related goal:</strong> {relatedGoal}</p>}
           {practiceSteps.length > 0 && (
             <section className="pf-daily-try-steps" aria-label={`Steps to try for ${action.title}`}>
-              <strong>Steps to try</strong>
+              <strong>{activitySteps.length ? "Activity steps" : "Instructions"}</strong>
               <ol className="pf-daily-steps">
                 {practiceSteps.map((step, index) => <li key={`${action.id}-try-${index}`}>{step}</li>)}
               </ol>
             </section>
           )}
+          {finish && <p><strong>Finish:</strong> {finish}</p>}
+          {pauseConditions && <p className="pf-daily-review-note"><strong>Pause or stop if:</strong> {pauseConditions}</p>}
+          {observationPrompts.length > 0 && <p><strong>Optional observations:</strong> {observationPrompts.join(" ")}</p>}
+          {activityNeedsDetails && <p className="pf-hint">This older saved item does not meet the complete-activity standard.</p>}
       {action.whyItMayHelp && (
         <details className="pf-daily-details">
           <summary>Show Details</summary>
@@ -134,7 +168,7 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
         </p>
       )}
       <ErrorBox error={error} />
-      {showPracticeSteps && hasActions && action.status !== "needs_review" && (
+      {showPracticeSteps && hasActions && !needsReview && (
         <>
           <div className="pf-daily-outcomes" role="group" aria-label={`Activity outcome for ${childName}`}>
             {OUTCOMES.map(([value, label]) => (
@@ -171,7 +205,7 @@ function ActionCard({ action, documents, childName, onOutcome, onStatus }) {
           )}
         </>
       )}
-      {!hasActions && action.status !== "needs_review" && (
+      {!hasActions && !needsReview && (
         <p className="pf-hint pf-action-closed" aria-live="polite">
           {action.status === "skipped" ? "You can revisit this support step from the library." : "Your update is saved for today."}
         </p>
@@ -257,7 +291,7 @@ export default function DailySupportHome({
         {tasks.length ? actionGrid(showAllTasks ? tasks : tasks.slice(0, 3)) : (
           <div className="pf-card" data-testid="empty-daily-plan">
             <h3>Build today's practice list</h3>
-            <p>Choose a goal or read an uploaded plan, and activities will be built around what {childName} is working on.</p>
+            <p>Choose a behavior to see complete starter activities. Goals stay in Goals; plan-based activities appear here only when the source includes enough detail and any required clinician review is complete.</p>
             <div className="pf-daily-action-buttons">
               <button type="button" className="pf-btn primary" onClick={onGoals}>Choose a Goal</button>
               <button type="button" className="pf-btn" onClick={onUpload}>Read a Plan</button>
