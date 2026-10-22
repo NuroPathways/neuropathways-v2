@@ -147,6 +147,18 @@ describe("PracticePage", () => {
     await vi.waitFor(() => expect(onRecord).toHaveBeenCalledWith(expect.objectContaining({ id: "as1" }), { outcome: "used_skill", note: "" }));
   });
 
+  it("shows the accurate source label on a practice card before it is opened", () => {
+    const action = {
+      id: "source-card", title: "Practice a transition", description: "Use the saved visual.",
+      sourceType: "parent_uploaded_plan", sourceDocumentId: "plan-1",
+      steps: ["Show the visual."], status: "not_started", estimatedMinutes: 4,
+    };
+    renderPractice(<PracticePage childId="c1" actions={[action]} documents={[{ id: "plan-1", title: "Family transition plan" }]} />);
+    expect(screen.getByTestId("practice-source-source-card").textContent)
+      .toBe("Based on your uploaded plan · not clinician-reviewed · Family transition plan");
+    expect(screen.getByTestId("practice-activity-source-card").textContent).toContain("4 minutes");
+  });
+
   it("leaves the visible page title to the host header when hideTitle is set", () => {
     renderPractice(<PracticePage childId="c1" childName="River" actions={[]} hideTitle />);
     expect(screen.getByTestId("text-practice-title").className).toContain("sr-only");

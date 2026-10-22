@@ -162,14 +162,15 @@ export function ActivityGuide({ feedbackVisibility, activity, childName, assigne
   );
 }
 
-function ActivityCard({ activity, assigned, meta, onStart, onSave, saved, goal, toggle = false }) {
+function ActivityCard({ activity, assigned, meta, sourceLabel, onStart, onSave, saved, goal, toggle = false }) {
   const Icon = iconFor(activity);
   return (
     <CompactCard className="np-practice-card" data-testid={`practice-activity-${activity.id}`} headingLevel="h4"
       leading={<span className="np-practice-card-icon"><Icon size={18} /></span>}
       title={activity.title}
-      meta={meta || goal || assigned ? <>
+      meta={meta || sourceLabel || goal || assigned ? <>
         {meta && <span className="np-activity-meta">{meta}</span>}
+        {sourceLabel && !assigned && <span className="np-activity-meta" data-testid={`practice-source-${activity.id}`}>{sourceLabel}</span>}
         {goal && <span className="np-activity-meta">Related goal: {goal}</span>}
         {assigned && <span className="np-care-badge np-care-source">Assigned by Your Care Team</span>}
       </> : null}
@@ -320,7 +321,7 @@ export default function PracticePage({ childId, childName = "your child", action
         savedList.length || savedAssigned.length ? <div className="np-activity-grid">
           {savedAssigned.map((item) => <ActivityCard key={`assigned-${item.id}`} activity={item} assigned meta={[item.skill || categoryFor(item), item.estimatedMinutes ? `${item.estimatedMinutes} minutes` : null].filter(Boolean).join(" · ")}
             onStart={() => startAssigned(item)} goal={item.goalTitle} />)}
-          {savedList.map((action) => <ActivityCard key={action.id} activity={action} meta={metaFor(action)} onStart={() => startAction(action)} />)}
+          {savedList.map((action) => <ActivityCard key={action.id} activity={action} meta={metaFor(action)} sourceLabel={source(action)} onStart={() => startAction(action)} />)}
         </div> : <div className="np-practice-empty" data-testid="empty-practice-saved">
           <strong>Nothing saved yet.</strong>
           <p>Use Save on any activity to keep it here.</p>
@@ -344,7 +345,7 @@ export default function PracticePage({ childId, childName = "your child", action
         <section className="np-practice-section" aria-labelledby="child-activities-heading" data-testid="section-child-activities">
           <h3 id="child-activities-heading">Activities for {childName}</h3>
           {featured.length ? <div className="np-activity-grid">
-            {featured.map((action) => <ActivityCard key={action.id} activity={action} meta={metaFor(action)} onStart={() => startAction(action)}
+            {featured.map((action) => <ActivityCard key={action.id} activity={action} meta={metaFor(action)} sourceLabel={source(action)} onStart={() => startAction(action)}
               onSave={childId ? () => saveCard(action) : undefined} saved={isSaved(action)} />)}
           </div> : <div className="np-practice-empty" data-testid="empty-practice-activities">
             <strong>No activities are ready yet.</strong>
@@ -364,7 +365,7 @@ export default function PracticePage({ childId, childName = "your child", action
             {presentCategories.map((name) => <button type="button" key={name} aria-pressed={category === name} onClick={() => setCategory(name)} data-testid={`filter-category-${name.toLowerCase().replace(/[^a-z]+/g, "-")}`}>{name}</button>)}
           </div>}
           <div className="np-activity-grid">
-            {filtered.map((action) => <ActivityCard key={action.id} activity={action} meta={metaFor(action)} onStart={() => startAction(action)}
+            {filtered.map((action) => <ActivityCard key={action.id} activity={action} meta={metaFor(action)} sourceLabel={source(action)} onStart={() => startAction(action)}
               onSave={childId && !isClosedAction(action) ? () => saveCard(action) : undefined} saved={isSaved(action)} />)}
           </div>
         </section>}

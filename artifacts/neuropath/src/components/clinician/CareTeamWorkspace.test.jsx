@@ -118,6 +118,26 @@ describe("Care team forms", () => {
     ws.current = null;
   });
 
+  it("shows parent practice feedback with its activity, goal, date, note, and instruction version", () => {
+    ws.current = {
+      goals: [], assignments: [], observations: [],
+      recentPractice: [{
+        id: "practice-1", title: "Practice a familiar request", goalId: "goal-1",
+        goalTitle: "Ask for a break", createdAt: "2026-10-17T12:00:00.000Z",
+        outcome: "tried", note: "The visual helped.", version: 3,
+      }],
+    };
+    wrap(<CareTeamWorkspace childId="c1" childName="John" />);
+    const row = screen.getByTestId("row-practice-practice-1");
+    expect(row.textContent).toContain("Practice a familiar request");
+    expect(row.textContent).toContain("Related goal: Ask for a break");
+    expect(row.textContent).toContain("We tried it");
+    expect(row.textContent).toContain("Parent note: The visual helped.");
+    expect(row.textContent).toContain("Instructions version 3");
+    expect(row.querySelector("time")?.textContent).toBeTruthy();
+    ws.current = null;
+  });
+
   it("requires a target for completed steps", () => {
     wrap(<GoalForm onSubmit={() => {}} onPreview={() => {}} />);
     fireEvent.change(screen.getByTestId("input-care-goal-title"), { target: { value: "T" } });
