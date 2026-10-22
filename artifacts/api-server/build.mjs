@@ -31,6 +31,7 @@ async function buildAll() {
       "*.node",
       "zod",
       "mammoth",
+      "pdfjs-dist",
       "sharp",
       "better-sqlite3",
       "sqlite3",

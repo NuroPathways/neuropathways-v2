@@ -19,6 +19,7 @@ import {
   scanParentDocument,
   setParentDocumentSharing,
 } from "../lib/parentDocuments";
+import { parentPdfReaderMessages } from "../lib/parentPdfText";
 
 const router = Router();
 const upload = multer({
@@ -166,6 +167,10 @@ router.post(
       }
       if (message.includes("AI service") || message.includes("AI returned") || message.includes("scan failed")) {
         return res.status(502).json({ error: message });
+      }
+      if (message === parentPdfReaderMessages.unavailable ||
+          message === parentPdfReaderMessages.processingUnavailable) {
+        return res.status(503).json({ error: message });
       }
       return res.status(422).json({ error: message });
     }

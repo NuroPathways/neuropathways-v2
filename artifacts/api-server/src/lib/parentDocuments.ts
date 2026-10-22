@@ -69,8 +69,10 @@ import {
   readEncryptedParentDocument,
   saveEncryptedParentDocument,
 } from "./parentFileStorage";
+import { readParentPdfText, parentPdfReaderMessages } from "./parentPdfText";
 import { batchProcessParentSupport } from "./parentSupportBatch";
 import {
+  canReuseParentScan,
   hasMatchingParentScan,
   parentScanFingerprint,
   ParentDocumentTextCache,
@@ -601,13 +603,7 @@ export async function extractParentDocumentText(fileName: string, bytes: Buffer)
     throw new Error("The document type or file signature is invalid.");
   }
   if (extension === ".pdf") {
-    return readTextFromCommand(
-      "pdftotext",
-      ["-layout", "-enc", "UTF-8", "-", "-"],
-      bytes,
-      "The PDF text reader is unavailable.",
-      "The PDF could not be read.",
-    );
+    return readParentPdfText(bytes);
   }
   if (extension === ".docx") {
     const mammoth: any = await import("mammoth");
@@ -771,10 +767,13 @@ async function readParentDocument(
   )).limit(1);
   const extractionIsCurrent = extractionRun?.scanStatus === "completed" ||
     extractionRun?.scanStatus === "no_relevant_content";
-  if (document.scanStatus === "done" &&
-      extractionIsCurrent &&
-      hasMatchingParentScan(metadata.extractedSupport, fingerprint) &&
-      savedParentDocumentCards(metadata.extractedSupport).every((card) => validCard(card) && isSafeParentGuidance(card))) {
+  if (canReuseParentScan({
+    scanStatus: document.scanStatus || "",
+    extractionIsCurrent,
+    hasMatchingScan: hasMatchingParentScan(metadata.extractedSupport, fingerprint),
+    guidanceIsSafe: savedParentDocumentCards(metadata.extractedSupport)
+      .every((card) => validCard(card) && isSafeParentGuidance(card)),
+  })) {
     return {
       ok: true,
       supportCards: await getParentSupportCards(parentId, childId),
@@ -1214,8 +1213,13 @@ async function readParentDocument(
       "No readable text was found in this Word document.",
       "The .doc reader is unavailable.",
       "The Word document could not be read.",
-      "The PDF text reader is unavailable.",
-      "The PDF could not be read.",
+      parentPdfReaderMessages.unavailable,
+      "This PDF is password-protected. Upload an unlocked PDF copy.",
+      parentPdfReaderMessages.unreadable,
+      "This PDF has too many pages to read in one pass.",
+      "No searchable text was found in this PDF.",
+      parentPdfReaderMessages.processingUnavailable,
+      "This PDF is too large to read (over 20 MB).",
       TEXT_TOO_LONG_ERROR,
       "The text document is empty.",
       "The document type or file signature is invalid.",

@@ -23,6 +23,18 @@ export function hasMatchingParentScan(value: unknown, fingerprint: string): bool
     savedParentDocumentCards(value).length);
 }
 
+export function canReuseParentScan(input: {
+  scanStatus: string;
+  extractionIsCurrent: boolean;
+  hasMatchingScan: boolean;
+  guidanceIsSafe: boolean;
+}): boolean {
+  return input.scanStatus === "done" &&
+    input.extractionIsCurrent &&
+    input.hasMatchingScan &&
+    input.guidanceIsSafe;
+}
+
 /** Plaintext stays in bounded, short-lived process memory, never in a new DB field. */
 export class ParentDocumentTextCache {
   private entries = new Map<string, {

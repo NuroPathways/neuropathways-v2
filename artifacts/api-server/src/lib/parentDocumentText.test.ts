@@ -5,6 +5,8 @@ import {
   buildParentDocumentDiscoveryContent,
   buildParentDocumentGenerationContent,
 } from "./parentDocumentPolicy";
+import { classifyParentPdfReaderError } from "./parentPdfText";
+import { canReuseParentScan } from "./parentDocumentScanCache";
 
 function makeOnePagePdf(text: string): Buffer {
   const escaped = text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
@@ -46,12 +48,53 @@ test("over-limit text fails explicitly instead of saving a silently truncated pl
   );
 });
 
-test("PDF extraction returns searchable text from the complete source", async () => {
-  const extracted = await extractParentDocumentText(
-    "plan.pdf",
-    makeOnePagePdf("PDF_EXTRACTED_TEXT_SENTINEL"),
+test("packaged PDF.js reader extracts searchable text with no host PDF commands available", async () => {
+  const previousPath = process.env.PATH;
+  process.env.PATH = "";
+  try {
+    const extracted = await extractParentDocumentText(
+      "plan.pdf",
+      makeOnePagePdf("PDF_EXTRACTED_TEXT_SENTINEL"),
+    );
+    assert.match(extracted, /PDF_EXTRACTED_TEXT_SENTINEL/);
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+  }
+});
+
+test("PDF extraction distinguishes damaged, password-protected, and temporary reader failures", async () => {
+  await assert.rejects(
+    extractParentDocumentText("broken.pdf", Buffer.from("%PDF-1.4\nnot a PDF structure")),
+    /damaged or unreadable/i,
   );
-  assert.match(extracted, /PDF_EXTRACTED_TEXT_SENTINEL/);
+  await assert.rejects(
+    extractParentDocumentText("image-only.pdf", makeOnePagePdf("")),
+    /no searchable text/i,
+  );
+  assert.match(
+    classifyParentPdfReaderError(Object.assign(new Error("encrypted"), { name: "PasswordException" })).message,
+    /password-protected/i,
+  );
+  assert.match(
+    classifyParentPdfReaderError(Object.assign(new Error("malformed"), { name: "InvalidPDFException" })).message,
+    /damaged or unreadable/i,
+  );
+  assert.match(
+    classifyParentPdfReaderError(new Error("unexpected reader failure")).message,
+    /could not process this file right now/i,
+  );
+});
+
+test("a failed parent PDF scan is not reused and remains eligible for a fresh successful retry", () => {
+  const sharedContext = {
+    extractionIsCurrent: true,
+    hasMatchingScan: true,
+    guidanceIsSafe: true,
+  };
+  assert.equal(canReuseParentScan({ ...sharedContext, scanStatus: "error" }), false);
+  assert.equal(canReuseParentScan({ ...sharedContext, scanStatus: "processing" }), false);
+  assert.equal(canReuseParentScan({ ...sharedContext, scanStatus: "done" }), true);
 });
 
 test("PDF text and original pages are preserved in discovery and generation requests", () => {

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  canReuseParentScan,
   hasMatchingParentScan,
   parentScanFingerprint,
   ParentDocumentTextCache,
@@ -29,6 +30,17 @@ test("older findings remain readable but are not mistaken for a current complete
   assert.deepEqual(savedParentDocumentCards({ cards }), cards);
   assert.deepEqual(savedParentDocumentCards(null), []);
   assert.equal(hasMatchingParentScan(cards, "fingerprint"), false);
+});
+
+test("only fully completed and safe scans can bypass a retry", () => {
+  const current = {
+    extractionIsCurrent: true,
+    hasMatchingScan: true,
+    guidanceIsSafe: true,
+  };
+  assert.equal(canReuseParentScan({ ...current, scanStatus: "error" }), false);
+  assert.equal(canReuseParentScan({ ...current, scanStatus: "done" }), true);
+  assert.equal(canReuseParentScan({ ...current, scanStatus: "done", guidanceIsSafe: false }), false);
 });
 
 test("repeat and simultaneous reads share one extraction without crossing document keys", async () => {
