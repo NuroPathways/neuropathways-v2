@@ -26,3 +26,9 @@ PDF reading is required for every supported account type, including individual c
 **Why:** The user repeatedly reported reader-unavailable failures after earlier scanner checks. A successful clinician PDF scan and a parent text-file scan did not establish PDF reading in the other entry points.
 
 **How to apply:** Verify real PDFs through each distinct account path and execute the bundled reader, not only source tests. Searchable text is supplementary to complete-page visual reading; never fabricate it or treat an empty extraction as verified evidence.
+
+Do not make host PDF conversion a mandatory prerequisite when an independent packaged parser has validated the complete original PDF.
+
+**Why:** A converter missing from a serving instance can fail before any model request; a broad catch previously mislabeled that local preparation failure as an AI-service failure.
+
+**How to apply:** Exercise the built reader with host commands unavailable as well as available. Retain complete original pages, preserve file/password/size errors, and distinguish local-reader, provider, and persistence failures without logging document contents.

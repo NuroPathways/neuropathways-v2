@@ -131,6 +131,13 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     cwd: artifactDir,
     stdio: "inherit",
   });
+  // Published instances may not have host PDF executables. Verify that the
+  // independent packaged reader can still supply every original page.
+  execFileSync(process.execPath, [path.join(distDir, "check-pdf-reader.mjs")], {
+    cwd: artifactDir,
+    stdio: "inherit",
+    env: { ...process.env, PATH: "" },
+  });
 }
 
 buildAll().catch((err) => {

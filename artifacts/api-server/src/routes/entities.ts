@@ -16,7 +16,8 @@ import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
 import { decryptBuffer } from "./upload";
 import { legacyVisibleDocuments, isParentOwnedChild, isParentOwnedDocument, familyHasParentOwnedChildren } from "../lib/documentVisibility";
 import { isParentDocument, readParentDocumentBytes, extractParentDocumentText } from "../lib/parentDocuments";
-import { prepareClinicalPdf, clinicalScanServiceError } from "../lib/clinicalPdf";
+import { clinicalScanServiceError } from "../lib/clinicalPdf";
+import { prepareSupportPdf } from "../lib/supportPdf";
 import {
   DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE,
   documentExtractionsToolProperty,
@@ -1260,18 +1261,15 @@ router.post("/build-client-profile", async (req: any, res) => {
         } else if (ext === ".pdf") {
           let prepared: Buffer;
           try {
-            prepared = await prepareClinicalPdf(fileContent);
+            const result = await prepareSupportPdf(fileContent, () => extractParentDocumentText(filename, fileContent), {
+              enforceTextLimits: false,
+            });
+            prepared = result.pdf;
+            extractionSource.searchableText = result.searchableText.slice(0, 200_000);
           } catch (error) {
             failedDocs.push({ id: doc.id, reason: error instanceof Error ? error.message : "This PDF could not be read." });
             continue;
           }
-          let searchableText = "";
-          try {
-            searchableText = await extractParentDocumentText(filename, fileContent);
-          } catch {
-            // Visual extraction can still succeed; unverified source excerpts remain review-required.
-          }
-          extractionSource.searchableText = searchableText.slice(0, 200_000);
           contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]` });
           contentParts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: prepared.toString("base64") } });
           includedDocIds.push(doc.id);

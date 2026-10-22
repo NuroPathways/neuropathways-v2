@@ -20,6 +20,7 @@ import {
   setParentDocumentSharing,
 } from "../lib/parentDocuments";
 import { parentPdfReaderMessages } from "../lib/parentPdfText";
+import { DocumentProcessingError } from "../lib/documentAi";
 
 const router = Router();
 const upload = multer({
@@ -162,6 +163,11 @@ router.post(
       return res.json(await scanParentDocument(parentId(req), req.params.childId, req.params.documentId));
     } catch (error) {
       const message = error instanceof Error ? error.message : "The document scan failed. Please try again.";
+      if (error instanceof DocumentProcessingError) {
+        return res.status(error.httpStatus).json({
+          error: error.message, code: error.code, retryable: error.retryable,
+        });
+      }
       if (message === "Parent document not found" || message === "Child not found") {
         return res.status(404).json({ error: message });
       }
@@ -169,7 +175,8 @@ router.post(
         return res.status(502).json({ error: message });
       }
       if (message === parentPdfReaderMessages.unavailable ||
-          message === parentPdfReaderMessages.processingUnavailable) {
+          message === parentPdfReaderMessages.processingUnavailable ||
+          message.startsWith("The PDF processing service is unavailable")) {
         return res.status(503).json({ error: message });
       }
       return res.status(422).json({ error: message });
