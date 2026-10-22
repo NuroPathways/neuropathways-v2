@@ -1232,6 +1232,52 @@ components:
         behavior: { type: [string, "null"] }
         notes: { type: [string, "null"] }
         intensity: { type: [string, "null"] }
+    ActivityRecommendationEvidence:
+      type: object
+      required: [recordId, category, documentId, documentTitle, sourceExcerpt, reviewStatus]
+      properties:
+        recordId: { type: string }
+        category: { type: string }
+        documentId: { type: string }
+        documentTitle: { type: string }
+        sourceSection: { type: [string, "null"] }
+        sourcePage: { type: [integer, "null"] }
+        sourceExcerpt: { type: string }
+        reviewStatus: { type: string }
+    ActivityRecommendation:
+      type: object
+      required: [id, priorityTier, status, title, description, skill, estimatedMinutes, materials, startAction, steps, ending, pauseConditions, matchReasons, evidence, sourceClassification, researchReferences, safetyReviewRequired]
+      properties:
+        id: { type: string }
+        priorityTier:
+          type: string
+          enum: [clinician_approved_document_activity, document_activity_candidate, document_grounded_library]
+        status:
+          type: string
+          enum: [approved_not_assigned, needs_details, needs_clinician_review, suggestion_only]
+        title: { type: string }
+        description: { type: string }
+        skill: { type: string }
+        skillDomain:
+          type: string
+          enum: [communication, transitions, daily_living, social_play, coping, parent_preparation]
+        estimatedMinutes: { type: [integer, "null"] }
+        materials: { type: array, items: { type: string } }
+        startAction: { type: string }
+        steps: { type: array, items: { type: string } }
+        ending: { type: string }
+        pauseConditions: { type: array, items: { type: string } }
+        matchReasons: { type: array, items: { type: string } }
+        evidence:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityRecommendationEvidence" }
+        sourceClassification:
+          type: string
+          enum: [document_candidate, clinician_reviewed_document, research_informed_general_starter]
+        researchReferences:
+          type: array
+          items: { $ref: "#/components/schemas/CareActivityEvidenceReference" }
+        safetyReviewRequired: { type: boolean }
     CareTeamWorkspace:
       type: object
       required: [goals, assignments, recentPractice, observations]
@@ -1240,6 +1286,16 @@ components:
         assignments: { type: array, items: { $ref: "#/components/schemas/CareActivity" } }
         recentPractice: { type: array, items: { $ref: "#/components/schemas/CarePractice" } }
         observations: { type: array, items: { $ref: "#/components/schemas/CareObservation" } }
+        activityRecommendations:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityRecommendation" }
+        activityRecommendationStatus:
+          type: string
+          enum: [ready, scan_incomplete, no_verified_matches, no_documents]
+        activityRecommendationMessage: { type: string }
+        activitySafetyEvidence:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityRecommendationEvidence" }
     ParentGoal:
       type: object
       properties:

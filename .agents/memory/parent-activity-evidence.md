@@ -7,6 +7,8 @@ Label original general starter activities as research-informed design, not evide
 
 Context-sensitive activities require clinician review. Activities that require an authorized child-specific plan must not appear as generic parent starter suggestions and require explicit confirmation before clinician publication. Preserve child choice, communication access, and the ability to pause or stop.
 
-**Why:** The research set evaluates structured programs and heterogeneous interventions, not these short original templates. Generalizing a population-level result to a specific child's safety plan or to an untested activity would overstate the evidence.
+For child-specific matching, a goal may refine a candidate only after explicit child preference, communication, routine, or approved strategy evidence establishes the fit. Never create an activity from a goal alone; cite the current, verified source records behind every match. For reassurance-seeking goals, do not recommend exposure or withholding reassurance.
 
-**How to apply:** When expanding the library or implementing child-specific matching, keep source links, caveats, prerequisites, exclusions, risk tier, and publication gates attached to each template. Do not automatically recommend a plan-required activity from a selected behavior alone.
+**Why:** The research set evaluates structured programs and heterogeneous interventions, not these short original templates. Generalizing population-level evidence or a broad goal into a child's preference, safety plan, or intervention would overstate evidence and could produce an inappropriate activity.
+
+**How to apply:** Use deterministic matches from current, verified, child-specific sources; show exact citations and keep suggestions unassigned until clinician review. Keep source links, caveats, prerequisites, exclusions, risk tier, and publication gates attached to templates. Do not recommend plan-required activities from a selected behavior alone.

@@ -1,11 +1,15 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
-  db, rewardTokensTable, careTeamAssignmentsTable, careTeamVersionsTable, careTeamPracticeTable,
+  db, childrenTable, documentsTable, documentExtractionRunsTable, parentDocumentsTable,
+  rewardTokensTable, careTeamAssignmentsTable, careTeamVersionsTable, careTeamPracticeTable,
   parentPracticeProgressTable, parentClinicConsentsTable, parentAccountsTable, parentLogsTable,
   behaviorLogsTable,
 } from "@workspace/db";
 import { careTeamActivityLibrary } from "./parentDailyActions";
 import { familyIdForOwner } from "./familyParentAuth";
+import { legacyVisibleDocuments } from "./documentVisibility";
+import { getParentSharedSupport } from "./parentDocuments";
+import { buildChildActivityRecommendations, canExposeActivityRecommendations } from "./activityMatching";
 
 export function readableGoalTitle(goal: { goalTitle?: string | null; goalName?: string | null; goalDescription?: string | null }) {
   const technical = /^(?:[A-Z]\d+\s+)?goal\s+\d{1,2}:\d{2}(?::\d{2})?$|^(?:goal|token)[_-][a-f0-9-]{8,}$/i;
@@ -147,15 +151,182 @@ export async function careWorkspace(childId: string, clinicianId: string | null,
     eq(careTeamAssignmentsTable.childId, childId), eq(careTeamAssignmentsTable.clinicianId, clinicianId),
     parentId ? eq(careTeamAssignmentsTable.status, "published") : undefined,
   )).orderBy(desc(careTeamAssignmentsTable.updatedAt)) : [];
-  return {
+  const assignmentWires = await Promise.all(assignments.map(a => assignmentWire(a, parentId)));
+  const workspace = {
     // Existing document/manual clinical goals still use their original IDs. The
     // unified Goals UI uses this section for clinician-managed care_team goals.
     // Never expose private parent-document goals or a family's private goal
     // collection merely because a clinician was linked to the child.
     goals: goals.filter(g => g.createdByClinician && g.source !== "parent_document" && (!parentId || g.source === "care_team"))
       .map(g => careGoalWire(g, assignments.filter(a => a.goalId === g.id).map(a => a.id))),
-    assignments: await Promise.all(assignments.map(a => assignmentWire(a, parentId))),
+    assignments: assignmentWires,
     recentPractice: await carePracticeHistory(childId, clinicianId, parentId),
     observations: parentId || !clinicianId ? [] : await careObservations(childId, clinicianId),
+  };
+  if (!clinicianId || !canExposeActivityRecommendations(clinicianId, parentId)) return workspace;
+
+  const [child] = await db.select().from(childrenTable).where(and(
+    eq(childrenTable.id, childId),
+    eq(childrenTable.clinicianId, clinicianId),
+  ));
+  if (!child) {
+    return {
+      ...workspace,
+      activityRecommendations: [],
+      activityRecommendationStatus: "no_documents" as const,
+      activityRecommendationMessage: "No authorized child records were available for activity matching.",
+      activitySafetyEvidence: [],
+    };
+  }
+
+  const allDocuments = await db.select().from(documentsTable).where(eq(documentsTable.childId, childId));
+  const permissionVisible = await legacyVisibleDocuments(allDocuments, clinicianId);
+  const parentMetadata = permissionVisible.length
+    ? await db.select().from(parentDocumentsTable)
+      .where(inArray(parentDocumentsTable.documentId, permissionVisible.map((document) => document.id)))
+    : [];
+  const metadataById = new Map(parentMetadata.map((metadata) => [metadata.documentId, metadata]));
+  const visibleDocuments = permissionVisible.filter((document) => {
+    const metadata = metadataById.get(document.id);
+    return !metadata || (
+      metadata.childId === childId &&
+      metadata.parentId === child.parentId &&
+      metadata.sharedClinicianId === clinicianId
+    );
+  });
+  const visibleDocumentIds = visibleDocuments.map((document) => document.id);
+  const runs = visibleDocumentIds.length
+    ? await db.select().from(documentExtractionRunsTable)
+      .where(and(
+        inArray(documentExtractionRunsTable.documentId, visibleDocumentIds),
+        eq(documentExtractionRunsTable.childId, childId),
+      ))
+      .orderBy(desc(documentExtractionRunsTable.updatedAt))
+    : [];
+  const documentById = new Map(visibleDocuments.map((document) => [document.id, document]));
+  const latestRunByDocument = new Map<string, typeof runs[number]>();
+  for (const run of runs) {
+    if (!latestRunByDocument.has(run.documentId)) {
+      latestRunByDocument.set(run.documentId, run);
+    }
+  }
+  const usableDocuments = visibleDocuments.filter((document) => {
+    if (document.scanStatus !== "done") return false;
+    const run = latestRunByDocument.get(document.id);
+    if (!run || !["completed", "partial", "no_relevant_content"].includes(run.scanStatus)) return false;
+    const metadata = metadataById.get(document.id);
+    return !metadata || run.documentVersion === metadata.sha256;
+  });
+  const incompleteScans = visibleDocuments.filter((document) => {
+    if (document.scanStatus !== "done") return true;
+    const run = latestRunByDocument.get(document.id);
+    if (!run) return true;
+    const metadata = metadataById.get(document.id);
+    if (metadata && run.documentVersion !== metadata.sha256) return true;
+    return run.scanStatus === "partial" || run.scanStatus === "failed" || run.scanStatus === "processing";
+  });
+  const usableDocumentIds = new Set(usableDocuments.map((document) => document.id));
+  const records = runs
+    .filter((run) => usableDocumentIds.has(run.documentId) && latestRunByDocument.get(run.documentId)?.id === run.id)
+    .flatMap((run) => {
+      const document = documentById.get(run.documentId);
+      const saved = Array.isArray(run.records) ? run.records : [];
+      return document ? saved.map((record) => ({
+        ...record,
+        documentTitle: document.title || document.fileName || "Support document",
+      })) : [];
+    });
+
+  let approvedDocumentActivities: Array<{
+    title: string;
+    routineContext?: string;
+    opportunity?: string;
+    skill?: string;
+    relatedGoal?: string | null;
+    estimatedMinutes?: number | null;
+    materials?: string[];
+    startAction?: string;
+    steps?: string[];
+    ending?: string;
+    pauseConditions?: string[];
+    sourceDocumentId: string;
+    sourceDocumentTitle: string;
+    sourceExcerpt: string;
+    sourcePage?: number | null;
+    reviewedBy: string;
+    reviewedAt: string;
+    assignedAt?: string | null;
+    readiness: string;
+    sourceExcerptVerified: boolean;
+  }> = [];
+  if (child.parentId) {
+    const sharedSupport = await getParentSharedSupport(clinicianId, childId);
+    const sharedTitles = new Map(sharedSupport.documents.map((document) => [document.id, document.title]));
+    approvedDocumentActivities = sharedSupport.supportCards.flatMap((card) =>
+      (card.dailyActivities || []).flatMap((activity) => {
+        if (
+          activity.sourceType !== "clinician_reviewed" ||
+          activity.reviewedBy !== clinicianId ||
+          !activity.reviewedAt ||
+          !activity.sourceDocumentId ||
+          !activity.sourceExcerpt ||
+          !sharedTitles.has(activity.sourceDocumentId)
+        ) return [];
+        return [{
+          title: activity.title,
+          routineContext: activity.routineContext,
+          opportunity: activity.opportunity,
+          skill: activity.skill,
+          relatedGoal: activity.relatedGoal,
+          estimatedMinutes: activity.estimatedMinutes,
+          materials: activity.materials,
+          startAction: activity.startAction,
+          steps: activity.steps,
+          ending: activity.ending,
+          pauseConditions: activity.pauseConditions,
+          sourceDocumentId: activity.sourceDocumentId,
+          sourceDocumentTitle: sharedTitles.get(activity.sourceDocumentId) || "Shared support document",
+          sourceExcerpt: activity.sourceExcerpt,
+          reviewedBy: clinicianId,
+          reviewedAt: String(activity.reviewedAt),
+          assignedAt: activity.assignedAt,
+          readiness: activity.readiness || "needs_details",
+          sourceExcerptVerified: activity.sourceExcerptVerified === true,
+        }];
+      }),
+    );
+  }
+
+  const matching = buildChildActivityRecommendations({
+    childId,
+    clinicianId,
+    records,
+    library: careTeamActivityLibrary(),
+    existingAssignments: assignmentWires,
+    approvedDocumentActivities,
+  });
+  const hasDocuments = visibleDocuments.length > 0;
+  const incomplete = incompleteScans.length > 0;
+  const status = !hasDocuments
+    ? "no_documents" as const
+    : incomplete
+      ? "scan_incomplete" as const
+      : matching.recommendations.length
+        ? "ready" as const
+        : "no_verified_matches" as const;
+  const message = !hasDocuments
+    ? "No source documents are available in this clinician workspace. No individualized activity suggestions were generated."
+    : incomplete
+      ? "Some available documents are not fully scanned. Suggestions use only current, source-verified information; missing scan content was not guessed."
+      : matching.recommendations.length
+        ? "These are reviewable suggestions, not assignments. Published assignments remain the first priority; confirm current fit and safety before considering a suggestion. Goals alone do not create activities."
+        : "No child-specific activity suggestion matched the current source-verified records. Goals alone do not create activities.";
+
+  return {
+    ...workspace,
+    activityRecommendations: matching.recommendations,
+    activityRecommendationStatus: status,
+    activityRecommendationMessage: message,
+    activitySafetyEvidence: matching.safetyEvidence,
   };
 }

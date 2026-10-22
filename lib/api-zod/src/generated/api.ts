@@ -156,7 +156,56 @@ export const GetClinicianGoalsActivitiesResponse = zod.object({
   "behavior": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "intensity": zod.string().nullish()
-}))
+})),
+  "activityRecommendations": zod.array(zod.object({
+  "id": zod.string(),
+  "priorityTier": zod.enum(['clinician_approved_document_activity', 'document_activity_candidate', 'document_grounded_library']),
+  "status": zod.enum(['approved_not_assigned', 'needs_details', 'needs_clinician_review', 'suggestion_only']),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "skillDomain": zod.enum(['communication', 'transitions', 'daily_living', 'social_play', 'coping', 'parent_preparation']).optional(),
+  "estimatedMinutes": zod.number().int().nullable(),
+  "materials": zod.array(zod.string()),
+  "startAction": zod.string(),
+  "steps": zod.array(zod.string()),
+  "ending": zod.string(),
+  "pauseConditions": zod.array(zod.string()),
+  "matchReasons": zod.array(zod.string()),
+  "evidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})),
+  "sourceClassification": zod.enum(['document_candidate', 'clinician_reviewed_document', 'research_informed_general_starter']),
+  "researchReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+})),
+  "safetyReviewRequired": zod.boolean()
+})).optional(),
+  "activityRecommendationStatus": zod.enum(['ready', 'scan_incomplete', 'no_verified_matches', 'no_documents']).optional(),
+  "activityRecommendationMessage": zod.string().optional(),
+  "activitySafetyEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})).optional()
 })
 
 
@@ -595,7 +644,56 @@ export const GetParentCareTeamResponse = zod.object({
   "behavior": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "intensity": zod.string().nullish()
-}))
+})),
+  "activityRecommendations": zod.array(zod.object({
+  "id": zod.string(),
+  "priorityTier": zod.enum(['clinician_approved_document_activity', 'document_activity_candidate', 'document_grounded_library']),
+  "status": zod.enum(['approved_not_assigned', 'needs_details', 'needs_clinician_review', 'suggestion_only']),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "skillDomain": zod.enum(['communication', 'transitions', 'daily_living', 'social_play', 'coping', 'parent_preparation']).optional(),
+  "estimatedMinutes": zod.number().int().nullable(),
+  "materials": zod.array(zod.string()),
+  "startAction": zod.string(),
+  "steps": zod.array(zod.string()),
+  "ending": zod.string(),
+  "pauseConditions": zod.array(zod.string()),
+  "matchReasons": zod.array(zod.string()),
+  "evidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})),
+  "sourceClassification": zod.enum(['document_candidate', 'clinician_reviewed_document', 'research_informed_general_starter']),
+  "researchReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+})),
+  "safetyReviewRequired": zod.boolean()
+})).optional(),
+  "activityRecommendationStatus": zod.enum(['ready', 'scan_incomplete', 'no_verified_matches', 'no_documents']).optional(),
+  "activityRecommendationMessage": zod.string().optional(),
+  "activitySafetyEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})).optional()
 })
 
 

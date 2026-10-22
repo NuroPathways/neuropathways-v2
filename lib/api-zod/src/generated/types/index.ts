@@ -6,6 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './activityRecommendation';
+export * from './activityRecommendationEvidence';
+export * from './activityRecommendationPriorityTier';
+export * from './activityRecommendationSkillDomain';
+export * from './activityRecommendationSourceClassification';
+export * from './activityRecommendationStatus';
 export * from './authUser';
 export * from './careActivity';
 export * from './careActivityEvidenceReference';
@@ -23,6 +29,7 @@ export * from './carePracticeInputOutcome';
 export * from './carePracticeProgressInput';
 export * from './careStatus';
 export * from './careTeamWorkspace';
+export * from './careTeamWorkspaceActivityRecommendationStatus';
 export * from './clinicianActivityActionInput';
 export * from './clinicianActivityActionInputAction';
 export * from './clinicianObservationFeedbackInput';

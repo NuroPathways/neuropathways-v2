@@ -255,11 +255,100 @@ export interface CareObservation {
   intensity?: string | null;
 }
 
+export interface ActivityRecommendationEvidence {
+  recordId: string;
+  category: string;
+  documentId: string;
+  documentTitle: string;
+  /** @nullable */
+  sourceSection?: string | null;
+  /** @nullable */
+  sourcePage?: number | null;
+  sourceExcerpt: string;
+  reviewStatus: string;
+}
+
+export type ActivityRecommendationPriorityTier = typeof ActivityRecommendationPriorityTier[keyof typeof ActivityRecommendationPriorityTier];
+
+
+export const ActivityRecommendationPriorityTier = {
+  clinician_approved_document_activity: 'clinician_approved_document_activity',
+  document_activity_candidate: 'document_activity_candidate',
+  document_grounded_library: 'document_grounded_library',
+} as const;
+
+export type ActivityRecommendationStatus = typeof ActivityRecommendationStatus[keyof typeof ActivityRecommendationStatus];
+
+
+export const ActivityRecommendationStatus = {
+  approved_not_assigned: 'approved_not_assigned',
+  needs_details: 'needs_details',
+  needs_clinician_review: 'needs_clinician_review',
+  suggestion_only: 'suggestion_only',
+} as const;
+
+export type ActivityRecommendationSkillDomain = typeof ActivityRecommendationSkillDomain[keyof typeof ActivityRecommendationSkillDomain];
+
+
+export const ActivityRecommendationSkillDomain = {
+  communication: 'communication',
+  transitions: 'transitions',
+  daily_living: 'daily_living',
+  social_play: 'social_play',
+  coping: 'coping',
+  parent_preparation: 'parent_preparation',
+} as const;
+
+export type ActivityRecommendationSourceClassification = typeof ActivityRecommendationSourceClassification[keyof typeof ActivityRecommendationSourceClassification];
+
+
+export const ActivityRecommendationSourceClassification = {
+  document_candidate: 'document_candidate',
+  clinician_reviewed_document: 'clinician_reviewed_document',
+  research_informed_general_starter: 'research_informed_general_starter',
+} as const;
+
+export interface ActivityRecommendation {
+  id: string;
+  priorityTier: ActivityRecommendationPriorityTier;
+  status: ActivityRecommendationStatus;
+  title: string;
+  description: string;
+  skill: string;
+  skillDomain?: ActivityRecommendationSkillDomain;
+  /** @nullable */
+  estimatedMinutes: number | null;
+  materials: string[];
+  startAction: string;
+  steps: string[];
+  ending: string;
+  pauseConditions: string[];
+  matchReasons: string[];
+  evidence: ActivityRecommendationEvidence[];
+  sourceClassification: ActivityRecommendationSourceClassification;
+  researchReferences: CareActivityEvidenceReference[];
+  safetyReviewRequired: boolean;
+}
+
+export type CareTeamWorkspaceActivityRecommendationStatus = typeof CareTeamWorkspaceActivityRecommendationStatus[keyof typeof CareTeamWorkspaceActivityRecommendationStatus];
+
+
+export const CareTeamWorkspaceActivityRecommendationStatus = {
+  ready: 'ready',
+  scan_incomplete: 'scan_incomplete',
+  no_verified_matches: 'no_verified_matches',
+  no_documents: 'no_documents',
+} as const;
+
 export interface CareTeamWorkspace {
   goals: CareGoal[];
   assignments: CareActivity[];
   recentPractice: CarePractice[];
   observations: CareObservation[];
+  activityRecommendations?: ActivityRecommendation[];
+  activityRecommendationStatus?: CareTeamWorkspaceActivityRecommendationStatus;
+  activityRecommendationMessage?: string;
+  activitySafetyEvidence?: ActivityRecommendationEvidence[];
 }
 
 export interface ParentGoal {

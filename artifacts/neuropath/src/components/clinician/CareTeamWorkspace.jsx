@@ -15,6 +15,10 @@ import { ActivityGuide } from "@/components/parentfree/PracticePage";
 import { CareTeamGoalCard } from "@/components/parentfree/ClinicalGoals";
 import { CARE_SKILLS, CARE_MEASUREMENTS, CARE_STATUS_LABELS, CARE_OUTCOME_LABELS, formatDay } from "@/lib/careTeam";
 import { readableGoalTitle } from "@/lib/goalTitle";
+import { CompactCard } from "@workspace/neuropathways-foundations/components/ui/compact-card";
+import { Disclosure } from "@workspace/neuropathways-foundations/components/ui/disclosure";
+import { Surface } from "@workspace/neuropathways-foundations/components/ui/surface";
+import { StatusBadge as FoundationStatusBadge } from "@workspace/neuropathways-foundations/components/ui/status-badge";
 
 const STATUS_TONE = {
   draft: "bg-muted text-foreground",
@@ -76,6 +80,90 @@ export const goalPayload = (form, status, version) => ({
   ...(version != null ? { expectedVersion: version } : {}),
 });
 const needsTarget = (m) => ["frequency", "duration", "percentage", "completed_steps"].includes(m);
+const recommendationStatusLabel = (recommendation) => {
+  if (recommendation.sourceClassification === "clinician_reviewed_document") return "Clinician-reviewed document activity";
+  if (recommendation.sourceClassification === "document_candidate") {
+    if (recommendation.status === "needs_details") return "Document candidate · needs details";
+    if (recommendation.status === "approved_not_assigned") return "Clinician-approved document activity";
+    return "Document candidate · needs clinician review";
+  }
+  if (recommendation.status === "needs_clinician_review") return "Research-informed starter · needs clinician review";
+  return "Research-informed starter · not an assignment";
+};
+
+function RecommendationCard({ recommendation }) {
+  const references = Array.isArray(recommendation.researchReferences) ? recommendation.researchReferences : [];
+  return (
+    <CompactCard
+      title={recommendation.title}
+      headingLevel="h4"
+      badges={<FoundationStatusBadge tone={recommendation.sourceClassification === "clinician_reviewed_document" ? "support" : "neutral"}>
+        {recommendationStatusLabel(recommendation)}
+      </FoundationStatusBadge>}
+      meta={<>{recommendation.skill}{recommendation.estimatedMinutes ? ` · about ${recommendation.estimatedMinutes} minutes` : ""}</>}
+      description={recommendation.description || recommendation.matchReasons?.join(" ")}
+      data-testid={`activity-recommendation-${recommendation.id}`}
+    >
+      {recommendation.matchReasons?.length > 0 && (
+        <ul className="list-disc space-y-1 pl-5 text-body-sm text-foreground">
+          {recommendation.matchReasons.map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}
+        </ul>
+      )}
+      {recommendation.materials?.length > 0 && (
+        <p className="text-support-sm text-muted-foreground"><span className="font-semibold text-foreground">Materials:</span> {recommendation.materials.join(", ")}</p>
+      )}
+      {recommendation.startAction && <p className="text-body-sm"><span className="font-semibold">Start:</span> {recommendation.startAction}</p>}
+      {recommendation.steps?.length > 0 && (
+        <ol className="list-decimal space-y-1 pl-5 text-body-sm text-foreground">
+          {recommendation.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+        </ol>
+      )}
+      {recommendation.ending && <p className="text-body-sm"><span className="font-semibold">Ending:</span> {recommendation.ending}</p>}
+      {recommendation.pauseConditions?.length > 0 && (
+        <p className="text-body-sm"><span className="font-semibold">Pause or stop:</span> {recommendation.pauseConditions.join(" ")}</p>
+      )}
+      {recommendation.evidence?.length > 0 && (
+        <Disclosure
+          title="Source records"
+          hint="Check the cited source and its review status before using this suggestion."
+          className="mt-2"
+        >
+          <ul className="space-y-2">
+            {recommendation.evidence.map((source) => (
+              <li key={`${source.recordId}-${source.documentId}`} className="rounded-lg bg-muted/50 p-2">
+                <p className="text-support-sm font-semibold text-foreground">
+                  {source.documentTitle}
+                  {source.sourceSection ? ` · ${source.sourceSection}` : ""}
+                  {source.sourcePage ? ` · page ${source.sourcePage}` : ""}
+                  {` · ${source.reviewStatus === "approved" ? "approved record" : "not yet reviewed"}`}
+                </p>
+                <p className="mt-1 text-body-sm text-foreground">{source.sourceExcerpt}</p>
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
+      )}
+      {references.length > 0 && (
+        <Disclosure
+          title="Research context"
+          hint="These sources inform a general starter template; they do not prove this specific activity is effective for this child."
+          className="mt-2"
+        >
+          <ul className="list-disc space-y-1 pl-5">
+            {references.map((reference, index) => (
+              <li key={`${reference.key || reference.title || "reference"}-${index}`}>
+                {reference.url
+                  ? <a className="text-primary underline underline-offset-2" href={reference.url} target="_blank" rel="noreferrer">{reference.title || "Research source"}{reference.publishedYear ? ` (${reference.publishedYear})` : ""}</a>
+                  : `${reference.title || "Research source"}${reference.publishedYear ? ` (${reference.publishedYear})` : ""}`}
+                {reference.limitation ? <span className="text-muted-foreground"> — {reference.limitation}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
+      )}
+    </CompactCard>
+  );
+}
 
 const emptyActivity = { mode: "library", libraryId: "", goalId: "", schedule: "", title: "", description: "", skill: "Communication", estimatedMinutes: "", materials: "", steps: [""], whyItMayHelp: "", ifDifficult: "", notes: "", planConfirmed: false };
 const activityToForm = (a) => ({
@@ -359,6 +447,40 @@ export default function CareTeamWorkspace({ childId, childName = "your client" }
                 </div>
               )}
             </div>
+
+            <section className="space-y-2" aria-labelledby="child-activity-suggestions-heading" data-testid="section-child-activity-suggestions">
+              <h4 id="child-activity-suggestions-heading" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Child-specific activity suggestions</h4>
+              <p className="px-1 text-support-sm text-muted-foreground">Published assignments are listed above and take priority. These evidence-linked suggestions are not assigned or sent to the family; confirm current fit, familiarity, and safety before considering them.</p>
+              {ws.activityRecommendationMessage && (
+                <p
+                  className={`rounded-lg border px-3 py-2 text-body-sm ${ws.activityRecommendationStatus === "scan_incomplete" ? "border-destructive/30 bg-destructive/10 text-foreground" : "border-border bg-muted/50 text-foreground"}`}
+                  role={ws.activityRecommendationStatus === "scan_incomplete" ? "status" : undefined}
+                  data-testid="activity-recommendation-message"
+                >
+                  {ws.activityRecommendationMessage}
+                </p>
+              )}
+              {ws.activitySafetyEvidence?.length > 0 && (
+                <Surface variant="separated" tone="urgent" className="space-y-2" role="note" data-testid="activity-safety-evidence">
+                  <p className="text-body-sm font-semibold">Safety information is documented. Review it before considering any suggestion.</p>
+                  {ws.activitySafetyEvidence.map((source) => (
+                    <p key={`${source.recordId}-${source.documentId}`} className="text-body-sm">
+                      <span className="font-semibold">{source.documentTitle}{source.sourcePage ? ` · page ${source.sourcePage}` : ""}:</span>{" "}
+                      {source.sourceExcerpt}
+                    </p>
+                  ))}
+                </Surface>
+              )}
+              {ws.activityRecommendations?.length > 0 ? (
+                <div className="space-y-3">
+                  {ws.activityRecommendations.map((recommendation) => (
+                    <RecommendationCard key={recommendation.id} recommendation={recommendation} />
+                  ))}
+                </div>
+              ) : !ws.activityRecommendationMessage ? (
+                <p className="px-1 text-body-sm text-muted-foreground">No child-specific suggestions are available yet.</p>
+              ) : null}
+            </section>
 
             <div className="space-y-2">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Recent Practice</h4>

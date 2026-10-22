@@ -5,14 +5,21 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ActivityRecommendation } from './activityRecommendation';
+import type { ActivityRecommendationEvidence } from './activityRecommendationEvidence';
 import type { CareActivity } from './careActivity';
 import type { CareGoal } from './careGoal';
 import type { CareObservation } from './careObservation';
 import type { CarePractice } from './carePractice';
+import type { CareTeamWorkspaceActivityRecommendationStatus } from './careTeamWorkspaceActivityRecommendationStatus';
 
 export interface CareTeamWorkspace {
   goals: CareGoal[];
   assignments: CareActivity[];
   recentPractice: CarePractice[];
   observations: CareObservation[];
+  activityRecommendations?: ActivityRecommendation[];
+  activityRecommendationStatus?: CareTeamWorkspaceActivityRecommendationStatus;
+  activityRecommendationMessage?: string;
+  activitySafetyEvidence?: ActivityRecommendationEvidence[];
 }

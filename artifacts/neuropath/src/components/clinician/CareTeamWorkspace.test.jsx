@@ -17,7 +17,7 @@ vi.mock("@workspace/api-client-react", () => ({
 const { default: CareTeamWorkspace, GoalForm, AssignActivityForm, goalPayload, friendlyError } = await import("./CareTeamWorkspace");
 const api = await import("@workspace/api-client-react");
 const { ActivityGuide } = await import("@/components/parentfree/PracticePage");
-afterEach(cleanup);
+afterEach(() => { cleanup(); ws.current = null; });
 const wrap = (node) => render(<QueryClientProvider client={new QueryClient()}>{node}</QueryClientProvider>);
 
 describe("Care team forms", () => {
@@ -123,6 +123,56 @@ describe("Care team forms", () => {
     fireEvent.change(screen.getByTestId("input-care-goal-description"), { target: { value: "D" } });
     fireEvent.change(screen.getByTestId("select-care-goal-measurement"), { target: { value: "completed_steps" } });
     expect(screen.getByTestId("button-publish-parent").disabled).toBe(true);
+  });
+  it("shows clinician-only activity suggestions with traceable sources and no assignment action", () => {
+    ws.current = {
+      goals: [], assignments: [], recentPractice: [], observations: [],
+      activityRecommendationStatus: "ready",
+      activityRecommendationMessage: "These are reviewable suggestions, not assignments.",
+      activityRecommendations: [{
+        id: "library:familiar-aac-choice",
+        priorityTier: "document_grounded_library",
+        status: "suggestion_only",
+        title: "Familiar AAC choice",
+        description: "Use the child's existing communication method.",
+        skill: "Communication",
+        estimatedMinutes: 5,
+        materials: ["AAC device"],
+        startAction: "",
+        steps: ["Offer one familiar choice."],
+        ending: "",
+        pauseConditions: ["Pause if the child is finished."],
+        matchReasons: ["The child's existing AAC method is explicitly documented."],
+        evidence: [{
+          recordId: "record-aac", category: "profile_information", documentId: "doc-a",
+          documentTitle: "Communication plan", sourceSection: "Communication", sourcePage: 3,
+          sourceExcerpt: "Uses an AAC device to make familiar choices.", reviewStatus: "unreviewed",
+        }],
+        sourceClassification: "research_informed_general_starter",
+        researchReferences: [],
+        safetyReviewRequired: false,
+      }],
+    };
+    wrap(<CareTeamWorkspace childId="c1" childName="John" />);
+    expect(screen.getByText("Child-specific activity suggestions")).toBeTruthy();
+    expect(screen.getByText("These are reviewable suggestions, not assignments.")).toBeTruthy();
+    expect(screen.getByText(/existing AAC method is explicitly documented/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Source records/ }));
+    expect(screen.getByText("Communication plan · Communication · page 3 · not yet reviewed")).toBeTruthy();
+    expect(screen.getByText("Uses an AAC device to make familiar choices.")).toBeTruthy();
+    expect(screen.queryByTestId("button-publish-suggestion")).toBeNull();
+  });
+
+  it("explains when goals did not produce child-specific suggestions", () => {
+    ws.current = {
+      goals: [], assignments: [], recentPractice: [], observations: [],
+      activityRecommendationStatus: "no_verified_matches",
+      activityRecommendationMessage: "No child-specific activity suggestion matched the current source-verified records. Goals alone do not create activities.",
+      activityRecommendations: [],
+    };
+    wrap(<CareTeamWorkspace childId="c1" childName="John" />);
+    expect(screen.getByTestId("activity-recommendation-message").textContent).toMatch(/Goals alone do not create activities/);
+    expect(screen.queryByText("Familiar AAC choice")).toBeNull();
   });
   it("shows the server message for 409 validation errors", () => {
     expect(friendlyError({ message: "HTTP 409: x", data: { error: "Target is required for this measurement." } })).toBe("Target is required for this measurement.");
