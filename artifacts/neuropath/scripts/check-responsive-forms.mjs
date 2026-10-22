@@ -129,7 +129,7 @@ async function runProductionRouteChecks(url, viewport) {
     { path: "/ParentQuickStart", name: "parent setup", expected: "Add Your Child" },
     { path: "/ParentSignupUsername", name: "parent signup", expected: "Create Your Account" },
     { path: "/UsernameLogin", name: "client sign in", expected: "Client sign in" },
-    { path: "/ClientHome", name: "client portal", expected: "My Children" },
+    { path: "/ClientHome", name: "individual client home", expected: "Your personal support hub" },
   ];
 
   try {
@@ -189,7 +189,7 @@ async function runProductionRouteChecks(url, viewport) {
             id: "responsive-check-family",
             invite_token: "responsive-check-invite",
             display_name: "Taylor",
-            account_type: "family",
+            account_type: "individual",
             children: [{ id: "responsive-check-child", child_name: "Jordan", age: 10 }]
           }));
         } else {
@@ -205,7 +205,9 @@ async function runProductionRouteChecks(url, viewport) {
           });
           if (url.pathname === "/api/parent/session") {
             return parentRoute
-              ? json({ parent: { id: "responsive-check-parent", email: "parent@example.test", firstName: "Taylor", workspaceId: "responsive-check-workspace" }, children: [] })
+              ? json({ parent: { id: "responsive-check-parent", email: "parent@example.test", firstName: "Taylor", accountType: "parent_free", workspaceId: "responsive-check-workspace" }, children: [] })
+              : clientRoute
+                ? json({ code: "individual_client" }, 409)
               : json({ error: "Not authenticated" }, 401);
           }
           if (url.pathname === "/api/parent/starter-library") return json([]);

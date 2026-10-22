@@ -22,3 +22,11 @@ Treat screenshots of an entering dialog as animation samples until its computed 
 **Why:** Help Now was reported as translucent on both parent account modes, but delayed measurements showed a fully opaque panel with no rendering defect. No CSS fix was needed.
 
 **How to apply:** Before editing dialog CSS or expanding an approved redesign scope, wait for the entrance animation, then sample computed panel/wrapper opacity and background at two stable points. Distinguish content showing through the panel from content visible outside its boundary.
+
+## Fixed navigation screenshots
+
+For long mobile pages with fixed bottom navigation, use a normal viewport screenshot for visual evidence. A full-page capture can retain the bar at its viewport position and make it appear over content much higher in the document.
+
+**Why:** A full-page capture of an authenticated Practice screen placed the fixed bar across activity instructions, while a viewport crop showed its actual bottom-of-screen position.
+
+**How to apply:** Capture the viewport after setting device metrics; scroll to the relevant content before capturing if needed. Test scroll accessibility separately rather than inferring it from a full-page image.

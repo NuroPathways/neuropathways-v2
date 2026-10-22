@@ -103,7 +103,16 @@ await test("Cross-clinician, cross-child and cross-family mutations/reads are de
   assert.equal((await call(`${c}/assignments/${custom.id}`, "PATCH", { status: "archived", expectedVersion: custom.version }, other)).status, 404);
   assert.equal((await call(`/parent/children/${f.legacy.otherId}/assignments/${custom.id}/feedback`, "POST", { version: 1, outcome: "tried", requestId: crypto.randomUUID() }, ph)).status, 404);
   assert.equal((await call(`${p}/care-team`, "GET", undefined, dh)).status, 404);
-  assert.equal((await call(`${c}/assignments`, "POST", { ...custom, goalId: f.linking.goalId, status: "published" }, ch)).status, 409);
+  assert.equal((await call(`${c}/assignments`, "POST", {
+    title: custom.title,
+    description: custom.description,
+    skill: custom.skill,
+    steps: custom.steps,
+    materials: custom.materials,
+    estimatedMinutes: custom.estimatedMinutes,
+    goalId: f.linking.goalId,
+    status: "published",
+  }, ch)).status, 409);
 });
 await test("Legacy web and native sessions receive identical assignments, sibling has none; independent parent retains empty care-team support", async () => {
   assert.deepEqual((await call(`${p}/care-team`, "GET", undefined, ph)).data.assignments.map((a: any) => a.id),

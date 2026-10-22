@@ -602,3 +602,59 @@ mtime_ms = 1792625027789
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/5168a057-e645-4814-b5b1-22428f6a7110/40fcf597-b977-481d-82a0-cfac946c3620"
 storage_version_token = "1792625035864849"
 content_type = "text/html"
+
+[[outputs]]
+id = "PyhVRrzkq5Ky-7Wn4hKPL"
+uri = "file://generated-artifacts/phase8/parent-practice-mobile.png"
+type = "image"
+title = "NeuroPathways parent Practice — mobile"
+description = "Authenticated with an isolated synthetic legacy-family account; shows the selected child and a published clinician-assigned activity with its linked goal and real instructions."
+logical_id = "e2d0cf4f-96ca-4697-b64e-21fef2c40eb2"
+content_hash = "sha256:57bf7f842cb4121d7f86f1b7773d2176c7013db1e5706192e412513083375ca2"
+size = 88357
+mtime_ms = 1792698930796
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/e2d0cf4f-96ca-4697-b64e-21fef2c40eb2/3dd21f8a-7607-4cee-9fd2-7ee1eebd9d2d"
+storage_version_token = "1792699010168942"
+content_type = "image/png"
+
+[[outputs]]
+id = "XcPI-CX8uccbyA8NIbIPU"
+uri = "file://generated-artifacts/phase8/parent-practice-desktop.png"
+type = "image"
+title = "NeuroPathways parent Practice — desktop"
+description = "Authenticated with the same isolated synthetic account; confirms the responsive desktop layout and selected-child activity flow."
+logical_id = "c14b41b6-a6fb-445d-b1d1-ad4dbd0339ac"
+content_hash = "sha256:19692abd4cf0cacd2f3ad0b3cfdf12431d4124b5b45fdab1e6e928e9d3bf2cae"
+size = 127978
+mtime_ms = 1792698931848
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/c14b41b6-a6fb-445d-b1d1-ad4dbd0339ac/2d7506a3-0d7d-440c-b184-6d97b614ac5f"
+storage_version_token = "1792699010895395"
+content_type = "image/png"
+
+[[outputs]]
+id = "xolGVvZMgVQsC35WTJhWn"
+uri = "file://generated-artifacts/phase8/parent-practice-mobile-viewport.png"
+type = "image"
+title = "Parent Practice — mobile viewport"
+description = "Actual authenticated mobile viewport showing a published activity and its source, linked goal, and instructions. The bottom navigation is in its real viewport position."
+logical_id = "ca04beeb-a6bf-49fa-9910-37f55802a9f1"
+content_hash = "sha256:1cdf55e7d6ee33aa649782f240839c7a6b16980e304a1a1102edce46ea302732"
+size = 78418
+mtime_ms = 1792699083669
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/ca04beeb-a6bf-49fa-9910-37f55802a9f1/4987cb3b-0794-403a-87ea-7cec1eb41364"
+storage_version_token = "1792699106729078"
+content_type = "image/png"
+
+[[outputs]]
+id = "lFhAB3pmLZG9VV5R1tqsT"
+uri = "file://generated-artifacts/phase8/parent-practice-desktop-viewport.png"
+type = "image"
+title = "Parent Practice — desktop viewport"
+description = "Actual authenticated desktop viewport showing the same published activity, source, related goal, and first practice step."
+logical_id = "73a675cd-bbf5-47c0-81d6-a94b36d04bee"
+content_hash = "sha256:e8ae9aa4d471c4bcf1c951ff1d39a90d700b2eb6d82e6fd2ea3e0812739ed6e3"
+size = 131690
+mtime_ms = 1792699083841
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/73a675cd-bbf5-47c0-81d6-a94b36d04bee/05f9ce91-6591-4ece-805a-7e62ecc09493"
+storage_version_token = "1792699107495241"
+content_type = "image/png"

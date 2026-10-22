@@ -11,7 +11,7 @@ import {
   db, usersTable, userProfilesTable, clinicianCredentialsTable, familiesTable, childrenTable,
   parentAccountsTable, parentChildSettingsTable, parentClinicInvitesTable,
   behaviorPlansTable, behaviorLogsTable, rewardTokensTable, documentsTable,
-  parentDailyActionLogsTable, clientSessionsTable, mobileTokensTable,
+  clientSessionsTable, mobileTokensTable,
 } from "@workspace/db";
 import { hashParentPassword, createParentSession } from "../lib/parentAuth";
 import { makeStarterCard } from "../lib/parentStarterLibrary";
@@ -187,23 +187,25 @@ await check("Cross-family and cross-clinician reads and writes are denied", asyn
     }
   }
 });
-let action: any;
-await check("Existing plans/goals/logs are reused; opening support creates no incident", async () => {
+await check("Existing plans/goals/logs are reused; a goal alone does not become a practice activity", async () => {
   const before = await db.select({ n: count() }).from(behaviorLogsTable).where(eq(behaviorLogsTable.childId, f.legacy.childId));
   const r = await call(`${childPath}/dashboard`, "GET", undefined, familyHeaders);
   assert.equal(r.status, 200);
   assert.ok(r.data.supportCards.length); assert.ok(r.data.logs.some((l: any) => l.notes === "Synthetic pre-existing observation"));
-  action = r.data.dailyActions.find((a: any) => a.goalId === f.legacy.clinicalGoal);
-  assert.ok(action, "A clinical goal links to the actual generated practice record");
+  const [goal] = await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.id, f.legacy.clinicalGoal));
+  assert.ok(goal, "The existing clinical goal remains intact");
+  assert.equal(goal.progress, 2, "Opening parent support does not change clinical progress");
+  assert.equal(r.data.dailyActions.some((a: any) => a.goalId === f.legacy.clinicalGoal), false,
+    "A clinical goal without concrete activity instructions must not become a fake practice activity");
   const after = await db.select({ n: count() }).from(behaviorLogsTable).where(eq(behaviorLogsTable.childId, f.legacy.childId));
   assert.equal(before[0].n, after[0].n);
 });
-await check("Saved practice step and bookmark survive reload on web and mobile", async () => {
-  assert.ok(action);
-  assert.equal((await call(`${childPath}/daily-actions/${action.id}/practice-progress`, "PATCH", { currentStep: 1, bookmarked: true }, familyHeaders)).status, 200);
-  const r = await call(`${childPath}/dashboard`, "GET", undefined, mobileHeaders);
-  const saved = r.data.dailyActions.find((a: any) => a.id === action.id);
-  assert.equal(saved.currentStep, 1); assert.equal(saved.bookmarked, true);
+await check("A goal-only record cannot be opened or tracked as a fake activity", async () => {
+  const fakeActivityPath = `${childPath}/daily-actions/${f.legacy.clinicalGoal}`;
+  assert.equal((await call(`${fakeActivityPath}/practice-progress`, "PATCH", { currentStep: 1, bookmarked: true }, familyHeaders)).status, 404);
+  assert.equal((await call(`${fakeActivityPath}/logs`, "POST", {
+    eventType: "completion", rating: "helped", note: "Synthetic attempt against a goal-only record",
+  }, familyHeaders)).status, 404);
 });
 await check("Routines and preferences persist without replacing family support settings", async () => {
   const state = { routines: [{ id: id(), name: "Morning routine", steps: [{ id: id(), text: "Choose a familiar item" }, { id: id(), text: "Ask for help" }], updatedAt: new Date().toISOString() }], routineRuns: [], preferences: { favoriteActivities: ["building blocks"], communicationMethods: ["picture card"] }, reminders: [] };
@@ -213,16 +215,6 @@ await check("Routines and preferences persist without replacing family support s
   const dash = await call(`${childPath}/dashboard`, "GET", undefined, familyHeaders);
   assert.ok(dash.data.dailyActions.some((a: any) => a.description.includes("building blocks")));
   assert.ok(dash.data.child.behaviors.some((b: any) => b.behaviorKey === "elopement"));
-});
-await check("One practice reflection is saved once and never increments clinical mastery", async () => {
-  assert.ok(action);
-  const body = { eventType: "completion", rating: "helped", note: "Synthetic calm practice" };
-  assert.equal((await call(`${childPath}/daily-actions/${action.id}/logs`, "POST", body, familyHeaders)).status, 201);
-  assert.equal((await call(`${childPath}/daily-actions/${action.id}/logs`, "POST", body, mobileHeaders)).status, 409);
-  const logs = await db.select().from(parentDailyActionLogsTable).where(eq(parentDailyActionLogsTable.actionId, action.id));
-  assert.equal(logs.length, 1);
-  const [goal] = await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.id, f.legacy.clinicalGoal));
-  assert.equal(goal.progress, 2);
 });
 await check("Clinical goal edits denied; parent goal create/edit/delete works", async () => {
   const clinical = `${childPath}/goals/${f.legacy.clinicalGoal}`;
@@ -270,6 +262,21 @@ await check("Unknown family types fail safely rather than becoming parents", asy
   assert.equal((await call("/parent/session", "GET", undefined, { "X-Family-Token": s.invite_token })).status, 409);
 });
 await check("Independent parent clinic connection preserves IDs and private documents", async () => {
+  if (f.privateDocumentId) {
+    // The invitation is single-use. A follow-up verification checks the state
+    // created by the initial run instead of consuming it a second time.
+    const session = await call("/parent/session", "GET", undefined, linkHeaders);
+    assert.equal(session.status, 200);
+    assert.ok(session.data.children.some((child: any) => child.id === f.linking.childId));
+    const [goal] = await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.id, f.linking.goalId));
+    assert.equal(goal.childId, f.linking.childId);
+    const [doc] = await db.select().from(documentsTable).where(eq(documentsTable.id, f.privateDocumentId));
+    assert.equal(doc.childId, f.linking.childId);
+    const docs = await call(`/parent/children/${f.linking.childId}/documents`, "GET", undefined, linkHeaders);
+    assert.equal(docs.status, 200); assert.equal(docs.data.find((d: any) => d.id === f.privateDocumentId).shared, false);
+    assert.equal((await call(`/parent/documents/${f.privateDocumentId}/content`, "GET", undefined, familyHeaders)).status, 403);
+    return;
+  }
   const form = new FormData(); form.set("authorizedUploader", "true"); form.set("title", "Private verification plan");
   form.set("file", new Blob(["A synthetic private plan. Offer familiar communication and calm supervised practice."], { type: "text/plain" }), "verification-plan.txt");
   const uploaded = await call(`/parent/children/${f.linking.childId}/documents`, "POST", form, linkHeaders);
