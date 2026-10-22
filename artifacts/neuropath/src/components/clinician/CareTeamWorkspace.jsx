@@ -4,13 +4,14 @@ import {
   useGetClinicianGoalsActivities, getGetClinicianGoalsActivitiesQueryKey,
   useGetCareTeamActivityLibrary, getGetCareTeamActivityLibraryQueryKey,
   createCareTeamGoal, updateCareTeamGoal, createCareTeamAssignment, updateCareTeamAssignment,
+  reviewCareTeamActivityRecommendation,
 } from "@workspace/api-client-react";
 import { Plus, MoreHorizontal, Trash2, ArrowUp, ArrowDown, Target, FileText } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
+import { Input } from "@workspace/neuropathways-foundations/components/ui/input";
+import { Textarea } from "@workspace/neuropathways-foundations/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@workspace/neuropathways-foundations/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@workspace/neuropathways-foundations/components/ui/dropdown-menu";
 import { ActivityGuide } from "@/components/parentfree/PracticePage";
 import { CareTeamGoalCard } from "@/components/parentfree/ClinicalGoals";
 import { CARE_SKILLS, CARE_MEASUREMENTS, CARE_STATUS_LABELS, CARE_OUTCOME_LABELS, formatDay } from "@/lib/careTeam";
@@ -22,9 +23,14 @@ import { StatusBadge as FoundationStatusBadge } from "@workspace/neuropathways-f
 
 const STATUS_TONE = {
   draft: "bg-muted text-foreground",
+  needs_review: "bg-muted text-foreground",
+  needs_details: "bg-muted text-foreground",
+  approved: "bg-primary/15 text-primary",
   published: "bg-primary/15 text-primary",
   paused: "bg-amber-100 text-amber-900",
   archived: "bg-muted text-muted-foreground",
+  rejected: "bg-destructive/10 text-destructive",
+  superseded: "bg-muted text-muted-foreground",
 };
 const SOURCE_LABEL = (source) => source === "care_team" ? "Care team goal" : source === "document" ? "From documents" : source === "manual" ? "Clinician goal" : null;
 // Original clinician progress presentation (steps + bar) for goals that track a numeric target.
@@ -91,7 +97,7 @@ const recommendationStatusLabel = (recommendation) => {
   return "Research-informed starter · not an assignment";
 };
 
-function RecommendationCard({ recommendation }) {
+function RecommendationCard({ recommendation, onStartReview, onApprove, onRequestDetails, onReject }) {
   const references = Array.isArray(recommendation.researchReferences) ? recommendation.researchReferences : [];
   return (
     <CompactCard
@@ -104,6 +110,23 @@ function RecommendationCard({ recommendation }) {
       description={recommendation.description || recommendation.matchReasons?.join(" ")}
       data-testid={`activity-recommendation-${recommendation.id}`}
     >
+      <p className="text-support-sm text-muted-foreground">
+        <span className="font-semibold text-foreground">Related goal:</span>{" "}
+        {recommendation.relatedGoal || "Not linked. Select an authorized goal during review if appropriate."}
+      </p>
+      <p className="text-support-sm text-muted-foreground">
+        <span className="font-semibold text-foreground">Risk classification:</span>{" "}
+        {recommendation.riskClassification || "Not assessed"}
+      </p>
+      {recommendation.routineContext && <p className="text-body-sm"><span className="font-semibold">Appropriate context:</span> {recommendation.routineContext}</p>}
+      {recommendation.missingInformation?.length > 0 && (
+        <div className="rounded-lg border border-border bg-muted/40 p-2 text-support-sm">
+          <p className="font-semibold text-foreground">Missing information</p>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-foreground">
+            {recommendation.missingInformation.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </div>
+      )}
       {recommendation.matchReasons?.length > 0 && (
         <ul className="list-disc space-y-1 pl-5 text-body-sm text-foreground">
           {recommendation.matchReasons.map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}
@@ -161,19 +184,123 @@ function RecommendationCard({ recommendation }) {
           </ul>
         </Disclosure>
       )}
+      <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+        <Button type="button" variant="outline" size="sm" onClick={() => onStartReview(recommendation)} data-testid={`button-review-suggestion-${recommendation.id}`}>
+          Review &amp; Edit
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={recommendation.status === "needs_details" || recommendation.missingInformation?.length > 0}
+          onClick={() => onApprove(recommendation)}
+          data-testid={`button-approve-suggestion-${recommendation.id}`}
+        >
+          Approve
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => onRequestDetails(recommendation)} data-testid={`button-request-details-${recommendation.id}`}>
+          Request More Detail
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => onReject(recommendation)} data-testid={`button-reject-suggestion-${recommendation.id}`}>
+          Reject
+        </Button>
+      </div>
     </CompactCard>
   );
 }
 
-const emptyActivity = { mode: "library", libraryId: "", goalId: "", schedule: "", title: "", description: "", skill: "Communication", estimatedMinutes: "", materials: "", steps: [""], whyItMayHelp: "", ifDifficult: "", notes: "", planConfirmed: false };
+function ActivityReviewCard({ activity, onEdit, onApprove, onPublish, onRequestDetails, onReject }) {
+  const evidence = Array.isArray(activity.sourceEvidence) ? activity.sourceEvidence : [];
+  const isApproved = activity.status === "approved";
+  const canApprove = activity.status !== "needs_details";
+  return (
+    <CompactCard
+      title={activity.title}
+      headingLevel="h4"
+      badges={<FoundationStatusBadge tone={isApproved ? "support" : activity.status === "rejected" ? "urgent" : "neutral"}>
+        {CARE_STATUS_LABELS[activity.status] || activity.status}
+      </FoundationStatusBadge>}
+      meta={<>{activity.skill}{activity.estimatedMinutes ? ` · about ${activity.estimatedMinutes} minutes` : ""}</>}
+      description={activity.description || "This activity is not visible to the family until it is published."}
+      data-testid={`activity-review-${activity.id}`}
+    >
+      <p className="text-support-sm text-muted-foreground">
+        <span className="font-semibold text-foreground">Related goal:</span>{" "}
+        {activity.goalTitle || activity.relatedGoal || "Not linked"}
+      </p>
+      <p className="text-support-sm text-muted-foreground">
+        <span className="font-semibold text-foreground">Risk classification:</span>{" "}
+        {activity.riskClassification || "Not assessed"}
+      </p>
+      {activity.reviewNote && (
+        <Surface variant="separated" tone={activity.status === "needs_details" ? "caution" : "neutral"} className="space-y-1" data-testid={`activity-review-note-${activity.id}`}>
+          <p className="text-support-sm font-semibold">Clinician follow-up note</p>
+          <p className="text-body-sm">{activity.reviewNote}</p>
+          {activity.status === "needs_details" && <p className="text-support-sm">This note is for clinician follow-up; no message was sent to the family.</p>}
+        </Surface>
+      )}
+      {(activity.reviewContext || activity.reviewStartAction || activity.reviewEnding || activity.reviewPauseConditions?.length > 0) && (
+        <Surface variant="separated" tone="neutral" className="space-y-1" data-testid={`activity-review-proposed-content-${activity.id}`}>
+          <p className="text-support-sm font-semibold">Document-proposed details</p>
+          {activity.reviewContext && <p className="text-body-sm"><span className="font-semibold">Context:</span> {activity.reviewContext}</p>}
+          {activity.reviewStartAction && <p className="text-body-sm"><span className="font-semibold">How to begin:</span> {activity.reviewStartAction}</p>}
+          {activity.reviewEnding && <p className="text-body-sm"><span className="font-semibold">How to finish:</span> {activity.reviewEnding}</p>}
+          {activity.reviewPauseConditions?.length > 0 && <p className="text-body-sm"><span className="font-semibold">Pause or stop:</span> {activity.reviewPauseConditions.join(" ")}</p>}
+        </Surface>
+      )}
+      {activity.missingInformation?.length > 0 && (
+        <div className="rounded-lg border border-border bg-muted/40 p-2 text-support-sm">
+          <p className="font-semibold text-foreground">Missing information</p>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-foreground">
+            {activity.missingInformation.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </div>
+      )}
+      {activity.startAction && <p className="text-body-sm"><span className="font-semibold">Start:</span> {activity.startAction}</p>}
+      {activity.steps?.length > 0 && (
+        <ol className="list-decimal space-y-1 pl-5 text-body-sm text-foreground">
+          {activity.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+        </ol>
+      )}
+      {activity.ifDifficult && <p className="text-body-sm"><span className="font-semibold">Pause or stop:</span> {activity.ifDifficult}</p>}
+      {evidence.length > 0 && (
+        <Disclosure title="Original supporting text" hint="Verify the exact cited source before approving or publishing." className="mt-2">
+          <ul className="space-y-2">
+            {evidence.map((source) => (
+              <li key={`${source.recordId}-${source.documentId}`} className="rounded-lg bg-muted/50 p-2">
+                <p className="text-support-sm font-semibold text-foreground">
+                  {source.documentTitle}
+                  {source.sourceSection ? ` · ${source.sourceSection}` : ""}
+                  {source.sourcePage ? ` · page ${source.sourcePage}` : ""}
+                  {source.reviewStatus ? ` · ${source.reviewStatus === "approved" ? "approved record" : "source record: " + source.reviewStatus}` : ""}
+                </p>
+                <p className="mt-1 text-body-sm text-foreground">{source.sourceExcerpt}</p>
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
+      )}
+      <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+        <Button type="button" variant="outline" size="sm" onClick={() => onEdit(activity)} data-testid={`button-edit-review-${activity.id}`}>Edit</Button>
+        {isApproved
+          ? <Button type="button" size="sm" onClick={() => onPublish(activity)} data-testid={`button-publish-review-${activity.id}`}>Publish to Parent</Button>
+          : <Button type="button" size="sm" disabled={!canApprove} onClick={() => onApprove(activity)} data-testid={`button-approve-review-${activity.id}`}>Approve</Button>}
+        <Button type="button" variant="ghost" size="sm" onClick={() => onRequestDetails(activity)} data-testid={`button-request-review-details-${activity.id}`}>Request More Detail</Button>
+        {activity.status !== "rejected" && <Button type="button" variant="ghost" size="sm" onClick={() => onReject(activity)} data-testid={`button-reject-review-${activity.id}`}>Reject</Button>}
+      </div>
+    </CompactCard>
+  );
+}
+
+const emptyActivity = { mode: "library", libraryId: "", goalId: "", schedule: "", title: "", description: "", skill: "Communication", estimatedMinutes: "", materials: "", steps: [""], whyItMayHelp: "", ifDifficult: "", notes: "", reviewNote: "", planConfirmed: false };
 const activityToForm = (a) => ({
   mode: a.libraryId ? "library" : "custom", libraryId: a.libraryId || "", goalId: a.goalId || "", schedule: a.schedule || "",
   title: a.title || "", description: a.description || "", skill: a.skill || "Other", estimatedMinutes: a.estimatedMinutes ?? "",
-  materials: a.materials || "", steps: a.steps?.length ? [...a.steps] : [""], whyItMayHelp: a.whyItMayHelp || "", ifDifficult: a.ifDifficult || "", notes: a.notes || "", planConfirmed: a.planConfirmed === true,
+  materials: a.materials || "", steps: a.steps?.length ? [...a.steps] : [""], whyItMayHelp: a.whyItMayHelp || "", ifDifficult: a.ifDifficult || "", notes: a.notes || "",
+  reviewNote: a.reviewNote || "", planConfirmed: a.planConfirmed === true,
 });
 // Library assignments reference the definition: steps/instructions are never copied into the save.
 const activityPayload = (form, status, version) => ({
-  goalId: form.goalId || null, schedule: form.schedule.trim(), status,
+  goalId: form.goalId || null, schedule: form.schedule.trim(), status, planConfirmed: form.planConfirmed === true, reviewNote: form.reviewNote.trim(),
   ...(version != null ? { expectedVersion: version } : {}),
   ...(form.mode === "library" ? { libraryId: form.libraryId, planConfirmed: form.planConfirmed } : {
     libraryId: null, title: form.title.trim(), description: form.description.trim(), skill: form.skill,
@@ -203,12 +330,14 @@ function LinesEditor({ label, items, onChange, placeholder, testid }) {
   );
 }
 
-function FormActions({ busy, canSave, canPublish = canSave, onDraft, onPreview, onPublish, published }) {
+function FormActions({ busy, canSave, canPublish = canSave, onDraft, onPreview, onPublish, onApprove, published, recommendationReview = false }) {
   return (
     <div className="flex flex-wrap gap-2 pt-2">
       {!published && <Button type="button" variant="outline" className="rounded-xl" disabled={busy || !canSave} onClick={onDraft} data-testid="button-save-draft">Save Draft</Button>}
       <Button type="button" variant="outline" className="rounded-xl" disabled={!canSave} onClick={onPreview} data-testid="button-preview-parent">Preview as Parent</Button>
-      <Button type="button" className="rounded-xl" disabled={busy || !canPublish} onClick={onPublish} data-testid="button-publish-parent">{busy ? "Saving..." : published ? "Save Published Changes" : "Publish to Parent"}</Button>
+      <Button type="button" className="rounded-xl" disabled={busy || !canPublish} onClick={recommendationReview ? onApprove : onPublish} data-testid={recommendationReview ? "button-approve-activity" : "button-publish-parent"}>
+        {busy ? "Saving..." : recommendationReview ? (published ? "Approve & Publish New Version" : "Approve for Publication") : published ? "Save Published Changes" : "Publish to Parent"}
+      </Button>
     </div>
   );
 }
@@ -242,17 +371,51 @@ export function GoalForm({ initial, busy, error, onSubmit, onPreview }) {
 }
 
 export function AssignActivityForm({ initial, library = [], libraryLoading, goals = [], busy, error, onSubmit, onPreview }) {
-  const [form, setForm] = useState(initial ? activityToForm(initial) : emptyActivity);
+  const recommendationReview = Boolean(initial?.recommendationId);
+  const [form, setForm] = useState(initial
+    ? { ...activityToForm(initial), planConfirmed: recommendationReview ? false : initial.planConfirmed === true }
+    : emptyActivity);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const chosen = library.find((item) => item.id === form.libraryId);
-  const canSave = form.mode === "library" ? Boolean(form.libraryId) : Boolean(form.title.trim() && form.steps.some((s) => s.trim()));
-  const canPublish = canSave && (!chosen?.requiresClinicianConfirmation || form.planConfirmed);
+  const customComplete = Boolean(form.title.trim() && form.description.trim() && form.skill.trim() && form.steps.some((s) => s.trim()));
+  const canSave = form.mode === "library" ? Boolean(form.libraryId) : recommendationReview ? Boolean(form.title.trim()) : customComplete;
+  const completeForApproval = form.mode === "library" ? Boolean(form.libraryId) : customComplete;
+  const canPublish = canSave && (recommendationReview
+    ? completeForApproval && form.planConfirmed
+    : !chosen?.requiresClinicianConfirmation || form.planConfirmed);
   const selectable = goals.filter((g) => g.status !== "archived");
   const previewActivity = () => form.mode === "library" && chosen
     ? { ...chosen, goalId: form.goalId || null }
     : { id: "preview", title: form.title, description: form.description, skill: form.skill, estimatedMinutes: form.estimatedMinutes === "" ? null : Number(form.estimatedMinutes), materials: form.materials, steps: form.steps.filter((s) => s.trim()), whyItMayHelp: form.whyItMayHelp, ifDifficult: form.ifDifficult };
   return (
     <form className="space-y-3" onSubmit={(e) => e.preventDefault()}>
+      {recommendationReview && (
+        <Surface variant="separated" tone="caution" className="space-y-2" data-testid="activity-review-source">
+          <p className="text-body-sm font-semibold">Review source and child-specific context</p>
+          <p className="text-support-sm">Risk classification: {initial.riskClassification || "Not assessed"}.</p>
+          {initial.relatedGoal && <p className="text-support-sm">Documented related goal: {initial.relatedGoal}. Select the authorized goal below if it matches.</p>}
+          {initial.reviewContext && <p className="text-body-sm"><span className="font-semibold">Document context:</span> {initial.reviewContext}</p>}
+          {initial.reviewStartAction && <p className="text-body-sm"><span className="font-semibold">Document start:</span> {initial.reviewStartAction}</p>}
+          {initial.reviewEnding && <p className="text-body-sm"><span className="font-semibold">Document ending:</span> {initial.reviewEnding}</p>}
+          {initial.reviewPauseConditions?.length > 0 && <p className="text-body-sm"><span className="font-semibold">Document pause / stop:</span> {initial.reviewPauseConditions.join(" ")}</p>}
+          {initial.missingInformation?.length > 0 && (
+            <div className="text-support-sm">
+              <p className="font-semibold">Still missing</p>
+              <ul className="list-disc pl-4">{initial.missingInformation.map((item) => <li key={item}>{item}</li>)}</ul>
+            </div>
+          )}
+          {!!initial.sourceEvidence?.length && (
+            <ul className="space-y-2">
+              {initial.sourceEvidence.map((source) => (
+                <li key={`${source.recordId}-${source.documentId}`} className="rounded-lg bg-background/70 p-2">
+                  <p className="text-support-sm font-semibold">{source.documentTitle}{source.sourceSection ? ` · ${source.sourceSection}` : ""}{source.sourcePage ? ` · page ${source.sourcePage}` : ""}</p>
+                  <p className="mt-1 text-body-sm">{source.sourceExcerpt}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Surface>
+      )}
       {!initial && <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Activity source">
         {[["library", "Assign an existing activity"], ["custom", "Create a custom activity"]].map(([mode, label]) => (
           <button type="button" key={mode} role="radio" aria-checked={form.mode === mode} onClick={() => setForm((f) => ({ ...f, mode }))}
@@ -323,6 +486,11 @@ export function AssignActivityForm({ initial, library = [], libraryLoading, goal
         </select></Field>
         <Field label="Suggested Schedule (optional)"><Input value={form.schedule} onChange={set("schedule")} maxLength={300} placeholder="A few times this week" className="rounded-xl" data-testid="input-activity-schedule" /></Field>
       </div>
+      {recommendationReview && (
+        <Field label="Clinician review note (internal)">
+          <Textarea value={form.reviewNote} onChange={set("reviewNote")} rows={2} maxLength={2000} className="rounded-xl" data-testid="input-activity-review-note" />
+        </Field>
+      )}
       {chosen?.requiresClinicianConfirmation && (
         <label className="flex items-start gap-2 rounded-xl border border-border p-3 text-xs text-foreground">
           <input type="checkbox" className="mt-0.5 accent-primary" checked={form.planConfirmed} onChange={(e) => setForm((f) => ({ ...f, planConfirmed: e.target.checked }))} data-testid="checkbox-activity-plan-confirmation" />
@@ -331,10 +499,17 @@ export function AssignActivityForm({ initial, library = [], libraryLoading, goal
             : "I reviewed the child-specific context and current support or safety plan, and confirm this activity is appropriate."} This confirmation is required before publishing.</span>
         </label>
       )}
+      {recommendationReview && (
+        <label className="flex items-start gap-2 rounded-xl border border-border p-3 text-xs text-foreground">
+          <input type="checkbox" className="mt-0.5 accent-primary" checked={form.planConfirmed} onChange={(e) => setForm((f) => ({ ...f, planConfirmed: e.target.checked }))} data-testid="checkbox-activity-review-confirmation" />
+          <span>I completed or verified the missing details in the description and instructions, reviewed the cited source and current child-specific context, and confirmed this version is appropriate, familiar, and safe to offer. Approval will not publish it; I will publish it separately.</span>
+        </label>
+      )}
       {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-      <FormActions busy={busy} canSave={canSave} canPublish={canPublish} published={initial?.status === "published"}
-        onDraft={() => onSubmit(activityPayload(form, initial?.status && initial.status !== "draft" ? initial.status : "draft", initial?.version))}
+      <FormActions busy={busy} canSave={canSave} canPublish={canPublish} published={initial?.status === "published"} recommendationReview={recommendationReview}
+        onDraft={() => onSubmit(activityPayload(form, recommendationReview ? "needs_review" : initial?.status && initial.status !== "draft" ? initial.status : "draft", initial?.version))}
         onPreview={() => onPreview({ ...previewActivity(), goalTitle: goals.find((g) => g.id === form.goalId)?.title || null })}
+        onApprove={() => onSubmit(activityPayload(form, initial?.status === "published" ? "published" : "approved", initial?.version))}
         onPublish={() => onSubmit(activityPayload(form, "published", initial?.version))} />
     </form>
   );
@@ -346,12 +521,19 @@ export default function CareTeamWorkspace({ childId, childName = "your client" }
   const q = useGetClinicianGoalsActivities(childId, { query: { queryKey: key, enabled: !!childId, staleTime: 20_000, refetchInterval: 60_000 } });
   const [panel, setPanel] = useState(null); // {type:"goal"|"activity", record?}
   const [preview, setPreview] = useState(null); // {type, data}
+  const [reviewDialog, setReviewDialog] = useState(null); // { kind, target, source }
+  const [reviewNote, setReviewNote] = useState("");
+  const [fitSafetyConfirmed, setFitSafetyConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [rowError, setRowError] = useState("");
   const libraryQ = useGetCareTeamActivityLibrary({ query: { queryKey: getGetCareTeamActivityLibraryQueryKey(), enabled: panel?.type === "activity", staleTime: 300_000 } });
-  const ws = q.data || { goals: [], assignments: [], recentPractice: [], observations: [] };
+  const ws = q.data || { goals: [], assignments: [], recentPractice: [], observations: [], activityReviews: [], activityRecommendations: [] };
   const goals = useMemo(() => ws.goals || [], [ws.goals]);
+  const activityReviews = useMemo(() => ws.activityReviews || [], [ws.activityReviews]);
+  const visibleAssignments = useMemo(() => (ws.assignments || []).filter((activity) =>
+    !activity.recommendationId || ["published", "paused", "archived", "superseded"].includes(activity.status),
+  ), [ws.assignments]);
   const goalTitle = (id) => { const g = goals.find((x) => x.id === id); return g ? readableGoalTitle({ goal_title: g.title, goal_description: g.description }) : null; };
 
   const save = async (fn) => {
@@ -362,6 +544,60 @@ export default function CareTeamWorkspace({ childId, childName = "your client" }
   };
   const submitGoal = (body) => save(() => panel?.record ? updateCareTeamGoal(childId, panel.record.id, body) : createCareTeamGoal(childId, body));
   const submitActivity = (body) => save(() => panel?.record ? updateCareTeamAssignment(childId, panel.record.id, body) : createCareTeamAssignment(childId, body));
+  const startRecommendationReview = async (recommendation) => {
+    setBusy(true); setRowError("");
+    try {
+      const activity = await reviewCareTeamActivityRecommendation(childId, recommendation.id, { action: "start_review" });
+      await qc.invalidateQueries({ queryKey: key });
+      setError("");
+      setPanel({ type: "activity", record: activity });
+    } catch (e) {
+      setRowError(friendlyError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const openReviewDialog = (kind, target, source) => {
+    setReviewNote(kind === "request_details" ? "" : target.reviewNote || "");
+    setFitSafetyConfirmed(false);
+    setRowError("");
+    setReviewDialog({ kind, target, source });
+  };
+  const submitReviewAction = async () => {
+    if (!reviewDialog) return;
+    const { kind, target, source } = reviewDialog;
+    if (kind === "request_details" && reviewNote.trim().length < 3) {
+      setRowError("Describe the missing detail so your team knows what to follow up on.");
+      return;
+    }
+    setBusy(true); setRowError("");
+    try {
+      if (source === "suggestion") {
+        await reviewCareTeamActivityRecommendation(childId, target.id, {
+          action: kind,
+          ...(kind === "approve" ? { fitSafetyConfirmed } : {}),
+          ...(reviewNote.trim() ? { reviewNote: reviewNote.trim() } : {}),
+        });
+      } else {
+        const status = kind === "approve" ? (target.status === "published" ? "published" : "approved")
+          : kind === "reject" ? "rejected" : "needs_details";
+        const form = {
+          ...activityToForm(target),
+          planConfirmed: kind === "approve" ? fitSafetyConfirmed : target.planConfirmed === true,
+          reviewNote: reviewNote.trim(),
+        };
+        await updateCareTeamAssignment(childId, target.id, activityPayload(form, status, target.version));
+      }
+      await qc.invalidateQueries({ queryKey: key });
+      setReviewDialog(null);
+      setReviewNote("");
+      setFitSafetyConfirmed(false);
+    } catch (e) {
+      setRowError(friendlyError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   const setGoalStatus = async (g, status) => {
     setRowError("");
     if (!String(g.title || "").trim() || !String(g.description || "").trim()) {
@@ -374,9 +610,22 @@ export default function CareTeamWorkspace({ childId, childName = "your client" }
   };
   const setActivityStatus = async (a, status) => {
     setRowError("");
-    try { await updateCareTeamAssignment(childId, a.id, activityPayload(activityToForm(a), status, a.version)); await qc.invalidateQueries({ queryKey: key }); }
+    try {
+      const form = activityToForm(a);
+      if (a.recommendationId) form.planConfirmed = a.planConfirmed === true;
+      await updateCareTeamAssignment(childId, a.id, activityPayload(form, status, a.version));
+      await qc.invalidateQueries({ queryKey: key });
+    }
     catch (e) { setRowError(friendlyError(e)); }
   };
+  const activityStatusItems = (status, apply) => [
+    ["published", "Publish"],
+    ["paused", "Pause"],
+    ["archived", "Archive"],
+    ["superseded", "Mark superseded (hide from family)"],
+    ["draft", "Move to Draft"],
+  ].filter(([next]) => next !== status && !(next === "draft" && status === "archived"))
+    .map(([next, label]) => <DropdownMenuItem key={next} onClick={() => apply(next)} data-testid={`menu-activity-${next}`}>{label}</DropdownMenuItem>);
   const statusItems = (status, apply) => [["published", "Publish"], ["paused", "Pause"], ["archived", "Archive"], ["draft", "Move to Draft"]]
     .filter(([s]) => s !== status && !(s === "draft" && status === "archived"))
     .map(([s, label]) => <DropdownMenuItem key={s} onClick={() => apply(s)} data-testid={`menu-${s}`}>{label}</DropdownMenuItem>);
@@ -423,12 +672,12 @@ export default function CareTeamWorkspace({ childId, childName = "your client" }
 
             <div className="space-y-2">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Assigned Activities</h4>
-              {ws.assignments.length === 0 ? <p className="text-xs text-muted-foreground px-1">No activities assigned yet.</p> : (
+              {visibleAssignments.length === 0 ? <p className="text-xs text-muted-foreground px-1">No activities assigned yet.</p> : (
                 <div className="bg-card border border-border rounded-xl overflow-hidden">
                   <div className="hidden sm:grid grid-cols-[1fr_1fr_auto_auto] gap-3 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-b border-border">
                     <span>Activity</span><span>Related Goal</span><span>Status</span><span className="w-6" />
                   </div>
-                  {ws.assignments.map((a) => (
+                  {visibleAssignments.map((a) => (
                     <div key={a.id} className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_1fr_auto_auto] gap-3 items-center px-3 py-2.5 border-b border-border last:border-0" data-testid={`row-assignment-${a.id}`}>
                       <div className="min-w-0"><p className="text-sm font-medium text-foreground truncate">{a.title}</p><p className="text-xs text-muted-foreground sm:hidden">{a.goalTitle || goalTitle(a.goalId) || "No related goal"}</p></div>
                       <p className="hidden sm:block text-sm text-foreground truncate">{a.goalTitle || goalTitle(a.goalId) || "No related goal"}</p>
@@ -439,7 +688,7 @@ export default function CareTeamWorkspace({ childId, childName = "your client" }
                           <DropdownMenuItem onClick={() => setPreview({ type: "activity", data: a })}>View</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => open("activity", a)}>Edit</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setPreview({ type: "activity", data: a })}>Preview</DropdownMenuItem>
-                          {statusItems(a.status, (s) => setActivityStatus(a, s))}
+                           {activityStatusItems(a.status, (s) => setActivityStatus(a, s))}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -474,12 +723,39 @@ export default function CareTeamWorkspace({ childId, childName = "your client" }
               {ws.activityRecommendations?.length > 0 ? (
                 <div className="space-y-3">
                   {ws.activityRecommendations.map((recommendation) => (
-                    <RecommendationCard key={recommendation.id} recommendation={recommendation} />
+                    <RecommendationCard
+                      key={recommendation.id}
+                      recommendation={recommendation}
+                      onStartReview={startRecommendationReview}
+                      onApprove={(item) => openReviewDialog("approve", item, "suggestion")}
+                      onRequestDetails={(item) => openReviewDialog("request_details", item, "suggestion")}
+                      onReject={(item) => openReviewDialog("reject", item, "suggestion")}
+                    />
                   ))}
                 </div>
               ) : !ws.activityRecommendationMessage ? (
                 <p className="px-1 text-body-sm text-muted-foreground">No child-specific suggestions are available yet.</p>
               ) : null}
+            </section>
+
+            <section className="space-y-2" aria-labelledby="activity-review-heading" data-testid="section-activity-review">
+              <h4 id="activity-review-heading" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Activity review &amp; publication</h4>
+              <p className="px-1 text-support-sm text-muted-foreground">Only approved and published activities reach the family. Detail requests and review notes remain in this clinician workspace.</p>
+              {activityReviews.length === 0
+                ? <p className="px-1 text-body-sm text-muted-foreground">No suggestions are waiting for clinician review.</p>
+                : <div className="space-y-3">
+                  {activityReviews.map((activity) => (
+                    <ActivityReviewCard
+                      key={activity.id}
+                      activity={activity}
+                      onEdit={(item) => open("activity", item)}
+                      onApprove={(item) => openReviewDialog("approve", item, "assignment")}
+                      onPublish={(item) => setActivityStatus(item, "published")}
+                      onRequestDetails={(item) => openReviewDialog("request_details", item, "assignment")}
+                      onReject={(item) => openReviewDialog("reject", item, "assignment")}
+                    />
+                  ))}
+                </div>}
             </section>
 
             <div className="space-y-2">
@@ -534,10 +810,67 @@ export default function CareTeamWorkspace({ childId, childName = "your client" }
             <DialogDescription>This is what the family will see. Nothing is saved from this preview.</DialogDescription>
           </DialogHeader>
           <div className="pf">
-            {preview?.type === "goal" && <CareTeamGoalCard goal={preview.data} childId={childId} assignments={ws.assignments.filter((a) => a.goalId === preview.data.id)} practice={[]} />}
+            {preview?.type === "goal" && <CareTeamGoalCard goal={preview.data} childId={childId} assignments={visibleAssignments.filter((a) => a.status === "published" && a.goalId === preview.data.id)} practice={[]} />}
             {preview?.type === "activity" && <div className="np-practice"><ActivityGuide preview assigned requireOutcome activity={preview.data} childName={childName}
               relatedGoal={preview.data.goalTitle || goalTitle(preview.data.goalId)} onExit={() => setPreview(null)} onSkip={() => setPreview(null)} /></div>}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(reviewDialog)} onOpenChange={(v) => { if (!v && !busy) { setReviewDialog(null); setRowError(""); } }}>
+        <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {reviewDialog?.kind === "approve" ? "Confirm clinician review"
+                : reviewDialog?.kind === "request_details" ? "Request More Detail"
+                  : "Reject this suggestion"}
+            </DialogTitle>
+            <DialogDescription>
+              {reviewDialog?.kind === "approve"
+                ? "Approval is recorded for the clinician team. It does not publish the activity to the family."
+                : reviewDialog?.kind === "request_details"
+                  ? "This records an internal clinician follow-up note only. It does not message the family."
+                  : "The suggestion will be recorded as rejected and kept out of the family experience."}
+            </DialogDescription>
+          </DialogHeader>
+          {reviewDialog?.target && (
+            <div className="space-y-3">
+              <p className="text-body-sm font-semibold">{reviewDialog.target.title}</p>
+              {reviewDialog.target.riskClassification && <p className="text-support-sm text-muted-foreground">Risk classification: {reviewDialog.target.riskClassification}</p>}
+              {reviewDialog.kind === "approve" && (
+                <label className="flex items-start gap-2 rounded-xl border border-border p-3 text-body-sm text-foreground">
+                  <input type="checkbox" className="mt-0.5 accent-primary" checked={fitSafetyConfirmed} onChange={(event) => setFitSafetyConfirmed(event.target.checked)} data-testid="checkbox-confirm-suggestion-fit-safety" />
+                  <span>I reviewed the source and the child's current context, and confirmed this activity is appropriate, familiar, and safe.</span>
+                </label>
+              )}
+              {(reviewDialog.kind === "request_details" || reviewDialog.kind === "reject") && (
+                <Field label={reviewDialog.kind === "request_details" ? "What detail is needed? (required)" : "Internal note (optional)"}>
+                  <Textarea
+                    value={reviewNote}
+                    onChange={(event) => setReviewNote(event.target.value)}
+                    rows={4}
+                    maxLength={2000}
+                    className="rounded-xl"
+                    placeholder={reviewDialog.kind === "request_details" ? "Describe the missing information for clinician follow-up." : "Optional reason for the clinical record."}
+                    data-testid="input-review-action-note"
+                  />
+                </Field>
+              )}
+              {rowError && <p role="alert" className="text-support-sm text-destructive">{rowError}</p>}
+              <div className="flex justify-end gap-2 border-t border-border pt-3">
+                <Button type="button" variant="outline" disabled={busy} onClick={() => setReviewDialog(null)}>Cancel</Button>
+                <Button
+                  type="button"
+                  disabled={busy || (reviewDialog.kind === "approve" && !fitSafetyConfirmed) || (reviewDialog.kind === "request_details" && reviewNote.trim().length < 3)}
+                  onClick={submitReviewAction}
+                  data-testid="button-submit-review-action"
+                >
+                  {busy ? "Saving..." : reviewDialog.kind === "approve" ? "Approve (not publish)"
+                    : reviewDialog.kind === "request_details" ? "Record follow-up note" : "Reject suggestion"}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </section>

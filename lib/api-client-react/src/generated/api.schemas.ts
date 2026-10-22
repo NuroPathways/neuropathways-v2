@@ -15,6 +15,21 @@ export const CareStatus = {
   archived: 'archived',
 } as const;
 
+export type ActivityStatus = typeof ActivityStatus[keyof typeof ActivityStatus];
+
+
+export const ActivityStatus = {
+  draft: 'draft',
+  needs_review: 'needs_review',
+  needs_details: 'needs_details',
+  approved: 'approved',
+  published: 'published',
+  paused: 'paused',
+  archived: 'archived',
+  rejected: 'rejected',
+  superseded: 'superseded',
+} as const;
+
 export type CareGoalInputMeasurement = typeof CareGoalInputMeasurement[keyof typeof CareGoalInputMeasurement];
 
 
@@ -111,10 +126,29 @@ export interface CareAssignmentInput {
   notes?: string;
   /** @maxLength 300 */
   schedule?: string;
-  status?: CareStatus;
+  status?: ActivityStatus;
   /** @minimum 0 */
   expectedVersion?: number;
   planConfirmed?: boolean;
+  /** @maxLength 2000 */
+  reviewNote?: string;
+}
+
+export type ActivityRecommendationReviewInputAction = typeof ActivityRecommendationReviewInputAction[keyof typeof ActivityRecommendationReviewInputAction];
+
+
+export const ActivityRecommendationReviewInputAction = {
+  start_review: 'start_review',
+  approve: 'approve',
+  reject: 'reject',
+  request_details: 'request_details',
+} as const;
+
+export interface ActivityRecommendationReviewInput {
+  action: ActivityRecommendationReviewInputAction;
+  fitSafetyConfirmed?: boolean;
+  /** @maxLength 2000 */
+  reviewNote?: string;
 }
 
 export interface CareActivityEvidenceReference {
@@ -153,7 +187,23 @@ export type CareActivitySourceClassification = typeof CareActivitySourceClassifi
 
 export const CareActivitySourceClassification = {
   general_starter: 'general_starter',
+  document_candidate: 'document_candidate',
+  clinician_reviewed_document: 'clinician_reviewed_document',
+  research_informed_general_starter: 'research_informed_general_starter',
 } as const;
+
+export interface ActivityRecommendationEvidence {
+  recordId: string;
+  category: string;
+  documentId: string;
+  documentTitle: string;
+  /** @nullable */
+  sourceSection?: string | null;
+  /** @nullable */
+  sourcePage?: number | null;
+  sourceExcerpt: string;
+  reviewStatus: string;
+}
 
 export interface CareActivity {
   id: string;
@@ -175,7 +225,7 @@ export interface CareActivity {
   ifDifficult?: string;
   notes?: string;
   schedule?: string;
-  status: CareStatus;
+  status: ActivityStatus;
   version: number;
   source: string;
   currentStep?: number;
@@ -192,6 +242,24 @@ export interface CareActivity {
   personalizationFields?: string[];
   requiresClinicianConfirmation?: boolean;
   planConfirmed?: boolean;
+  /** @nullable */
+  recommendationId?: string | null;
+  reviewContext?: string;
+  reviewStartAction?: string;
+  reviewEnding?: string;
+  reviewPauseConditions?: string[];
+  sourceEvidence?: ActivityRecommendationEvidence[];
+  matchReasons?: string[];
+  /** @nullable */
+  reviewNote?: string | null;
+  /** @nullable */
+  reviewedBy?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  riskClassification?: string;
+  missingInformation?: string[];
+  /** @nullable */
+  relatedGoal?: string | null;
 }
 
 export interface CarePracticeProgressInput {
@@ -255,19 +323,6 @@ export interface CareObservation {
   intensity?: string | null;
 }
 
-export interface ActivityRecommendationEvidence {
-  recordId: string;
-  category: string;
-  documentId: string;
-  documentTitle: string;
-  /** @nullable */
-  sourceSection?: string | null;
-  /** @nullable */
-  sourcePage?: number | null;
-  sourceExcerpt: string;
-  reviewStatus: string;
-}
-
 export type ActivityRecommendationPriorityTier = typeof ActivityRecommendationPriorityTier[keyof typeof ActivityRecommendationPriorityTier];
 
 
@@ -312,6 +367,11 @@ export interface ActivityRecommendation {
   id: string;
   priorityTier: ActivityRecommendationPriorityTier;
   status: ActivityRecommendationStatus;
+  missingInformation?: string[];
+  /** @nullable */
+  relatedGoal?: string | null;
+  riskClassification?: string;
+  routineContext?: string;
   title: string;
   description: string;
   skill: string;
@@ -346,6 +406,7 @@ export interface CareTeamWorkspace {
   recentPractice: CarePractice[];
   observations: CareObservation[];
   activityRecommendations?: ActivityRecommendation[];
+  activityReviews?: CareActivity[];
   activityRecommendationStatus?: CareTeamWorkspaceActivityRecommendationStatus;
   activityRecommendationMessage?: string;
   activitySafetyEvidence?: ActivityRecommendationEvidence[];

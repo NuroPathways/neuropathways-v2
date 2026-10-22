@@ -24,7 +24,7 @@ export const GetCareTeamActivityLibraryResponseItem = zod.object({
   "ifDifficult": zod.string().optional(),
   "notes": zod.string().optional(),
   "schedule": zod.string().optional(),
-  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "status": zod.enum(['draft', 'needs_review', 'needs_details', 'approved', 'published', 'paused', 'archived', 'rejected', 'superseded']),
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
@@ -45,10 +45,32 @@ export const GetCareTeamActivityLibraryResponseItem = zod.object({
   "limitation": zod.string()
 })).optional(),
   "exclusionCriteria": zod.array(zod.string()).optional(),
-  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "sourceClassification": zod.enum(['general_starter', 'document_candidate', 'clinician_reviewed_document', 'research_informed_general_starter']).optional(),
   "personalizationFields": zod.array(zod.string()).optional(),
   "requiresClinicianConfirmation": zod.boolean().optional(),
-  "planConfirmed": zod.boolean().optional()
+  "planConfirmed": zod.boolean().optional(),
+  "recommendationId": zod.string().nullish(),
+  "reviewContext": zod.string().optional(),
+  "reviewStartAction": zod.string().optional(),
+  "reviewEnding": zod.string().optional(),
+  "reviewPauseConditions": zod.array(zod.string()).optional(),
+  "sourceEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})).optional(),
+  "matchReasons": zod.array(zod.string()).optional(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "riskClassification": zod.string().optional(),
+  "missingInformation": zod.array(zod.string()).optional(),
+  "relatedGoal": zod.string().nullish()
 })
 export const GetCareTeamActivityLibraryResponse = zod.array(GetCareTeamActivityLibraryResponseItem)
 
@@ -111,7 +133,7 @@ export const GetClinicianGoalsActivitiesResponse = zod.object({
   "ifDifficult": zod.string().optional(),
   "notes": zod.string().optional(),
   "schedule": zod.string().optional(),
-  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "status": zod.enum(['draft', 'needs_review', 'needs_details', 'approved', 'published', 'paused', 'archived', 'rejected', 'superseded']),
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
@@ -132,10 +154,32 @@ export const GetClinicianGoalsActivitiesResponse = zod.object({
   "limitation": zod.string()
 })).optional(),
   "exclusionCriteria": zod.array(zod.string()).optional(),
-  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "sourceClassification": zod.enum(['general_starter', 'document_candidate', 'clinician_reviewed_document', 'research_informed_general_starter']).optional(),
   "personalizationFields": zod.array(zod.string()).optional(),
   "requiresClinicianConfirmation": zod.boolean().optional(),
-  "planConfirmed": zod.boolean().optional()
+  "planConfirmed": zod.boolean().optional(),
+  "recommendationId": zod.string().nullish(),
+  "reviewContext": zod.string().optional(),
+  "reviewStartAction": zod.string().optional(),
+  "reviewEnding": zod.string().optional(),
+  "reviewPauseConditions": zod.array(zod.string()).optional(),
+  "sourceEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})).optional(),
+  "matchReasons": zod.array(zod.string()).optional(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "riskClassification": zod.string().optional(),
+  "missingInformation": zod.array(zod.string()).optional(),
+  "relatedGoal": zod.string().nullish()
 })),
   "recentPractice": zod.array(zod.object({
   "id": zod.string(),
@@ -161,6 +205,10 @@ export const GetClinicianGoalsActivitiesResponse = zod.object({
   "id": zod.string(),
   "priorityTier": zod.enum(['clinician_approved_document_activity', 'document_activity_candidate', 'document_grounded_library']),
   "status": zod.enum(['approved_not_assigned', 'needs_details', 'needs_clinician_review', 'suggestion_only']),
+  "missingInformation": zod.array(zod.string()).optional(),
+  "relatedGoal": zod.string().nullish(),
+  "riskClassification": zod.string().optional(),
+  "routineContext": zod.string().optional(),
   "title": zod.string(),
   "description": zod.string(),
   "skill": zod.string(),
@@ -193,6 +241,70 @@ export const GetClinicianGoalsActivitiesResponse = zod.object({
   "limitation": zod.string()
 })),
   "safetyReviewRequired": zod.boolean()
+})).optional(),
+  "activityReviews": zod.array(zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "libraryId": zod.string().nullish(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "estimatedMinutes": zod.number().int().nullish(),
+  "materials": zod.string().optional(),
+  "steps": zod.array(zod.string()),
+  "whyItMayHelp": zod.string().optional(),
+  "ifDifficult": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "schedule": zod.string().optional(),
+  "status": zod.enum(['draft', 'needs_review', 'needs_details', 'approved', 'published', 'paused', 'archived', 'rejected', 'superseded']),
+  "version": zod.number().int(),
+  "source": zod.string(),
+  "currentStep": zod.number().int().optional(),
+  "bookmarked": zod.boolean().optional(),
+  "skillDomain": zod.enum(['communication', 'transitions', 'daily_living', 'social_play', 'coping', 'parent_preparation']).optional(),
+  "appropriateContexts": zod.array(zod.string()).optional(),
+  "requiredInformation": zod.array(zod.string()).optional(),
+  "caregiverPhrases": zod.array(zod.string()).optional(),
+  "stopConditions": zod.array(zod.string()).optional(),
+  "riskTier": zod.enum(['low', 'context_sensitive', 'requires_authorized_plan']).optional(),
+  "evidenceReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+})).optional(),
+  "exclusionCriteria": zod.array(zod.string()).optional(),
+  "sourceClassification": zod.enum(['general_starter', 'document_candidate', 'clinician_reviewed_document', 'research_informed_general_starter']).optional(),
+  "personalizationFields": zod.array(zod.string()).optional(),
+  "requiresClinicianConfirmation": zod.boolean().optional(),
+  "planConfirmed": zod.boolean().optional(),
+  "recommendationId": zod.string().nullish(),
+  "reviewContext": zod.string().optional(),
+  "reviewStartAction": zod.string().optional(),
+  "reviewEnding": zod.string().optional(),
+  "reviewPauseConditions": zod.array(zod.string()).optional(),
+  "sourceEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})).optional(),
+  "matchReasons": zod.array(zod.string()).optional(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "riskClassification": zod.string().optional(),
+  "missingInformation": zod.array(zod.string()).optional(),
+  "relatedGoal": zod.string().nullish()
 })).optional(),
   "activityRecommendationStatus": zod.enum(['ready', 'scan_incomplete', 'no_verified_matches', 'no_documents']).optional(),
   "activityRecommendationMessage": zod.string().optional(),
@@ -384,6 +496,8 @@ export const createCareTeamAssignmentBodyScheduleMax = 300;
 
 export const createCareTeamAssignmentBodyExpectedVersionMin = 0;
 
+export const createCareTeamAssignmentBodyReviewNoteMax = 2000;
+
 
 
 export const CreateCareTeamAssignmentBody = zod.object({
@@ -399,9 +513,10 @@ export const CreateCareTeamAssignmentBody = zod.object({
   "ifDifficult": zod.string().max(createCareTeamAssignmentBodyIfDifficultMax).optional(),
   "notes": zod.string().max(createCareTeamAssignmentBodyNotesMax).optional(),
   "schedule": zod.string().max(createCareTeamAssignmentBodyScheduleMax).optional(),
-  "status": zod.enum(['draft', 'published', 'paused', 'archived']).optional(),
+  "status": zod.enum(['draft', 'needs_review', 'needs_details', 'approved', 'published', 'paused', 'archived', 'rejected', 'superseded']).optional(),
   "expectedVersion": zod.number().int().min(createCareTeamAssignmentBodyExpectedVersionMin).optional(),
-  "planConfirmed": zod.boolean().optional()
+  "planConfirmed": zod.boolean().optional(),
+  "reviewNote": zod.string().max(createCareTeamAssignmentBodyReviewNoteMax).optional()
 })
 
 export const CreateCareTeamAssignmentResponse = zod.object({
@@ -420,7 +535,7 @@ export const CreateCareTeamAssignmentResponse = zod.object({
   "ifDifficult": zod.string().optional(),
   "notes": zod.string().optional(),
   "schedule": zod.string().optional(),
-  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "status": zod.enum(['draft', 'needs_review', 'needs_details', 'approved', 'published', 'paused', 'archived', 'rejected', 'superseded']),
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
@@ -441,10 +556,32 @@ export const CreateCareTeamAssignmentResponse = zod.object({
   "limitation": zod.string()
 })).optional(),
   "exclusionCriteria": zod.array(zod.string()).optional(),
-  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "sourceClassification": zod.enum(['general_starter', 'document_candidate', 'clinician_reviewed_document', 'research_informed_general_starter']).optional(),
   "personalizationFields": zod.array(zod.string()).optional(),
   "requiresClinicianConfirmation": zod.boolean().optional(),
-  "planConfirmed": zod.boolean().optional()
+  "planConfirmed": zod.boolean().optional(),
+  "recommendationId": zod.string().nullish(),
+  "reviewContext": zod.string().optional(),
+  "reviewStartAction": zod.string().optional(),
+  "reviewEnding": zod.string().optional(),
+  "reviewPauseConditions": zod.array(zod.string()).optional(),
+  "sourceEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})).optional(),
+  "matchReasons": zod.array(zod.string()).optional(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "riskClassification": zod.string().optional(),
+  "missingInformation": zod.array(zod.string()).optional(),
+  "relatedGoal": zod.string().nullish()
 })
 
 
@@ -477,6 +614,8 @@ export const updateCareTeamAssignmentBodyScheduleMax = 300;
 
 export const updateCareTeamAssignmentBodyExpectedVersionMin = 0;
 
+export const updateCareTeamAssignmentBodyReviewNoteMax = 2000;
+
 
 
 export const UpdateCareTeamAssignmentBody = zod.object({
@@ -492,9 +631,10 @@ export const UpdateCareTeamAssignmentBody = zod.object({
   "ifDifficult": zod.string().max(updateCareTeamAssignmentBodyIfDifficultMax).optional(),
   "notes": zod.string().max(updateCareTeamAssignmentBodyNotesMax).optional(),
   "schedule": zod.string().max(updateCareTeamAssignmentBodyScheduleMax).optional(),
-  "status": zod.enum(['draft', 'published', 'paused', 'archived']).optional(),
+  "status": zod.enum(['draft', 'needs_review', 'needs_details', 'approved', 'published', 'paused', 'archived', 'rejected', 'superseded']).optional(),
   "expectedVersion": zod.number().int().min(updateCareTeamAssignmentBodyExpectedVersionMin).optional(),
-  "planConfirmed": zod.boolean().optional()
+  "planConfirmed": zod.boolean().optional(),
+  "reviewNote": zod.string().max(updateCareTeamAssignmentBodyReviewNoteMax).optional()
 })
 
 export const UpdateCareTeamAssignmentResponse = zod.object({
@@ -513,7 +653,7 @@ export const UpdateCareTeamAssignmentResponse = zod.object({
   "ifDifficult": zod.string().optional(),
   "notes": zod.string().optional(),
   "schedule": zod.string().optional(),
-  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "status": zod.enum(['draft', 'needs_review', 'needs_details', 'approved', 'published', 'paused', 'archived', 'rejected', 'superseded']),
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
@@ -534,10 +674,113 @@ export const UpdateCareTeamAssignmentResponse = zod.object({
   "limitation": zod.string()
 })).optional(),
   "exclusionCriteria": zod.array(zod.string()).optional(),
-  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "sourceClassification": zod.enum(['general_starter', 'document_candidate', 'clinician_reviewed_document', 'research_informed_general_starter']).optional(),
   "personalizationFields": zod.array(zod.string()).optional(),
   "requiresClinicianConfirmation": zod.boolean().optional(),
-  "planConfirmed": zod.boolean().optional()
+  "planConfirmed": zod.boolean().optional(),
+  "recommendationId": zod.string().nullish(),
+  "reviewContext": zod.string().optional(),
+  "reviewStartAction": zod.string().optional(),
+  "reviewEnding": zod.string().optional(),
+  "reviewPauseConditions": zod.array(zod.string()).optional(),
+  "sourceEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})).optional(),
+  "matchReasons": zod.array(zod.string()).optional(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "riskClassification": zod.string().optional(),
+  "missingInformation": zod.array(zod.string()).optional(),
+  "relatedGoal": zod.string().nullish()
+})
+
+
+export const ReviewCareTeamActivityRecommendationParams = zod.object({
+  "childId": zod.coerce.string(),
+  "recommendationId": zod.coerce.string()
+})
+
+export const reviewCareTeamActivityRecommendationBodyReviewNoteMax = 2000;
+
+
+
+export const ReviewCareTeamActivityRecommendationBody = zod.object({
+  "action": zod.enum(['start_review', 'approve', 'reject', 'request_details']),
+  "fitSafetyConfirmed": zod.boolean().optional(),
+  "reviewNote": zod.string().max(reviewCareTeamActivityRecommendationBodyReviewNoteMax).optional()
+})
+
+export const ReviewCareTeamActivityRecommendationResponse = zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "libraryId": zod.string().nullish(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "estimatedMinutes": zod.number().int().nullish(),
+  "materials": zod.string().optional(),
+  "steps": zod.array(zod.string()),
+  "whyItMayHelp": zod.string().optional(),
+  "ifDifficult": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "schedule": zod.string().optional(),
+  "status": zod.enum(['draft', 'needs_review', 'needs_details', 'approved', 'published', 'paused', 'archived', 'rejected', 'superseded']),
+  "version": zod.number().int(),
+  "source": zod.string(),
+  "currentStep": zod.number().int().optional(),
+  "bookmarked": zod.boolean().optional(),
+  "skillDomain": zod.enum(['communication', 'transitions', 'daily_living', 'social_play', 'coping', 'parent_preparation']).optional(),
+  "appropriateContexts": zod.array(zod.string()).optional(),
+  "requiredInformation": zod.array(zod.string()).optional(),
+  "caregiverPhrases": zod.array(zod.string()).optional(),
+  "stopConditions": zod.array(zod.string()).optional(),
+  "riskTier": zod.enum(['low', 'context_sensitive', 'requires_authorized_plan']).optional(),
+  "evidenceReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+})).optional(),
+  "exclusionCriteria": zod.array(zod.string()).optional(),
+  "sourceClassification": zod.enum(['general_starter', 'document_candidate', 'clinician_reviewed_document', 'research_informed_general_starter']).optional(),
+  "personalizationFields": zod.array(zod.string()).optional(),
+  "requiresClinicianConfirmation": zod.boolean().optional(),
+  "planConfirmed": zod.boolean().optional(),
+  "recommendationId": zod.string().nullish(),
+  "reviewContext": zod.string().optional(),
+  "reviewStartAction": zod.string().optional(),
+  "reviewEnding": zod.string().optional(),
+  "reviewPauseConditions": zod.array(zod.string()).optional(),
+  "sourceEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})).optional(),
+  "matchReasons": zod.array(zod.string()).optional(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "riskClassification": zod.string().optional(),
+  "missingInformation": zod.array(zod.string()).optional(),
+  "relatedGoal": zod.string().nullish()
 })
 
 
@@ -599,7 +842,7 @@ export const GetParentCareTeamResponse = zod.object({
   "ifDifficult": zod.string().optional(),
   "notes": zod.string().optional(),
   "schedule": zod.string().optional(),
-  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "status": zod.enum(['draft', 'needs_review', 'needs_details', 'approved', 'published', 'paused', 'archived', 'rejected', 'superseded']),
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
@@ -620,10 +863,32 @@ export const GetParentCareTeamResponse = zod.object({
   "limitation": zod.string()
 })).optional(),
   "exclusionCriteria": zod.array(zod.string()).optional(),
-  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "sourceClassification": zod.enum(['general_starter', 'document_candidate', 'clinician_reviewed_document', 'research_informed_general_starter']).optional(),
   "personalizationFields": zod.array(zod.string()).optional(),
   "requiresClinicianConfirmation": zod.boolean().optional(),
-  "planConfirmed": zod.boolean().optional()
+  "planConfirmed": zod.boolean().optional(),
+  "recommendationId": zod.string().nullish(),
+  "reviewContext": zod.string().optional(),
+  "reviewStartAction": zod.string().optional(),
+  "reviewEnding": zod.string().optional(),
+  "reviewPauseConditions": zod.array(zod.string()).optional(),
+  "sourceEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})).optional(),
+  "matchReasons": zod.array(zod.string()).optional(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "riskClassification": zod.string().optional(),
+  "missingInformation": zod.array(zod.string()).optional(),
+  "relatedGoal": zod.string().nullish()
 })),
   "recentPractice": zod.array(zod.object({
   "id": zod.string(),
@@ -649,6 +914,10 @@ export const GetParentCareTeamResponse = zod.object({
   "id": zod.string(),
   "priorityTier": zod.enum(['clinician_approved_document_activity', 'document_activity_candidate', 'document_grounded_library']),
   "status": zod.enum(['approved_not_assigned', 'needs_details', 'needs_clinician_review', 'suggestion_only']),
+  "missingInformation": zod.array(zod.string()).optional(),
+  "relatedGoal": zod.string().nullish(),
+  "riskClassification": zod.string().optional(),
+  "routineContext": zod.string().optional(),
   "title": zod.string(),
   "description": zod.string(),
   "skill": zod.string(),
@@ -681,6 +950,70 @@ export const GetParentCareTeamResponse = zod.object({
   "limitation": zod.string()
 })),
   "safetyReviewRequired": zod.boolean()
+})).optional(),
+  "activityReviews": zod.array(zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "libraryId": zod.string().nullish(),
+  "goalId": zod.string().nullish(),
+  "goalTitle": zod.string().nullish(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "estimatedMinutes": zod.number().int().nullish(),
+  "materials": zod.string().optional(),
+  "steps": zod.array(zod.string()),
+  "whyItMayHelp": zod.string().optional(),
+  "ifDifficult": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "schedule": zod.string().optional(),
+  "status": zod.enum(['draft', 'needs_review', 'needs_details', 'approved', 'published', 'paused', 'archived', 'rejected', 'superseded']),
+  "version": zod.number().int(),
+  "source": zod.string(),
+  "currentStep": zod.number().int().optional(),
+  "bookmarked": zod.boolean().optional(),
+  "skillDomain": zod.enum(['communication', 'transitions', 'daily_living', 'social_play', 'coping', 'parent_preparation']).optional(),
+  "appropriateContexts": zod.array(zod.string()).optional(),
+  "requiredInformation": zod.array(zod.string()).optional(),
+  "caregiverPhrases": zod.array(zod.string()).optional(),
+  "stopConditions": zod.array(zod.string()).optional(),
+  "riskTier": zod.enum(['low', 'context_sensitive', 'requires_authorized_plan']).optional(),
+  "evidenceReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+})).optional(),
+  "exclusionCriteria": zod.array(zod.string()).optional(),
+  "sourceClassification": zod.enum(['general_starter', 'document_candidate', 'clinician_reviewed_document', 'research_informed_general_starter']).optional(),
+  "personalizationFields": zod.array(zod.string()).optional(),
+  "requiresClinicianConfirmation": zod.boolean().optional(),
+  "planConfirmed": zod.boolean().optional(),
+  "recommendationId": zod.string().nullish(),
+  "reviewContext": zod.string().optional(),
+  "reviewStartAction": zod.string().optional(),
+  "reviewEnding": zod.string().optional(),
+  "reviewPauseConditions": zod.array(zod.string()).optional(),
+  "sourceEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})).optional(),
+  "matchReasons": zod.array(zod.string()).optional(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "riskClassification": zod.string().optional(),
+  "missingInformation": zod.array(zod.string()).optional(),
+  "relatedGoal": zod.string().nullish()
 })).optional(),
   "activityRecommendationStatus": zod.enum(['ready', 'scan_incomplete', 'no_verified_matches', 'no_documents']).optional(),
   "activityRecommendationMessage": zod.string().optional(),
@@ -730,7 +1063,7 @@ export const SaveCareTeamPracticeProgressResponse = zod.object({
   "ifDifficult": zod.string().optional(),
   "notes": zod.string().optional(),
   "schedule": zod.string().optional(),
-  "status": zod.enum(['draft', 'published', 'paused', 'archived']),
+  "status": zod.enum(['draft', 'needs_review', 'needs_details', 'approved', 'published', 'paused', 'archived', 'rejected', 'superseded']),
   "version": zod.number().int(),
   "source": zod.string(),
   "currentStep": zod.number().int().optional(),
@@ -751,10 +1084,32 @@ export const SaveCareTeamPracticeProgressResponse = zod.object({
   "limitation": zod.string()
 })).optional(),
   "exclusionCriteria": zod.array(zod.string()).optional(),
-  "sourceClassification": zod.enum(['general_starter']).optional(),
+  "sourceClassification": zod.enum(['general_starter', 'document_candidate', 'clinician_reviewed_document', 'research_informed_general_starter']).optional(),
   "personalizationFields": zod.array(zod.string()).optional(),
   "requiresClinicianConfirmation": zod.boolean().optional(),
-  "planConfirmed": zod.boolean().optional()
+  "planConfirmed": zod.boolean().optional(),
+  "recommendationId": zod.string().nullish(),
+  "reviewContext": zod.string().optional(),
+  "reviewStartAction": zod.string().optional(),
+  "reviewEnding": zod.string().optional(),
+  "reviewPauseConditions": zod.array(zod.string()).optional(),
+  "sourceEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullish(),
+  "sourcePage": zod.number().int().nullish(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})).optional(),
+  "matchReasons": zod.array(zod.string()).optional(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "riskClassification": zod.string().optional(),
+  "missingInformation": zod.array(zod.string()).optional(),
+  "relatedGoal": zod.string().nullish()
 })
 
 

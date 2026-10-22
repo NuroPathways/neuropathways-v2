@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const ws = { current: null };
@@ -9,6 +9,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useGetCareTeamActivityLibrary: () => ({ data: [], isLoading: false }),
   getGetCareTeamActivityLibraryQueryKey: () => ["lib"],
   createCareTeamGoal: vi.fn(), updateCareTeamGoal: vi.fn(), createCareTeamAssignment: vi.fn(), updateCareTeamAssignment: vi.fn(),
+  reviewCareTeamActivityRecommendation: vi.fn(),
   useGetParentGoals: () => ({}), getGetParentGoalsQueryKey: () => [], useCreateParentGoal: () => ({}), useUpdateParentGoal: () => ({}), useDeleteParentGoal: () => ({}),
   useGetParentCareTeam: () => ({}), getGetParentCareTeamQueryKey: () => [],
   getGetParentDashboardQueryKey: () => [], logParentDailyAction: vi.fn(), updateParentPracticeProgress: vi.fn(),
@@ -124,7 +125,7 @@ describe("Care team forms", () => {
     fireEvent.change(screen.getByTestId("select-care-goal-measurement"), { target: { value: "completed_steps" } });
     expect(screen.getByTestId("button-publish-parent").disabled).toBe(true);
   });
-  it("shows clinician-only activity suggestions with traceable sources and no assignment action", () => {
+  it("shows clinician-only suggestions with source evidence and gated review actions", () => {
     ws.current = {
       goals: [], assignments: [], recentPractice: [], observations: [],
       activityRecommendationStatus: "ready",
@@ -161,6 +162,19 @@ describe("Care team forms", () => {
     expect(screen.getByText("Communication plan · Communication · page 3 · not yet reviewed")).toBeTruthy();
     expect(screen.getByText("Uses an AAC device to make familiar choices.")).toBeTruthy();
     expect(screen.queryByTestId("button-publish-suggestion")).toBeNull();
+    expect(screen.getByTestId("button-review-suggestion-library:familiar-aac-choice")).toBeTruthy();
+    expect(screen.getByTestId("button-approve-suggestion-library:familiar-aac-choice")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("button-approve-suggestion-library:familiar-aac-choice"));
+    expect(screen.getByText(/Approval is recorded for the clinician team/i)).toBeTruthy();
+    expect(screen.getByTestId("button-submit-review-action").disabled).toBe(true);
+    fireEvent.click(screen.getByTestId("checkbox-confirm-suggestion-fit-safety"));
+    expect(screen.getByTestId("button-submit-review-action").disabled).toBe(false);
+    fireEvent.click(screen.getByTestId("button-submit-review-action"));
+    expect(api.reviewCareTeamActivityRecommendation).toHaveBeenCalledWith(
+      "c1",
+      "library:familiar-aac-choice",
+      { action: "approve", fitSafetyConfirmed: true },
+    );
   });
 
   it("explains when goals did not produce child-specific suggestions", () => {
@@ -173,6 +187,33 @@ describe("Care team forms", () => {
     wrap(<CareTeamWorkspace childId="c1" childName="John" />);
     expect(screen.getByTestId("activity-recommendation-message").textContent).toMatch(/Goals alone do not create activities/);
     expect(screen.queryByText("Familiar AAC choice")).toBeNull();
+  });
+  it("keeps reviewed drafts out of assigned activities and publishes an approved item separately", async () => {
+    const reviewed = {
+      id: "review-1", childId: "c1", recommendationId: "document:act-1",
+      title: "Music choice", description: "Offer a familiar choice.", skill: "Communication",
+      estimatedMinutes: 5, materials: "Music player", steps: ["Offer one song.", "Pause for a response."],
+      ifDifficult: "Pause if the child is finished.", status: "approved", version: 0,
+      sourceEvidence: [{
+        recordId: "record-1", documentId: "doc-1", documentTitle: "Support plan",
+        sourceExcerpt: "Offer a familiar music choice.", reviewStatus: "approved",
+      }],
+      missingInformation: [], riskClassification: "Clinician-reviewed source activity",
+      planConfirmed: true, reviewNote: "",
+    };
+    ws.current = {
+      goals: [], assignments: [reviewed], activityReviews: [reviewed],
+      recentPractice: [], observations: [], activityRecommendations: [],
+    };
+    wrap(<CareTeamWorkspace childId="c1" childName="John" />);
+    expect(screen.getByTestId("activity-review-review-1")).toBeTruthy();
+    expect(screen.queryByTestId("row-assignment-review-1")).toBeNull();
+    fireEvent.click(screen.getByTestId("button-publish-review-review-1"));
+    await waitFor(() => expect(api.updateCareTeamAssignment).toHaveBeenCalledWith(
+      "c1",
+      "review-1",
+      expect.objectContaining({ status: "published", expectedVersion: 0, planConfirmed: true }),
+    ));
   });
   it("shows the server message for 409 validation errors", () => {
     expect(friendlyError({ message: "HTTP 409: x", data: { error: "Target is required for this measurement." } })).toBe("Target is required for this measurement.");

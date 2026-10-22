@@ -171,6 +171,19 @@ test("existing assignments suppress duplicate library suggestions", () => {
   assert.deepEqual(result.recommendations, []);
 });
 
+test("a suggestion already in clinician review is not offered a second time", () => {
+  const result = match([record()], [libraryItem("build-together")], {
+    existingAssignments: [{
+      id: "assignment-review",
+      recommendationId: "library:build-together",
+      libraryId: "build-together",
+      status: "needs_review",
+      title: "Build together",
+    }],
+  });
+  assert.deepEqual(result.recommendations, []);
+});
+
 test("reviewed source activities rank ahead of document candidates and starter suggestions", () => {
   const candidate = record({
     id: "activity-record",

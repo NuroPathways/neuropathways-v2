@@ -18,6 +18,7 @@ type ActivityLibraryItem = {
   id: string;
   title: string;
   description: string;
+  routineContext?: string;
   skill: string;
   skillDomain?: string;
   estimatedMinutes?: number | null;
@@ -29,7 +30,13 @@ type ActivityLibraryItem = {
   [key: string]: unknown;
 };
 
-type ExistingAssignment = { id?: string; libraryId?: string | null; title?: string; status?: string };
+type ExistingAssignment = {
+  id?: string;
+  libraryId?: string | null;
+  title?: string;
+  status?: string;
+  recommendationId?: string | null;
+};
 type ApprovedDocumentActivity = {
   title: string;
   routineContext?: string;
@@ -70,6 +77,7 @@ export type ActivityRecommendation = {
   status: "approved_not_assigned" | "needs_details" | "needs_clinician_review" | "suggestion_only";
   title: string;
   description: string;
+  routineContext?: string;
   skill: string;
   skillDomain?: string;
   estimatedMinutes: number | null;
@@ -79,6 +87,9 @@ export type ActivityRecommendation = {
   ending: string;
   pauseConditions: string[];
   matchReasons: string[];
+  missingInformation: string[];
+  relatedGoal: string | null;
+  riskClassification: string;
   evidence: ActivityRecommendationEvidence[];
   sourceClassification: "document_candidate" | "clinician_reviewed_document" | "research_informed_general_starter";
   researchReferences: unknown[];
@@ -303,6 +314,7 @@ function isCompleteDocumentActivity(record: EvidenceRecord): boolean {
   const i = record.interpretation;
   return Boolean(
     text(i.title) &&
+    text(i.description) &&
     text(i.skill) &&
     text(i.suggested_context) &&
     text(i.start_action) &&
@@ -317,6 +329,15 @@ function documentActivityRecommendation(record: EvidenceRecord): ActivityRecomme
   const title = text(i.title);
   if (!title) return null;
   const steps = list(i.steps).slice(0, 5);
+  const missingInformation = [
+    !text(i.description) ? "Description" : null,
+    !text(i.skill) ? "Related skill" : null,
+    !text(i.suggested_context) ? "Appropriate context" : null,
+    !text(i.start_action) ? "How to begin" : null,
+    steps.length < 2 ? "At least two parent-facing steps" : null,
+    !text(i.end_condition) ? "How to finish" : null,
+    list(i.pause_conditions).length === 0 ? "Pause or stop conditions" : null,
+  ].filter((item): item is string => Boolean(item));
   const content = [
     title, text(i.description), text(i.skill), text(i.suggested_context),
     text(i.start_action), ...steps, text(i.end_condition), ...list(i.pause_conditions),
@@ -330,6 +351,7 @@ function documentActivityRecommendation(record: EvidenceRecord): ActivityRecomme
     status: approved ? "approved_not_assigned" : complete ? "needs_clinician_review" : "needs_details",
     title,
     description: text(i.description),
+    routineContext: text(i.suggested_context),
     skill: text(i.skill),
     estimatedMinutes: typeof i.duration_minutes === "number" && i.duration_minutes > 0 ? i.duration_minutes : null,
     materials: list(i.materials),
@@ -342,6 +364,11 @@ function documentActivityRecommendation(record: EvidenceRecord): ActivityRecomme
       : complete
         ? "A complete activity candidate is explicitly described in a source document, but it has not been clinician-approved."
         : "A source document mentions this activity, but required instructions are missing; complete details before considering it."],
+    missingInformation,
+    relatedGoal: text(i.related_goal) || null,
+    riskClassification: approved
+      ? "Clinician-reviewed source activity"
+      : "Not yet assessed; clinician review required",
     evidence: uniqueEvidence([record]),
     sourceClassification: "document_candidate",
     researchReferences: [],
@@ -374,6 +401,7 @@ function approvedActivityRecommendation(
     status: "approved_not_assigned",
     title: activity.title,
     description: [activity.routineContext, activity.opportunity].filter(Boolean).join(" · "),
+    routineContext: activity.routineContext || "",
     skill: activity.skill || "",
     estimatedMinutes: typeof activity.estimatedMinutes === "number" ? activity.estimatedMinutes : null,
     materials: list(activity.materials),
@@ -382,6 +410,9 @@ function approvedActivityRecommendation(
     ending: activity.ending || "",
     pauseConditions: list(activity.pauseConditions),
     matchReasons: ["This source-derived activity is complete, source-verified, and individually reviewed by the clinician; it is not yet assigned."],
+    missingInformation: [],
+    relatedGoal: activity.relatedGoal || null,
+    riskClassification: "Clinician-reviewed source activity; recheck current fit and safety",
     evidence: [{
       recordId: `parent-support-activity:${activity.sourceDocumentId}:${normalized(activity.title)}`,
       category: "potential_home_activity",
@@ -416,28 +447,40 @@ export function buildChildActivityRecommendations(input: {
       (record.category === "profile_information" && record.interpretation?.field === "safety_considerations")),
   ));
   const assignedLibraryIds = new Set((input.existingAssignments || [])
-    .filter((assignment) => assignment.status === "published" || assignment.status === "draft" || assignment.status === "paused")
+    .filter((assignment) => !["rejected", "archived", "superseded"].includes(assignment.status || ""))
     .map((assignment) => assignment.libraryId)
     .filter((id): id is string => Boolean(id)));
   const assignedTitles = new Set((input.existingAssignments || [])
-    .filter((assignment) => assignment.status === "published" || assignment.status === "draft" || assignment.status === "paused")
+    .filter((assignment) => !["rejected", "archived", "superseded"].includes(assignment.status || ""))
     .map((assignment) => normalized(text(assignment.title)))
     .filter(Boolean));
   const recommendations: ActivityRecommendation[] = [];
   const seen = new Set<string>();
+  const reviewedRecommendationIds = new Set((input.existingAssignments || [])
+    .map((assignment) => assignment.recommendationId)
+    .filter((id): id is string => Boolean(id)));
 
   for (const activity of input.approvedDocumentActivities || []) {
     const candidate = approvedActivityRecommendation(activity, input.clinicianId);
-    if (!candidate || assignedTitles.has(normalized(candidate.title))) continue;
+    if (!candidate || reviewedRecommendationIds.has(candidate.id) || assignedTitles.has(normalized(candidate.title))) continue;
     const key = normalized(candidate.title);
     if (seen.has(key)) continue;
     seen.add(key);
     recommendations.push(candidate);
   }
 
-  for (const record of records.filter((candidate) => candidate.category === "potential_home_activity")) {
+  const directActivityRecords = input.records.filter((candidate) =>
+    candidate.childId === input.childId &&
+    candidate.category === "potential_home_activity" &&
+    candidate.sourceExcerptVerified === true &&
+    candidate.extractionStatus === "extracted" &&
+    ["unreviewed", "approved"].includes(candidate.reviewStatus) &&
+    text(candidate.sourceExcerpt).length >= 12 &&
+    candidate.interpretation && typeof candidate.interpretation === "object",
+  );
+  for (const record of directActivityRecords) {
     const candidate = documentActivityRecommendation(record);
-    if (!candidate || assignedTitles.has(normalized(candidate.title)) || seen.has(normalized(candidate.title))) continue;
+    if (!candidate || reviewedRecommendationIds.has(candidate.id) || assignedTitles.has(normalized(candidate.title)) || seen.has(normalized(candidate.title))) continue;
     seen.add(normalized(candidate.title));
     recommendations.push(candidate);
   }
@@ -469,6 +512,11 @@ export function buildChildActivityRecommendations(input: {
       ending: "",
       pauseConditions: activity.ifDifficult ? [activity.ifDifficult] : [],
       matchReasons: matched.reasons,
+      missingInformation: [],
+      relatedGoal: null,
+      riskClassification: safetyEvidence.length
+        ? "Low-risk starter; child-specific safety review required"
+        : "Low-risk starter; clinician must confirm current fit",
       evidence,
       sourceClassification: "research_informed_general_starter",
       researchReferences: Array.isArray(activity.evidenceReferences) ? activity.evidenceReferences : [],

@@ -25,6 +25,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ActivityRecommendationReviewInput,
   CareActivity,
   CareAssignmentInput,
   CareGoal,
@@ -638,6 +639,91 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getUpdateCareTeamAssignmentMutationOptions(options), queryClient);
+    }
+
+export const getReviewCareTeamActivityRecommendationUrl = (childId: string,
+    recommendationId: string,) => {
+
+
+
+
+  return `/api/clinician/children/${childId}/activity-recommendations/${recommendationId}/review`
+}
+
+export const reviewCareTeamActivityRecommendation = async (childId: string,
+    recommendationId: string,
+    activityRecommendationReviewInput: ActivityRecommendationReviewInput, options?: Parameters<typeof customFetch>[1]): Promise<CareActivity> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CareActivity>(getReviewCareTeamActivityRecommendationUrl(childId,recommendationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(activityRecommendationReviewInput)
+  }
+);}
+
+
+
+
+
+export const getReviewCareTeamActivityRecommendationMutationKey = () => ['reviewCareTeamActivityRecommendation'] as const;
+
+export const getReviewCareTeamActivityRecommendationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewCareTeamActivityRecommendation>>, TError,ReviewCareTeamActivityRecommendationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewCareTeamActivityRecommendation>>, TError,ReviewCareTeamActivityRecommendationMutationVariables, TContext> => {
+
+const mutationKey = getReviewCareTeamActivityRecommendationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewCareTeamActivityRecommendation>>, ReviewCareTeamActivityRecommendationMutationVariables> = (props) => {
+          const {childId,recommendationId,data} = props ?? {};
+
+          return  reviewCareTeamActivityRecommendation(childId,recommendationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewCareTeamActivityRecommendationMutationResult = NonNullable<Awaited<ReturnType<typeof reviewCareTeamActivityRecommendation>>>
+    export type ReviewCareTeamActivityRecommendationMutationBody = BodyType<ActivityRecommendationReviewInput>
+    export type ReviewCareTeamActivityRecommendationMutationError = ErrorType<unknown>
+    export type ReviewCareTeamActivityRecommendationMutationVariables = {childId: string;recommendationId: string;data: BodyType<ActivityRecommendationReviewInput>}
+
+    export const useReviewCareTeamActivityRecommendation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewCareTeamActivityRecommendation>>, TError,ReviewCareTeamActivityRecommendationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reviewCareTeamActivityRecommendation>>,
+        TError,
+        ReviewCareTeamActivityRecommendationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReviewCareTeamActivityRecommendationMutationOptions(options), queryClient);
     }
 
 export const getGetParentCareTeamUrl = (childId: string,) => {

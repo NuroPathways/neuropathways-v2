@@ -5,11 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ActivityRecommendationEvidence } from './activityRecommendationEvidence';
+import type { ActivityStatus } from './activityStatus';
 import type { CareActivityEvidenceReference } from './careActivityEvidenceReference';
 import type { CareActivityRiskTier } from './careActivityRiskTier';
 import type { CareActivitySkillDomain } from './careActivitySkillDomain';
 import type { CareActivitySourceClassification } from './careActivitySourceClassification';
-import type { CareStatus } from './careStatus';
 
 export interface CareActivity {
   id: string;
@@ -31,7 +32,7 @@ export interface CareActivity {
   ifDifficult?: string;
   notes?: string;
   schedule?: string;
-  status: CareStatus;
+  status: ActivityStatus;
   version: number;
   source: string;
   currentStep?: number;
@@ -48,4 +49,22 @@ export interface CareActivity {
   personalizationFields?: string[];
   requiresClinicianConfirmation?: boolean;
   planConfirmed?: boolean;
+  /** @nullable */
+  recommendationId?: string | null;
+  reviewContext?: string;
+  reviewStartAction?: string;
+  reviewEnding?: string;
+  reviewPauseConditions?: string[];
+  sourceEvidence?: ActivityRecommendationEvidence[];
+  matchReasons?: string[];
+  /** @nullable */
+  reviewNote?: string | null;
+  /** @nullable */
+  reviewedBy?: string | null;
+  /** @nullable */
+  reviewedAt?: Date | null;
+  riskClassification?: string;
+  missingInformation?: string[];
+  /** @nullable */
+  relatedGoal?: string | null;
 }

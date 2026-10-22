@@ -19,6 +19,7 @@ export interface CareTeamWorkspace {
   recentPractice: CarePractice[];
   observations: CareObservation[];
   activityRecommendations?: ActivityRecommendation[];
+  activityReviews?: CareActivity[];
   activityRecommendationStatus?: CareTeamWorkspaceActivityRecommendationStatus;
   activityRecommendationMessage?: string;
   activitySafetyEvidence?: ActivityRecommendationEvidence[];

@@ -16,6 +16,11 @@ export interface ActivityRecommendation {
   id: string;
   priorityTier: ActivityRecommendationPriorityTier;
   status: ActivityRecommendationStatus;
+  missingInformation?: string[];
+  /** @nullable */
+  relatedGoal?: string | null;
+  riskClassification?: string;
+  routineContext?: string;
   title: string;
   description: string;
   skill: string;

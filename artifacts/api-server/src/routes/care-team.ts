@@ -7,12 +7,13 @@ import {
 } from "@workspace/db";
 import {
   CreateCareTeamGoalBody, UpdateCareTeamGoalBody, CreateCareTeamAssignmentBody, UpdateCareTeamAssignmentBody,
-  SaveCareTeamPracticeProgressBody, RecordCareTeamPracticeBody,
+  SaveCareTeamPracticeProgressBody, RecordCareTeamPracticeBody, ReviewCareTeamActivityRecommendationBody,
 } from "@workspace/api-zod";
 import { requireParent, parentActor, ownedParentChild } from "../lib/parentAuth";
 import { careTeamActivityLibrary } from "../lib/parentDailyActions";
 import { isActivityPublishConfirmationSatisfied } from "../lib/parentActivityLibrary";
 import { assignmentWire, careGoalWire, careWorkspace, readableGoalTitle, carePracticeHistory, resolveAssignment } from "../lib/careTeam";
+import type { ActivityRecommendation } from "../lib/activityMatching";
 
 const router = Router();
 async function clinicianChild(req: Request, res: Response) {
@@ -48,6 +49,31 @@ const fail = (res: Response, e: unknown) => {
   if (e instanceof Conflict) return res.status(409).json({ error: e.message });
   throw e;
 };
+const REVIEW_ONLY_ACTIVITY_STATUSES = new Set(["needs_review", "needs_details", "approved", "rejected"]);
+const activityReviewFor = (definition: Record<string, unknown>) => {
+  const review = definition.activityReview;
+  return review && typeof review === "object" ? review as Record<string, unknown> : null;
+};
+function activityIsComplete(definition: Record<string, unknown>) {
+  const resolved = resolveAssignment(definition);
+  return Boolean(
+    resolved.title.trim() &&
+    resolved.description.trim() &&
+    resolved.skill.trim() &&
+    resolved.steps.length > 0 &&
+    resolved.steps.every((step) => step.trim()),
+  );
+}
+function recommendationActivityIsComplete(definition: Record<string, unknown>, review: Record<string, unknown> | null) {
+  if (!activityIsComplete(definition)) return false;
+  const resolved = resolveAssignment(definition);
+  const missing = Array.isArray(review?.missingInformation) ? review.missingInformation.map(String) : [];
+  if (missing.length || review?.sourceClassification === "document_candidate") {
+    if (resolved.steps.filter((step) => step.trim()).length < 2) return false;
+    if (missing.some((item) => /pause|stop|safety/i.test(item)) && !resolved.ifDifficult.trim()) return false;
+  }
+  return true;
+}
 
 router.get("/care-team/activity-library", (req, res) => {
   // General starter content contains no child or account data.
@@ -135,6 +161,11 @@ async function saveAssignment(req: Request, res: Response, update: boolean) {
       const libraryId = input.libraryId !== undefined ? input.libraryId : old?.libraryId || null;
       const goalId = input.goalId !== undefined ? input.goalId : old?.goalId || null;
       const status = input.status || old?.status || "draft";
+      const previousReview = old ? activityReviewFor(old.definition) : null;
+      const recommendationId = typeof previousReview?.recommendationId === "string" ? previousReview.recommendationId : null;
+      if (REVIEW_ONLY_ACTIVITY_STATUSES.has(status) && !recommendationId) {
+        throw new Conflict("Review-only statuses are available for a document or library suggestion.");
+      }
       const [goal] = goalId ? await tx.select().from(rewardTokensTable).where(and(
         eq(rewardTokensTable.id, goalId), eq(rewardTokensTable.childId, child.id),
         eq(rewardTokensTable.clinicianId, req.user!.id), eq(rewardTokensTable.createdByClinician, true),
@@ -147,19 +178,66 @@ async function saveAssignment(req: Request, res: Response, update: boolean) {
       if (status === "published" && !isActivityPublishConfirmationSatisfied(library, Boolean(planConfirmed))) {
         throw new Conflict("Review the child-specific context and confirm that the current support plan authorizes this activity before publishing.");
       }
-      const definition: Record<string, unknown> = library ? {
+      if (recommendationId && status === "approved" && !planConfirmed) {
+        throw new Conflict("Confirm the child's current fit, familiarity, and safety before approving this suggestion.");
+      }
+      if (recommendationId && status === "published") {
+        if (!["approved", "published", "paused"].includes(old?.status || "")) {
+          throw new Conflict("Approve this reviewed suggestion before publishing it to the family.");
+        }
+        if (!planConfirmed) {
+          throw new Conflict("Review the current activity version and confirm its fit and safety before publishing.");
+        }
+      }
+      if (recommendationId && status === "needs_details" && !String(input.reviewNote || previousReview?.reviewNote || "").trim()) {
+        throw new Conflict("Add a short note describing what detail is still needed.");
+      }
+      const now = new Date();
+      const reviewNote = input.reviewNote !== undefined ? input.reviewNote.trim() : String(previousReview?.reviewNote || "");
+      const nextReview = previousReview ? {
+        ...previousReview,
+        reviewNote,
+        ...(status === "approved" || status === "published"
+          ? { reviewedBy: req.user!.id, reviewedAt: now.toISOString(), fitSafetyConfirmed: Boolean(planConfirmed) }
+          : {}),
+        ...(status === "needs_details"
+          ? { detailsRequestedBy: req.user!.id, detailsRequestedAt: now.toISOString() }
+          : {}),
+        ...(status === "rejected"
+          ? { rejectedBy: req.user!.id, rejectedAt: now.toISOString() }
+          : {}),
+        ...(["draft", "needs_review", "needs_details", "rejected"].includes(status)
+          ? { reviewedBy: null, reviewedAt: null, fitSafetyConfirmed: false }
+          : {}),
+      } : null;
+      let definition: Record<string, unknown> = library ? {
         libraryId, libraryVersion: library.version,
         planConfirmed: Boolean(planConfirmed),
         notes: input.notes ?? old?.definition.notes ?? "", schedule: input.schedule ?? old?.definition.schedule ?? "",
       } : {
         ...(old?.libraryId ? {} : old?.definition || {}),
-        ...Object.fromEntries(Object.entries(input).filter(([key]) => !["expectedVersion", "status", "goalId", "libraryId", "planConfirmed"].includes(key))),
+        ...Object.fromEntries(Object.entries(input).filter(([key]) => !["expectedVersion", "status", "goalId", "libraryId", "planConfirmed", "reviewNote"].includes(key))),
       };
-      const resolved = resolveAssignment(definition);
-      if (!library && (!resolved.title.trim() || !resolved.description.trim() || !resolved.skill.trim() ||
-        !resolved.steps.length || resolved.steps.some(s => !s.trim()))) throw new Conflict("Custom activities need a title, skill, description and at least one original instruction.");
+      definition = {
+        ...definition,
+        planConfirmed: Boolean(planConfirmed),
+        ...(nextReview ? { activityReview: nextReview } : {}),
+      };
+      if (!library && !activityIsComplete(definition) && ["approved", "published"].includes(status)) {
+        throw new Conflict("Complete the title, description, skill, and parent-facing instructions before approval or publication.");
+      }
+      if (recommendationId && ["approved", "published"].includes(status) &&
+        !recommendationActivityIsComplete(definition, activityReviewFor(definition))) {
+        throw new Conflict("Complete and verify the missing activity details above before approval or publication.");
+      }
+      if (recommendationId && ["approved", "published"].includes(status)) {
+        const currentReview = activityReviewFor(definition);
+        if (currentReview) definition.activityReview = { ...currentReview, missingInformation: [] };
+      }
+      if (status === "needs_details" && recommendationId) {
+        definition.activityReview = { ...nextReview, reviewNote };
+      }
       const version = (old?.version || 0) + (status === "published" ? 1 : 0);
-      const now = new Date();
       const values = { goalId, libraryId, definition, status, version, updatedAt: now, publishedAt: status === "published" ? now : old?.publishedAt || null };
       const [row] = old ? await tx.update(careTeamAssignmentsTable).set(values).where(eq(careTeamAssignmentsTable.id, old.id)).returning()
         : await tx.insert(careTeamAssignmentsTable).values({ ...values, childId: child.id, clinicianId: req.user!.id, tenantId: child.tenantId || req.user!.id }).returning();
@@ -174,6 +252,132 @@ async function saveAssignment(req: Request, res: Response, update: boolean) {
 }
 router.post("/clinician/children/:childId/assignments", (req, res) => saveAssignment(req, res, false));
 router.patch("/clinician/children/:childId/assignments/:assignmentId", (req, res) => saveAssignment(req, res, true));
+
+function recommendationReviewDefinition(
+  recommendation: ActivityRecommendation,
+  clinicianId: string,
+  action: string,
+  reviewNote: string,
+) {
+  const libraryId = recommendation.id.startsWith("library:")
+    ? recommendation.id.slice("library:".length)
+    : null;
+  const library = libraryId ? careTeamActivityLibrary().find((item) => item.id === libraryId) : null;
+  if (libraryId && !library) throw new Conflict("The suggested library activity is no longer available.");
+  const planConfirmed = action === "approve";
+  const definition: Record<string, unknown> = library
+    ? {
+        libraryId,
+        libraryVersion: library.version,
+        planConfirmed,
+        notes: "",
+        schedule: "",
+      }
+    : {
+        title: recommendation.title,
+        description: [
+          recommendation.description,
+          recommendation.routineContext && !recommendation.description.includes(recommendation.routineContext)
+            ? `Appropriate context: ${recommendation.routineContext}`
+            : "",
+        ].filter(Boolean).join("\n\n"),
+        skill: recommendation.skill,
+        estimatedMinutes: recommendation.estimatedMinutes,
+        materials: recommendation.materials.join(", "),
+        steps: [
+          ...(recommendation.startAction ? [`Start: ${recommendation.startAction}`] : []),
+          ...recommendation.steps,
+          ...(recommendation.ending ? [`Finish: ${recommendation.ending}`] : []),
+        ],
+        whyItMayHelp: "",
+        ifDifficult: recommendation.pauseConditions.join(" "),
+        notes: "",
+        schedule: "",
+        planConfirmed,
+      };
+  const now = new Date().toISOString();
+  return {
+    libraryId,
+    goalId: null,
+    definition: {
+      ...definition,
+      activityReview: {
+        recommendationId: recommendation.id,
+        sourceClassification: recommendation.sourceClassification,
+        evidence: recommendation.evidence,
+        matchReasons: recommendation.matchReasons,
+        missingInformation: recommendation.missingInformation,
+        relatedGoal: recommendation.relatedGoal,
+        riskClassification: recommendation.riskClassification,
+        reviewContext: recommendation.routineContext || "",
+        reviewStartAction: recommendation.startAction || "",
+        reviewEnding: recommendation.ending || "",
+        reviewPauseConditions: recommendation.pauseConditions,
+        reviewNote,
+        reviewedBy: action === "approve" ? clinicianId : null,
+        reviewedAt: action === "approve" ? now : null,
+        fitSafetyConfirmed: planConfirmed,
+        sourceDocumentIds: [...new Set(recommendation.evidence.map((source) => source.documentId))],
+      },
+    },
+  };
+}
+
+router.post("/clinician/children/:childId/activity-recommendations/:recommendationId/review", async (req, res) => {
+  const child = await clinicianChild(req, res);
+  if (!child) return;
+  const parsed = ReviewCareTeamActivityRecommendationBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Choose a review action and provide any requested detail." });
+  const { action, fitSafetyConfirmed, reviewNote: rawReviewNote } = parsed.data;
+  const reviewNote = String(rawReviewNote || "").trim();
+  if (action === "request_details" && reviewNote.length < 3) {
+    return res.status(400).json({ error: "Describe the missing detail so your team knows what to follow up on." });
+  }
+  const recommendationId = String(req.params.recommendationId);
+  try {
+    const current = await careWorkspace(child.id, req.user!.id);
+    const recommendations = "activityRecommendations" in current ? current.activityRecommendations || [] : [];
+    const recommendation = recommendations.find((item) => item.id === recommendationId);
+    if (!recommendation) return res.status(404).json({ error: "This suggestion is no longer available. Reload the workspace." });
+    if (action === "approve" && (recommendation.status === "needs_details" || recommendation.missingInformation.length > 0)) {
+      return res.status(409).json({ error: "Complete the missing activity details before approving this suggestion." });
+    }
+    if (action === "approve" && !fitSafetyConfirmed) {
+      return res.status(409).json({ error: "Confirm the child's current fit, familiarity, and safety before approval." });
+    }
+    const nextStatus = action === "start_review" ? "needs_review"
+      : action === "approve" ? "approved"
+        : action === "reject" ? "rejected"
+          : "needs_details";
+    const prepared = recommendationReviewDefinition(recommendation, req.user!.id, action, reviewNote);
+    const result = await db.transaction(async (tx) => {
+      await tx.select({ id: childrenTable.id }).from(childrenTable)
+        .where(eq(childrenTable.id, child.id)).for("update");
+      const existing = await tx.select().from(careTeamAssignmentsTable).where(and(
+        eq(careTeamAssignmentsTable.childId, child.id),
+        eq(careTeamAssignmentsTable.clinicianId, req.user!.id),
+      )).for("update");
+      const matching = existing.find((row) => activityReviewFor(row.definition)?.recommendationId === recommendationId);
+      if (matching) return { row: matching, created: false };
+      const [row] = await tx.insert(careTeamAssignmentsTable).values({
+        childId: child.id,
+        clinicianId: req.user!.id,
+        tenantId: child.tenantId || req.user!.id,
+        goalId: prepared.goalId,
+        libraryId: prepared.libraryId,
+        definition: prepared.definition,
+        status: nextStatus,
+        version: 0,
+        publishedAt: null,
+        updatedAt: new Date(),
+      }).returning();
+      return { row, created: true };
+    });
+    return res.status(result.created ? 201 : 200).json(await assignmentWire(result.row));
+  } catch (e) {
+    return fail(res, e);
+  }
+});
 
 router.post("/parent/children/:childId/assignments/:assignmentId/progress", requireParent, async (req, res) => {
   const child = await parentChild(req, res);

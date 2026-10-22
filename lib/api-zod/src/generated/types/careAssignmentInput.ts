@@ -5,7 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { CareStatus } from './careStatus';
+import type { ActivityStatus } from './activityStatus';
 
 export interface CareAssignmentInput {
   /** @nullable */
@@ -40,8 +40,10 @@ export interface CareAssignmentInput {
   notes?: string;
   /** @maxLength 300 */
   schedule?: string;
-  status?: CareStatus;
+  status?: ActivityStatus;
   /** @minimum 0 */
   expectedVersion?: number;
   planConfirmed?: boolean;
+  /** @maxLength 2000 */
+  reviewNote?: string;
 }

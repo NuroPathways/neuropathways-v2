@@ -103,6 +103,28 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CareActivity" }
+  /clinician/children/{childId}/activity-recommendations/{recommendationId}/review:
+    parameters:
+      - { name: childId, in: path, required: true, schema: { type: string } }
+      - { name: recommendationId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: reviewCareTeamActivityRecommendation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ActivityRecommendationReviewInput" }
+      responses:
+        "200":
+          description: Existing review record returned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareActivity" }
+        "201":
+          description: Review action saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareActivity" }
   /parent/children/{childId}/care-team:
     parameters:
       - { name: childId, in: path, required: true, schema: { type: string } }
@@ -1096,6 +1118,9 @@ components:
     CareStatus:
       type: string
       enum: [draft, published, paused, archived]
+    ActivityStatus:
+      type: string
+      enum: [draft, needs_review, needs_details, approved, published, paused, archived, rejected, superseded]
     CareGoalInput:
       type: object
       required: [title, description]
@@ -1137,9 +1162,17 @@ components:
         ifDifficult: { type: string, maxLength: 2000 }
         notes: { type: string, maxLength: 4000 }
         schedule: { type: string, maxLength: 300 }
-        status: { $ref: "#/components/schemas/CareStatus" }
+        status: { $ref: "#/components/schemas/ActivityStatus" }
         expectedVersion: { type: integer, minimum: 0 }
         planConfirmed: { type: boolean }
+        reviewNote: { type: string, maxLength: 2000 }
+    ActivityRecommendationReviewInput:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [start_review, approve, reject, request_details] }
+        fitSafetyConfirmed: { type: boolean }
+        reviewNote: { type: string, maxLength: 2000 }
     CareActivityEvidenceReference:
       type: object
       required: [key, title, url, publishedYear, evidenceType, designImplication, limitation]
@@ -1170,7 +1203,7 @@ components:
         ifDifficult: { type: string }
         notes: { type: string }
         schedule: { type: string }
-        status: { $ref: "#/components/schemas/CareStatus" }
+        status: { $ref: "#/components/schemas/ActivityStatus" }
         version: { type: integer }
         source: { type: string }
         currentStep: { type: integer }
@@ -1189,10 +1222,27 @@ components:
           type: array
           items: { $ref: "#/components/schemas/CareActivityEvidenceReference" }
         exclusionCriteria: { type: array, items: { type: string } }
-        sourceClassification: { type: string, enum: [general_starter] }
+        sourceClassification:
+          type: string
+          enum: [general_starter, document_candidate, clinician_reviewed_document, research_informed_general_starter]
         personalizationFields: { type: array, items: { type: string } }
         requiresClinicianConfirmation: { type: boolean }
         planConfirmed: { type: boolean }
+        recommendationId: { type: [string, "null"] }
+        reviewContext: { type: string }
+        reviewStartAction: { type: string }
+        reviewEnding: { type: string }
+        reviewPauseConditions: { type: array, items: { type: string } }
+        sourceEvidence:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityRecommendationEvidence" }
+        matchReasons: { type: array, items: { type: string } }
+        reviewNote: { type: [string, "null"] }
+        reviewedBy: { type: [string, "null"] }
+        reviewedAt: { type: [string, "null"], format: date-time }
+        riskClassification: { type: string }
+        missingInformation: { type: array, items: { type: string } }
+        relatedGoal: { type: [string, "null"] }
     CarePracticeProgressInput:
       type: object
       required: [version, currentStep, bookmarked]
@@ -1255,6 +1305,10 @@ components:
         status:
           type: string
           enum: [approved_not_assigned, needs_details, needs_clinician_review, suggestion_only]
+        missingInformation: { type: array, items: { type: string } }
+        relatedGoal: { type: [string, "null"] }
+        riskClassification: { type: string }
+        routineContext: { type: string }
         title: { type: string }
         description: { type: string }
         skill: { type: string }
@@ -1289,6 +1343,9 @@ components:
         activityRecommendations:
           type: array
           items: { $ref: "#/components/schemas/ActivityRecommendation" }
+        activityReviews:
+          type: array
+          items: { $ref: "#/components/schemas/CareActivity" }
         activityRecommendationStatus:
           type: string
           enum: [ready, scan_incomplete, no_verified_matches, no_documents]

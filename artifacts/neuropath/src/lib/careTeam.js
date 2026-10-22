@@ -1,6 +1,16 @@
 // Shared helpers for the care-team goals & activities contract.
 export const CARE_STATUSES = ["draft", "published", "paused", "archived"];
-export const CARE_STATUS_LABELS = { draft: "Draft", published: "Published", paused: "Paused", archived: "Archived" };
+export const CARE_STATUS_LABELS = {
+  draft: "Draft",
+  needs_review: "Needs review",
+  needs_details: "Needs more detail",
+  approved: "Approved · not published",
+  published: "Published",
+  paused: "Paused",
+  archived: "Archived",
+  rejected: "Rejected",
+  superseded: "Superseded",
+};
 export const CARE_SKILLS = ["Communication", "Transitions", "Daily Living", "Emotional Regulation", "Safety", "Other"];
 export const CARE_MEASUREMENTS = [
   ["frequency", "Frequency"],

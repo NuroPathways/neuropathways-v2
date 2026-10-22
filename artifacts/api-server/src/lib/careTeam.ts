@@ -73,13 +73,32 @@ export async function assignmentWire(row: typeof careTeamAssignmentsTable.$infer
     eq(parentPracticeProgressTable.parentId, parentId), eq(parentPracticeProgressTable.childId, row.childId),
     eq(parentPracticeProgressTable.actionKey, `assignment:${row.id}:v${row.version}`),
   )) : [];
+  const review = snapshot.activityReview && typeof snapshot.activityReview === "object"
+    ? snapshot.activityReview as Record<string, unknown>
+    : null;
   return {
     ...resolveAssignment(snapshot), id: row.id, childId: row.childId, libraryId: row.libraryId,
     goalId: parentId && !visibleGoal ? null : row.goalId,
     goalTitle: parentId && !visibleGoal ? null : String(snapshot.goalTitle || (goal ? readableGoalTitle(goal) : "")) || null,
     status: row.status, version: row.version, source: row.libraryId ? "Care team · NeuroPathways starter library" : "Care team · custom activity",
     currentStep: progress?.currentStep || 0, bookmarked: progress?.bookmarked || false,
-    ...(parentId ? {} : { planConfirmed: snapshot.planConfirmed === true }),
+    ...(parentId ? {} : {
+      planConfirmed: snapshot.planConfirmed === true,
+      recommendationId: typeof review?.recommendationId === "string" ? review.recommendationId : null,
+      sourceClassification: typeof review?.sourceClassification === "string" ? review.sourceClassification : undefined,
+      sourceEvidence: Array.isArray(review?.evidence) ? review.evidence : undefined,
+      matchReasons: Array.isArray(review?.matchReasons) ? review.matchReasons : undefined,
+      reviewNote: typeof review?.reviewNote === "string" ? review.reviewNote : null,
+      reviewedBy: typeof review?.reviewedBy === "string" ? review.reviewedBy : null,
+      reviewedAt: typeof review?.reviewedAt === "string" ? review.reviewedAt : null,
+      riskClassification: typeof review?.riskClassification === "string" ? review.riskClassification : undefined,
+      missingInformation: Array.isArray(review?.missingInformation) ? review.missingInformation.map(String) : [],
+      relatedGoal: typeof review?.relatedGoal === "string" ? review.relatedGoal : null,
+      reviewContext: typeof review?.reviewContext === "string" ? review.reviewContext : "",
+      reviewStartAction: typeof review?.reviewStartAction === "string" ? review.reviewStartAction : "",
+      reviewEnding: typeof review?.reviewEnding === "string" ? review.reviewEnding : "",
+      reviewPauseConditions: Array.isArray(review?.reviewPauseConditions) ? review.reviewPauseConditions.map(String) : [],
+    }),
   };
 }
 
@@ -325,6 +344,10 @@ export async function careWorkspace(childId: string, clinicianId: string | null,
   return {
     ...workspace,
     activityRecommendations: matching.recommendations,
+    activityReviews: assignmentWires.filter((assignment) =>
+      Boolean(assignment.recommendationId) &&
+      ["draft", "needs_review", "needs_details", "approved", "rejected"].includes(assignment.status),
+    ),
     activityRecommendationStatus: status,
     activityRecommendationMessage: message,
     activitySafetyEvidence: matching.safetyEvidence,

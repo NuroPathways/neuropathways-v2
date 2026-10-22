@@ -11,4 +11,7 @@ export type CareActivitySourceClassification = typeof CareActivitySourceClassifi
 
 export const CareActivitySourceClassification = {
   general_starter: 'general_starter',
+  document_candidate: 'document_candidate',
+  clinician_reviewed_document: 'clinician_reviewed_document',
+  research_informed_general_starter: 'research_informed_general_starter',
 } as const;
