@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
 import { rm } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -15,7 +16,10 @@ async function buildAll() {
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+    entryPoints: {
+      index: path.resolve(artifactDir, "src/index.ts"),
+      "check-pdf-reader": path.resolve(artifactDir, "src/scripts/check-pdf-reader.ts"),
+    },
     platform: "node",
     bundle: true,
     format: "esm",
@@ -120,6 +124,12 @@ globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
 globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
+  });
+  // Exercise the bundled module with Node, not a source-only tsx test. A build
+  // cannot claim success while its PDF dependency/worker/pages cannot load.
+  execFileSync(process.execPath, [path.join(distDir, "check-pdf-reader.mjs")], {
+    cwd: artifactDir,
+    stdio: "inherit",
   });
 }
 

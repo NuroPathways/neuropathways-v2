@@ -70,6 +70,7 @@ import {
   saveEncryptedParentDocument,
 } from "./parentFileStorage";
 import { readParentPdfText, parentPdfReaderMessages } from "./parentPdfText";
+import { prepareSupportPdf } from "./supportPdf";
 import { batchProcessParentSupport } from "./parentSupportBatch";
 import {
   canReuseParentScan,
@@ -652,10 +653,10 @@ async function extractDocumentContent(
   );
   if (extension === ".pdf") {
     if (bytes.subarray(0, 5).toString("ascii") !== "%PDF-") throw new Error("The PDF appears to be corrupt or invalid.");
-    const extractedText = await text();
+    const { pdf, searchableText: extractedText } = await prepareSupportPdf(bytes, text);
     const originalPdf: ParentDocumentGenerationPart = {
       type: "document",
-      source: { type: "base64", media_type: "application/pdf", data: bytes.toString("base64") },
+      source: { type: "base64", media_type: "application/pdf", data: pdf.toString("base64") },
     };
     return [
       {

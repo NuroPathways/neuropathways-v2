@@ -1,3 +1,5 @@
+import { logger } from "./logger";
+
 const MAX_TEXT_CHARS = 120_000;
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
 const MAX_PDF_PAGES = 500;
@@ -41,7 +43,17 @@ export async function readParentPdfText(bytes: Buffer): Promise<string> {
   let pdfjs: typeof import("pdfjs-dist/legacy/build/pdf.mjs");
   try {
     pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  } catch {
+  } catch (error) {
+    const failure = error as { code?: string; name?: string; message?: string };
+    // Import diagnostics contain no document data. Retain the runtime evidence
+    // instead of reporting only an unexplained service-unavailable message.
+    logger.error({
+      reader: "pdfjs-dist",
+      nodeVersion: process.version,
+      errorCode: failure?.code || "unknown",
+      errorName: failure?.name || "Error",
+      importMessage: failure?.message?.slice(0, 300) || "Unknown module import failure",
+    }, "PDF searchable-text module could not load; complete-page reading remains available");
     throw new Error(PDF_READER_UNAVAILABLE);
   }
 

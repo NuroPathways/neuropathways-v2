@@ -20,3 +20,9 @@ Validate PDF structure, not just its header, before multi-document AI requests. 
 **Why:** One PDF passed the old header-only check but the AI reader rejected it, causing repeated whole-client scan failures and misleading errors on healthy documents.
 
 **How to apply:** Prepare complete visual pages in memory, keep originals unchanged, report errors on the actual affected document, and distinguish invalid/password-protected files from temporary service failures. Require a readable replacement for files no PDF reader can open; do not invent missing content or fall back silently to text-only clinical interpretation.
+
+PDF reading is required for every supported account type, including individual clients, without broadening document ownership or family access.
+
+**Why:** The user repeatedly reported reader-unavailable failures after earlier scanner checks. A successful clinician PDF scan and a parent text-file scan did not establish PDF reading in the other entry points.
+
+**How to apply:** Verify real PDFs through each distinct account path and execute the bundled reader, not only source tests. Searchable text is supplementary to complete-page visual reading; never fabricate it or treat an empty extraction as verified evidence.
