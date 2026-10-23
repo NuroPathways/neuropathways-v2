@@ -3,6 +3,8 @@ import { base44 } from '@/api/entities';
 import { ArrowLeft, X, Phone, ArrowRight } from "lucide-react";
 import { MenuRow } from "@workspace/neuropathways-foundations/components/ui/menu-row";
 import { Disclosure } from "@workspace/neuropathways-foundations/components/ui/disclosure";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
+import { Input } from "@workspace/neuropathways-foundations/components/ui/input";
 import { getBehaviorAppearance } from "./behaviorVisuals";
 
 function isRecord(value) {
@@ -104,6 +106,44 @@ function normalizeBehaviorRows(value) {
   return Array.isArray(rows)
     ? rows.map(normalizeBehavior).filter((behavior) => behavior.name.trim())
     : [];
+}
+
+function normalizeDocumentConcernRows(value) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((row) => {
+    if (!isRecord(row) || typeof row.id !== "string" || typeof row.behaviorName !== "string") return [];
+    const sourceReferences = Array.isArray(row.sourceReferences)
+      ? row.sourceReferences.filter((reference) => isRecord(reference)
+        && typeof reference.title === "string"
+        && typeof reference.excerpt === "string")
+        .slice(0, 20)
+      : [];
+    if (!sourceReferences.length) return [];
+    const safetySensitiveTopic = row.safetySensitiveTopic === true;
+    const sourceReviewRequired = row.sourceReviewRequired === true || row.reviewStatus === "needs_review";
+    const generalSupportSuggestions = safetySensitiveTopic || sourceReviewRequired
+      ? []
+      : listItems(row.generalSupportSuggestions).slice(0, 5);
+    return [{
+      ...row,
+      id: row.id,
+      name: textValue(row.displayName) || textValue(row.behaviorName),
+      originalName: textValue(row.behaviorName),
+      description: textValue(row.description),
+      contexts: listItems(row.contexts),
+      observations: listItems(row.observations),
+      uncertainty: listItems(row.uncertainty),
+      generalSupportSuggestions,
+      missingClinicalInformation: listItems(row.missingClinicalInformation),
+      safetySensitiveTopic,
+      sourceReviewRequired,
+      sourceReferences,
+      documentInformed: true,
+      sourceLabel: sourceReviewRequired
+        ? "Suggested from uploaded documents · source review needed"
+        : "Suggested from uploaded documents · not clinician-reviewed",
+    }];
+  });
 }
 
 function EmergencyLine() {
@@ -353,7 +393,159 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
   );
 }
 
-export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onOpenSafety, onDismiss, isIndividual, parentDirect = false, logEngagement = true }) {
+function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, onOpenSafety, onUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(behavior.name);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const appearance = getBehaviorAppearance({ name: behavior.name });
+  const BehaviorIcon = appearance.Icon;
+
+  const update = async (action, nextLabel) => {
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await onUpdate?.(behavior.id, {
+        action,
+        ...(action === "rename" ? { label: nextLabel } : {}),
+      });
+      if (!updated) throw new Error("The suggestion could not be updated. Please try again.");
+      if (action === "rename") {
+        setLabel(updated.displayName || nextLabel);
+        setEditing(false);
+      } else if (action === "dismiss") {
+        onBack();
+      }
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "The suggestion could not be updated.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="np-help-bar">
+        <button type="button" onClick={onBack} aria-label="Back to behavior list" data-testid="button-back-behaviors" className="np-help-icon-btn">
+          <ArrowLeft aria-hidden="true" />
+        </button>
+        <div className="np-help-bar-title">
+          <h2 data-testid="text-behavior-name">
+            <span className={`np-help-guidance-icon ${appearance.iconClasses}`} aria-hidden="true"><BehaviorIcon /></span>
+            {behavior.name}
+          </h2>
+          <p>{behavior.sourceLabel}</p>
+        </div>
+      </div>
+      <div className="np-help-body" data-testid="document-informed-support-card">
+        <p className="np-help-label" data-testid="label-document-informed-status">
+          Suggested from uploaded documents — not clinician-reviewed
+        </p>
+        {behavior.sourceReviewRequired && (
+          <div className="np-help-notice" data-tone="caution" role="note" data-testid="notice-source-review">
+            <p className="np-help-text np-help-strong">Review the source before relying on this information.</p>
+            <p className="np-help-text">One or more excerpts have not been verified. Suggestions are withheld until the source is reviewed.</p>
+          </div>
+        )}
+
+        <section className="np-help-group">
+          <h3 className="np-help-label">What the documents describe</h3>
+          <p className="np-help-text">{behavior.description}</p>
+          {behavior.observations.length > 0 && (
+            <div className="np-help-group" data-testid="section-document-observations">
+              <h4 className="np-help-label">Documented observations</h4>
+              <ul className="np-help-bullets">
+                {behavior.observations.map((item, index) => <li key={index}>{item}</li>)}
+              </ul>
+            </div>
+          )}
+          {behavior.contexts.length > 0 && (
+            <div className="np-help-context-chips" aria-label="Situations described in documents">
+              {behavior.contexts.map((item, index) => <span key={index} className="np-help-context-chip">{item}</span>)}
+            </div>
+          )}
+          {behavior.uncertainty.length > 0 && (
+            <div className="np-help-notice" data-tone="context" data-testid="section-document-uncertainty">
+              <p className="np-help-label">What is not known</p>
+              {behavior.uncertainty.map((item, index) => <p className="np-help-text" key={index}>{item}</p>)}
+            </div>
+          )}
+        </section>
+
+        {behavior.generalSupportSuggestions.length > 0 && (
+          <section className="np-help-group" data-testid="section-general-support-suggestions">
+            <h3 className="np-help-label">Optional general ideas — not treatment</h3>
+            <ul className="np-help-bullets">
+              {behavior.generalSupportSuggestions.map((item, index) => <li key={index}>{item}</li>)}
+            </ul>
+            <p className="np-help-muted">These are general educational ideas, not an individualized plan or clinician-approved strategy.</p>
+          </section>
+        )}
+
+        {behavior.safetySensitiveTopic && (
+          <div className="np-help-notice" data-tone="urgent" role="note" data-testid="notice-document-safety">
+            <p className="np-help-text np-help-strong">This concern is documented, but no individualized crisis or physical-intervention instructions are provided here.</p>
+            <p className="np-help-text">Use the child’s current verified safety plan if available. If anyone is in immediate danger or hurt, call 911 or local emergency services.</p>
+            <button type="button" onClick={onOpenSafety} data-testid="button-open-safety-for-document-concern" data-variant="urgent" className="np-help-btn">
+              Open safety plan
+            </button>
+          </div>
+        )}
+
+        {behavior.missingClinicalInformation.length > 0 && (
+          <Disclosure title="Review status and missing information" className="np-help-disclosure" data-testid="disclosure-document-review">
+            <ul className="np-help-bullets">
+              {behavior.missingClinicalInformation.map((item, index) => <li key={index}>{item}</li>)}
+            </ul>
+          </Disclosure>
+        )}
+
+        <section className="np-help-group" aria-label="Sources from uploaded documents">
+          <h3 className="np-help-label">From your documents</h3>
+          {behavior.sourceReferences.map((reference, index) => (
+            <article className="np-help-notice" data-tone={reference.excerptVerified === false ? "caution" : "context"} key={`${reference.documentId}-${index}`} data-testid="document-concern-source">
+              <p className="np-help-text np-help-strong">{reference.title}</p>
+              {reference.section && <p className="np-help-muted">{reference.section}{reference.page ? ` · Page ${reference.page}` : ""}</p>}
+              {reference.excerptVerified === false && <p className="np-help-text">Source excerpt needs review</p>}
+              <blockquote className="np-help-text">{reference.excerpt}</blockquote>
+            </article>
+          ))}
+        </section>
+
+        {parentDirect && (
+          <section className="np-help-group" aria-label="Correct this suggestion">
+            {editing ? (
+              <form onSubmit={(event) => { event.preventDefault(); void update("rename", label.trim()); }} className="np-help-group">
+                <label className="np-help-label" htmlFor={`document-support-label-${behavior.id}`}>Correct support area name</label>
+                <Input
+                  id={`document-support-label-${behavior.id}`}
+                  value={label}
+                  onChange={(event) => setLabel(event.target.value)}
+                  maxLength={160}
+                  required
+                />
+                <p className="np-help-muted">This only changes the label shown to your family. It does not change the source documents or clinical review status.</p>
+                <div className="np-help-step-nav">
+                  <Button type="submit" disabled={saving || !label.trim()}>{saving ? "Saving…" : "Save label"}</Button>
+                  <Button type="button" variant="outline" disabled={saving} onClick={() => { setLabel(behavior.name); setEditing(false); }}>Cancel</Button>
+                </div>
+              </form>
+            ) : (
+              <div className="np-help-step-nav">
+                <Button type="button" variant="outline" onClick={() => setEditing(true)} data-testid="button-correct-support-label">Correct label</Button>
+                <Button type="button" variant="outline" disabled={saving} onClick={() => void update("dismiss")} data-testid="button-dismiss-document-support">Dismiss suggestion</Button>
+              </div>
+            )}
+            {error && <p className="np-help-notice" data-tone="urgent" role="alert">{error}</p>}
+          </section>
+        )}
+        <EmergencyLine />
+      </div>
+    </div>
+  );
+}
+
+export default function BehaviorSelector({ child, profile, loadingProfile, profileLoadError, onBack, onOpenSafety, onDismiss, isIndividual, parentDirect = false, logEngagement = true, onUpdateDocumentSupportCard }) {
   const [selectedBehavior, setSelectedBehavior] = useState(null);
   const viewRef = useRef(null);
   useLayoutEffect(() => {
@@ -372,6 +564,21 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
           && ["approved", "active"].includes(textValue(behavior.planStatus ?? behavior.plan_status).toLowerCase())
         ));
   });
+  const documentConcernCards = parentDirect
+    ? normalizeDocumentConcernRows(profile?.documentSupportCards)
+    : [];
+  const activeDocumentConcernCards = documentConcernCards.filter((card) => !card.dismissed);
+  const dismissedDocumentConcernCards = documentConcernCards.filter((card) => card.dismissed);
+  const [documentCardUpdateError, setDocumentCardUpdateError] = useState("");
+
+  const restoreDocumentConcern = async (cardId) => {
+    setDocumentCardUpdateError("");
+    try {
+      await onUpdateDocumentSupportCard?.(cardId, { action: "restore" });
+    } catch (error) {
+      setDocumentCardUpdateError(error instanceof Error ? error.message : "The suggestion could not be restored.");
+    }
+  };
 
   const handleSelectBehavior = (behavior) => {
     if (logEngagement && child) {
@@ -386,6 +593,27 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
   };
 
   if (selectedBehavior) {
+    if (selectedBehavior.documentInformed) {
+      return (
+        <div ref={viewRef}>
+          <DocumentInformedBehaviorCard
+            behavior={selectedBehavior}
+            child={child}
+            parentDirect={parentDirect}
+            onBack={() => setSelectedBehavior(null)}
+            onOpenSafety={onOpenSafety}
+            onUpdate={async (cardId, update) => {
+              const card = await onUpdateDocumentSupportCard?.(cardId, update);
+              if (card) {
+                const normalized = normalizeDocumentConcernRows([card])[0];
+                if (normalized) setSelectedBehavior(normalized);
+              }
+              return card;
+            }}
+          />
+        </div>
+      );
+    }
     return (
       <div ref={viewRef}>
         <BehaviorCard behavior={selectedBehavior} child={child} isIndividual={isIndividual} parentDirect={parentDirect} onBack={() => setSelectedBehavior(null)} onOpenSafety={onOpenSafety} />
@@ -423,7 +651,7 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
             <p className="np-help-text np-help-strong">Could not load this support information.</p>
             <p className="np-help-text">Return to the support menu and try again.</p>
           </div>
-        ) : behaviors.length === 0 ? (
+        ) : behaviors.length === 0 && activeDocumentConcernCards.length === 0 && dismissedDocumentConcernCards.length === 0 ? (
           <div className="np-help-notice" data-tone="caution">
             <p className="np-help-text np-help-strong">
               {parentDirect ? "No individualized support steps are available for this situation yet." : "No current approved behavior steps are available."}
@@ -440,28 +668,77 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
           </div>
         ) : (
           <div className="np-help-group">
-            <p className="np-help-text">What is happening right now? Select the situation.</p>
-            <div className="np-help-behavior-grid">
-              {behaviors.map((behavior, i) => {
-                const appearance = getBehaviorAppearance(behavior, i);
-                const BehaviorIcon = appearance.Icon;
-                return (
-                  <MenuRow
-                    key={behavior.id || i}
-                    onClick={() => handleSelectBehavior(behavior)}
-                    data-testid={`button-behavior-${i}`}
-                    data-tone={appearance.tone}
-                    className="np-help-option"
-                    icon={<BehaviorIcon aria-hidden="true" />}
-                    label={behavior.name}
-                    description={behavior.sourceLabel || "Source not available"}
-                  />
-                );
-              })}
-            </div>
-            <p className="np-help-muted">
-              Only showing support information available for {child?.child_name}.
-            </p>
+            {behaviors.length > 0 && (
+              <section>
+                <p className="np-help-text">What is happening right now? Select the situation.</p>
+                <div className="np-help-behavior-grid">
+                  {behaviors.map((behavior, i) => {
+                    const appearance = getBehaviorAppearance(behavior, i);
+                    const BehaviorIcon = appearance.Icon;
+                    return (
+                      <MenuRow
+                        key={behavior.id || i}
+                        onClick={() => handleSelectBehavior(behavior)}
+                        data-testid={`button-behavior-${i}`}
+                        data-tone={appearance.tone}
+                        className="np-help-option"
+                        icon={<BehaviorIcon aria-hidden="true" />}
+                        label={behavior.name}
+                        description={behavior.sourceLabel || "Source not available"}
+                      />
+                    );
+                  })}
+                </div>
+                <p className="np-help-muted">
+                  Only showing support information available for {child?.child_name}.
+                </p>
+              </section>
+            )}
+            {activeDocumentConcernCards.length > 0 && (
+              <section className="np-help-group" aria-labelledby="document-informed-support-heading" data-testid="section-document-informed-support">
+                <h3 className="np-help-label" id="document-informed-support-heading">Suggested from uploaded documents</h3>
+                <p className="np-help-muted">These are source-linked suggestions, not clinician-reviewed or approved treatment.</p>
+                <div className="np-help-behavior-grid">
+                  {activeDocumentConcernCards.map((behavior, index) => {
+                    const appearance = getBehaviorAppearance({ name: behavior.name }, index);
+                    const BehaviorIcon = appearance.Icon;
+                    return (
+                      <MenuRow
+                        key={behavior.id}
+                        onClick={() => setSelectedBehavior(behavior)}
+                        data-testid={`button-document-concern-${index}`}
+                        data-tone={appearance.tone}
+                        className="np-help-option"
+                        icon={<BehaviorIcon aria-hidden="true" />}
+                        label={behavior.name}
+                        description={behavior.sourceReviewRequired ? "Needs source review" : "Not clinician-reviewed"}
+                      />
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+            {profile?.documentSupportCardsLoadError && (
+              <p className="np-help-notice" data-tone="urgent" role="alert" data-testid="document-support-load-error">
+                Document-informed suggestions could not be loaded. Close support and try again.
+              </p>
+            )}
+            {dismissedDocumentConcernCards.length > 0 && (
+              <Disclosure title={`Dismissed document suggestions (${dismissedDocumentConcernCards.length})`} className="np-help-disclosure" data-testid="disclosure-dismissed-document-support">
+                <div className="np-help-group">
+                  {dismissedDocumentConcernCards.map((card) => (
+                    <div className="np-help-step-nav" key={card.id}>
+                      <span className="np-help-text">{card.name}</span>
+                      <Button type="button" size="sm" variant="outline" onClick={() => void restoreDocumentConcern(card.id)}>Restore</Button>
+                    </div>
+                  ))}
+                </div>
+              </Disclosure>
+            )}
+            {documentCardUpdateError && <p className="np-help-notice" data-tone="urgent" role="alert">{documentCardUpdateError}</p>}
+            {behaviors.length === 0 && activeDocumentConcernCards.length === 0 && (
+              <p className="np-help-text">No active behavior guidance is available. You can still open safety information or restore a dismissed suggestion.</p>
+            )}
           </div>
         )}
       </div>

@@ -85,9 +85,14 @@ import {
   createDocumentInformedConcernCards,
   eligibleSupportConcernRecords,
   mergeDocumentInformedConcernCards,
+  projectParentDocumentSupportCards,
   savedDocumentInformedConcernCards,
+  savedParentDocumentSupportCardOverrides,
   supportConcernCardToolSchema,
+  updateParentDocumentSupportCardOverride,
   type GeneratedConcernGroup,
+  type ParentDocumentSupportCardOverride,
+  type ParentDocumentSupportCardWire,
   verifiedSupportConcernRecords,
 } from "./documentSupportConcernCards";
 import { logger } from "./logger";
@@ -1735,6 +1740,111 @@ export async function getParentSupportCards(parentId: string, childId: string): 
     ...orderedSelected,
     ...reconciled.filter((card) => !selectedIdentities.has(supportBehaviorIdentity(card))),
   ];
+}
+
+async function parentDocumentConcernContext(parentId: string, childId: string) {
+  const visibleDocuments = await listParentDocuments(parentId, childId);
+  const visibleIds = new Set(visibleDocuments.map((document) => document.id));
+  if (!visibleIds.size) return { rows: [], cards: [], overrides: {}, currentSources: [] };
+
+  const rows = await db.select().from(parentDocumentsTable).where(and(
+    eq(parentDocumentsTable.parentId, parentId),
+    eq(parentDocumentsTable.childId, childId),
+    inArray(parentDocumentsTable.documentId, [...visibleIds]),
+  ));
+  const titleById = new Map(visibleDocuments.map((document) => [document.id, document.title]));
+  const cardGroups = rows.flatMap((row) => {
+    const extractedSupport = row.extractedSupport;
+    return savedDocumentInformedConcernCards(extractedSupport)
+      .filter((card) => card.childId === childId);
+  });
+  const overrideById: Record<string, ParentDocumentSupportCardOverride> = {};
+  for (const row of rows) {
+    const rowOverrides = savedParentDocumentSupportCardOverrides(row.extractedSupport);
+    for (const [id, override] of Object.entries(rowOverrides)) {
+      if (!overrideById[id] || override.updatedAt > overrideById[id].updatedAt) {
+        overrideById[id] = override;
+      }
+    }
+  }
+  const currentSources = rows.map((row) => ({
+    documentId: row.documentId,
+    documentVersion: row.sha256,
+    title: titleById.get(row.documentId) || "Uploaded document",
+  }));
+  const cards = projectParentDocumentSupportCards(cardGroups, currentSources, overrideById, childId);
+  return { rows, cards, overrides: overrideById, currentSources };
+}
+
+export async function getParentDocumentSupportCards(
+  parentId: string,
+  childId: string,
+): Promise<ParentDocumentSupportCardWire[]> {
+  const context = await parentDocumentConcernContext(parentId, childId);
+  return context.cards;
+}
+
+export async function updateParentDocumentSupportCard(
+  parentId: string,
+  childId: string,
+  cardId: string,
+  action: "rename" | "dismiss" | "restore",
+  label?: string,
+): Promise<ParentDocumentSupportCardWire> {
+  const context = await parentDocumentConcernContext(parentId, childId);
+  const currentCard = context.cards.find((card) => card.id === cardId);
+  if (!currentCard) throw new Error("Document support card not found");
+  if (action === "rename" && (!label || label.trim().length === 0 || label.trim().length > 160)) {
+    throw new Error("A support area name of 1 to 160 characters is required");
+  }
+
+  const matchingRows = context.rows.filter((row) => {
+    const storedCards = savedDocumentInformedConcernCards(row.extractedSupport);
+    return storedCards.some((card) =>
+      card.id === cardId &&
+      card.childId === childId &&
+      card.sourceReferences.some((reference) =>
+        reference.documentId === row.documentId &&
+        reference.documentVersion === row.sha256,
+      ),
+    );
+  });
+  if (!matchingRows.length) throw new Error("Document support card not found");
+
+  const updatedAt = new Date().toISOString();
+  const nextOverrides = updateParentDocumentSupportCardOverride(
+    context.overrides,
+    cardId,
+    action,
+    label?.trim(),
+    updatedAt,
+  );
+  await db.transaction(async (tx) => {
+    for (const row of matchingRows) {
+      const extractedSupport = row.extractedSupport && typeof row.extractedSupport === "object" && !Array.isArray(row.extractedSupport)
+        ? row.extractedSupport as Record<string, unknown>
+        : {};
+      await tx.update(parentDocumentsTable).set({
+        extractedSupport: {
+          ...extractedSupport,
+          supportConcernCardOverrides: {
+            ...savedParentDocumentSupportCardOverrides(extractedSupport),
+            [cardId]: nextOverrides[cardId],
+          },
+        } as any,
+        updatedAt: new Date(updatedAt),
+      }).where(and(
+        eq(parentDocumentsTable.parentId, parentId),
+        eq(parentDocumentsTable.childId, childId),
+        eq(parentDocumentsTable.documentId, row.documentId),
+      ));
+    }
+  });
+
+  const updated = await parentDocumentConcernContext(parentId, childId);
+  const result = updated.cards.find((card) => card.id === cardId);
+  if (!result) throw new Error("Document support card could not be loaded after the update");
+  return result;
 }
 
 export async function setParentDocumentSharing(

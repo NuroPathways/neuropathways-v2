@@ -6,7 +6,10 @@ import {
   createDocumentInformedConcernCards,
   eligibleSupportConcernRecords,
   mergeDocumentInformedConcernCards,
+  projectParentDocumentSupportCards,
   savedDocumentInformedConcernCards,
+  savedParentDocumentSupportCardOverrides,
+  updateParentDocumentSupportCardOverride,
   verifiedSupportConcernRecords,
 } from "./documentSupportConcernCards";
 
@@ -218,5 +221,104 @@ test("stored candidate cards merge source references without creating duplicate 
   assert.equal(merged[0].sourceReferences.length, 2);
   assert.equal(merged[0].reviewStatus, "unreviewed");
   assert.deepEqual(savedDocumentInformedConcernCards({ supportConcernCards: merged }), merged);
+});
+
+test("Help Now projects only current child-owned source versions and keeps draft status explicit", () => {
+  const source = record();
+  const [card] = createDocumentInformedConcernCards({
+    childId: "child-1",
+    records: [source],
+    sourceTitles: [{ documentId: "document-1", title: "Intake" }],
+    generatedGroups: [{
+      source_extraction_ids: [source.id],
+      general_support_suggestions: ["Offer one short direction at a time."],
+    }],
+  });
+  const projected = projectParentDocumentSupportCards(
+    [card, { ...card, childId: "another-child" }],
+    [
+      { documentId: "document-1", documentVersion: "version-1", title: "Current intake" },
+      { documentId: "document-2", documentVersion: "version-2", title: "A different document" },
+    ],
+    {},
+    "child-1",
+  );
+  assert.equal(projected.length, 1);
+  assert.equal(projected[0].displayName, card.behaviorName);
+  assert.equal(projected[0].sourceReferences[0].title, "Current intake");
+  assert.equal(projected[0].generalSupportSuggestions[0], "Offer one short direction at a time.");
+  assert.equal(projected[0].clinicianApproved, false);
+
+  const stale = projectParentDocumentSupportCards(
+    [card],
+    [{ documentId: "document-1", documentVersion: "new-version", title: "Replaced intake" }],
+    {},
+    "child-1",
+  );
+  assert.deepEqual(stale, []);
+});
+
+test("Help Now overrides rename or dismiss a card without changing clinical review status", () => {
+  const source = record();
+  const [card] = createDocumentInformedConcernCards({
+    childId: "child-1",
+    records: [source],
+    sourceTitles: [{ documentId: "document-1", title: "Intake" }],
+    generatedGroups: [{
+      source_extraction_ids: [source.id],
+      general_support_suggestions: ["Offer one short direction at a time."],
+    }],
+  });
+  const renamed = updateParentDocumentSupportCardOverride(
+    {},
+    card.id,
+    "rename",
+    "Instructions feel overwhelming",
+    "2026-10-23T12:30:00.000Z",
+  );
+  const saved = savedParentDocumentSupportCardOverrides({ supportConcernCardOverrides: renamed });
+  const projected = projectParentDocumentSupportCards(
+    [card],
+    [{ documentId: "document-1", documentVersion: "version-1", title: "Intake" }],
+    saved,
+    "child-1",
+  );
+  assert.equal(projected[0].displayName, "Instructions feel overwhelming");
+  assert.equal(projected[0].behaviorName, card.behaviorName);
+  assert.equal(projected[0].reviewStatus, "unreviewed");
+  assert.equal(projected[0].clinicianApproved, false);
+
+  const dismissed = updateParentDocumentSupportCardOverride(
+    saved,
+    card.id,
+    "dismiss",
+    undefined,
+    "2026-10-23T12:31:00.000Z",
+  );
+  assert.equal(
+    projectParentDocumentSupportCards(
+      [card],
+      [{ documentId: "document-1", documentVersion: "version-1", title: "Intake" }],
+      dismissed,
+      "child-1",
+    )[0].dismissed,
+    true,
+  );
+  const restored = updateParentDocumentSupportCardOverride(
+    dismissed,
+    card.id,
+    "restore",
+    undefined,
+    "2026-10-23T12:32:00.000Z",
+  );
+  assert.equal(
+    projectParentDocumentSupportCards(
+      [card],
+      [{ documentId: "document-1", documentVersion: "version-1", title: "Intake" }],
+      restored,
+      "child-1",
+    )[0].dismissed,
+    false,
+  );
 });
 

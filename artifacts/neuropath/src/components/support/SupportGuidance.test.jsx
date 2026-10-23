@@ -8,6 +8,8 @@ const supportMocks = vi.hoisted(() => ({
   createEngagementEvent: vi.fn(() => Promise.resolve()),
   invokePortal: vi.fn(),
   filterProfiles: vi.fn(),
+  getParentDashboard: vi.fn(),
+  updateParentDocumentSupportCard: vi.fn(),
 }));
 
 const currentApproval = {
@@ -37,6 +39,38 @@ vi.mock("@/api/entities", () => ({
     },
   },
 }));
+
+vi.mock("@workspace/api-client-react", () => ({
+  getParentDashboard: supportMocks.getParentDashboard,
+  updateParentDocumentSupportCard: supportMocks.updateParentDocumentSupportCard,
+}));
+
+const documentConcern = {
+  id: "document-concern:aaaaaaaaaaaaaaaaaaaaaaaa",
+  childId: "child-1",
+  behaviorName: "Difficulty With Verbal Instructions",
+  displayName: "Difficulty With Verbal Instructions",
+  parentDisplayName: null,
+  description: "Several spoken directions may be difficult to follow.",
+  contexts: ["schoolwork"],
+  observations: ["Frustration during multi-step assignments"],
+  uncertainty: ["The source does not state why this occurs."],
+  generalSupportSuggestions: ["Offer one short direction at a time."],
+  missingClinicalInformation: ["This is a document-informed suggestion, not clinician-approved treatment."],
+  safetySensitiveTopic: false,
+  sourceReviewRequired: false,
+  reviewStatus: "unreviewed",
+  clinicianApproved: false,
+  dismissed: false,
+  sourceReferences: [{
+    documentId: "document-1",
+    title: "Intake Assessment",
+    excerpt: "Difficulty following several spoken instructions at once.",
+    excerptVerified: true,
+    section: "Observations",
+    page: 2,
+  }],
+};
 
 afterEach(() => {
   cleanup();
@@ -173,6 +207,132 @@ describe("support guidance", () => {
 
     expect(screen.queryByText("Use a generic hold")).toBeNull();
     expect(screen.getByRole("button", { name: "Open safety plan" })).toBeTruthy();
+  });
+
+  it("shows source-linked document suggestions separately from approved behavior guidance", async () => {
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Sam" }}
+        profile={{ documentSupportCards: [documentConcern] }}
+        parentDirect
+        onBack={() => {}}
+        onOpenSafety={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Suggested from uploaded documents" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Difficulty With Verbal Instructions/ }));
+    expect(screen.getByTestId("label-document-informed-status").textContent).toContain("not clinician-reviewed");
+    expect(screen.getByText("Offer one short direction at a time.")).toBeTruthy();
+    expect(screen.getByText("Difficulty following several spoken instructions at once.")).toBeTruthy();
+    expect(screen.getByText(/not an individualized plan/)).toBeTruthy();
+  });
+
+  it("withholds suggestions for safety-sensitive or source-review-required draft cards", () => {
+    const restricted = {
+      ...documentConcern,
+      behaviorName: "Self-Injury",
+      displayName: "Self-Injury",
+      safetySensitiveTopic: true,
+      sourceReviewRequired: true,
+      reviewStatus: "needs_review",
+      generalSupportSuggestions: ["A generated suggestion must not appear."],
+      sourceReferences: [{ ...documentConcern.sourceReferences[0], excerptVerified: false }],
+    };
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Sam" }}
+        profile={{ documentSupportCards: [restricted] }}
+        parentDirect
+        onBack={() => {}}
+        onOpenSafety={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Self-Injury/ }));
+    expect(screen.queryByText("A generated suggestion must not appear.")).toBeNull();
+    expect(screen.getByTestId("notice-source-review")).toBeTruthy();
+    expect(screen.getByTestId("notice-document-safety")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open safety plan" })).toBeTruthy();
+    expect(screen.getByText("Source excerpt needs review")).toBeTruthy();
+  });
+
+  it("lets a parent correct the suggestion label without changing its review status", async () => {
+    supportMocks.updateParentDocumentSupportCard.mockResolvedValueOnce({
+      ...documentConcern,
+      displayName: "Instructions feel overwhelming",
+      parentDisplayName: "Instructions feel overwhelming",
+    });
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Sam" }}
+        profile={{ documentSupportCards: [documentConcern] }}
+        parentDirect
+        onBack={() => {}}
+        onOpenSafety={() => {}}
+        onDismiss={() => {}}
+        onUpdateDocumentSupportCard={supportMocks.updateParentDocumentSupportCard}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Difficulty With Verbal Instructions/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Correct label" }));
+    fireEvent.change(screen.getByLabelText("Correct support area name"), { target: { value: "Instructions feel overwhelming" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save label" }));
+    expect(await screen.findByRole("heading", { name: /Instructions feel overwhelming/ })).toBeTruthy();
+    expect(supportMocks.updateParentDocumentSupportCard).toHaveBeenCalledWith(
+      documentConcern.id,
+      { action: "rename", label: "Instructions feel overwhelming" },
+    );
+    expect(screen.getByTestId("label-document-informed-status").textContent).toContain("not clinician-reviewed");
+  });
+
+  it("loads parent-owned document suggestions through the authorized parent dashboard", async () => {
+    supportMocks.filterProfiles.mockResolvedValueOnce([]);
+    supportMocks.getParentDashboard.mockResolvedValueOnce({ documentSupportCards: [documentConcern] });
+    render(
+      <SupportNowOverlay
+        user={{ id: "parent-1", role: "parent", account_type: "parent_free" }}
+        children={[{ id: "child-1", child_name: "Sam" }]}
+        parentDirect
+        logEngagement={false}
+        openRequest={1}
+        autoOpen={false}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Continue to support options" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Help With a Behavior/ }));
+    expect(await screen.findByRole("button", { name: /Difficulty With Verbal Instructions/ })).toBeTruthy();
+    expect(supportMocks.getParentDashboard).toHaveBeenCalledWith("child-1", expect.objectContaining({
+      credentials: "include",
+      headers: expect.any(Object),
+    }));
+  });
+
+  it("lets a parent restore a dismissed document suggestion", async () => {
+    const dismissed = { ...documentConcern, dismissed: true };
+    supportMocks.updateParentDocumentSupportCard.mockResolvedValueOnce({ ...documentConcern, dismissed: false });
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Sam" }}
+        profile={{ documentSupportCards: [dismissed] }}
+        parentDirect
+        onBack={() => {}}
+        onOpenSafety={() => {}}
+        onDismiss={() => {}}
+        onUpdateDocumentSupportCard={supportMocks.updateParentDocumentSupportCard}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismissed document suggestions (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+    await waitFor(() => expect(supportMocks.updateParentDocumentSupportCard).toHaveBeenCalledWith(
+      documentConcern.id,
+      { action: "restore" },
+    ));
   });
 
   it("does not show high-risk steps without a current child-bound plan", () => {

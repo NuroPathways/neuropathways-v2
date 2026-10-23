@@ -8,9 +8,15 @@ import { FamilyAccessError } from "../lib/familyParentAuth";
 import { requireMobileAuth } from "./mobile";
 import { starterLibrary } from "../lib/parentStarterLibrary";
 import {
+  UpdateParentDocumentSupportCardBody,
+  UpdateParentDocumentSupportCardParams,
+  UpdateParentDocumentSupportCardResponse,
+} from "@workspace/api-zod";
+import {
   canReadParentDocument,
   createParentDocument,
   getParentSharedSupport,
+  updateParentDocumentSupportCard,
   listParentDocuments,
   parentChat,
   readParentDocumentBytes,
@@ -180,6 +186,49 @@ router.post(
         return res.status(503).json({ error: message });
       }
       return res.status(422).json({ error: message });
+    }
+  },
+);
+
+router.patch(
+  "/parent/children/:childId/document-support-cards/:cardId",
+  requireParent,
+  async (req: any, res: Response): Promise<void> => {
+    const parsedParams = UpdateParentDocumentSupportCardParams.safeParse(req.params);
+    if (!parsedParams.success) {
+      res.status(400).json({ error: "A valid child and support card are required" });
+      return;
+    }
+    const parsedBody = UpdateParentDocumentSupportCardBody.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(400).json({ error: "The support card update is invalid" });
+      return;
+    }
+    const { action, label } = parsedBody.data;
+    if (action === "rename" && !label?.trim()) {
+      res.status(400).json({ error: "A support area name is required" });
+      return;
+    }
+    try {
+      const card = await updateParentDocumentSupportCard(
+        parentId(req),
+        parsedParams.data.childId,
+        parsedParams.data.cardId,
+        action,
+        label,
+      );
+      res.json(UpdateParentDocumentSupportCardResponse.parse({ success: true, card }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The support card update failed";
+      if (message === "Child not found" || message === "Document support card not found") {
+        res.status(404).json({ error: "Document support card not found" });
+        return;
+      }
+      if (message.includes("support area name")) {
+        res.status(400).json({ error: message });
+        return;
+      }
+      res.status(500).json({ error: "The support card update failed" });
     }
   },
 );

@@ -524,6 +524,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ParentDashboard"
+  /parent/children/{childId}/document-support-cards/{cardId}:
+    patch:
+      operationId: updateParentDocumentSupportCard
+      tags: [parent]
+      summary: Correct or dismiss a document-informed support suggestion
+      security:
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentDocumentSupportCardUpdate"
+      responses:
+        "200":
+          description: Updated parent correction for the source-linked suggestion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentDocumentSupportCardUpdateResult"
   /parent/children/{childId}/daily-actions/{actionId}:
     patch:
       operationId: updateParentDailyAction
@@ -2001,6 +2034,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SupportCard"
+        documentSupportCards:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDocumentSupportCard"
         documents:
           type: array
           items:
@@ -2017,7 +2054,95 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ParentPlanGoal"
-      required: [child, supportCards, documents, logs, dailyActions, planGoals]
+      required: [child, supportCards, documentSupportCards, documents, logs, dailyActions, planGoals]
+    ParentDocumentSupportSourceReference:
+      type: object
+      properties:
+        documentId:
+          type: string
+        title:
+          type: string
+        excerpt:
+          type: string
+        excerptVerified:
+          type: boolean
+        section:
+          type: [string, "null"]
+        page:
+          type: [integer, "null"]
+      required: [documentId, title, excerpt, excerptVerified, section, page]
+    ParentDocumentSupportCard:
+      type: object
+      properties:
+        id:
+          type: string
+        childId:
+          type: string
+        behaviorName:
+          type: string
+        displayName:
+          type: string
+        parentDisplayName:
+          type: [string, "null"]
+        description:
+          type: string
+        contexts:
+          type: array
+          items:
+            type: string
+        observations:
+          type: array
+          items:
+            type: string
+        uncertainty:
+          type: array
+          items:
+            type: string
+        generalSupportSuggestions:
+          type: array
+          items:
+            type: string
+        missingClinicalInformation:
+          type: array
+          items:
+            type: string
+        safetySensitiveTopic:
+          type: boolean
+        sourceReviewRequired:
+          type: boolean
+        reviewStatus:
+          type: string
+          enum: [unreviewed, needs_review]
+        clinicianApproved:
+          type: boolean
+          enum: [false]
+        dismissed:
+          type: boolean
+        sourceReferences:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDocumentSupportSourceReference"
+      required: [id, childId, behaviorName, displayName, parentDisplayName, description, contexts, observations, uncertainty, generalSupportSuggestions, missingClinicalInformation, safetySensitiveTopic, sourceReviewRequired, reviewStatus, clinicianApproved, dismissed, sourceReferences]
+    ParentDocumentSupportCardUpdate:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [rename, dismiss, restore]
+        label:
+          type: string
+          minLength: 1
+          maxLength: 160
+      required: [action]
+    ParentDocumentSupportCardUpdateResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        card:
+          $ref: "#/components/schemas/ParentDocumentSupportCard"
+      required: [success, card]
     ParentDailyAction:
       type: object
       properties:

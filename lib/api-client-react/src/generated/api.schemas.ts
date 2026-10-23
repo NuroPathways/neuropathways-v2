@@ -918,6 +918,46 @@ export interface ParentPlanGoal {
   sourceType: ParentPlanGoalSourceType;
 }
 
+export type ParentDocumentSupportCardReviewStatus = typeof ParentDocumentSupportCardReviewStatus[keyof typeof ParentDocumentSupportCardReviewStatus];
+
+
+export const ParentDocumentSupportCardReviewStatus = {
+  unreviewed: 'unreviewed',
+  needs_review: 'needs_review',
+} as const;
+
+export interface ParentDocumentSupportSourceReference {
+  documentId: string;
+  title: string;
+  excerpt: string;
+  excerptVerified: boolean;
+  /** @nullable */
+  section: string | null;
+  /** @nullable */
+  page: number | null;
+}
+
+export interface ParentDocumentSupportCard {
+  id: string;
+  childId: string;
+  behaviorName: string;
+  displayName: string;
+  /** @nullable */
+  parentDisplayName: string | null;
+  description: string;
+  contexts: string[];
+  observations: string[];
+  uncertainty: string[];
+  generalSupportSuggestions: string[];
+  missingClinicalInformation: string[];
+  safetySensitiveTopic: boolean;
+  sourceReviewRequired: boolean;
+  reviewStatus: ParentDocumentSupportCardReviewStatus;
+  clinicianApproved: false;
+  dismissed: boolean;
+  sourceReferences: ParentDocumentSupportSourceReference[];
+}
+
 export type ParentDailyActionKind = typeof ParentDailyActionKind[keyof typeof ParentDailyActionKind];
 
 
@@ -1044,10 +1084,34 @@ export interface ParentDailyAction {
 export interface ParentDashboard {
   child: ParentChild;
   supportCards: SupportCard[];
+  documentSupportCards: ParentDocumentSupportCard[];
   documents: ParentDocument[];
   logs: ParentLog[];
   dailyActions: ParentDailyAction[];
   planGoals: ParentPlanGoal[];
+}
+
+export type ParentDocumentSupportCardUpdateAction = typeof ParentDocumentSupportCardUpdateAction[keyof typeof ParentDocumentSupportCardUpdateAction];
+
+
+export const ParentDocumentSupportCardUpdateAction = {
+  rename: 'rename',
+  dismiss: 'dismiss',
+  restore: 'restore',
+} as const;
+
+export interface ParentDocumentSupportCardUpdate {
+  action: ParentDocumentSupportCardUpdateAction;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  label?: string;
+}
+
+export interface ParentDocumentSupportCardUpdateResult {
+  success: true;
+  card: ParentDocumentSupportCard;
 }
 
 export interface ParentPracticeProgress {

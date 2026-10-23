@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { base44 } from '@/api/entities';
+import { getParentDashboard, updateParentDocumentSupportCard } from "@workspace/api-client-react";
+import { parentRequest } from "@/lib/parentSession";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { AlertTriangle, ShieldAlert, Wind, X, Phone } from "lucide-react";
 import { MenuRow } from "@workspace/neuropathways-foundations/components/ui/menu-row";
@@ -192,6 +194,23 @@ export default function SupportNowOverlay({
     setLoadingProfile(true);
     setProfileLoadError(false);
     try {
+      const withDocumentSupportCards = async (loadedProfile) => {
+        if (parentDirect !== true && !isParentSupportAccount(user)) return loadedProfile;
+        try {
+          const dashboard = await getParentDashboard(childId, parentRequest());
+          return {
+            ...(loadedProfile && typeof loadedProfile === "object" ? loadedProfile : {}),
+            documentSupportCards: Array.isArray(dashboard.documentSupportCards) ? dashboard.documentSupportCards : [],
+            documentSupportCardsLoadError: false,
+          };
+        } catch {
+          return {
+            ...(loadedProfile && typeof loadedProfile === "object" ? loadedProfile : {}),
+            documentSupportCards: [],
+            documentSupportCardsLoadError: true,
+          };
+        }
+      };
       if (loadProfileForChild) {
         setProfile(await loadProfileForChild(childId) || null);
         return;
@@ -232,12 +251,12 @@ export default function SupportNowOverlay({
             const hasGeneratedBehaviors = Array.isArray(generatedBehaviors)
               ? generatedBehaviors.length > 0
               : Object.keys(generatedBehaviors).length > 0;
-            setProfile({
+            setProfile(await withDocumentSupportCards({
               ...(res.data.profile && typeof res.data.profile === "object" ? res.data.profile : {}),
               behaviors: hasGeneratedBehaviors
                 ? generatedBehaviors
                 : approvedPlanBehaviors,
-            });
+            }));
             return;
           }
         } catch {
@@ -249,12 +268,12 @@ export default function SupportNowOverlay({
         if (profiles.length === 0 && portalRequestFailed) {
           throw new Error("Neither client support source could be reached.");
         }
-        setProfile(profiles[0] || null);
+        setProfile(await withDocumentSupportCards(profiles[0] || null));
         return;
       }
       const profiles = await base44.entities.ClientProfile.filter({ child_id: childId });
       if (!Array.isArray(profiles)) throw new Error("Client support information could not be verified.");
-      setProfile(profiles[0] || null);
+      setProfile(await withDocumentSupportCards(profiles[0] || null));
     } catch (error) {
       console.error("Unable to load support information for the selected child.", error);
       setProfile(null);
@@ -262,7 +281,7 @@ export default function SupportNowOverlay({
     } finally {
       setLoadingProfile(false);
     }
-  }, [loadProfileForChild, user]);
+  }, [loadProfileForChild, parentDirect, user]);
 
   useEffect(() => {
     if (!autoOpen || !autoOpenReady || openRequest || !isParentSupportAccount(user) || !user.id) return;
@@ -398,6 +417,24 @@ export default function SupportNowOverlay({
 
   const handleBack = () => setStep("menu");
 
+  const handleUpdateDocumentSupportCard = useCallback(async (cardId, update) => {
+    if (!selectedChild?.id) throw new Error("Select a child before updating this suggestion.");
+    const result = await updateParentDocumentSupportCard(
+      selectedChild.id,
+      cardId,
+      update,
+      parentRequest(),
+    );
+    if (!result?.card) throw new Error("The support suggestion could not be refreshed.");
+    setProfile((current) => ({
+      ...(current || {}),
+      documentSupportCards: (current?.documentSupportCards || []).map((card) =>
+        card.id === result.card.id ? result.card : card,
+      ),
+    }));
+    return result.card;
+  }, [selectedChild?.id]);
+
   const reduceMotion = useReducedMotion();
 
   if (!visible) return null;
@@ -464,6 +501,7 @@ export default function SupportNowOverlay({
               isIndividual={isIndividual}
               parentDirect={parentDirect ?? user?.account_type === "parent_free"}
               logEngagement={logEngagement}
+              onUpdateDocumentSupportCard={handleUpdateDocumentSupportCard}
             />
           )}
 

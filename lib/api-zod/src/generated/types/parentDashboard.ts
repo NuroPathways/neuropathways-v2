@@ -8,6 +8,7 @@
 import type { ParentChild } from './parentChild';
 import type { ParentDailyAction } from './parentDailyAction';
 import type { ParentDocument } from './parentDocument';
+import type { ParentDocumentSupportCard } from './parentDocumentSupportCard';
 import type { ParentLog } from './parentLog';
 import type { ParentPlanGoal } from './parentPlanGoal';
 import type { SupportCard } from './supportCard';
@@ -15,6 +16,7 @@ import type { SupportCard } from './supportCard';
 export interface ParentDashboard {
   child: ParentChild;
   supportCards: SupportCard[];
+  documentSupportCards: ParentDocumentSupportCard[];
   documents: ParentDocument[];
   logs: ParentLog[];
   dailyActions: ParentDailyAction[];

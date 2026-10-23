@@ -1777,6 +1777,32 @@ export const GetParentDashboardResponse = zod.object({
   "reviewedBy": zod.string().nullable(),
   "reviewedAt": zod.string().nullable()
 })),
+  "documentSupportCards": zod.array(zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "behaviorName": zod.string(),
+  "displayName": zod.string(),
+  "parentDisplayName": zod.string().nullable(),
+  "description": zod.string(),
+  "contexts": zod.array(zod.string()),
+  "observations": zod.array(zod.string()),
+  "uncertainty": zod.array(zod.string()),
+  "generalSupportSuggestions": zod.array(zod.string()),
+  "missingClinicalInformation": zod.array(zod.string()),
+  "safetySensitiveTopic": zod.boolean(),
+  "sourceReviewRequired": zod.boolean(),
+  "reviewStatus": zod.enum(['unreviewed', 'needs_review']),
+  "clinicianApproved": zod.literal(false),
+  "dismissed": zod.boolean(),
+  "sourceReferences": zod.array(zod.object({
+  "documentId": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string(),
+  "excerptVerified": zod.boolean(),
+  "section": zod.string().nullable(),
+  "page": zod.number().int().nullable()
+}))
+})),
   "documents": zod.array(zod.object({
   "canShare": zod.boolean().optional(),
   "canScan": zod.boolean().optional(),
@@ -1856,6 +1882,54 @@ export const GetParentDashboardResponse = zod.object({
   "milestones": zod.array(zod.string()),
   "sourceType": zod.enum(['clinician_uploaded_plan', 'parent_uploaded_plan', 'selected_behavior'])
 }))
+})
+
+
+/**
+ * @summary Correct or dismiss a document-informed support suggestion
+ */
+export const UpdateParentDocumentSupportCardParams = zod.object({
+  "childId": zod.coerce.string(),
+  "cardId": zod.coerce.string()
+})
+
+export const updateParentDocumentSupportCardBodyLabelMax = 160;
+
+
+
+export const UpdateParentDocumentSupportCardBody = zod.object({
+  "action": zod.enum(['rename', 'dismiss', 'restore']),
+  "label": zod.string().min(1).max(updateParentDocumentSupportCardBodyLabelMax).optional()
+})
+
+export const UpdateParentDocumentSupportCardResponse = zod.object({
+  "success": zod.literal(true),
+  "card": zod.object({
+  "id": zod.string(),
+  "childId": zod.string(),
+  "behaviorName": zod.string(),
+  "displayName": zod.string(),
+  "parentDisplayName": zod.string().nullable(),
+  "description": zod.string(),
+  "contexts": zod.array(zod.string()),
+  "observations": zod.array(zod.string()),
+  "uncertainty": zod.array(zod.string()),
+  "generalSupportSuggestions": zod.array(zod.string()),
+  "missingClinicalInformation": zod.array(zod.string()),
+  "safetySensitiveTopic": zod.boolean(),
+  "sourceReviewRequired": zod.boolean(),
+  "reviewStatus": zod.enum(['unreviewed', 'needs_review']),
+  "clinicianApproved": zod.literal(false),
+  "dismissed": zod.boolean(),
+  "sourceReferences": zod.array(zod.object({
+  "documentId": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string(),
+  "excerptVerified": zod.boolean(),
+  "section": zod.string().nullable(),
+  "page": zod.number().int().nullable()
+}))
+})
 })
 
 

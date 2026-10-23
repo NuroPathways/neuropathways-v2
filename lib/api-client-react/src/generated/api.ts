@@ -60,6 +60,8 @@ import type {
   ParentDocument,
   ParentDocumentScanResult,
   ParentDocumentSharingInput,
+  ParentDocumentSupportCardUpdate,
+  ParentDocumentSupportCardUpdateResult,
   ParentDocumentUploadInput,
   ParentFamilyTools,
   ParentFamilyToolsInput,
@@ -2787,6 +2789,97 @@ export function useGetParentDashboard<TData = Awaited<ReturnType<typeof getParen
 
 
 
+
+export const getUpdateParentDocumentSupportCardUrl = (childId: string,
+    cardId: string,) => {
+
+
+
+
+  return `/api/parent/children/${childId}/document-support-cards/${cardId}`
+}
+
+/**
+ * @summary Correct or dismiss a document-informed support suggestion
+ */
+export const updateParentDocumentSupportCard = async (childId: string,
+    cardId: string,
+    parentDocumentSupportCardUpdate: ParentDocumentSupportCardUpdate, options?: Parameters<typeof customFetch>[1]): Promise<ParentDocumentSupportCardUpdateResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ParentDocumentSupportCardUpdateResult>(getUpdateParentDocumentSupportCardUrl(childId,cardId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(parentDocumentSupportCardUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateParentDocumentSupportCardMutationKey = () => ['updateParentDocumentSupportCard'] as const;
+
+export const getUpdateParentDocumentSupportCardMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateParentDocumentSupportCard>>, TError,UpdateParentDocumentSupportCardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateParentDocumentSupportCard>>, TError,UpdateParentDocumentSupportCardMutationVariables, TContext> => {
+
+const mutationKey = getUpdateParentDocumentSupportCardMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateParentDocumentSupportCard>>, UpdateParentDocumentSupportCardMutationVariables> = (props) => {
+          const {childId,cardId,data} = props ?? {};
+
+          return  updateParentDocumentSupportCard(childId,cardId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateParentDocumentSupportCardMutationResult = NonNullable<Awaited<ReturnType<typeof updateParentDocumentSupportCard>>>
+    export type UpdateParentDocumentSupportCardMutationBody = BodyType<ParentDocumentSupportCardUpdate>
+    export type UpdateParentDocumentSupportCardMutationError = ErrorType<unknown>
+    export type UpdateParentDocumentSupportCardMutationVariables = {childId: string;cardId: string;data: BodyType<ParentDocumentSupportCardUpdate>}
+
+    /**
+ * @summary Correct or dismiss a document-informed support suggestion
+ */
+export const useUpdateParentDocumentSupportCard = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateParentDocumentSupportCard>>, TError,UpdateParentDocumentSupportCardMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateParentDocumentSupportCard>>,
+        TError,
+        UpdateParentDocumentSupportCardMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateParentDocumentSupportCardMutationOptions(options), queryClient);
+    }
 
 export const getUpdateParentDailyActionUrl = (childId: string,
     actionId: string,) => {

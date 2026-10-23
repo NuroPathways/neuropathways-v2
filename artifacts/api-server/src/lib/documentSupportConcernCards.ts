@@ -42,8 +42,47 @@ export type GeneratedConcernGroup = {
   general_support_suggestions?: unknown;
 };
 
+export type ParentDocumentSupportCardOverride = {
+  displayName: string | null;
+  dismissedAt: string | null;
+  updatedAt: string;
+};
+
+export type ParentDocumentSupportCardWire = {
+  id: string;
+  childId: string;
+  behaviorName: string;
+  displayName: string;
+  parentDisplayName: string | null;
+  description: string;
+  contexts: string[];
+  observations: string[];
+  uncertainty: string[];
+  generalSupportSuggestions: string[];
+  missingClinicalInformation: string[];
+  safetySensitiveTopic: boolean;
+  sourceReviewRequired: boolean;
+  reviewStatus: "unreviewed" | "needs_review";
+  clinicianApproved: false;
+  dismissed: boolean;
+  sourceReferences: Array<{
+    documentId: string;
+    title: string;
+    excerpt: string;
+    excerptVerified: boolean;
+    section: string | null;
+    page: number | null;
+  }>;
+};
+
 type ConcernSourceTitle = {
   documentId: string;
+  title: string;
+};
+
+type CurrentConcernSource = {
+  documentId: string;
+  documentVersion: string;
   title: string;
 };
 
@@ -343,6 +382,102 @@ export function savedDocumentInformedConcernCards(value: unknown): DocumentInfor
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
   const cards = (value as { supportConcernCards?: unknown }).supportConcernCards;
   return Array.isArray(cards) ? cards.filter(isStoredConcernCard) : [];
+}
+
+export function savedParentDocumentSupportCardOverrides(
+  value: unknown,
+): Record<string, ParentDocumentSupportCardOverride> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const rawOverrides = (value as { supportConcernCardOverrides?: unknown }).supportConcernCardOverrides;
+  if (!rawOverrides || typeof rawOverrides !== "object" || Array.isArray(rawOverrides)) return {};
+  const result: Record<string, ParentDocumentSupportCardOverride> = {};
+  for (const [id, raw] of Object.entries(rawOverrides)) {
+    if (!/^document-concern:[a-f0-9]{24}$/.test(id) || !raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const value = raw as Record<string, unknown>;
+    const displayName = typeof value.displayName === "string"
+      ? cleanText(value.displayName, 160)
+      : null;
+    const dismissedAt = typeof value.dismissedAt === "string" && Number.isFinite(Date.parse(value.dismissedAt))
+      ? value.dismissedAt
+      : null;
+    const updatedAt = typeof value.updatedAt === "string" && Number.isFinite(Date.parse(value.updatedAt))
+      ? value.updatedAt
+      : "";
+    if (!updatedAt || (!displayName && !dismissedAt)) continue;
+    result[id] = { displayName, dismissedAt, updatedAt };
+  }
+  return result;
+}
+
+export function projectParentDocumentSupportCards(
+  cardGroups: DocumentInformedConcernCard[],
+  currentSources: CurrentConcernSource[],
+  overrides: Record<string, ParentDocumentSupportCardOverride>,
+  childId: string,
+): ParentDocumentSupportCardWire[] {
+  const sourceById = new Map(currentSources.map((source) => [source.documentId, source]));
+  const currentCards = mergeDocumentInformedConcernCards(
+    [],
+    cardGroups.filter((card) => card.childId === childId),
+  )
+    .flatMap((card) => {
+      const sourceReferences = card.sourceReferences.flatMap((reference) => {
+        const source = sourceById.get(reference.documentId);
+        if (!source || source.documentVersion !== reference.documentVersion) return [];
+        return [{
+          documentId: reference.documentId,
+          title: source.title || reference.title || "Uploaded document",
+          excerpt: cleanText(reference.excerpt, 1_200),
+          excerptVerified: reference.excerptVerified === true,
+          section: reference.section || null,
+          page: Number.isInteger(reference.page) && Number(reference.page) > 0 ? reference.page : null,
+        }];
+      });
+      if (!sourceReferences.length) return [];
+      const override = overrides[card.id];
+      const parentDisplayName = override?.displayName || null;
+      const safetySensitiveTopic = card.safetySensitiveTopic === true;
+      const sourceReviewRequired = card.sourceReviewRequired === true
+        || sourceReferences.some((reference) => !reference.excerptVerified);
+      return [{
+        id: card.id,
+        childId: card.childId,
+        behaviorName: cleanText(card.behaviorName, 160) || "Document-informed concern",
+        displayName: parentDisplayName || cleanText(card.behaviorName, 160) || "Document-informed concern",
+        parentDisplayName,
+        description: cleanText(card.description, 1_000),
+        contexts: cleanStrings(card.contexts, 8, 320),
+        observations: cleanStrings(card.observations, 8, 320),
+        uncertainty: cleanStrings(card.uncertainty, 8, 320),
+        generalSupportSuggestions: safetySensitiveTopic || sourceReviewRequired
+          ? []
+          : cleanStrings(card.generalSupportSuggestions, 5, 320),
+        missingClinicalInformation: cleanStrings(card.missingClinicalInformation, 8, 320),
+        safetySensitiveTopic,
+        sourceReviewRequired,
+        reviewStatus: sourceReviewRequired ? "needs_review" as const : card.reviewStatus,
+        clinicianApproved: false as const,
+        dismissed: Boolean(override?.dismissedAt),
+        sourceReferences,
+      }];
+    });
+  return currentCards;
+}
+
+export function updateParentDocumentSupportCardOverride(
+  existing: Record<string, ParentDocumentSupportCardOverride>,
+  cardId: string,
+  action: "rename" | "dismiss" | "restore",
+  label: string | undefined,
+  updatedAt: string,
+): Record<string, ParentDocumentSupportCardOverride> {
+  const current = existing[cardId] || { displayName: null, dismissedAt: null, updatedAt };
+  const next = action === "rename"
+    ? { ...current, displayName: cleanText(label, 160), updatedAt }
+    : action === "dismiss"
+      ? { ...current, dismissedAt: updatedAt, updatedAt }
+      : { ...current, dismissedAt: null, updatedAt };
+  return { ...existing, [cardId]: next };
 }
 
 export function mergeDocumentInformedConcernCards(

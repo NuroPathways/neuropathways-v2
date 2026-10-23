@@ -47,7 +47,11 @@ import {
   validateAccountAuthority,
   accountAuthorityInvalidStatus,
 } from "../lib/accountAuthority";
-import { getParentSupportCards, listParentDocuments } from "../lib/parentDocuments";
+import {
+  getParentDocumentSupportCards,
+  getParentSupportCards,
+  listParentDocuments,
+} from "../lib/parentDocuments";
 import { parentLoginAccountKey } from "../lib/parentAuthRateLimit";
 import { familyIdForOwner, familyChildrenForOwner, parentGoalOwnerIds, saveFamilySettings } from "../lib/familyParentAuth";
 import {
@@ -461,8 +465,9 @@ function serializeParentLog(log: typeof parentLogsTable.$inferSelect) {
 export async function getParentDashboardData(parentId: string, childId: string, actionDate = new Date().toISOString().slice(0, 10)) {
   const owned = await ownedParentChild(parentId, childId);
   if (!owned) return null;
-  const [supportCards, documents, storedLogs, planGoals] = await Promise.all([
+  const [supportCards, documentSupportCards, documents, storedLogs, planGoals] = await Promise.all([
     getParentSupportCards(parentId, childId),
+    getParentDocumentSupportCards(parentId, childId),
     listParentDocuments(parentId, childId),
     db
       .select()
@@ -533,6 +538,7 @@ export async function getParentDashboardData(parentId: string, childId: string, 
   return {
     child: serializeParentChild(owned, owned.settings),
     supportCards,
+    documentSupportCards,
     documents,
     logs: [...storedLogs.map(serializeParentLog), ...legacyLogs].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     dailyActions: dailyActions.map((action) => {
