@@ -1884,6 +1884,9 @@ components:
           type: string
         documentType:
           type: string
+        documentClassificationStatus:
+          type: string
+          enum: [not_classified, verified, needs_review]
         scanStatus:
           type: string
         processingStatus:
@@ -1913,6 +1916,7 @@ components:
         - title
         - fileName
         - documentType
+        - documentClassificationStatus
         - scanStatus
         - processingStatus
         - extractionStatus

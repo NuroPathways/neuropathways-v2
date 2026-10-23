@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ParentDocumentClinicalReviewStatus } from './parentDocumentClinicalReviewStatus';
+import type { ParentDocumentDocumentClassificationStatus } from './parentDocumentDocumentClassificationStatus';
 import type { ParentDocumentExtractionStatus } from './parentDocumentExtractionStatus';
 import type { ParentDocumentProcessingStatus } from './parentDocumentProcessingStatus';
 import type { ParentDocumentUploadedBy } from './parentDocumentUploadedBy';
@@ -18,6 +19,7 @@ export interface ParentDocument {
   title: string;
   fileName: string;
   documentType: string;
+  documentClassificationStatus: ParentDocumentDocumentClassificationStatus;
   scanStatus: string;
   processingStatus: ParentDocumentProcessingStatus;
   extractionStatus: ParentDocumentExtractionStatus;

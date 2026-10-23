@@ -24,7 +24,7 @@ vi.mock("./UploadBox", () => ({
 const child = { id: "child-a", name: "Sam", clinicianId: "clinician-a" };
 const doc = (changes = {}) => ({
   id: "doc-a", childId: "child-a", title: "Behavior Support Plan", fileName: "original-plan.txt",
-  documentType: "treatment_plan", scanStatus: "scanned", scanError: null,
+  documentType: "treatment_plan", documentClassificationStatus: "verified", scanStatus: "scanned", scanError: null,
   uploadedBy: "parent", shared: false, reviewed: false, createdAt: "2026-10-18T12:00:00Z",
   ...changes,
 });
@@ -76,23 +76,56 @@ describe("Parent Document Center presentation and existing contracts", () => {
     expect(screen.queryByTestId("row-document-doc-b")).toBeNull();
   });
 
-  it("retains every derived category, combines it with search and resets with All", () => {
+  it("shows the supported content-classified document categories and filters them", () => {
     mount([
-      doc(), doc({ id: "safety", title: "Crisis safety", documentType: "other", fileName: "safety.txt" }),
-      doc({ id: "school", title: "IEP", documentType: "other", fileName: "iep.pdf" }),
-      doc({ id: "report", title: "Evaluation", documentType: "report", fileName: "evaluation.txt" }),
-      doc({ id: "other", title: "Notes", documentType: "other", fileName: "notes.txt" }),
+      doc(),
+      doc({ id: "intake", documentType: "intake_assessment", title: "Intake" }),
+      doc({ id: "bip", documentType: "behavior_intervention_plan", title: "BIP" }),
+      doc({ id: "session", documentType: "session_note", title: "Session" }),
+      doc({ id: "progress", documentType: "progress_note", title: "Progress" }),
+      doc({ id: "safety", documentType: "safety_crisis_plan", title: "Safety" }),
+      doc({ id: "assessment", documentType: "assessment", title: "Assessment" }),
+      doc({ id: "review", documentType: "review", title: "Review" }),
+      doc({ id: "other", documentType: "other_clinical_document", title: "Other" }),
     ]);
-    for (const category of ["Safety", "School", "Plans", "Reports", "Other"])
+    for (const category of [
+      "Treatment Plan", "Intake Assessment", "Behavior Intervention Plan", "Session Note",
+      "Progress Note", "Safety / Crisis Plan", "Assessment", "Review", "Other Clinical Document",
+    ])
       expect(screen.getByTestId(`button-doc-category-${category}`)).toBeTruthy();
-    fireEvent.click(screen.getByTestId("button-doc-category-School"));
-    expect(screen.getByTestId("button-doc-category-School").getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByTestId("button-doc-category-Session Note"));
+    expect(screen.getByTestId("button-doc-category-Session Note").getAttribute("aria-pressed")).toBe("true");
     expect(screen.getAllByTestId(/^row-document-/)).toHaveLength(1);
     fireEvent.change(screen.getByTestId("input-doc-search"), { target: { value: "missing" } });
     expect(screen.getByTestId("text-no-doc-matches")).toBeTruthy();
     fireEvent.change(screen.getByTestId("input-doc-search"), { target: { value: "" } });
     fireEvent.click(screen.getByTestId("button-doc-category-all"));
-    expect(screen.getAllByTestId(/^row-document-/)).toHaveLength(5);
+    expect(screen.getAllByTestId(/^row-document-/)).toHaveLength(9);
+  });
+
+  it("does not infer a plan category from a filename when classification is missing", () => {
+    mount([doc({
+      id: "unclassified",
+      documentType: "support-plan",
+      documentClassificationStatus: "not_classified",
+      title: "Behavior Support Plan",
+      fileName: "treatment-plan.pdf",
+    })]);
+    expect(screen.getByTestId("button-doc-category-Not classified yet")).toBeTruthy();
+    expect(screen.queryByTestId("button-doc-category-Treatment Plan")).toBeNull();
+    details("unclassified");
+    expect(screen.getByTestId("details-document-unclassified").textContent).toContain("Not classified yet");
+  });
+
+  it("does not present a legacy unverified upload category as a document purpose", () => {
+    mount([doc({
+      id: "legacy",
+      documentType: "support-plan",
+      documentClassificationStatus: "needs_review",
+      title: "Old Plan",
+      fileName: "old-plan.pdf",
+    })]);
+    expect(screen.getByTestId("button-doc-category-Classification needs review")).toBeTruthy();
   });
 
   it.each([
@@ -145,7 +178,7 @@ describe("Parent Document Center presentation and existing contracts", () => {
     details();
     expect(screen.getByTestId("text-scan-error-doc-a").textContent).toBe(note);
     const metadata = screen.getByTestId("details-document-doc-a");
-    for (const value of ["original-plan.txt", "treatment_plan", "Plans", "Clinician", "Sam", "Private to your account"])
+    for (const value of ["original-plan.txt", "Treatment Plan", "Clinician", "Sam", "Private to your account"])
       expect(within(metadata).getByText(value)).toBeTruthy();
     expect(screen.getByTestId("text-review-detail-doc-a").textContent).toBe("Reviewed");
     expect(screen.getByTestId("text-scan-detail-doc-a").textContent).toBe("Failed");

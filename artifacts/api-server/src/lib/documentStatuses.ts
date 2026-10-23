@@ -14,6 +14,7 @@ export type DocumentClinicalReviewStatus =
   | "reviewed";
 
 type ExtractionRecordReview = {
+  category?: string | null;
   extractionStatus?: string | null;
   reviewStatus?: string | null;
   sourceExcerptVerified?: boolean;
@@ -53,11 +54,12 @@ export function documentClinicalReviewStatus(
   if (!run) return legacyNeedsReview ? "needs_review" : documentReviewed ? "reviewed" : "not_assessed";
   const runStatus = String(run.scanStatus || "").toLowerCase();
   const records = Array.isArray(run.records) ? run.records : [];
+  const clinicalRecords = records.filter((record) => record.category !== "document_metadata");
 
   if (
     legacyNeedsReview ||
     ["partial", "failed", "processing"].includes(runStatus) ||
-    records.some((record) =>
+    clinicalRecords.some((record) =>
       record.reviewStatus === "needs_review" ||
       record.extractionStatus === "needs_review" ||
       record.sourceExcerptVerified === false,
@@ -66,15 +68,15 @@ export function documentClinicalReviewStatus(
     return "needs_review";
   }
 
-  if (records.some((record) => record.reviewStatus === "unreviewed")) return "not_reviewed";
-  if (records.length > 0 && records.every((record) =>
+  if (clinicalRecords.some((record) => record.reviewStatus === "unreviewed")) return "not_reviewed";
+  if (clinicalRecords.length > 0 && clinicalRecords.every((record) =>
     record.reviewStatus === "approved" || record.reviewStatus === "rejected",
   )) {
     return "reviewed";
   }
   if (documentReviewed) return "reviewed";
-  if (runStatus === "no_relevant_content" && records.length === 0) return "no_review_required";
-  if (runStatus === "completed" && records.length === 0) return "no_review_required";
+  if (runStatus === "no_relevant_content" && clinicalRecords.length === 0) return "no_review_required";
+  if (runStatus === "completed" && clinicalRecords.length === 0) return "no_review_required";
   if (runStatus === "completed" || runStatus === "no_relevant_content") return "no_review_required";
   return "not_assessed";
 }

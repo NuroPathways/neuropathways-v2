@@ -7,6 +7,7 @@ import {
   type SupportCard,
   type SourceReference,
 } from "./parentStarterLibrary";
+import { DOCUMENT_PURPOSES } from "./documentTaxonomy";
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 export const PARENT_DOCUMENT_MIME_BY_EXTENSION: Record<string, string> = {
@@ -346,21 +347,34 @@ export type DiscoveredParentTarget = {
 
 /** Discovery is deliberately independent of saved/generated cards: its only evidence is fetched source text. */
 export function buildParentDocumentDiscoveryContent(
-  documents: Array<{ id: string; title: string; content: ParentDocumentContent }>,
+  documents: Array<{ id: string; title: string; fileName?: string; content: ParentDocumentContent }>,
   allowedSourceIds: string[],
 ): ParentDocumentGenerationPart[] {
   const content: ParentDocumentGenerationPart[] = [];
   for (const document of documents) {
     content.push(
-      { type: "text", text: `[Document: ${document.title}; id=${document.id}]` },
+      { type: "text", text: `[Document: ${document.title}; filename=${document.fileName || "not provided"}; id=${document.id}]` },
       ...(Array.isArray(document.content) ? document.content : [document.content]),
     );
   }
   content.push({
     type: "text",
-    text: `Find target behaviors explicitly identified in the supplied source documents. For each target, return its canonical behavior_key only if it clearly matches one of these supported keys: ${starterLibrary.map((item) => item.key).join(", ")}. Otherwise use behavior_key "custom" and provide the exact, concise target label in behavior_name. Return only behaviors described as actual targets for support, not behaviors merely mentioned as examples, historical context, possible risks, negated targets, or items the plan says are not concerns. Do not infer a target from a strategy, diagnosis, or general discussion. Include a goal only when the source explicitly assigns a concrete goal to that same target; otherwise use an empty string. Preserve the exact source wording of an explicit goal; do not paraphrase it. Never invent a goal. Keep goals concise and within 500 characters. Return at most 20 targets and no source IDs that are not listed below.
+    text: `For every source document, classify its actual purpose from its contents and available metadata. Use exactly one of these document_type values: ${DOCUMENT_PURPOSES.join(", ")}. A filename or title is only a clue and must never be the sole basis. Add one document_metadata extraction for each source, with its exact source_document_id, a verbatim source_excerpt of at least 12 characters that supports the type, and interpretation.document_type set to the chosen value. If the contents do not support a more specific type, use other_clinical_document. If the file is unreadable, do not guess from its filename.
 
-Also classify each explicit item separately in extractions. Use only these categories: profile_information, behavior, goal, support_strategy, safety_instruction, potential_home_activity. Profile fields, observable behaviors, goals, strategies, safety instructions, and activities must remain separate. A goal or milestone is not an activity. An activity is only a candidate, never a published treatment. Do not infer a behavior function, diagnosis, preference, risk, approval, or missing instruction. For each item, include source_document_id from the supplied list, an exact source_excerpt of at least 12 characters, and the category-specific interpretation fields. Use source_section and source_page only when available; otherwise use empty string and 0. Return an empty extractions array if nothing relevant is explicitly documented.
+Extract type-specific facts without inventing or changing clinical meaning:
+- Intake assessment: documented background, strengths, interests, communication or sensory preferences, concerns, functional difficulties, family context, and relevant history. Do not require or invent a formal behavior intervention.
+- Treatment plan: explicit goals, skill targets, actual behavior targets, strategies, measurement, home practice, and restrictions.
+- Session note: goals addressed, activities, strategies used, client responses, barriers, recommendations, and follow-up as clinical_observation facts. Do not create a new goal from an issue mentioned in a session note; record goal references as goals_addressed unless the note explicitly establishes a formal goal.
+- Progress note: documented progress, response, barriers, recommendations, and follow-up as clinical_observation facts; do not infer a new goal.
+- Behavior intervention plan: explicitly named target behaviors, antecedents, strategies, replacement communication, reinforcement, escalation guidance, and safety restrictions.
+- Safety/crisis plan: extract safety instructions separately; never convert them into routine activities.
+- Assessment, review, and other clinical documents: extract only facts their contents actually establish.
+
+Keep document metadata, profile facts, clinical observations, goals, behaviors, strategies, safety instructions, and potential home activities separate. An empty target list and an empty activity-candidate list are valid; neither makes a readable document a failure. A goal is not an activity. Do not create an activity just because a goal exists. Every fact needs an exact source document id and a verbatim excerpt from that source.
+
+Find target behaviors explicitly identified in the supplied source documents. For each target, return its canonical behavior_key only if it clearly matches one of these supported keys: ${starterLibrary.map((item) => item.key).join(", ")}. Otherwise use behavior_key "custom" and provide the exact, concise target label in behavior_name. Return only behaviors described as actual targets for support, not behaviors merely mentioned as examples, historical context, possible risks, negated targets, or items the plan says are not concerns. Do not infer a target from a strategy, diagnosis, or general discussion. Include a goal only when the source explicitly assigns a concrete goal to that same target; otherwise use an empty string. Preserve the exact source wording of an explicit goal; do not paraphrase it. Never invent a goal. Keep goals concise and within 500 characters. Return at most 20 targets and no source IDs that are not listed below.
+
+Also classify each explicit fact separately in extractions. Use only these categories: document_metadata, profile_information, clinical_observation, behavior, goal, support_strategy, safety_instruction, potential_home_activity. Profile fields, observations, behaviors, goals, strategies, safety instructions, and activities must remain separate. Do not infer a behavior function, diagnosis, preference, risk, approval, or missing instruction. For each item, include source_document_id from the supplied list, an exact source_excerpt of at least 12 characters, and the category-specific interpretation fields. Use source_section and source_page only when available; otherwise use empty string and 0. Return [] for targets or activity candidates when none are explicit, while retaining any other source-grounded facts.
 
 Allowed source document IDs: ${JSON.stringify(allowedSourceIds)}`,
   });

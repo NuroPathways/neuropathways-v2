@@ -2,7 +2,9 @@ import { sql } from "drizzle-orm";
 import { index, jsonb, pgTable, timestamp, uniqueIndex, varchar, text } from "drizzle-orm/pg-core";
 
 export type DocumentExtractionCategory =
+  | "document_metadata"
   | "profile_information"
+  | "clinical_observation"
   | "behavior"
   | "goal"
   | "support_strategy"

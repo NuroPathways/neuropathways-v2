@@ -761,3 +761,21 @@ test("owner access stays scoped to the matching parent-child relationship", () =
   assert.equal(canAccessParentDocument({ ...privateDoc, actorParentId: "parent-b" }), false);
   assert.equal(canAccessParentDocument({ ...privateDoc, childParentId: "parent-b", actorParentId: "parent-a" }), false);
 });
+
+test("document discovery classifies by content, includes filename only as metadata, and permits no-target sources", () => {
+  const request = buildParentDocumentDiscoveryContent([
+    {
+      id: "synthetic-intake",
+      title: "Family intake",
+      fileName: "possibly-misleading-plan.pdf",
+      content: [{ type: "text", text: "Synthetic intake text: strengths and communication preferences." }],
+    },
+  ], ["synthetic-intake"]);
+  const instructions = request.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+
+  assert.match(instructions, /filename=possibly-misleading-plan\.pdf/);
+  assert.match(instructions, /must never be the sole basis/i);
+  assert.match(instructions, /intake_assessment, treatment_plan, behavior_intervention_plan/);
+  assert.match(instructions, /An empty target list and an empty activity-candidate list are valid/);
+  assert.match(instructions, /Do not create a new goal from an issue mentioned in a session note/);
+});

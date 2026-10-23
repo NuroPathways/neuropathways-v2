@@ -794,6 +794,15 @@ export interface SupportCard {
   reviewedAt: string | null;
 }
 
+export type ParentDocumentDocumentClassificationStatus = typeof ParentDocumentDocumentClassificationStatus[keyof typeof ParentDocumentDocumentClassificationStatus];
+
+
+export const ParentDocumentDocumentClassificationStatus = {
+  not_classified: 'not_classified',
+  verified: 'verified',
+  needs_review: 'needs_review',
+} as const;
+
 export type ParentDocumentProcessingStatus = typeof ParentDocumentProcessingStatus[keyof typeof ParentDocumentProcessingStatus];
 
 
@@ -843,6 +852,7 @@ export interface ParentDocument {
   title: string;
   fileName: string;
   documentType: string;
+  documentClassificationStatus: ParentDocumentDocumentClassificationStatus;
   scanStatus: string;
   processingStatus: ParentDocumentProcessingStatus;
   extractionStatus: ParentDocumentExtractionStatus;

@@ -50,3 +50,15 @@ test("a completed no-content classification does not become a clinical review fa
     records: [],
   }, false), "no_review_required");
 });
+
+test("document-purpose metadata does not create an unrelated clinical review requirement", () => {
+  assert.equal(documentClinicalReviewStatus({
+    scanStatus: "no_relevant_content",
+    records: [{
+      category: "document_metadata",
+      reviewStatus: "unreviewed",
+      extractionStatus: "extracted",
+      sourceExcerptVerified: true,
+    }],
+  }, false), "no_review_required");
+});

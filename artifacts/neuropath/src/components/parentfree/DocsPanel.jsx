@@ -14,6 +14,31 @@ import "./docs-phase-eight.css";
 
 const DONE = ["scanned", "complete", "completed", "done", "ready"];
 const NEEDS_REVIEW = ["needs_review", "needs-review", "needs review"];
+const DOCUMENT_TYPE_LABELS = {
+  intake_assessment: "Intake Assessment",
+  treatment_plan: "Treatment Plan",
+  behavior_intervention_plan: "Behavior Intervention Plan",
+  session_note: "Session Note",
+  progress_note: "Progress Note",
+  safety_crisis_plan: "Safety / Crisis Plan",
+  assessment: "Assessment",
+  review: "Review",
+  other_clinical_document: "Other Clinical Document",
+};
+
+export function documentTypeLabel(document) {
+  const label = DOCUMENT_TYPE_LABELS[document.documentType];
+  if (document.documentClassificationStatus === "verified") return label || "Other Clinical Document";
+  if (document.documentClassificationStatus === "needs_review") {
+    return label ? `Possible: ${label}` : "Classification needs review";
+  }
+  return "Not classified yet";
+}
+
+export function categoryOf(document) {
+  return documentTypeLabel(document);
+}
+
 export function scanLabel(d) {
   const s = String(d.processingStatus || d.scanStatus || "").toLowerCase();
   if (NEEDS_REVIEW.includes(s)) return { text: "Processed", kind: "", retry: true, actionLabel: "Read again" };
@@ -68,14 +93,6 @@ export default function DocsPanel({ child, documents }) {
   const [batchStatus, setBatchStatus] = useState("");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-  const categoryOf = (d) => {
-    const t = `${d.documentType || ""} ${d.title || ""} ${d.fileName || ""}`.toLowerCase();
-    if (/safety|crisis/.test(t)) return "Safety";
-    if (/iep|504|school/.test(t)) return "School";
-    if (/plan|bip|behavior/.test(t)) return "Plans";
-    if (/report|eval|assess/.test(t)) return "Reports";
-    return "Other";
-  };
   const categories = ["all", ...Array.from(new Set(documents.map(categoryOf)))];
   const shown = documents.filter((d) => (category === "all" || categoryOf(d) === category)
     && `${d.title || ""} ${d.fileName || ""}`.toLowerCase().includes(search.trim().toLowerCase()));
@@ -255,8 +272,12 @@ export default function DocsPanel({ child, documents }) {
                     <dt>Clinical review</dt><dd data-testid={`text-review-detail-${d.id}`}>{review.text}</dd>
                     {d.scanError && ps.text === "Failed" && <><dt>Processing note</dt><dd data-testid={`text-scan-error-${d.id}`}>{d.scanError}</dd></>}
                     <dt>File name</dt><dd>{d.fileName}</dd>
-                    {d.documentType && <><dt>Type</dt><dd>{d.documentType}</dd></>}
-                    <dt>Category</dt><dd>{categoryOf(d)}</dd>
+                    <dt>Document type</dt><dd>{documentTypeLabel(d)}</dd>
+                    <dt>Classification</dt><dd>{d.documentClassificationStatus === "verified"
+                      ? "Verified from document contents"
+                      : d.documentClassificationStatus === "needs_review"
+                        ? "Needs review; the type could not be verified from searchable text"
+                        : "Not classified yet"}</dd>
                     <dt>Uploaded by</dt><dd>{d.uploadedBy === "clinician" ? "Clinician" : "Parent"}</dd>
                     {date && <><dt>Added</dt><dd>{date}</dd></>}
                     <dt>Child</dt><dd>{child.name}</dd>

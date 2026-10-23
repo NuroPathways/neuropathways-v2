@@ -77,6 +77,7 @@ export * from './parentDailyActionStatusInputStatus';
 export * from './parentDashboard';
 export * from './parentDocument';
 export * from './parentDocumentClinicalReviewStatus';
+export * from './parentDocumentDocumentClassificationStatus';
 export * from './parentDocumentExtractionStatus';
 export * from './parentDocumentProcessingStatus';
 export * from './parentDocumentScanResult';

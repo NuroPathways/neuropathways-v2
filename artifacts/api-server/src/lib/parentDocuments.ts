@@ -36,11 +36,13 @@ import {
 } from "./parentStarterLibrary";
 import {
   DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE,
+  documentClassificationForRun,
   documentExtractionsToolProperty,
   normalizeDocumentExtractions,
   persistDocumentExtractionBatch,
   type DocumentExtractionSource,
 } from "./documentExtractions";
+import { isDocumentPurpose } from "./documentTaxonomy";
 import {
   documentClinicalReviewStatus,
   documentExtractionStatus,
@@ -109,6 +111,7 @@ export type ParentDocumentWire = {
   title: string;
   fileName: string;
   documentType: string;
+  documentClassificationStatus: "not_classified" | "verified" | "needs_review";
   scanStatus: string;
   processingStatus: string;
   extractionStatus: string;
@@ -135,6 +138,7 @@ function toWire(document: typeof documentsTable.$inferSelect, metadata: ParentDo
     title: document.title || document.fileName || "Uploaded plan",
     fileName: document.fileName || "document",
     documentType: document.category || "other",
+    documentClassificationStatus: "not_classified",
     scanStatus: document.scanStatus || "pending",
     processingStatus: documentProcessingStatus(document.scanStatus),
     extractionStatus: "not_started",
@@ -333,6 +337,7 @@ export async function listParentDocuments(parentId: string, childId: string): Pr
   }).map(d => ({
     id: d.id, childId, title: d.title || d.fileName || "Care-team document",
     fileName: d.fileName || "document", documentType: d.category || "other",
+    documentClassificationStatus: "not_classified" as const,
     scanStatus: d.scanStatus || "pending", scanError: d.scanError || null,
     uploadedBy: (permissions.has(d.id) || d.uploadedBy !== child.clinicianId ? "parent" : "clinician") as "parent" | "clinician", canShare: false, canScan: false,
     shared: true, reviewed: Boolean(permissions.get(d.id)?.reviewedAt),
@@ -353,8 +358,11 @@ export async function listParentDocuments(parentId: string, childId: string): Pr
     const currentRun = runs.find((run) =>
       run.documentId === wire.id && (!metadata || run.documentVersion === metadata.sha256),
     );
+    const classification = documentClassificationForRun(currentRun);
     return {
       ...wire,
+      documentType: classification.documentType || wire.documentType,
+      documentClassificationStatus: classification.status,
       processingStatus: documentProcessingStatus(wire.scanStatus),
       extractionStatus: documentExtractionStatus(currentRun?.scanStatus),
       clinicalReviewStatus: documentClinicalReviewStatus(currentRun, wire.reviewed, wire.scanStatus),
@@ -783,6 +791,7 @@ async function readParentDocument(
   ]);
   const selectedBehaviors = parentBehaviorsFromSettings(settings);
   const fingerprint = parentScanFingerprint({
+    documentClassificationVersion: "clinical-document-purpose-v2",
     documentId, hash: metadata.sha256, clinicianId: child.clinicianId,
     selectedBehaviors: selectedBehaviors.map((behavior) => ({
       behaviorKey: behavior.behaviorKey,
@@ -850,6 +859,7 @@ async function readParentDocument(
     const generationDocuments: Array<{
       id: string;
       title: string;
+      fileName: string;
       content: ParentDocumentGenerationPart[];
     }> = [];
     extractionSources = sources.map((source) => {
@@ -874,6 +884,7 @@ async function readParentDocument(
       generationDocuments.push({
         id: source.document.id,
         title: source.document.title || source.document.fileName || "Support plan",
+        fileName: source.document.fileName || "document",
         content: part,
       });
     }
@@ -914,6 +925,20 @@ async function readParentDocument(
         !Array.isArray(discoveryResult.input.targets) || !Array.isArray(discoveryResult.input.extractions)) {
       throw new Error("The document classification was incomplete. Please try scanning again.");
     }
+    const proposedTypes = new Map<string, string>();
+    for (const rawRecord of discoveryResult.input.extractions as unknown[]) {
+      if (!rawRecord || typeof rawRecord !== "object" || Array.isArray(rawRecord)) continue;
+      const record = rawRecord as Record<string, unknown>;
+      if (record.category !== "document_metadata" || typeof record.source_document_id !== "string" ||
+          !allowedIds.includes(record.source_document_id) || !record.interpretation ||
+          typeof record.interpretation !== "object" || Array.isArray(record.interpretation)) continue;
+      const proposedType = (record.interpretation as Record<string, unknown>).document_type;
+      if (isDocumentPurpose(proposedType)) proposedTypes.set(record.source_document_id, proposedType);
+    }
+    extractionSources = extractionSources.map((source) => ({
+      ...source,
+      documentType: proposedTypes.get(source.documentId) || "other_clinical_document",
+    }));
     const normalizedExtractions = normalizeDocumentExtractions(
       discoveryResult.input.extractions,
       extractionSources,
@@ -952,9 +977,10 @@ async function readParentDocument(
     }));
     if (!scanBehaviors.length) {
       const parentRun = extractionRuns.find((run) => run.documentId === documentId);
+      const classification = documentClassificationForRun(parentRun);
       const message = parentRun?.scanStatus === "no_relevant_content"
         ? "The document was read, but no relevant child-support information was found. No new behavior support was created."
-        : "The document was read and classified. No source-verified behavior target was found, so no new behavior support was created.";
+        : `${classification.status === "verified" ? "The document was read and classified." : "The document was read, but its type still needs review."} No source-verified behavior target was found, so no new behavior support was created.`;
       const savedCards = savedParentDocumentCards(metadata.extractedSupport)
         .filter(validCard)
         .filter(isSafeParentGuidance);
