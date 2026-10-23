@@ -62,3 +62,15 @@ test("document-purpose metadata does not create an unrelated clinical review req
     }],
   }, false), "no_review_required");
 });
+
+test("document-informed support concerns remain unreviewed until a clinician reviews them", () => {
+  assert.equal(documentClinicalReviewStatus({
+    scanStatus: "completed",
+    records: [{
+      category: "support_concern",
+      reviewStatus: "unreviewed",
+      extractionStatus: "extracted",
+      sourceExcerptVerified: true,
+    }],
+  }, false), "not_reviewed");
+});

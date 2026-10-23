@@ -5,6 +5,7 @@ export type DocumentExtractionCategory =
   | "document_metadata"
   | "profile_information"
   | "clinical_observation"
+  | "support_concern"
   | "behavior"
   | "goal"
   | "support_strategy"

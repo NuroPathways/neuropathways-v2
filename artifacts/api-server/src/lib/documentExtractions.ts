@@ -32,6 +32,7 @@ const CATEGORIES = new Set<DocumentExtractionCategory>([
   "document_metadata",
   "profile_information",
   "clinical_observation",
+  "support_concern",
   "behavior",
   "goal",
   "support_strategy",
@@ -55,6 +56,7 @@ const CATEGORY_FIELDS: Record<DocumentExtractionCategory, string[]> = {
     "follow_up",
     "context",
   ],
+  support_concern: ["name", "description", "contexts", "observations", "evidence_level", "uncertainty"],
   behavior: ["name", "observable_description", "contexts", "antecedents", "warning_signs", "risk_factors"],
   goal: ["title", "description", "skill_domain", "measurement_method", "target_criteria", "milestones", "relevant_dates", "related_behaviors"],
   support_strategy: ["applies_to", "strategy", "materials", "communication_support", "context", "preconditions", "limitations", "stop_conditions", "escalation_rules"],
@@ -115,6 +117,10 @@ function normalizeInterpretation(category: DocumentExtractionCategory, raw: unkn
         return Object.entries(result).some(([key, value]) =>
           key !== "session_date" && (has(key) || (Array.isArray(value) && value.length > 0)),
         );
+      case "support_concern":
+        return has("name") && has("description") &&
+          ["documented_concern", "possible_support_area"].includes(String(result.evidence_level)) &&
+          (Array.isArray(result.observations) ? result.observations.length > 0 : has("description"));
       case "behavior":
         return has("name");
       case "goal":
@@ -396,7 +402,7 @@ export function documentExtractionsToolProperty() {
   return {
     type: "array",
     maxItems: 120,
-    description: "Source-cited document-purpose metadata and distinct clinical facts. Do not classify a document from its filename alone.",
+    description: "Source-cited document-purpose metadata, distinct clinical facts, and uncertain support-concern candidates. Do not classify from filenames alone or convert concerns into formal behavior targets.",
     items: {
       type: "object",
       properties: {
@@ -409,7 +415,7 @@ export function documentExtractionsToolProperty() {
         ambiguity_reason: text("Why the item is unclear; otherwise an empty string.", 500),
         interpretation: {
           type: "object",
-          description: "Only explicitly documented category-specific fields; never infer function, diagnosis, approval, or missing profile facts.",
+          description: "Use source-supported category-specific fields. A support_concern may be a cautious candidate from described observations, but never infer function, diagnosis, intent, approval, or missing profile facts.",
           properties: {
             document_type: text("One document purpose supported by the document contents.", 100),
             field: text("Profile field key, such as communication_preferences, sensory_preferences, strengths, or relevant_history.", 100),
@@ -426,14 +432,21 @@ export function documentExtractionsToolProperty() {
             recommendations: stringArray,
             follow_up: stringArray,
             context: text("Documented situation or context.", 1_000),
-            name: text("Documented behavior name.", 300),
+            observations: stringArray,
+            evidence_level: {
+              type: "string",
+              enum: ["documented_concern", "possible_support_area"],
+              description: "Use documented_concern only when the source itself describes a concern; otherwise possible_support_area. Neither is a diagnosis, function, intent, approved treatment, or formal target.",
+            },
+            uncertainty: text("What the source does not establish about this possible support area; do not speculate.", 1_000),
+            name: text("A documented behavior name or a plain-language support-area candidate; do not imply a confirmed target.", 300),
             observable_description: text("Observable description; do not infer behavioral function.", MAX_VALUE_LENGTH),
             contexts: stringArray,
             antecedents: stringArray,
             warning_signs: stringArray,
             risk_factors: stringArray,
             title: text("Exact or concise goal/activity title.", 500),
-            description: text("Full documented goal or activity description.", MAX_VALUE_LENGTH),
+            description: text("Source-grounded description; for a support concern, summarize the described difficulty without assigning a cause or function.", MAX_VALUE_LENGTH),
             skill_domain: text("Documented skill domain.", 500),
             measurement_method: text("Documented measurement method.", 1_000),
             target_criteria: text("Documented target criteria.", 1_000),

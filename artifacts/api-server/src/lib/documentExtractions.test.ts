@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   documentClassificationForRun,
+  documentExtractionsToolProperty,
   extractionStatusForDocument,
   normalizeDocumentExtractions,
 } from "./documentExtractions";
@@ -220,11 +221,72 @@ test("intake facts process successfully without a behavior target", () => {
   );
 });
 
+test("descriptive intake concerns become source-linked candidates without creating formal targets", () => {
+  const searchableText = [
+    "Intake Assessment.",
+    "The intake describes difficulty following instructions when several steps are spoken at once.",
+    "During independent assignments, the student became visibly frustrated and asked to stop.",
+  ].join(" ");
+  const intakeSource = typedSource("descriptive-intake", "intake_assessment", searchableText);
+  const result = normalizeDocumentExtractions([
+    purposeRecord("descriptive-intake", "intake_assessment", "Intake Assessment."),
+    {
+      category: "support_concern",
+      source_document_id: "descriptive-intake",
+      source_section: "Communication",
+      source_page: 1,
+      source_excerpt: "The intake describes difficulty following instructions when several steps are spoken at once.",
+      ambiguous: false,
+      ambiguity_reason: "",
+      interpretation: {
+        name: "Difficulty following multi-step spoken instructions",
+        description: "The intake describes difficulty following instructions when several steps are spoken at once.",
+        observations: ["Difficulty following spoken instructions with several steps."],
+        contexts: ["When several instruction steps are spoken at once."],
+        evidence_level: "documented_concern",
+        uncertainty: "The source does not explain why this is difficult.",
+      },
+    },
+    {
+      category: "support_concern",
+      source_document_id: "descriptive-intake",
+      source_section: "Assignments",
+      source_page: 1,
+      source_excerpt: "During independent assignments, the student became visibly frustrated and asked to stop.",
+      ambiguous: false,
+      ambiguity_reason: "",
+      interpretation: {
+        name: "Frustration during independent assignments",
+        description: "The student became visibly frustrated and asked to stop during independent assignments.",
+        observations: ["Became visibly frustrated and asked to stop."],
+        contexts: ["During independent assignments."],
+        evidence_level: "possible_support_area",
+        uncertainty: "The source describes an episode but does not establish its cause or frequency.",
+      },
+    },
+  ], [intakeSource]);
+
+  const concerns = result.records.filter((record) => record.category === "support_concern");
+  assert.equal(statusFor(result, "descriptive-intake"), "completed");
+  assert.equal(concerns.length, 2);
+  assert.ok(concerns.every((record) =>
+    record.documentId === "descriptive-intake" &&
+    record.documentVersion === intakeSource.documentVersion &&
+    record.sourceExcerptVerified &&
+    record.reviewStatus === "unreviewed",
+  ));
+  assert.deepEqual(concerns.map((record) => record.interpretation.evidence_level), [
+    "documented_concern",
+    "possible_support_area",
+  ]);
+  assert.equal(result.records.some((record) => record.category === "behavior" || record.category === "goal"), false);
+});
+
 test("session note observations are retained without becoming new goals or behavior targets", () => {
   const sessionSource = typedSource(
     "session-source",
     "session_note",
-    "Session Note dated August 18. During the session, Sam used the break card to request a pause. Follow-up: practice the existing card routine.",
+    "Session Note dated August 18. During the session, Sam used the break card to request a pause. When presented with several spoken steps, Sam became frustrated and asked to pause. Follow-up: practice the existing card routine.",
   );
   const result = normalizeDocumentExtractions([
     purposeRecord("session-source", "session_note", "Session Note dated August 18."),
@@ -242,11 +304,66 @@ test("session note observations are retained without becoming new goals or behav
         activities_performed: ["Practice the existing card routine."],
       },
     },
+    {
+      category: "support_concern",
+      source_document_id: "session-source",
+      source_section: "Response to instructions",
+      source_page: 1,
+      source_excerpt: "When presented with several spoken steps, Sam became frustrated and asked to pause.",
+      ambiguous: false,
+      ambiguity_reason: "",
+      interpretation: {
+        name: "Frustration when several spoken steps are presented",
+        description: "Sam became frustrated and asked to pause when presented with several spoken steps.",
+        observations: ["Became frustrated and asked to pause."],
+        contexts: ["When presented with several spoken steps."],
+        evidence_level: "possible_support_area",
+        uncertainty: "The note does not establish a reason for this response.",
+      },
+    },
   ], [sessionSource]);
 
   assert.equal(statusFor(result, "session-source"), "completed");
   assert.equal(result.records.some((record) => record.category === "clinical_observation"), true);
+  assert.equal(result.records.some((record) => record.category === "support_concern"), true);
   assert.equal(result.records.some((record) => record.category === "goal" || record.category === "behavior"), false);
+});
+
+test("support-concern extraction schema distinguishes candidates from formal behavior targets", () => {
+  const schema = documentExtractionsToolProperty();
+  const categories = schema.items.properties.category.enum;
+  const interpretation = schema.items.properties.interpretation.properties;
+
+  assert.ok(categories.includes("support_concern"));
+  assert.deepEqual(interpretation.evidence_level.enum, ["documented_concern", "possible_support_area"]);
+  assert.match(interpretation.name.description, /do not imply a confirmed target/i);
+  assert.match(interpretation.evidence_level.description, /Neither is a diagnosis, function, intent/i);
+});
+
+test("support-concern candidates with unsupported certainty labels are rejected", () => {
+  const concernSource = typedSource(
+    "uncertain-concern",
+    "intake_assessment",
+    "The intake describes difficulty following spoken instructions.",
+  );
+  const result = normalizeDocumentExtractions([{
+    category: "support_concern",
+    source_document_id: "uncertain-concern",
+    source_section: "Communication",
+    source_page: 1,
+    source_excerpt: "difficulty following spoken instructions",
+    ambiguous: false,
+    ambiguity_reason: "",
+    interpretation: {
+      name: "Task refusal",
+      description: "The child refuses to comply.",
+      observations: ["Difficulty following spoken instructions."],
+      evidence_level: "confirmed_behavior",
+    },
+  }], [concernSource]);
+
+  assert.equal(result.records.some((record) => record.category === "support_concern"), false);
+  assert.equal(result.rejectedCountByDocument["uncertain-concern"], 1);
 });
 
 test("explicit treatment-plan goals and behavior-plan strategies remain separately extractable", () => {

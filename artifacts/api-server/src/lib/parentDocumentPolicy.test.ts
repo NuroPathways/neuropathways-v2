@@ -778,4 +778,8 @@ test("document discovery classifies by content, includes filename only as metada
   assert.match(instructions, /intake_assessment, treatment_plan, behavior_intervention_plan/);
   assert.match(instructions, /An empty target list and an empty activity-candidate list are valid/);
   assert.match(instructions, /Do not create a new goal from an issue mentioned in a session note/);
+  assert.match(instructions, /support_concern candidate/);
+  assert.match(instructions, /These candidates are not formal behavior targets/);
+  assert.match(instructions, /Do not infer a behavior function, diagnosis, intent/i);
+  assert.match(instructions, /Return \[\] for formal targets.*retaining any other source-grounded facts and support_concern candidates/s);
 });

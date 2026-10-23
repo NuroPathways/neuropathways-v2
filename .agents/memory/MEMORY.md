@@ -19,6 +19,7 @@
 - [OpenAPI codegen symbol collisions](openapi-codegen-symbol-collisions.md) — use named request-body components and distinct operation names when generated Zod exports collide.
 - [Sandboxed document previews](sandboxed-document-previews.md) — verify visible content without frame introspection that can reset the authenticated test worker.
 - [Redesign approval gates](phased-ui-redesign.md) — audit before UI edits; stop after each redesign phase and require explicit approval to advance.
+- [Document-informed support phase gates](document-informed-support-phase-gates.md) — keep extraction, card generation, Help Now, Practice, and validation separate, with explicit approval between phases.
 - [Goal source and draft safety](goal-source-presentation.md) — group by goal origin, retain raw technical titles, and keep edit drafts when details collapse.
 - [Chat safety presentation](chat-safety-presentation.md) — collapse only known nonurgent boilerplate; retain complete answers, disclaimers and source provenance.
 - [Research-informed parent activities](parent-activity-evidence.md) — cite research with its limits; a general template is not proven treatment or a substitute for an authorized child-specific plan.
