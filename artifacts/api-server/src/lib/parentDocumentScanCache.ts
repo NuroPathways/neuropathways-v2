@@ -17,10 +17,13 @@ export function savedParentDocumentCards(value: unknown): unknown[] {
 }
 
 export function hasMatchingParentScan(value: unknown, fingerprint: string): boolean {
+  const concernCards = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as { supportConcernCards?: unknown }).supportConcernCards
+    : null;
   return Boolean(value && !Array.isArray(value) && typeof value === "object" &&
     (value as { fingerprint?: unknown }).fingerprint === fingerprint &&
     (value as { complete?: unknown }).complete === true &&
-    savedParentDocumentCards(value).length);
+    (savedParentDocumentCards(value).length || (Array.isArray(concernCards) && concernCards.length)));
 }
 
 export function canReuseParentScan(input: {

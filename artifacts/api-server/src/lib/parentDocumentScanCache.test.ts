@@ -32,6 +32,17 @@ test("older findings remain readable but are not mistaken for a current complete
   assert.equal(hasMatchingParentScan(cards, "fingerprint"), false);
 });
 
+test("completed scans with only unreviewed concern draft cards can be reused", () => {
+  const result = {
+    fingerprint: "support-concern-fingerprint",
+    complete: true,
+    cards: [],
+    supportConcernCards: [{ id: "document-concern:draft" }],
+  };
+  assert.equal(hasMatchingParentScan(result, "support-concern-fingerprint"), true);
+  assert.equal(hasMatchingParentScan({ ...result, complete: false }, "support-concern-fingerprint"), false);
+});
+
 test("only fully completed and safe scans can bypass a retry", () => {
   const current = {
     extractionIsCurrent: true,
