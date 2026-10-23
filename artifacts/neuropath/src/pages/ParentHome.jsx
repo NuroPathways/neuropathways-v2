@@ -315,11 +315,14 @@ export default function ParentHome() {
     if (!Array.isArray(dashboard.supportCards)) {
       throw new Error("Support cards could not be loaded.");
     }
+    const safetyPlan = dashboard.safetyPlan && String(dashboard.safetyPlan.childId) === String(childId)
+      ? dashboard.safetyPlan
+      : null;
     return {
       ...(dashboard.child || {}),
-      safety_plan_uploaded: (dashboard.documents || []).some((document) =>
-        /safety|crisis/i.test(`${document.documentType || ""} ${document.title || ""} ${document.fileName || ""}`),
-      ),
+      safetyPlan,
+      safetyPlanLoadError: !safetyPlan,
+      safety_plan_uploaded: safetyPlan?.hasSafetyPlan === true,
       behaviors: parentDirectBehaviors(dashboard.child || {}, dashboard.supportCards, starterLibrary),
       documentSupportCards: Array.isArray(dashboard.documentSupportCards) ? dashboard.documentSupportCards : [],
       documentSupportCardsLoadError: !Array.isArray(dashboard.documentSupportCards),

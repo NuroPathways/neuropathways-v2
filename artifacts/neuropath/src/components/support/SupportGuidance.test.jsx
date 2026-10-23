@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import BehaviorSelector from "./BehaviorSelector";
 import CrisisPlan from "./CrisisPlan";
 import SupportNowOverlay from "./SupportNowOverlay";
@@ -441,5 +442,107 @@ describe("support guidance", () => {
     expect(screen.getByText("Crisis plan steps on file")).toBeTruthy();
     expect(screen.queryByText("No safety plan has been uploaded for this child.")).toBeNull();
     expect(screen.getByText("Follow the clinician's written steps.")).toBeTruthy();
+  });
+
+  it("shows a parent-uploaded safety source verbatim, labels its review state, and keeps parent actions child-scoped", () => {
+    render(
+      <MemoryRouter>
+        <CrisisPlan
+          child={{ id: "child-1", child_name: "Sam" }}
+          parentDirect
+          profile={{
+            safetyPlan: {
+              childId: "child-1",
+              hasSafetyPlan: true,
+              documents: [{ id: "safety-doc-1", title: "Family Safety Plan", hasInstructions: true }],
+              instructions: [{
+                id: "instruction-1",
+                documentId: "safety-doc-1",
+                documentTitle: "Family Safety Plan",
+                uploadedBy: "parent",
+                uploadedAt: "2026-10-22T12:00:00.000Z",
+                sourceExcerpt: "Move to the quiet room and call the listed caregiver.",
+                sourceSection: "Safety Steps",
+                sourcePage: 2,
+                sourceExcerptVerified: true,
+                sourceReviewRequired: false,
+                clinicianApproved: false,
+              }],
+            },
+          }}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("section-source-safety-plan")).toBeTruthy();
+    expect(screen.getByText("Parent-uploaded · not clinician-approved")).toBeTruthy();
+    expect(screen.getByText("Move to the quiet room and call the listed caregiver.")).toBeTruthy();
+    expect(screen.getByText(/Family Safety Plan · Safety Steps · page 2/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Upload or review a plan" }).getAttribute("href"))
+      .toBe("/ParentHome?tab=docs&child_id=child-1");
+    expect(screen.getByRole("link", { name: "Open care team" }).getAttribute("href"))
+      .toBe("/ParentHome?tab=clinic&child_id=child-1");
+  });
+
+  it("marks only explicitly approved, verified source instructions as clinician-approved", () => {
+    render(
+      <CrisisPlan
+        child={{ child_name: "Sam" }}
+        profile={{
+          safetyPlan: {
+            hasSafetyPlan: true,
+            documents: [{ id: "safety-doc-1", title: "Care Plan", hasInstructions: true }],
+            instructions: [{
+              id: "instruction-1",
+              documentTitle: "Care Plan",
+              uploadedBy: "clinician",
+              sourceExcerpt: "Use the documented contact steps.",
+              sourceExcerptVerified: true,
+              sourceReviewRequired: false,
+              clinicianApproved: true,
+            }],
+          },
+        }}
+      />,
+    );
+    expect(screen.getByText("Clinician-approved")).toBeTruthy();
+    expect(screen.getByText("Use the documented contact steps.")).toBeTruthy();
+  });
+
+  it("separates older clinician-profile notes from exact source excerpts and requires source verification", () => {
+    render(
+      <CrisisPlan
+        child={{ child_name: "Sam" }}
+        profile={{
+          safetyPlan: {
+            hasSafetyPlan: true,
+            documents: [{ id: "clinical-plan-1", title: "Clinical plan", hasInstructions: true }],
+            instructions: [{
+              id: "legacy-safety-profile-1-0",
+              contentKind: "profile_extraction",
+              documentId: "clinical-plan-1",
+              sourceDocumentIds: ["clinical-plan-1"],
+              documentTitle: "Clinical plan",
+              uploadedBy: "clinician",
+              uploadedAt: "2026-10-22T12:00:00.000Z",
+              sourceExcerpt: null,
+              profileNote: "Use the existing caregiver contact sequence.",
+              sourceSection: "Clinician profile extraction",
+              sourcePage: null,
+              sourceExcerptVerified: false,
+              sourceReviewRequired: true,
+              clinicianApproved: false,
+            }],
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Clinician profile extraction · needs source verification")).toBeTruthy();
+    expect(screen.getByText(/Clinician profile note \(not an exact source excerpt\):/)).toBeTruthy();
+    expect(screen.getByText("Use the existing caregiver contact sequence.")).toBeTruthy();
+    expect(screen.getByText("Check this note against the linked original document before relying on it.")).toBeTruthy();
+    expect(screen.queryByText(/Source excerpt:/)).toBeNull();
+    expect(screen.queryByText("Clinician-approved")).toBeNull();
   });
 });

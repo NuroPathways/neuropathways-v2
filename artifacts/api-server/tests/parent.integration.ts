@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
   db, usersTable, userProfilesTable, familiesTable, childrenTable,
   parentAccountsTable, parentSessionsTable, parentChildSettingsTable, parentLogsTable,
-  parentDocumentsTable, documentsTable, behaviorLogsTable, consentEventsTable, auditLogsTable,
+  parentDocumentsTable, documentsTable, documentExtractionRunsTable, behaviorLogsTable, consentEventsTable, auditLogsTable,
 } from "@workspace/db";
+import { normalizeDocumentExtractions, persistDocumentExtractionBatch } from "../src/lib/documentExtractions";
 
 // Development-only, synthetic data. Never print bearer tokens or file contents.
 const base = process.env.API_BASE_URL || `https://${process.env.REPLIT_DEV_DOMAIN}/api`;
@@ -46,13 +47,96 @@ async function request(path: string, method = "GET", body?: unknown, token?: str
     ? await response.json() : await response.text();
   return { response, data: data as any };
 }
-async function upload(childId: string, token: string, text: string, name = "synthetic-support-plan.txt") {
+async function upload(
+  childId: string,
+  token: string,
+  text: string,
+  name = "synthetic-support-plan.txt",
+  documentType = "behavior_plan",
+) {
   const form = new FormData();
   form.append("file", new Blob([text], { type: "text/plain" }), name);
   form.append("title", "Synthetic parent plan");
-  form.append("documentType", "behavior_plan");
+  form.append("documentType", documentType);
   form.append("authorizedUploader", "true");
   return request(`/parent/children/${childId}/documents`, "POST", form, token);
+}
+
+async function verifySafetyPlanProjection(
+  childId: string,
+  parentId: string,
+  parentToken: string,
+  otherParentToken: string,
+) {
+  const safetyText = "If Sam moves toward the driveway, call the listed caregiver and follow the family plan.";
+  const safetyUpload = await upload(
+    childId,
+    parentToken,
+    safetyText,
+    "synthetic-safety-plan.txt",
+    "safety_crisis_plan",
+  );
+  check(safetyUpload.response.status === 201, "parent can upload a child-scoped safety plan");
+  const documentId = safetyUpload.data.id;
+  try {
+    const [metadata] = await db.select().from(parentDocumentsTable)
+      .where(eq(parentDocumentsTable.documentId, documentId));
+    assert(metadata?.sha256, "uploaded safety source has a current content version");
+    const source = {
+      childId,
+      documentId,
+      documentVersion: metadata.sha256,
+      documentType: "text/plain",
+      searchableText: safetyText,
+    };
+    const normalized = normalizeDocumentExtractions([{
+      category: "safety_instruction",
+      source_document_id: source.documentId,
+      source_section: "Family safety plan",
+      source_page: 1,
+      source_excerpt: safetyText,
+      ambiguous: false,
+      ambiguity_reason: "",
+      interpretation: { applies_to: "Leaving the home", instruction: safetyText },
+    }], [source]);
+    await persistDocumentExtractionBatch({
+      sources: [source],
+      normalized,
+      scannedBy: parentId,
+    });
+    await db.update(documentsTable).set({ scanStatus: "done" })
+      .where(eq(documentsTable.id, documentId));
+
+    const dashboard = await request(`/parent/children/${childId}/dashboard`, "GET", undefined, parentToken);
+    const projectedInstruction = dashboard.data.safetyPlan?.instructions?.find(
+      (instruction: any) => instruction.documentId === documentId,
+    );
+    check(
+      dashboard.response.ok &&
+        dashboard.data.safetyPlan?.childId === childId &&
+        projectedInstruction?.sourceExcerpt === safetyText &&
+        projectedInstruction?.uploadedBy === "parent" &&
+        projectedInstruction?.sourceExcerptVerified === true &&
+        projectedInstruction?.clinicianApproved === false,
+      "dashboard delivers exact current safety source text with parent-uploaded, unapproved provenance",
+    );
+    const unauthorized = await request(`/parent/children/${childId}/dashboard`, "GET", undefined, otherParentToken);
+    check(
+      [403, 404].includes(unauthorized.response.status) &&
+        !Object.hasOwn(unauthorized.data, "safetyPlan"),
+      "another parent cannot retrieve the child's safety plan",
+    );
+  } finally {
+    const [metadata] = await db.select().from(parentDocumentsTable)
+      .where(eq(parentDocumentsTable.documentId, documentId));
+    if (metadata?.storagePath) {
+      const storage = await import("../src/lib/parentFileStorage");
+      await storage.deleteEncryptedParentFile(metadata.storagePath);
+    }
+    await db.delete(documentExtractionRunsTable).where(eq(documentExtractionRunsTable.documentId, documentId));
+    await db.delete(parentDocumentsTable).where(eq(parentDocumentsTable.documentId, documentId));
+    await db.delete(documentsTable).where(eq(documentsTable.id, documentId));
+  }
 }
 
 try {
@@ -64,6 +148,8 @@ try {
   const noConsent = await request("/parent/auth/register", "POST", {
     firstName: "Synthetic", email: `missing-consent-${crypto.randomUUID()}@example.test`,
     password: "Test-Parent-123!", confirmPassword: "Test-Parent-123!",
+    accountHolderType: "parent_guardian", accountHolderAgeGroup: "18_plus",
+    adultOrGuardianConfirmed: true, parentGuardianAuthorityConfirmed: true,
   });
   check(noConsent.response.status === 400, "signup requires privacy and health consent");
   for (const label of ["one", "two"]) {
@@ -71,6 +157,8 @@ try {
       firstName: `Synthetic ${label}`, email: `np-parent-${label}-${crypto.randomUUID()}@example.test`,
       password: "Test-Parent-123!", confirmPassword: "Test-Parent-123!",
       privacyConsent: true, healthConsent: true,
+      accountHolderType: "parent_guardian", accountHolderAgeGroup: "18_plus",
+      adultOrGuardianConfirmed: true, parentGuardianAuthorityConfirmed: true,
     };
     const registration = await request("/parent/auth/register", "POST", credentials);
     check(registration.response.status === 201, `parent ${label} self-signup without a clinic`);
@@ -113,9 +201,21 @@ try {
   check(chosenGoal.response.ok && chosenGoal.data.goal === task.relatedGoals[0], "starter goal persists");
   const dashboard = await request(`/parent/children/${child.id}/dashboard`, "GET", undefined, one.token);
   check(dashboard.response.ok && dashboard.data.supportCards[0]?.source === "starter" && dashboard.data.supportCards[0]?.rightNow.length, "immediate starter card works without upload or AI");
+  check(
+    dashboard.data.safetyPlan?.childId === child.id &&
+      dashboard.data.safetyPlan.hasSafetyPlan === false &&
+      Array.isArray(dashboard.data.safetyPlan.documents) &&
+      Array.isArray(dashboard.data.safetyPlan.instructions),
+    "dashboard returns an explicit child-scoped empty safety-plan state",
+  );
   check(dashboard.data.documents.length === 0 && dashboard.data.child.goal, "dashboard has current focus and no required document");
   const unauthorized = await request(`/parent/children/${child.id}/dashboard`, "GET", undefined, two.token);
   check([403, 404].includes(unauthorized.response.status), "another parent cannot change child URL to read a profile");
+  check(!Object.hasOwn(unauthorized.data, "safetyPlan"), "another parent never receives safety-plan content");
+  await verifySafetyPlanProjection(child.id, one.parent.id, one.token, two.token);
+  if (process.env.PARENT_SAFETY_PLAN_ONLY === "true") {
+    console.log(`Parent safety integration: ${checks} checks passed.`);
+  } else {
   const forgedEdit = await request(`/parent/children/${child.id}`, "PATCH", { name: "Hijacked" }, two.token);
   check([403, 404].includes(forgedEdit.response.status), "another parent cannot edit this child");
   const generic = await request("/children", "GET", undefined, one.token);
@@ -279,6 +379,7 @@ try {
   const badChat = await request(`/parent/children/${child.id}/chat`, "POST", { message: "Read this child plan" }, two.token);
   check([403, 404].includes(badChat.response.status), "chat cannot retrieve another parent's knowledge base");
   console.log(`Parent integration: ${checks} checks passed.`);
+  }
 } finally {
   // All deletes are constrained to IDs created by this invocation.
   const parentIds = accounts.map(account => account.parent.id);
@@ -289,6 +390,7 @@ try {
       const storage = await import("../src/lib/parentFileStorage");
       for (const row of metadata) await storage.deleteEncryptedParentFile(row.storagePath);
     }
+    await db.delete(documentExtractionRunsTable).where(inArray(documentExtractionRunsTable.childId, childIds));
     await db.delete(parentDocumentsTable).where(inArray(parentDocumentsTable.childId, childIds));
     await db.delete(documentsTable).where(inArray(documentsTable.childId, childIds));
     await db.delete(parentLogsTable).where(inArray(parentLogsTable.childId, childIds));

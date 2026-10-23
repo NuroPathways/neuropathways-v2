@@ -49,6 +49,7 @@ import {
   documentExtractionStatus,
   documentProcessingStatus,
 } from "./documentStatuses";
+import { projectParentSafetyPlan, type ParentSafetyPlanWire } from "./parentSafetyPlan";
 import {
   canAccessParentDocument,
   buildParentDocumentGenerationContent,
@@ -1812,7 +1813,15 @@ export async function getParentSupportCards(parentId: string, childId: string): 
 async function parentDocumentConcernContext(parentId: string, childId: string) {
   const visibleDocuments = await listParentDocuments(parentId, childId);
   const visibleIds = new Set(visibleDocuments.map((document) => document.id));
-  if (!visibleIds.size) return { rows: [], cards: [], overrides: {}, currentSources: [] };
+  if (!visibleIds.size) {
+    return {
+      rows: [],
+      cards: [],
+      overrides: {},
+      currentSources: [],
+      safetyPlan: projectParentSafetyPlan(childId, [], []),
+    };
+  }
 
   const rows = await db.select().from(parentDocumentsTable).where(and(
     eq(parentDocumentsTable.parentId, parentId),
@@ -1849,6 +1858,31 @@ async function parentDocumentConcernContext(parentId: string, childId: string) {
       record.documentVersion === run.documentVersion,
     );
   });
+  const currentSourceById = new Map(currentSources.map((source) => [source.documentId, source]));
+  const [legacySafetyProfile] = await db.select({
+    id: clientProfilesTable.id,
+    sourceDocIds: clientProfilesTable.sourceDocIds,
+    safetyProcedures: clientProfilesTable.safetyProcedures,
+    createdDate: clientProfilesTable.createdDate,
+  }).from(clientProfilesTable).where(eq(clientProfilesTable.childId, childId)).limit(1);
+  const legacySourceIds = Array.isArray(legacySafetyProfile?.sourceDocIds)
+    ? [...new Set(legacySafetyProfile.sourceDocIds.filter((id): id is string => typeof id === "string"))]
+    : [];
+  const visibleDocumentById = new Map(visibleDocuments.map((document) => [document.id, document]));
+  const legacySourcesAreVisibleAndScanned = legacySourceIds.length > 0 &&
+    legacySourceIds.every((id) => visibleIds.has(id) && visibleDocumentById.get(id)?.scanStatus === "done");
+  const safeLegacyProfile = legacySafetyProfile && legacySourcesAreVisibleAndScanned
+    ? {
+        id: legacySafetyProfile.id,
+        sourceDocumentIds: legacySourceIds,
+        safetyProcedures: legacySafetyProfile.safetyProcedures,
+        createdAt: legacySafetyProfile.createdDate,
+      }
+    : null;
+  const safetyPlan = projectParentSafetyPlan(childId, visibleDocuments.map((document) => ({
+    ...document,
+    documentVersion: currentSourceById.get(document.id)?.documentVersion || null,
+  })), currentExtractionRecords, safeLegacyProfile);
   const cardGroups = rows.flatMap((row) => {
     const extractedSupport = row.extractedSupport;
     return savedDocumentInformedConcernCards(extractedSupport)
@@ -1874,7 +1908,7 @@ async function parentDocumentConcernContext(parentId: string, childId: string) {
     }
   }
   const cards = projectParentDocumentSupportCards(cardGroups, currentSources, overrideById, childId);
-  return { rows, cards, overrides: overrideById, currentSources };
+  return { rows, cards, overrides: overrideById, currentSources, safetyPlan };
 }
 
 export async function getParentDocumentSupportCards(
@@ -1883,6 +1917,14 @@ export async function getParentDocumentSupportCards(
 ): Promise<ParentDocumentSupportCardWire[]> {
   const context = await parentDocumentConcernContext(parentId, childId);
   return context.cards;
+}
+
+export async function getParentDocumentSupportData(
+  parentId: string,
+  childId: string,
+): Promise<{ cards: ParentDocumentSupportCardWire[]; safetyPlan: ParentSafetyPlanWire }> {
+  const context = await parentDocumentConcernContext(parentId, childId);
+  return { cards: context.cards, safetyPlan: context.safetyPlan };
 }
 
 export async function getParentDocumentActivitySuggestions(

@@ -437,6 +437,11 @@ export default function SupportNowOverlay({
 
   const reduceMotion = useReducedMotion();
 
+  const isParentDirectAccount = parentDirect ?? (
+    ["parent_free", "legacy_family"].includes(user?.account_type || user?.accountType) ||
+    user?.role === "parent" ||
+    user?.app_role === "parent"
+  );
   if (!visible) return null;
 
   return (
@@ -499,7 +504,7 @@ export default function SupportNowOverlay({
               onOpenSafety={() => setStep("crisis")}
               onDismiss={handleDismiss}
               isIndividual={isIndividual}
-              parentDirect={parentDirect ?? user?.account_type === "parent_free"}
+              parentDirect={isParentDirectAccount}
               logEngagement={logEngagement}
               onUpdateDocumentSupportCard={handleUpdateDocumentSupportCard}
             />
@@ -514,6 +519,7 @@ export default function SupportNowOverlay({
               onBack={handleBack}
               onDismiss={handleDismiss}
               isIndividual={isIndividual}
+              parentDirect={isParentDirectAccount}
             />
           )}
 
