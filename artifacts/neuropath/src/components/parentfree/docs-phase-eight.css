@@ -52,6 +52,8 @@
 .np-docs-v8 .np-docs-badge[data-tone="urgent"] { border-color: var(--np-color-destructive); }
 .np-docs-v8 .np-docs-badge[data-tone="info"] { border-color: var(--np-color-primary); }
 .np-docs-v8 .np-docs-error { font-size: var(--np-text-support); line-height: var(--np-leading-support); color: var(--np-color-foreground); border-left: 3px solid var(--np-color-destructive); padding-left: var(--np-space-related); overflow-wrap: anywhere; }
+.np-docs-v8 .np-docs-note { font-size: var(--np-text-support); line-height: var(--np-leading-support); color: var(--np-color-foreground); border-left: 3px solid var(--np-color-primary); padding-left: var(--np-space-related); overflow-wrap: anywhere; }
+.np-docs-v8 .np-docs-statuses { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--np-space-list); min-width: 0; }
 .np-docs-v8 .np-docs-actions { display: flex; flex-wrap: wrap; gap: var(--np-space-list); }
 
 /* Disclosure bridge */

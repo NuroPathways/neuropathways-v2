@@ -42,6 +42,11 @@ import {
   type DocumentExtractionSource,
 } from "./documentExtractions";
 import {
+  documentClinicalReviewStatus,
+  documentExtractionStatus,
+  documentProcessingStatus,
+} from "./documentStatuses";
+import {
   canAccessParentDocument,
   buildParentDocumentGenerationContent,
   buildParentDocumentDiscoveryContent,
@@ -105,6 +110,9 @@ export type ParentDocumentWire = {
   fileName: string;
   documentType: string;
   scanStatus: string;
+  processingStatus: string;
+  extractionStatus: string;
+  clinicalReviewStatus: string;
   scanError: string | null;
   uploadedBy: "parent" | "clinician";
   canShare?: boolean;
@@ -128,6 +136,9 @@ function toWire(document: typeof documentsTable.$inferSelect, metadata: ParentDo
     fileName: document.fileName || "document",
     documentType: document.category || "other",
     scanStatus: document.scanStatus || "pending",
+    processingStatus: documentProcessingStatus(document.scanStatus),
+    extractionStatus: "not_started",
+    clinicalReviewStatus: "not_assessed",
     scanError: document.scanError || null,
     uploadedBy: "parent",
     canShare: true,
@@ -327,7 +338,28 @@ export async function listParentDocuments(parentId: string, childId: string): Pr
     shared: true, reviewed: Boolean(permissions.get(d.id)?.reviewedAt),
     createdAt: (d.createdDate || new Date(0)).toISOString(),
   }));
-  return [...own, ...clinical].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const visible = [...own, ...clinical].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const visibleIds = visible.map((document) => document.id);
+  const runs = visibleIds.length
+    ? await db.select().from(documentExtractionRunsTable)
+      .where(and(
+        inArray(documentExtractionRunsTable.documentId, visibleIds),
+        eq(documentExtractionRunsTable.childId, childId),
+      ))
+      .orderBy(desc(documentExtractionRunsTable.updatedAt))
+    : [];
+  return visible.map((wire) => {
+    const metadata = permissions.get(wire.id);
+    const currentRun = runs.find((run) =>
+      run.documentId === wire.id && (!metadata || run.documentVersion === metadata.sha256),
+    );
+    return {
+      ...wire,
+      processingStatus: documentProcessingStatus(wire.scanStatus),
+      extractionStatus: documentExtractionStatus(currentRun?.scanStatus),
+      clinicalReviewStatus: documentClinicalReviewStatus(currentRun, wire.reviewed, wire.scanStatus),
+    };
+  });
 }
 
 /**

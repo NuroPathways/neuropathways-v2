@@ -1886,6 +1886,15 @@ components:
           type: string
         scanStatus:
           type: string
+        processingStatus:
+          type: string
+          enum: [uploaded, processing, processed, failed]
+        extractionStatus:
+          type: string
+          enum: [not_started, processing, completed, partial, no_relevant_content, failed]
+        clinicalReviewStatus:
+          type: string
+          enum: [not_assessed, no_review_required, not_reviewed, needs_review, reviewed]
         scanError:
           type: [string, "null"]
         uploadedBy:
@@ -1905,6 +1914,9 @@ components:
         - fileName
         - documentType
         - scanStatus
+        - processingStatus
+        - extractionStatus
+        - clinicalReviewStatus
         - scanError
         - uploadedBy
         - shared

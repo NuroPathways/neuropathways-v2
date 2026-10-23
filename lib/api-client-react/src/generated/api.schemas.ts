@@ -794,6 +794,39 @@ export interface SupportCard {
   reviewedAt: string | null;
 }
 
+export type ParentDocumentProcessingStatus = typeof ParentDocumentProcessingStatus[keyof typeof ParentDocumentProcessingStatus];
+
+
+export const ParentDocumentProcessingStatus = {
+  uploaded: 'uploaded',
+  processing: 'processing',
+  processed: 'processed',
+  failed: 'failed',
+} as const;
+
+export type ParentDocumentExtractionStatus = typeof ParentDocumentExtractionStatus[keyof typeof ParentDocumentExtractionStatus];
+
+
+export const ParentDocumentExtractionStatus = {
+  not_started: 'not_started',
+  processing: 'processing',
+  completed: 'completed',
+  partial: 'partial',
+  no_relevant_content: 'no_relevant_content',
+  failed: 'failed',
+} as const;
+
+export type ParentDocumentClinicalReviewStatus = typeof ParentDocumentClinicalReviewStatus[keyof typeof ParentDocumentClinicalReviewStatus];
+
+
+export const ParentDocumentClinicalReviewStatus = {
+  not_assessed: 'not_assessed',
+  no_review_required: 'no_review_required',
+  not_reviewed: 'not_reviewed',
+  needs_review: 'needs_review',
+  reviewed: 'reviewed',
+} as const;
+
 export type ParentDocumentUploadedBy = typeof ParentDocumentUploadedBy[keyof typeof ParentDocumentUploadedBy];
 
 
@@ -811,6 +844,9 @@ export interface ParentDocument {
   fileName: string;
   documentType: string;
   scanStatus: string;
+  processingStatus: ParentDocumentProcessingStatus;
+  extractionStatus: ParentDocumentExtractionStatus;
+  clinicalReviewStatus: ParentDocumentClinicalReviewStatus;
   /** @nullable */
   scanError: string | null;
   uploadedBy: ParentDocumentUploadedBy;

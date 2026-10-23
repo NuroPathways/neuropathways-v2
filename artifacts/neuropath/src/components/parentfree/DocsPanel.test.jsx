@@ -96,28 +96,45 @@ describe("Parent Document Center presentation and existing contracts", () => {
   });
 
   it.each([
-    ...["scanned", "complete", "completed", "done", "ready"].map((s) => [s, "Ready"]),
+    ...["scanned", "complete", "completed", "done", "ready", "needs_review", "needs-review", "needs review"].map((s) => [s, "Processed"]),
     ["failed", "Failed"], ["error", "Failed"], ["scanning", "Processing"],
-    ["processing", "Processing"], ["pending", "Processing"],
-    ["needs_review", "Needs Review"], ["needs-review", "Needs Review"], ["needs review", "Needs Review"],
+    ["processing", "Processing"], ["pending", "Not read yet"],
   ])("shows a single compact status for %s", (scanStatus, label) => {
     mount([doc({ scanStatus })]);
     expect(screen.getByTestId("status-scan-doc-a").textContent).toBe(label);
     expect(processingStatus(doc({ scanStatus })).text).toBe(label);
-    if (label === "Needs Review") {
+    if (scanStatus === "needs_review") {
       details();
-      expect(screen.getByTestId("text-scan-detail-doc-a").textContent).toBe("Needs review");
+      expect(screen.getByTestId("text-review-detail-doc-a").textContent).toBe("Needs review");
     }
   });
 
-  it("keeps an unclassified safety note visible even while details are closed", () => {
+  it("keeps a processing note visible without converting successful processing into a review failure", () => {
     const note = "Original safety note. Contact emergency services if there is immediate danger.";
     mount([doc({ scanError: note })]);
-    expect(screen.getByTestId("status-scan-doc-a").textContent).toBe("Needs Review");
+    expect(screen.getByTestId("status-scan-doc-a").textContent).toBe("Processed");
+    expect(screen.getByTestId("status-review-doc-a").textContent).toBe("Clinical review: Not assessed");
     const element = screen.getByTestId("text-scan-error-doc-a");
-    expect(element.textContent).toBe(note);
+    expect(element.textContent).toBe(`Note: ${note}`);
     expect(element.closest("[hidden]")).toBeNull();
     expect(element.closest('[data-state="closed"]')).toBeNull();
+  });
+
+  it("shows partial extraction and clinical review separately from successful PDF processing", () => {
+    mount([doc({
+      scanStatus: "done",
+      processingStatus: "processed",
+      extractionStatus: "partial",
+      clinicalReviewStatus: "needs_review",
+      scanError: "The document was read, but extraction was incomplete.",
+    })]);
+    expect(screen.getByTestId("status-scan-doc-a").textContent).toBe("Processed");
+    expect(screen.getByTestId("status-review-doc-a").textContent).toBe("Clinical review: Needs review");
+    details();
+    expect(screen.getByTestId("text-scan-detail-doc-a").textContent).toBe("Processed");
+    expect(screen.getByTestId("text-extraction-detail-doc-a").textContent).toBe("Partial");
+    expect(screen.getByTestId("text-review-detail-doc-a").textContent).toBe("Needs review");
+    expect(screen.getByText(/does not approve or publish recommendations/i)).toBeTruthy();
   });
 
   it("shows a concise failed-scan summary and preserves the complete error in details", () => {
@@ -128,9 +145,10 @@ describe("Parent Document Center presentation and existing contracts", () => {
     details();
     expect(screen.getByTestId("text-scan-error-doc-a").textContent).toBe(note);
     const metadata = screen.getByTestId("details-document-doc-a");
-    for (const value of ["original-plan.txt", "treatment_plan", "Plans", "Clinician", "Sam", "Private to your account", "Clinician reviewed"])
+    for (const value of ["original-plan.txt", "treatment_plan", "Plans", "Clinician", "Sam", "Private to your account"])
       expect(within(metadata).getByText(value)).toBeTruthy();
-    expect(screen.getByTestId("text-scan-detail-doc-a").textContent).toBe("Could not be read");
+    expect(screen.getByTestId("text-review-detail-doc-a").textContent).toBe("Reviewed");
+    expect(screen.getByTestId("text-scan-detail-doc-a").textContent).toBe("Failed");
   });
 
   it("opens the authenticated PDF tab during the click, then loads the document into it", async () => {
@@ -213,7 +231,7 @@ describe("Parent Document Center presentation and existing contracts", () => {
     expect(api.scan.mock.calls.map(([value]) => value)).toEqual([
       { childId: "child-a", documentId: "doc-b" },
     ]);
-    expect(screen.getByTestId("text-read-batch-status").textContent).toContain("1 of 1 plans read");
+    expect(screen.getByTestId("text-read-batch-status").textContent).toContain("1 of 1 documents processed");
   });
 
   it("keeps batch scans sequential", async () => {
@@ -227,7 +245,7 @@ describe("Parent Document Center presentation and existing contracts", () => {
     expect(api.scan.mock.calls.map(([value]) => value)).toEqual([
       { childId: "child-a", documentId: "doc-a" }, { childId: "child-a", documentId: "doc-b" },
     ]);
-    expect(screen.getByTestId("text-read-batch-status").textContent).toContain("2 of 2 plans read");
+    expect(screen.getByTestId("text-read-batch-status").textContent).toContain("2 of 2 documents processed");
     expect(api.invalidate).toHaveBeenCalled();
   });
 
@@ -237,7 +255,7 @@ describe("Parent Document Center presentation and existing contracts", () => {
     await clickAsync("button-read-all-plans");
     expect(api.scan).toHaveBeenCalledTimes(2);
     expect(screen.getByText("Synthetic unreadable first file")).toBeTruthy();
-    expect(screen.getByTestId("text-read-batch-status").textContent).toContain("1 of 2 plans read. 1 need attention");
+    expect(screen.getByTestId("text-read-batch-status").textContent).toContain("1 of 2 documents processed. 1 need attention");
   });
 
   it("stops queued scans when the selected child changes", async () => {

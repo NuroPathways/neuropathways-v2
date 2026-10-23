@@ -15,23 +15,43 @@ import "./docs-phase-eight.css";
 const DONE = ["scanned", "complete", "completed", "done", "ready"];
 const NEEDS_REVIEW = ["needs_review", "needs-review", "needs review"];
 export function scanLabel(d) {
-  const s = String(d.scanStatus || "").toLowerCase();
-  if (NEEDS_REVIEW.includes(s)) return { text: "Needs review", kind: "warn", retry: true };
-  if (DONE.includes(s)) return d.scanError
-    ? { text: "Read with safety note", kind: "warn", retry: true, actionLabel: "Read again" }
-    : { text: "Read and added to guidance", kind: "", retry: true, actionLabel: "Read again" };
+  const s = String(d.processingStatus || d.scanStatus || "").toLowerCase();
+  if (NEEDS_REVIEW.includes(s)) return { text: "Processed", kind: "", retry: true, actionLabel: "Read again" };
+  if (DONE.includes(s) || s === "processed") return { text: "Processed", kind: "", retry: true, actionLabel: "Read again" };
   if (s === "failed" || s === "error") return { text: "Could not be read", kind: "warn", retry: true };
   if (s === "scanning" || s === "processing") return { text: "Reading now (this may take a minute)", kind: "sun", retry: true };
-  return { text: "Waiting to be read", kind: "sun", retry: true };
+  return { text: "Not read yet", kind: "sun", retry: true };
 }
 
-// One small processing status; the detailed scanLabel wording stays in details.
 export function processingStatus(d) {
-  const s = String(d.scanStatus || "").toLowerCase();
-  if (NEEDS_REVIEW.includes(s)) return { text: "Needs Review", tone: "info" };
-  if (DONE.includes(s)) return d.scanError ? { text: "Needs Review", tone: "info" } : { text: "Ready", tone: "neutral" };
+  const s = String(d.processingStatus || d.scanStatus || "").toLowerCase();
+  if (NEEDS_REVIEW.includes(s) || DONE.includes(s) || s === "processed") return { text: "Processed", tone: "neutral" };
   if (s === "failed" || s === "error") return { text: "Failed", tone: "urgent" };
-  return { text: "Processing", tone: "outline" };
+  if (s === "scanning" || s === "processing") return { text: "Processing", tone: "outline" };
+  return { text: "Not read yet", tone: "outline" };
+}
+
+export function clinicalReviewStatus(d) {
+  const status = d.clinicalReviewStatus;
+  if (status === "needs_review") return { text: "Needs review", tone: "urgent" };
+  if (status === "reviewed") return { text: "Reviewed", tone: "info" };
+  if (status === "not_reviewed") return { text: "Not reviewed", tone: "outline" };
+  if (status === "no_review_required") return { text: "No review required", tone: "neutral" };
+  const legacyStatus = String(d.scanStatus || "").toLowerCase();
+  if (d.reviewed) return { text: "Reviewed", tone: "info" };
+  if (NEEDS_REVIEW.includes(legacyStatus)) return { text: "Needs review", tone: "urgent" };
+  return { text: "Not assessed", tone: "outline" };
+}
+
+export function extractionStatusLabel(d) {
+  const status = String(d.extractionStatus || "").toLowerCase();
+  if (status === "processing") return "Processing";
+  if (status === "completed") return "Complete";
+  if (status === "partial") return "Partial";
+  if (status === "no_relevant_content") return "No relevant content found";
+  if (status === "failed") return "Failed";
+  if (status === "not_started") return "Not started";
+  return "Not assessed";
 }
 
 function formatDate(v) {
@@ -72,7 +92,7 @@ export default function DocsPanel({ child, documents }) {
     return () => { active.current = false; };
   }, []);
 
-  const readPlans = async (targetDocuments) => {
+  const readDocuments = async (targetDocuments) => {
     if (!targetDocuments.length || operationLock.current) return;
     operationLock.current = true;
     const targetChildId = childId;
@@ -86,19 +106,19 @@ export default function DocsPanel({ child, documents }) {
         onProgress: (document, index, total) => {
           if (!active.current) return;
           setBusyId(document.id);
-          setBatchStatus(`Reading plan ${index + 1} of ${total} (this may take a minute): ${document.title || document.fileName}`);
+          setBatchStatus(`Reading document ${index + 1} of ${total} (this may take a minute): ${document.title || document.fileName}`);
         },
         onSettled: async (outcome) => {
           await refresh().catch(() => undefined);
           if (!outcome.ok) {
-            if (active.current) setError(errMsg(outcome.error, "A plan could not be read."));
+            if (active.current) setError(errMsg(outcome.error, "A document could not be read."));
           }
         },
       });
       if (active.current) {
         setBatchStatus(result.cancelled
           ? "Reading stopped when you left this screen."
-          : `${result.scanned} of ${targetDocuments.length} plans read.${result.failed ? ` ${result.failed} need attention below.` : ""}`);
+          : `${result.scanned} of ${targetDocuments.length} documents processed.${result.failed ? ` ${result.failed} need attention below.` : ""}`);
       }
     } finally {
       operationLock.current = false;
@@ -111,7 +131,7 @@ export default function DocsPanel({ child, documents }) {
   };
 
   const retry = (document) => {
-    void readPlans([document]);
+    void readDocuments([document]);
   };
 
   const toggle = (d) => {
@@ -176,10 +196,10 @@ export default function DocsPanel({ child, documents }) {
         <ErrorBox error={error} />
         {documents.length > 1 && (
           <div className="np-docs-section">
-            <Button className="np-docs-btn primary" type="button" disabled={operationBusy} onClick={() => void readPlans(documents)} data-testid="button-read-all-plans">
-              {operationBusy ? "Reading plans…" : `Read all ${documents.length} plans`}
+            <Button className="np-docs-btn primary" type="button" disabled={operationBusy} onClick={() => void readDocuments(documents)} data-testid="button-read-all-plans">
+              {operationBusy ? "Reading documents…" : `Read all ${documents.length} documents`}
             </Button>
-            <p className="np-docs-hint">Plans are read one at a time. If one fails, the rest will still be attempted.</p>
+            <p className="np-docs-hint">Documents are read one at a time. If one fails, the rest will still be attempted.</p>
           </div>
         )}
         {batchStatus && <p role="status" className="np-docs-hint" data-testid="text-read-batch-status">{batchStatus}</p>}
@@ -201,6 +221,7 @@ export default function DocsPanel({ child, documents }) {
           {shown.map((d) => {
             const st = scanLabel(d);
             const ps = processingStatus(d);
+            const review = clinicalReviewStatus(d);
             const name = d.title || d.fileName;
             const date = formatDate(d.createdAt);
             return (
@@ -213,10 +234,13 @@ export default function DocsPanel({ child, documents }) {
                       {categoryOf(d)} · {d.uploadedBy === "clinician" ? "From clinician" : "Uploaded by parent"} · {d.shared ? "Shared with clinician" : "Private"}
                     </span>
                   </div>
-                  <StatusBadge tone={ps.tone} className="np-docs-badge" data-tone={ps.tone} data-testid={`status-scan-${d.id}`} title={st.text}>{ps.text}</StatusBadge>
+                  <div className="np-docs-statuses">
+                    <StatusBadge tone={ps.tone} className="np-docs-badge" data-tone={ps.tone} data-testid={`status-scan-${d.id}`} title={st.text}>{ps.text}</StatusBadge>
+                    <StatusBadge tone={review.tone} className="np-docs-badge" data-tone={review.tone} data-testid={`status-review-${d.id}`}>Clinical review: {review.text}</StatusBadge>
+                  </div>
                 </div>
-                {d.scanError && (ps.text === "Needs Review"
-                  ? <p className="np-docs-error" data-testid={`text-scan-error-${d.id}`}>{d.scanError}</p>
+                {d.scanError && (ps.text !== "Failed"
+                  ? <p className="np-docs-note" data-testid={`text-scan-error-${d.id}`}><strong>Note:</strong> {d.scanError}</p>
                   : <p className="np-docs-error" data-testid={`text-scan-error-summary-${d.id}`}>This document could not be read. View details for the full note.</p>)}
                 <div className="np-docs-actions">
                   <Button type="button" className="np-docs-btn" onClick={() => view(d)} aria-label={`View ${name}`} data-testid={`button-view-${d.id}`}>View</Button>
@@ -226,8 +250,10 @@ export default function DocsPanel({ child, documents }) {
                 </div>
                 <Disclosure className="np-docs-disclosure" title="View details" data-testid={`disclosure-document-details-${d.id}`}>
                   <dl className="np-docs-details" data-testid={`details-document-${d.id}`}>
-                    <dt>Reading status</dt><dd data-testid={`text-scan-detail-${d.id}`}>{st.text}</dd>
-                    {d.scanError && ps.text !== "Needs Review" && <><dt>Note</dt><dd data-testid={`text-scan-error-${d.id}`}>{d.scanError}</dd></>}
+                    <dt>Document processing</dt><dd data-testid={`text-scan-detail-${d.id}`}>{ps.text}</dd>
+                    <dt>Text extraction</dt><dd data-testid={`text-extraction-detail-${d.id}`}>{extractionStatusLabel(d)}</dd>
+                    <dt>Clinical review</dt><dd data-testid={`text-review-detail-${d.id}`}>{review.text}</dd>
+                    {d.scanError && ps.text === "Failed" && <><dt>Processing note</dt><dd data-testid={`text-scan-error-${d.id}`}>{d.scanError}</dd></>}
                     <dt>File name</dt><dd>{d.fileName}</dd>
                     {d.documentType && <><dt>Type</dt><dd>{d.documentType}</dd></>}
                     <dt>Category</dt><dd>{categoryOf(d)}</dd>
@@ -235,7 +261,7 @@ export default function DocsPanel({ child, documents }) {
                     {date && <><dt>Added</dt><dd>{date}</dd></>}
                     <dt>Child</dt><dd>{child.name}</dd>
                     <dt>Privacy</dt><dd>{d.shared ? "Shared with clinician" : "Private to your account"}</dd>
-                    <dt>Clinician review</dt><dd>{d.reviewed ? "Clinician reviewed" : "Not reviewed by a clinician"}</dd>
+                    <dt>Clinical use</dt><dd>Processing does not approve or publish recommendations. Existing clinician approval and assignment controls still apply.</dd>
                   </dl>
                 </Disclosure>
               </li>

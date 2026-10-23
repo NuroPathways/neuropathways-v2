@@ -5,6 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ParentDocumentClinicalReviewStatus } from './parentDocumentClinicalReviewStatus';
+import type { ParentDocumentExtractionStatus } from './parentDocumentExtractionStatus';
+import type { ParentDocumentProcessingStatus } from './parentDocumentProcessingStatus';
 import type { ParentDocumentUploadedBy } from './parentDocumentUploadedBy';
 
 export interface ParentDocument {
@@ -16,6 +19,9 @@ export interface ParentDocument {
   fileName: string;
   documentType: string;
   scanStatus: string;
+  processingStatus: ParentDocumentProcessingStatus;
+  extractionStatus: ParentDocumentExtractionStatus;
+  clinicalReviewStatus: ParentDocumentClinicalReviewStatus;
   /** @nullable */
   scanError: string | null;
   uploadedBy: ParentDocumentUploadedBy;
