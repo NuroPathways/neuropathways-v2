@@ -88,6 +88,79 @@ describe("PracticePage", () => {
     expect(screen.getByText("Create a visual routine")).toBeTruthy();
     expect(screen.getByText("No routines saved")).toBeTruthy();
   });
+  it("guides a parent through concise starter-activity steps and shows its finish, safety, and research context", async () => {
+    const api = await import("@workspace/api-client-react");
+    api.updateParentPracticeProgress.mockReset().mockResolvedValue({});
+    const action = {
+      id: "general-activity-1",
+      childId: "child-a",
+      actionKey: "task:general-starter:starter-practice-v1-puzzle-together",
+      behaviorKey: null,
+      behaviorName: "General activity",
+      sourceType: "starter_template",
+      sourceDocumentId: null,
+      title: "Puzzle Together",
+      description: "Optional general activity. Use a familiar puzzle.",
+      steps: [
+        "Start: Choose a familiar puzzle.",
+        "Activity step 1: Invite your child to choose a piece.",
+        "Activity step 2: Work on one piece together.",
+        "Activity step 3: Pause when your child is done.",
+        "Skill practiced: Shared play",
+        "Finish: Finish after a few pieces.",
+        "Pause or stop if: Stop if the activity is uncomfortable.",
+        "Materials: A familiar puzzle.",
+      ],
+      activityDetails: {
+        category: "Playing Together",
+        skill: "Shared play",
+        relatedGoal: null,
+        startAction: "Choose a familiar puzzle and place it within easy reach.",
+        materials: ["A familiar puzzle with safe pieces."],
+        steps: [
+          "Invite your child to choose a piece.",
+          "Work on one piece together, or watch if they prefer.",
+          "Pause when your child changes activities or signals they are done.",
+        ],
+        ending: "Finish after a few pieces or whenever your child is ready.",
+        ifDifficult: "Pause or put the puzzle away if it becomes uncomfortable.",
+        researchNote: "Research informs activity design, not treatment effectiveness.",
+        evidenceReferences: [{
+          key: "play-review",
+          title: "A review of play-based activities",
+          url: "https://example.org/review",
+          publishedYear: 2021,
+          evidenceType: "Scoping review",
+          designImplication: "Keep activities accessible and child-led.",
+          limitation: "The review does not establish that this template is effective treatment.",
+        }],
+      },
+      estimatedMinutes: 5,
+      status: "not_started",
+      currentStep: 0,
+    };
+    renderPractice(<PracticePage childId="child-a" childName="Sam" actions={[action]} />);
+
+    expect(screen.getByText("General starter support — not individualized")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("button-start-general-activity-1"));
+    expect(screen.getByText("Related skill: Shared play")).toBeTruthy();
+    expect(screen.getByText("Choose a familiar puzzle and place it within easy reach.")).toBeTruthy();
+    expect(screen.getByText("A familiar puzzle with safe pieces.")).toBeTruthy();
+    expect(screen.getByText("Step 1 of 3")).toBeTruthy();
+    expect(screen.getByText("Invite your child to choose a piece.")).toBeTruthy();
+    expect(screen.queryByText("Activity step 1: Invite your child to choose a piece.")).toBeNull();
+    expect(screen.getByTestId("details-if-difficult").textContent).toContain("Pause or put the puzzle away");
+
+    fireEvent.click(screen.getByTestId("button-step-next"));
+    fireEvent.click(screen.getByTestId("button-step-next"));
+    expect(screen.getByText("Step 3 of 3")).toBeTruthy();
+    expect(screen.getByTestId("activity-ending").textContent).toContain("Finish after a few pieces");
+    await vi.waitFor(() => expect(api.updateParentPracticeProgress).toHaveBeenLastCalledWith(
+      "child-a", "general-activity-1", { currentStep: 4, bookmarked: false }, expect.anything(),
+    ));
+    fireEvent.click(screen.getByText("Research background"));
+    expect(screen.getByText(/does not establish that this template is effective treatment/i)).toBeTruthy();
+  });
   it("shows a closed activity as read-only review without saving progress", async () => {
     const api = await import("@workspace/api-client-react");
     api.updateParentPracticeProgress.mockClear();

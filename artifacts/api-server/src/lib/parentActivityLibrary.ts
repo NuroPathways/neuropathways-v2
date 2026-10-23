@@ -302,7 +302,9 @@ type NewParentActivity = {
   skill: string;
   estimatedMinutes: number;
   materials: string;
+  startAction?: string;
   steps: string[];
+  ending?: string;
   ifDifficult: string;
   metadata: ParentActivityResearchMetadata;
 };
@@ -344,7 +346,9 @@ export const ADDITIONAL_PARENT_ACTIVITY_TEMPLATES: NewParentActivity[] = [
     context: "A calm moment when both activities are safe, available, and currently welcome.",
     requiredInformation: ["Both options are familiar and accessible; the child's usual communication stays available."],
     materials: "Two familiar activities already accepted by the child.",
+    startAction: "Choose two familiar activities that are both available.",
     steps: ["Offer two familiar options without taking away access to either.", "Wait for any familiar response, or no response; do not require speech.", "Follow the choice or stop if neither option is wanted."],
+    ending: "Finish after the child chooses, declines, or moves on.",
     ifDifficult: "Stop if the child does not want either option; leave both available or move on."
   }),
   newActivity({
@@ -409,8 +413,40 @@ export const ADDITIONAL_PARENT_ACTIVITY_TEMPLATES: NewParentActivity[] = [
     context: "A familiar cleanup moment with one safe item and no time pressure.",
     requiredInformation: ["The item and basket are familiar, safe, and comfortable to use."],
     materials: "One familiar safe item and an optional familiar basket or finished place.",
+    startAction: "Choose one familiar item and its usual finished place.",
     steps: ["Show the familiar place and offer the child a choice to put away one item, ask for help, or stop.", "Accept any response without physically guiding the child.", "Finish together or leave the item if the child declines."],
+    ending: "Finish after one item or whenever the child is done.",
     ifDifficult: "Stop the cleanup invitation if the child declines or shows discomfort."
+  }),
+  newActivity({
+    id: "puzzle-together",
+    title: "Puzzle Together",
+    description: "Try a familiar puzzle side by side, at the child's pace.",
+    skill: "Shared play",
+    estimatedMinutes: 5,
+    domain: "social_play",
+    context: "A familiar puzzle the child currently wants to use, in a comfortable place.",
+    requiredInformation: ["Use only a puzzle and pieces that are familiar and safe for the child's age and access needs."],
+    materials: "A familiar puzzle with pieces that are safe for the child.",
+    startAction: "Choose a familiar puzzle and place it within easy reach.",
+    steps: ["Invite your child to choose a piece.", "Work on one piece together, or watch if they prefer.", "Pause when your child changes activities or signals they are done."],
+    ending: "Finish after a few pieces or whenever your child is ready.",
+    ifDifficult: "Pause or put the puzzle away if it becomes uncomfortable or your child wants to stop."
+  }),
+  newActivity({
+    id: "matching-pairs",
+    title: "Find the Matching Pairs",
+    description: "Play a short matching game with familiar pictures or safe, larger objects.",
+    skill: "Playing a simple matching game",
+    estimatedMinutes: 5,
+    domain: "social_play",
+    context: "A relaxed game using familiar pictures or objects the child can safely handle.",
+    requiredInformation: ["Use pictures or objects that are familiar, accessible, and safe for the child's age."],
+    materials: "Two or three pairs of familiar picture cards or larger safe objects.",
+    startAction: "Choose two or three familiar pairs and place them within reach.",
+    steps: ["Show one item from a pair.", "Invite your child to find its match.", "Help only if wanted, then pause or stop when they are done."],
+    ending: "Finish after a few matches or whenever your child is ready.",
+    ifDifficult: "Stop the game if the items or matching activity are not comfortable."
   }),
   newActivity({
     id: "child-led-play",
@@ -422,7 +458,9 @@ export const ADDITIONAL_PARENT_ACTIVITY_TEMPLATES: NewParentActivity[] = [
     context: "A child-chosen activity in a comfortable setting with room to pause or leave.",
     requiredInformation: ["Confirm the child is interested in the activity and whether adult joining is welcome."],
     materials: "The toy or activity chosen by the child.",
+    startAction: "Offer to join an activity your child has chosen.",
     steps: ["Let the child choose how to play.", "Join only in ways the child welcomes; follow rather than redirect.", "Pause or stop when the child changes activities or signals they are finished."],
+    ending: "Finish when your child changes activities or signals they are done.",
     ifDifficult: "Step back if joining is not welcome; the child may continue alone."
   }),
   newActivity({

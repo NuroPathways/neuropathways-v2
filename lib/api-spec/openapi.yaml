@@ -2211,6 +2211,55 @@ components:
           items:
             type: string
       required: [id, title, description, skill, estimatedMinutes, materials, steps, pauseConditions, matchReasons, riskClassification, sourceEvidence, relatedSupportAreas, researchLimitations]
+    ParentActivityEvidenceReference:
+      type: object
+      required: [key, title, url, publishedYear, evidenceType, designImplication, limitation]
+      properties:
+        key:
+          type: string
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        publishedYear:
+          type: integer
+        evidenceType:
+          type: string
+        designImplication:
+          type: string
+        limitation:
+          type: string
+    ParentDailyActionActivityDetails:
+      type: object
+      required: [category, skill, relatedGoal, startAction, materials, steps, ending, ifDifficult, researchNote, evidenceReferences]
+      properties:
+        category:
+          type: string
+        skill:
+          type: string
+        relatedGoal:
+          type: [string, "null"]
+        startAction:
+          type: string
+        materials:
+          type: array
+          items:
+            type: string
+        steps:
+          type: array
+          items:
+            type: string
+        ending:
+          type: string
+        ifDifficult:
+          type: string
+        researchNote:
+          type: string
+        evidenceReferences:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentActivityEvidenceReference"
     ParentDailyAction:
       type: object
       properties:
@@ -2249,6 +2298,8 @@ components:
           type: array
           items:
             type: string
+        activityDetails:
+          $ref: "#/components/schemas/ParentDailyActionActivityDetails"
         estimatedMinutes:
           type: integer
           minimum: 1

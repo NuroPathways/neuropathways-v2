@@ -1009,6 +1009,30 @@ export const ParentDailyActionSourceType = {
   selected_behavior: 'selected_behavior',
 } as const;
 
+export interface ParentActivityEvidenceReference {
+  key: string;
+  title: string;
+  url: string;
+  publishedYear: number;
+  evidenceType: string;
+  designImplication: string;
+  limitation: string;
+}
+
+export interface ParentDailyActionActivityDetails {
+  category: string;
+  skill: string;
+  /** @nullable */
+  relatedGoal: string | null;
+  startAction: string;
+  materials: string[];
+  steps: string[];
+  ending: string;
+  ifDifficult: string;
+  researchNote: string;
+  evidenceReferences: ParentActivityEvidenceReference[];
+}
+
 export type ParentDailyActionStatus = typeof ParentDailyActionStatus[keyof typeof ParentDailyActionStatus];
 
 
@@ -1094,6 +1118,7 @@ export interface ParentDailyAction {
   description: string;
   whyItMayHelp: string;
   steps: string[];
+  activityDetails?: ParentDailyActionActivityDetails;
   /**
      * @minimum 1
      * @maximum 60

@@ -38,6 +38,7 @@ import {
   getParentPlanGoals,
   getOrCreateParentDailyActions,
   normalizeParentActionDate,
+  parentDailyActionInstructionCount,
   serializeParentDailyAction,
   serializeParentDailyActionLog,
 } from "../lib/parentDailyActions";
@@ -1386,7 +1387,7 @@ router.patch("/parent/children/:childId/daily-actions/:actionId/practice-progres
       res.status(409).json({ error: "This activity is already closed" });
       return;
     }
-    if (parsed.data.currentStep > action.steps.length + 2) {
+    if (parsed.data.currentStep > parentDailyActionInstructionCount(action) + 2) {
       res.status(400).json({ error: "currentStep is outside the saved activity" });
       return;
     }

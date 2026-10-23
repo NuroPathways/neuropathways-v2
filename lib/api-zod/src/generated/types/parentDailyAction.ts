@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ParentDailyActionActivityDetails } from './parentDailyActionActivityDetails';
 import type { ParentDailyActionKind } from './parentDailyActionKind';
 import type { ParentDailyActionLog } from './parentDailyActionLog';
 import type { ParentDailyActionSourceType } from './parentDailyActionSourceType';
@@ -30,6 +31,7 @@ export interface ParentDailyAction {
   description: string;
   whyItMayHelp: string;
   steps: string[];
+  activityDetails?: ParentDailyActionActivityDetails;
   /**
      * @minimum 1
      * @maximum 60

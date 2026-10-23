@@ -17,7 +17,7 @@ const SOURCE_LABELS = {
   clinician_reviewed: "Clinician reviewed",
   clinician_uploaded_plan: "Clinician-uploaded plan",
   parent_uploaded_plan: "Based on your uploaded plan · not clinician-reviewed",
-  starter_template: "Starter support",
+  starter_template: "General starter support — not individualized",
   recent_log_pattern: "Based on recent parent notes",
   selected_behavior: "Based on your selected behavior",
 };
@@ -295,7 +295,7 @@ export default function DailySupportHome({
           </div>
           <span className="pf-daily-count">{tasks.filter((task) => task.status === "not_started" && hasCompleteActivityStructure(task)).length} ready</span>
         </div>
-        <p className="pf-hint">Simple activities connected to selected behaviors and their support sources.</p>
+        <p className="pf-hint">General starter activities are optional ideas, not individualized treatment. Plan-based activities keep their source label.</p>
         <p className="pf-hint">Only try activities that feel safe and realistic today. Stop if an activity becomes stressful or unsafe.</p>
         {tasks.length ? actionGrid(showAllTasks ? tasks : tasks.slice(0, 3)) : (
           <div className="pf-card" data-testid="empty-daily-plan">

@@ -11,7 +11,7 @@ import {
   type ParentDailyActionSource,
 } from "@workspace/db";
 import { parentBehaviorIdentity, type ParentBehavior } from "./parentAuth";
-import { makeStarterCard, type SupportCard } from "./parentStarterLibrary";
+import type { SupportCard } from "./parentStarterLibrary";
 import type { ParentPlanActivity } from "./parentStarterLibrary";
 import { isValidParentPlanActivity } from "./parentDocumentPolicy";
 import {
@@ -271,23 +271,6 @@ export function careTeamActivityLibrary() {
   return [...existing, ...additions];
 }
 
-function practiceActivitiesFor(behavior: Pick<ParentBehavior, "behaviorKey" | "behaviorName">): PracticeActivity[] {
-  const identity = `${behavior.behaviorKey || ""} ${behavior.behaviorName || ""}`.normalize("NFKC").toLowerCase();
-  let activities: PracticeActivity[];
-  if (identity.includes("elopement") || identity.includes("running away")) activities = STARTER_PRACTICE_ACTIVITIES.elopement;
-  else if (identity.includes("self_injury") || identity.includes("self-injury") || identity.includes("self injury")) activities = STARTER_PRACTICE_ACTIVITIES.self_injury;
-  else if (identity.includes("aggression")) activities = STARTER_PRACTICE_ACTIVITIES.aggression;
-  else if (identity.includes("meltdown") || identity.includes("dysregulation")) activities = STARTER_PRACTICE_ACTIVITIES.meltdowns;
-  else if (identity.includes("task_refusal") || identity.includes("task refusal")) activities = STARTER_PRACTICE_ACTIVITIES.task_refusal;
-  else if (identity.includes("transition")) activities = STARTER_PRACTICE_ACTIVITIES.transition_difficulty;
-  else if (identity.includes("property_destruction") || identity.includes("property destruction")) activities = STARTER_PRACTICE_ACTIVITIES.property_destruction;
-  else if (identity.includes("daily_living") || identity.includes("daily living") || identity.includes("hygiene")) activities = STARTER_PRACTICE_ACTIVITIES.daily_living;
-  else activities = CUSTOM_PRACTICE_ACTIVITIES;
-  return activities.filter((activity) =>
-    activityResearchMetadata(activity.id, activity.ifHard)?.riskTier === "low"
-  );
-}
-
 function parseGoalMilestones(notes: string | null | undefined): string[] {
   if (typeof notes !== "string") return [];
   return notes.split(/\r?\n/)
@@ -296,14 +279,6 @@ function parseGoalMilestones(notes: string | null | undefined): string[] {
     .filter((line) => !UNSAFE_PLAN_PRACTICE.test(line))
     .map((line) => line.slice(0, 400))
     .slice(0, 8);
-}
-
-function parentFacingGoalText(goal: string): string {
-  const normalized = goal.trim().replace(/[.!?]+$/g, "").toLocaleLowerCase();
-  if (normalized === "no aversive behaviors") return "Use safe hands and safe objects";
-  if (normalized === "reduce maladaptive behavior") return "Use a safer way to ask for help";
-  if (normalized === "increase compliance") return "Complete one small step";
-  return goal.trim();
 }
 
 export async function getParentPlanGoals(childId: string, ownerId?: string): Promise<ParentPlanGoal[]> {
@@ -376,6 +351,125 @@ function actionKey(kind: ParentDailyActionKind, behaviorIdentity: string, slot: 
   return `${kind}:${stableIdentity || "selected"}:${slot}`.slice(0, 255);
 }
 
+export type ParentDailyActionActivityDetails = {
+  category: string;
+  skill: string;
+  relatedGoal: string | null;
+  startAction: string;
+  materials: string[];
+  steps: string[];
+  ending: string;
+  ifDifficult: string;
+  researchNote: string;
+  evidenceReferences: Array<{
+    key: string;
+    title: string;
+    url: string;
+    publishedYear: number;
+    evidenceType: string;
+    designImplication: string;
+    limitation: string;
+  }>;
+};
+
+const GENERAL_PRACTICE_ACTIVITY_VERSION = "v1";
+const GENERAL_PRACTICE_ACTIVITY_IDS = [
+  "puzzle-together",
+  "matching-pairs",
+  "choose-between-familiar-activities",
+  "finished-basket-choice",
+  "child-led-play",
+] as const;
+const ACTIVITY_CATEGORY_BY_DOMAIN: Record<string, string> = {
+  communication: "Communication",
+  transitions: "Transitions",
+  daily_living: "Daily Routines",
+  social_play: "Playing Together",
+  coping: "Calm & Coping",
+  parent_preparation: "Daily Routines",
+};
+const GENERAL_ACTIVITY_RESEARCH_NOTE =
+  "These references inform general activity design. They do not show that this individual activity is an effective treatment or is suitable for every child.";
+
+function generalStarterActivityDrafts(date: string): DailyActionDraft[] {
+  return GENERAL_PRACTICE_ACTIVITY_IDS.map((id) => {
+    const activity = ADDITIONAL_PARENT_ACTIVITY_TEMPLATES.find((item) => item.id === id);
+    if (!activity || !activity.startAction || !activity.ending) {
+      throw new Error(`General starter activity ${id} is missing its start or ending.`);
+    }
+    if (
+      activity.metadata.riskTier !== "low" ||
+      activity.metadata.requiresClinicianConfirmation ||
+      activity.steps.length < 3 ||
+      activity.steps.length > 5
+    ) {
+      throw new Error(`General starter activity ${id} does not meet the low-risk activity standard.`);
+    }
+    return {
+      actionDate: date,
+      actionKey: actionKey(
+        "task",
+        "general-starter",
+        `starter-practice-${GENERAL_PRACTICE_ACTIVITY_VERSION}-${activity.id}`,
+      ),
+      kind: "task",
+      behaviorKey: null,
+      behaviorName: "General activity",
+      supportCardId: null,
+      sourceType: "starter_template",
+      sourceDocumentId: null,
+      title: activity.title,
+      description: `Optional general activity. Use familiar materials and stop whenever your child is ready. ${activity.description}`,
+      whyItMayHelp: "",
+      steps: [
+        `Start: ${activity.startAction}`,
+        ...activity.steps.map((step, index) => `Activity step ${index + 1}: ${step}`),
+        `Skill practiced: ${activity.skill}`,
+        `Finish: ${activity.ending}`,
+        `Pause or stop if: ${activity.ifDifficult}`,
+        `Materials: ${activity.materials}`,
+      ],
+      estimatedMinutes: activity.estimatedMinutes,
+      status: "not_started",
+    };
+  });
+}
+
+export function parentDailyActionActivityDetails(
+  action: Pick<ParentDailyAction, "actionKey" | "sourceType" | "steps">,
+): ParentDailyActionActivityDetails | null {
+  const prefix = `task:general-starter:starter-practice-${GENERAL_PRACTICE_ACTIVITY_VERSION}-`;
+  if (action.sourceType !== "starter_template" || !action.actionKey.startsWith(prefix)) return null;
+  const activityId = action.actionKey.slice(prefix.length);
+  const activity = ADDITIONAL_PARENT_ACTIVITY_TEMPLATES.find((item) => item.id === activityId);
+  if (!activity || !activity.startAction || !activity.ending) return null;
+
+  const steps = Array.isArray(action.steps) ? action.steps : [];
+  const activitySteps = steps
+    .filter((step) => /^Activity step \d+:\s*/.test(step))
+    .map((step) => step.replace(/^Activity step \d+:\s*/, ""));
+  if (activitySteps.length < 3 || activitySteps.length > 5) return null;
+
+  return {
+    category: ACTIVITY_CATEGORY_BY_DOMAIN[activity.metadata.skillDomain] || "Playing Together",
+    skill: activity.skill,
+    relatedGoal: null,
+    startAction: activity.startAction,
+    materials: activity.materials ? [activity.materials] : [],
+    steps: activitySteps,
+    ending: activity.ending,
+    ifDifficult: activity.ifDifficult,
+    researchNote: GENERAL_ACTIVITY_RESEARCH_NOTE,
+    evidenceReferences: activity.metadata.evidenceReferences,
+  };
+}
+
+export function parentDailyActionInstructionCount(
+  action: Pick<ParentDailyAction, "actionKey" | "sourceType" | "steps">,
+): number {
+  return parentDailyActionActivityDetails(action)?.steps.length ?? action.steps.length;
+}
+
 function planActivityDraft(
   card: SupportCard,
   activity: ReadyPlanActivity,
@@ -430,65 +524,6 @@ function planActivityDraft(
   };
 }
 
-function selectedGoalPracticeDraft(
-  behavior: ParentBehavior,
-  card: SupportCard,
-  date: string,
-  childName: string,
-): DailyActionDraft[] {
-  const savedGoal = behavior.goal?.trim() || "";
-  const safeGoal = savedGoal && !UNSAFE_PLAN_PRACTICE.test(savedGoal) ? savedGoal : "";
-  const displayGoal = safeGoal ? parentFacingGoalText(safeGoal) : "";
-  const activities = practiceActivitiesFor(behavior);
-  const goalTerms = safeGoal.toLocaleLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length > 3);
-  const ordered = [...activities].sort((left, right) => {
-    const score = (activity: PracticeActivity) => goalTerms.filter((word) =>
-      `${activity.title} ${activity.skill}`.toLocaleLowerCase().includes(word),
-    ).length;
-    return score(right) - score(left);
-  });
-  const seen = new Set<string>();
-  return ordered.filter((activity) => {
-    if (seen.has(activity.id)) return false;
-    seen.add(activity.id);
-    return true;
-  }).map((activity) => {
-    const activityTerms = `${activity.title} ${activity.skill}`.toLocaleLowerCase();
-    const relatedGoal = safeGoal && goalTerms.some((word) => activityTerms.includes(word))
-      ? displayGoal
-      : "";
-    return {
-    actionDate: date,
-    actionKey: actionKey("task", parentBehaviorIdentity(behavior), `starter-practice-${activity.id}`),
-    kind: "task",
-    behaviorKey: behavior.behaviorKey,
-    behaviorName: behavior.behaviorName,
-    supportCardId: card.id || null,
-    sourceType: "starter_template",
-    sourceDocumentId: null,
-    title: activity.title,
-    description: `Suggested context: During a calm, familiar moment. ${activity.description} Materials: Only familiar items named in this activity; do not introduce new materials.`,
-    whyItMayHelp: relatedGoal
-      ? `Practices ${activity.skill} and connects to ${childName}'s saved goal: ${displayGoal}`
-      : `Practices ${activity.skill} during a familiar activity. This is starter support, not an individualized plan.`,
-    steps: [
-      `Start: ${ACTIVITY_GUIDANCE[activity.id]?.steps[0] || activity.description}`,
-      ...(ACTIVITY_GUIDANCE[activity.id]?.steps.slice(1, 3) || [
-        `Activity step 1: Offer one voluntary chance to practice ${activity.skill.toLocaleLowerCase()}.`,
-        `Activity step 2: Pause and follow your child's lead.`,
-      ]).map((step, index) => `Activity step ${index + 1}: ${step}`),
-      `Skill practiced: ${activity.skill}`,
-      ...(relatedGoal ? [`Related goal: ${relatedGoal}`] : []),
-      "Finish: End after these short steps or sooner if your child signals they are done.",
-      `Pause or stop if: ${activity.ifHard}`,
-      `Materials: Only familiar items named in this activity; no new materials are needed.`,
-    ],
-    estimatedMinutes: activity.minutes,
-    status: "not_started",
-    };
-  });
-}
-
 export function buildParentDailyActionDrafts(input: {
   date: string;
   childName?: string;
@@ -524,20 +559,7 @@ export function buildParentDailyActionDrafts(input: {
     const selectedBehavior = input.selectedBehaviors.find(
       (behavior) => parentBehaviorIdentity(behavior) === identityForCard(card),
     );
-    if (card.conflict) {
-      if (!selectedBehavior) return [];
-      const libraryCard = makeStarterCard(
-        selectedBehavior.behaviorKey,
-        selectedBehavior.customBehavior,
-        selectedBehavior.goal,
-      );
-      return selectedGoalPracticeDraft(
-        selectedBehavior,
-        libraryCard,
-        input.date,
-        input.childName?.trim() || "your child",
-      );
-    }
+    if (card.conflict) return [];
     const hasExplicitAssignment = (card.dailyActivities || []).some((activity) => Boolean(activity.assignedAt));
     if (!selectedBehavior && !hasExplicitAssignment) return [];
     const planActivities = (card.dailyActivities || [])
@@ -548,18 +570,10 @@ export function buildParentDailyActionDrafts(input: {
       planActivityDraft(card, activity, input.date, input.childName?.trim() || "your child"),
     );
     if (planActivities.length) return planActivities;
-
-    return selectedBehavior
-      ? selectedGoalPracticeDraft(
-          selectedBehavior,
-          makeStarterCard(selectedBehavior.behaviorKey, selectedBehavior.customBehavior, selectedBehavior.goal),
-          input.date,
-          input.childName?.trim() || "your child",
-        )
-      : [];
+    return [];
   });
 
-  // Round-robin across selected support areas so one child goal cannot crowd out the rest.
+  // Source-grounded activities keep priority and remain tied to their source card.
   const actions: DailyActionDraft[] = [];
   const seenActionKeys = new Set<string>();
   for (let activityIndex = 0; actions.length < 5; activityIndex += 1) {
@@ -573,6 +587,15 @@ export function buildParentDailyActionDrafts(input: {
       if (actions.length === 5) break;
     }
     if (!added) break;
+  }
+
+  // General starter activities are independent of behavior and goal selection.
+  // They fill the remaining slots without being presented as child-specific treatment.
+  for (const activity of generalStarterActivityDrafts(input.date)) {
+    if (actions.length >= 5) break;
+    if (seenActionKeys.has(activity.actionKey)) continue;
+    seenActionKeys.add(activity.actionKey);
+    actions.push(activity);
   }
   return actions;
 }
@@ -593,6 +616,7 @@ function serializeLog(log: ParentDailyActionLog) {
 }
 
 function serializeAction(action: ParentDailyAction, logs: ParentDailyActionLog[]) {
+  const activityDetails = parentDailyActionActivityDetails(action);
   return {
     id: action.id,
     childId: action.childId,
@@ -608,6 +632,7 @@ function serializeAction(action: ParentDailyAction, logs: ParentDailyActionLog[]
     description: action.description,
     whyItMayHelp: action.whyItMayHelp,
     steps: action.steps || [],
+    ...(activityDetails ? { activityDetails } : {}),
     estimatedMinutes: action.estimatedMinutes,
     status: action.status,
     currentStep: 0,

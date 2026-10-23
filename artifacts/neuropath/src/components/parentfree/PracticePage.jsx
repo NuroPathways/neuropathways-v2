@@ -25,7 +25,7 @@ const SOURCE_LABELS = {
   clinician_reviewed: "Clinician reviewed",
   clinician_uploaded_plan: "Clinician-uploaded plan",
   parent_uploaded_plan: "Based on your uploaded plan · not clinician-reviewed",
-  starter_template: "Starter support",
+  starter_template: "General starter support — not individualized",
   recent_log_pattern: "Based on recent parent notes",
   selected_behavior: "Based on your selected behavior",
 };
@@ -53,6 +53,7 @@ export const usefulWhy = (text) => {
 };
 export const categoryFor = (action) => {
   if (action?.category && CATEGORIES.includes(action.category)) return action.category;
+  if (action?.activityDetails?.category && CATEGORIES.includes(action.activityDetails.category)) return action.activityDetails.category;
   if (action?.skill && CATEGORIES.includes(action.skill)) return action.skill;
   const text = `${action?.behaviorKey || ""} ${action?.behaviorName || ""} ${action?.title || ""}`.toLowerCase();
   return CATEGORY_HINTS.find(([, pattern]) => pattern.test(text))?.[0] || null;
@@ -64,6 +65,31 @@ export const visibleAssignments = (items, childId) => (Array.isArray(items) ? it
   .filter((item) => !childId || !item.childId || String(item.childId) === String(childId));
 
 const positionToStep = (position, count) => position >= 2 && position < count + 2 ? position - 2 : 0;
+export const practiceStepsFor = (activity) => {
+  const structured = activity?.activityDetails?.steps;
+  if (Array.isArray(structured) && structured.length) return structured.filter(Boolean);
+  return Array.isArray(activity?.steps) ? activity.steps.filter(Boolean) : [];
+};
+
+function ActivityResearchNotes({ activity }) {
+  const details = activity?.activityDetails;
+  const references = Array.isArray(details?.evidenceReferences) ? details.evidenceReferences : [];
+  if (!references.length) return null;
+  return (
+    <details className="np-why" data-testid={`research-background-${activity.id}`}>
+      <summary>Research background</summary>
+      <p>{details.researchNote}</p>
+      <ul>
+        {references.map((reference) => (
+          <li key={reference.key}>
+            <a href={reference.url} target="_blank" rel="noreferrer">{reference.title} ({reference.publishedYear})</a>
+            <p>{reference.evidenceType}. {reference.designImplication} Limitation: {reference.limitation}</p>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
 
 /**
  * Focused guided activity: one instruction at a time, Back, Exit, optional feedback.
@@ -72,7 +98,8 @@ const positionToStep = (position, count) => position >= 2 && position < count + 
  */
 export function ActivityGuide({ feedbackVisibility, activity, childName, assigned = false, relatedGoal, sourceLabel, closed = false, busy = false, preview = false, requireOutcome = false, presentation = false,
   initialStep = 0, initialFinished = false, onStep, onExit, onSaveForLater, onSaveUpdate, onSkip, onGoal, onHistory, error }) {
-  const steps = Array.isArray(activity?.steps) ? activity.steps.filter(Boolean) : [];
+  const details = activity?.activityDetails || null;
+  const steps = practiceStepsFor(activity);
   const [step, setStep] = useState(Math.min(initialStep, Math.max(0, steps.length - 1)));
   const [finished, setFinished] = useState(initialFinished);
   const [outcome, setOutcome] = useState("");
@@ -83,8 +110,13 @@ export function ActivityGuide({ feedbackVisibility, activity, childName, assigne
   const titleRef = useRef(null);
   const focusRequested = useRef(presentation);
   const why = usefulWhy(activity?.whyItMayHelp || activity?.whyThisHelps);
-  const needs = activity?.whatYouNeed || activity?.materials;
-  const category = activity?.skill || categoryFor(activity);
+  const needs = activity?.whatYouNeed || details?.materials || activity?.materials;
+  const needsText = Array.isArray(needs) ? needs.join(", ") : needs;
+  const category = details?.category || activity?.skill || categoryFor(activity);
+  const activityGoal = details?.relatedGoal || relatedGoal;
+  const startAction = details?.startAction;
+  const ending = details?.ending;
+  const ifDifficult = details?.ifDifficult || activity?.ifDifficult;
   const minutes = activity?.estimatedMinutes;
   const go = (next) => { focusRequested.current = presentation; setStep(next); onStep?.(next, false); };
   const finish = () => { focusRequested.current = presentation; setFinished(true); onStep?.(steps.length, true); };
@@ -108,16 +140,20 @@ export function ActivityGuide({ feedbackVisibility, activity, childName, assigne
           {minutes ? <span>About {minutes} minutes</span> : null}
           {assigned && <span className="np-care-badge" data-testid="badge-care-team">Assigned by Your Care Team</span>}
         </div>
-        {relatedGoal && <p className="np-practice-meta">Related goal: {onGoal ? <button type="button" className="np-link-btn" onClick={onGoal} data-testid="button-related-goal">{relatedGoal}</button> : relatedGoal}</p>}
+        {activityGoal && <p className="np-practice-meta">Related goal: {onGoal ? <button type="button" className="np-link-btn" onClick={onGoal} data-testid="button-related-goal">{activityGoal}</button> : activityGoal}</p>}
+        {details?.skill && <p className="np-practice-meta" data-testid="text-activity-skill">Related skill: {details.skill}</p>}
         {sourceLabel && !assigned && <p className="np-practice-meta">{sourceLabel}</p>}
         {activity.description && <p>{activity.description}</p>}
       </header>
-      {needs && <section className="np-guide-block"><h4>What You'll Need</h4><p>{needs}</p></section>}
+      {startAction && <section className="np-guide-block" data-testid="activity-start-action"><h4>Before you begin</h4><p>{startAction}</p></section>}
+      {needsText && <section className="np-guide-block"><h4>What You'll Need</h4><p>{needsText}</p></section>}
 
       {closed ? (
         <section className="np-practice-stage" data-testid="practice-closed-review">
           <p className="np-practice-chip" role="status" data-testid="status-practice-closed">{activity.status === "skipped" ? "Closed" : "Completed"} · review only</p>
           {steps.length > 0 && <ol>{steps.map((text, index) => <li key={index}>{text}</li>)}</ol>}
+          {ending && <p><strong>Finish:</strong> {ending}</p>}
+          {ifDifficult && <div className="np-practice-difficult"><h5><Hand size={16} aria-hidden="true" /> If it becomes difficult</h5><p>{ifDifficult}</p></div>}
           <div className="np-practice-controls"><button type="button" className="primary" onClick={onExit} data-testid="button-back-closed-practice">Back to Practice</button></div>
         </section>
       ) : !finished ? (
@@ -128,10 +164,11 @@ export function ActivityGuide({ feedbackVisibility, activity, childName, assigne
             <p ref={presentation ? instructionRef : undefined} tabIndex={presentation ? -1 : undefined}
               aria-describedby={presentation ? `${guideId}-count` : undefined} className="np-guide-step" data-testid="text-current-step">{steps[step]}</p>
           </> : <p ref={presentation ? instructionRef : undefined} tabIndex={presentation ? -1 : undefined}>No steps were included with this activity. You can exit without trying it.</p>}
-          {activity.ifDifficult && (presentation
+          {ending && step === steps.length - 1 && <section className="np-guide-block" data-testid="activity-ending"><h4>When to finish</h4><p>{ending}</p></section>}
+          {ifDifficult && (presentation
             // Parent Practice keeps difficulty/safety guidance always visible, never collapsed.
-            ? <div className="np-practice-difficult" data-testid="details-if-difficult"><h5><Hand size={16} aria-hidden="true" /> If it becomes difficult</h5><p>{activity.ifDifficult}</p></div>
-            : <details className="np-why" data-testid="details-if-difficult"><summary>If it becomes difficult</summary><p>{activity.ifDifficult}</p></details>)}
+            ? <div className="np-practice-difficult" data-testid="details-if-difficult"><h5><Hand size={16} aria-hidden="true" /> If it becomes difficult</h5><p>{ifDifficult}</p></div>
+            : <details className="np-why" data-testid="details-if-difficult"><summary>If it becomes difficult</summary><p>{ifDifficult}</p></details>)}
           <div className="np-practice-controls">
             {step > 0 && <button type="button" onClick={() => go(step - 1)} data-testid="button-step-back">Back</button>}
             {steps.length > 0 && step < steps.length - 1
@@ -158,6 +195,7 @@ export function ActivityGuide({ feedbackVisibility, activity, childName, assigne
       )}
       {error && <ErrorBox error={error} />}
       {why && <details className="np-why" data-testid="details-why"><summary>Why this helps</summary><p>{why}</p></details>}
+      <ActivityResearchNotes activity={activity} />
       {onHistory && !preview && <div className="np-practice-controls"><button type="button" onClick={onHistory}>Practice history</button></div>}
     </article>
   );
@@ -277,7 +315,7 @@ export default function PracticePage({ childId, childName = "your child", action
   }
 
   if (activeAction) {
-    const count = activeAction.steps?.length ?? 0;
+    const count = practiceStepsFor(activeAction).length;
     const position = dailyPosition(activeAction);
     const closed = isClosedAction(activeAction);
     const progress = (index, done) => {
