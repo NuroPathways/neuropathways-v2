@@ -32,13 +32,19 @@ const supportArea = {
   sourceDocumentIds: ["doc-1"],
 };
 
-function suggest(records: any[], supportAreas = [supportArea], existingActivities: any[] = []) {
+function suggest(
+  records: any[],
+  supportAreas = [supportArea],
+  existingActivities: any[] = [],
+  familyPreferences: Record<string, string[]> = {},
+) {
   return buildParentDocumentActivitySuggestions({
     childId,
     records,
     library: careTeamActivityLibrary(),
     supportAreas,
     existingActivities,
+    familyPreferences,
   });
 }
 
@@ -52,6 +58,9 @@ test("matches an existing low-risk activity to verified familiar skills and a re
   assert.equal(match.sourceEvidence[0].sourceExcerpt, record().sourceExcerpt);
   assert.match(match.riskClassification, /not clinician-approved|general educational/i);
   assert.ok(match.steps.length >= 2);
+  assert.ok(match.startAction);
+  assert.ok(match.ending);
+  assert.equal(match.matchSource, "documents");
 });
 
 test("does not turn an inferred concern or goal alone into an activity", () => {
@@ -74,6 +83,46 @@ test("does not turn an inferred concern or goal alone into an activity", () => {
   });
   assert.deepEqual(suggest([concernOnly]), []);
   assert.deepEqual(suggest([goalOnly]), []);
+});
+
+test("matches family-selected activities and communication methods even without uploaded documents", () => {
+  const result = suggest([], [], [], {
+    favoriteActivities: ["jigsaw puzzles"],
+    communicationMethods: ["AAC device"],
+  });
+  const puzzle = result.find((item) => item.id === "library:puzzle-together");
+  const aac = result.find((item) => item.id === "library:familiar-aac-choice");
+
+  assert.ok(puzzle);
+  assert.equal(puzzle.matchSource, "family_preferences");
+  assert.deepEqual(puzzle.sourceEvidence, []);
+  assert.deepEqual(puzzle.matchedPreferences, ["jigsaw puzzles"]);
+  assert.ok(aac);
+  assert.equal(aac.matchSource, "family_preferences");
+  assert.ok(aac.startAction);
+  assert.ok(aac.ending);
+});
+
+test("relates a matched activity to a goal only when a documented child interest also fits", () => {
+  const result = suggest([
+    record({
+      id: "goal-turns",
+      category: "goal",
+      sourceSection: "Goals",
+      sourceExcerpt: "Offer optional short turns with a familiar toy.",
+      interpretation: { title: "Optional turns with a familiar toy", skill_domain: "social_play" },
+    }),
+    record({
+      id: "interest-toy",
+      sourceExcerpt: "The child enjoys playing with a familiar toy car.",
+      interpretation: { field: "interests", value: "toy car" },
+    }),
+  ]);
+  const match = result.find((item) => item.id === "library:take-turns-with-familiar-toy");
+  assert.ok(match);
+  assert.equal(match.relatedGoal, "Optional turns with a familiar toy");
+  assert.ok(match.sourceEvidence.some((item) => item.recordId === "goal-turns"));
+  assert.ok(match.sourceEvidence.some((item) => item.recordId === "interest-toy"));
 });
 
 test("filters unsafe safety-sensitive matches, unverified evidence, and duplicate daily activities", () => {

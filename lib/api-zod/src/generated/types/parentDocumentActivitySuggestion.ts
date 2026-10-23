@@ -5,21 +5,32 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ParentActivityEvidenceReference } from './parentActivityEvidenceReference';
 import type { ParentDocumentActivitySourceEvidence } from './parentDocumentActivitySourceEvidence';
+import type { ParentDocumentActivitySuggestionMatchSource } from './parentDocumentActivitySuggestionMatchSource';
 
 export interface ParentDocumentActivitySuggestion {
   id: string;
   title: string;
   description: string;
+  category: string;
   skill: string;
   /** @nullable */
   estimatedMinutes: number | null;
   materials: string[];
+  startAction: string;
   steps: string[];
+  ending: string;
+  ifDifficult: string;
+  /** @nullable */
+  relatedGoal: string | null;
   pauseConditions: string[];
   matchReasons: string[];
+  matchSource: ParentDocumentActivitySuggestionMatchSource;
+  matchedPreferences: string[];
   riskClassification: string;
   sourceEvidence: ParentDocumentActivitySourceEvidence[];
   relatedSupportAreas: string[];
   researchLimitations: string[];
+  researchReferences: ParentActivityEvidenceReference[];
 }

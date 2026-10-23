@@ -264,6 +264,7 @@ export function careTeamActivityLibrary() {
     id: activity.id, childId: "", libraryId: activity.id, goalId: null, goalTitle: null,
     title: activity.title, description: activity.description, skill: activity.skill,
     estimatedMinutes: activity.estimatedMinutes, materials: activity.materials, steps: activity.steps,
+    startAction: activity.startAction, ending: activity.ending,
     whyItMayHelp: "", ifDifficult: activity.ifDifficult, notes: "", schedule: "",
     status: "published" as const, version: 1, source: "NeuroPathways starter library",
     currentStep: 0, bookmarked: false,

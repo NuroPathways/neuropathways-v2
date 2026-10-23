@@ -2176,6 +2176,8 @@ components:
           type: string
         description:
           type: string
+        category:
+          type: string
         skill:
           type: string
         estimatedMinutes:
@@ -2184,15 +2186,30 @@ components:
           type: array
           items:
             type: string
+        startAction:
+          type: string
         steps:
           type: array
           items:
             type: string
+        ending:
+          type: string
+        ifDifficult:
+          type: string
+        relatedGoal:
+          type: [string, "null"]
         pauseConditions:
           type: array
           items:
             type: string
         matchReasons:
+          type: array
+          items:
+            type: string
+        matchSource:
+          type: string
+          enum: [documents, family_preferences, documents_and_preferences]
+        matchedPreferences:
           type: array
           items:
             type: string
@@ -2210,7 +2227,11 @@ components:
           type: array
           items:
             type: string
-      required: [id, title, description, skill, estimatedMinutes, materials, steps, pauseConditions, matchReasons, riskClassification, sourceEvidence, relatedSupportAreas, researchLimitations]
+        researchReferences:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentActivityEvidenceReference"
+      required: [id, title, description, category, skill, estimatedMinutes, materials, startAction, steps, ending, ifDifficult, relatedGoal, pauseConditions, matchReasons, matchSource, matchedPreferences, riskClassification, sourceEvidence, relatedSupportAreas, researchReferences, researchLimitations]
     ParentActivityEvidenceReference:
       type: object
       required: [key, title, url, publishedYear, evidenceType, designImplication, limitation]

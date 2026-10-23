@@ -23,11 +23,21 @@ type ActivityLibraryItem = {
   skillDomain?: string;
   estimatedMinutes?: number | null;
   materials?: string | string[];
+  startAction?: string;
   steps?: string[];
+  ending?: string;
   ifDifficult?: string;
   riskTier?: string;
   evidenceReferences?: unknown[];
   [key: string]: unknown;
+};
+
+export type ParentFamilyActivityPreferences = {
+  favoriteActivities?: string[];
+  favoriteThings?: string[];
+  communicationMethods?: string[];
+  comfortSensoryPreferences?: string[];
+  dislikes?: string[];
 };
 
 type ExistingAssignment = {
@@ -89,6 +99,8 @@ export type ActivityRecommendation = {
   matchReasons: string[];
   missingInformation: string[];
   relatedGoal: string | null;
+  matchSource?: "documents" | "family_preferences" | "documents_and_preferences";
+  matchedPreferences?: string[];
   riskClassification: string;
   evidence: ActivityRecommendationEvidence[];
   sourceClassification: "document_candidate" | "clinician_reviewed_document" | "research_informed_general_starter";
@@ -105,15 +117,23 @@ export type ParentDocumentActivitySuggestion = {
   id: string;
   title: string;
   description: string;
+  category: string;
   skill: string;
   estimatedMinutes: number | null;
   materials: string[];
+  startAction: string;
   steps: string[];
+  ending: string;
+  ifDifficult: string;
+  relatedGoal: string | null;
   pauseConditions: string[];
   matchReasons: string[];
+  matchSource: "documents" | "family_preferences" | "documents_and_preferences";
+  matchedPreferences: string[];
   riskClassification: string;
   sourceEvidence: ActivityRecommendationEvidence[];
   relatedSupportAreas: string[];
+  researchReferences: unknown[];
   researchLimitations: string[];
 };
 
@@ -203,7 +223,7 @@ function profileRecords(records: EvidenceRecord[], field: string): EvidenceRecor
 }
 
 function interestsFrom(records: EvidenceRecord[]): string[] {
-  return profileRecords(records, "interests")
+  return [...profileRecords(records, "interests"), ...profileRecords(records, "preferences")]
     .flatMap((record) => text(record.interpretation.value).split(/\s*(?:,|;|\band\b|\n)\s*/i))
     .map((item) => item.trim())
     .filter((item) => item && !GENERIC_INTEREST_WORDS.has(normalized(item)));
@@ -233,10 +253,37 @@ function signalEvidence(records: EvidenceRecord[], predicate: (value: string, re
   });
 }
 
-function explicitTemplateSignals(activityId: string, records: EvidenceRecord[]): {
+type ExplicitTemplateMatch = {
   evidence: EvidenceRecord[];
   reasons: string[];
-} | null {
+  matchedPreferences: string[];
+};
+type ExplicitTemplateRuleResult = Omit<ExplicitTemplateMatch, "matchedPreferences"> & {
+  matchedPreferences?: string[];
+};
+
+function preferenceTokens(value: string): string[] {
+  const stopWords = new Set(["a", "an", "the", "and", "or", "not", "does", "dont", "doesnt", "dislike", "dislikes", "avoid", "avoids", "prefer", "prefers", "favorite", "favourite", "likes", "like", "with", "for"]);
+  return normalized(value).split(" ")
+    .map((word) => word.replace(/s$/, ""))
+    .filter((word) => word.length >= 4 && !stopWords.has(word));
+}
+
+function uniqueTexts(values: string[]): string[] {
+  const seen = new Set<string>();
+  return values.map((value) => text(value).slice(0, 100)).filter((value) => {
+    const key = normalized(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 8);
+}
+
+function explicitTemplateSignals(
+  activityId: string,
+  records: EvidenceRecord[],
+  familyPreferences: ParentFamilyActivityPreferences = {},
+): ExplicitTemplateMatch | null {
   const interests = interestsFrom(records);
   const interestText = interests.join(" ");
   const comm = [
@@ -244,7 +291,28 @@ function explicitTemplateSignals(activityId: string, records: EvidenceRecord[]):
     ...profileRecords(records, "aac_method"),
   ];
   const strategies = records.filter((record) => record.category === "support_strategy");
-  const rules: Record<string, () => { evidence: EvidenceRecord[]; reasons: string[] } | null> = {
+  const favoriteValues = uniqueTexts([
+    ...list(familyPreferences.favoriteActivities),
+    ...list(familyPreferences.favoriteThings),
+  ]);
+  const communicationValues = uniqueTexts(list(familyPreferences.communicationMethods));
+  const comfortValues = uniqueTexts(list(familyPreferences.comfortSensoryPreferences));
+  const dislikes = uniqueTexts(list(familyPreferences.dislikes));
+  const dislikedTokens = new Set(dislikes.flatMap(preferenceTokens));
+  const familyInterests = favoriteValues.filter((value) =>
+    !preferenceTokens(value).some((token) => dislikedTokens.has(token)),
+  );
+  const familyCommunication = communicationValues.filter((value) =>
+    !preferenceTokens(value).some((token) => dislikedTokens.has(token)),
+  );
+  const familyComfort = comfortValues.filter((value) =>
+    !preferenceTokens(value).some((token) => dislikedTokens.has(token)),
+  );
+  const preferencesMatching = (values: string[], pattern: RegExp) => values.filter((value) => pattern.test(value));
+  const documentInterestEvidence = (pattern: RegExp) => profileRecords(records, "interests")
+    .concat(profileRecords(records, "preferences"))
+    .filter((record) => pattern.test(`${text(record.interpretation.value)} ${text(record.interpretation.details)}`));
+  const rules: Record<string, () => ExplicitTemplateRuleResult | null> = {
     "familiar-aac-choice": () => {
       const aac = profileRecords(records, "aac_method");
       const communication = profileRecords(records, "communication_preferences")
@@ -252,8 +320,15 @@ function explicitTemplateSignals(activityId: string, records: EvidenceRecord[]):
           `${text(record.interpretation.value)} ${text(record.interpretation.details)}`,
         ));
       const evidence = [...aac, ...communication];
-      return evidence.length
-        ? { evidence, reasons: ["The child's existing AAC method is explicitly documented."] }
+      const preferenceMatches = preferencesMatching(familyCommunication, /\b(?:aac|augmentative|communication device|communication board|picture exchange|picture card)\b/i);
+      return evidence.length || preferenceMatches.length
+        ? {
+            evidence,
+            matchedPreferences: preferenceMatches,
+            reasons: [evidence.length
+              ? "The child's existing AAC method is explicitly documented."
+              : "The family recorded an existing AAC or picture-based communication method."],
+          }
         : null;
     },
     "familiar-help-signal": () => {
@@ -262,20 +337,72 @@ function explicitTemplateSignals(activityId: string, records: EvidenceRecord[]):
           `${text(record.interpretation.value)} ${text(record.interpretation.details)} ${text(record.sourceExcerpt)}`,
         ),
       );
-      return helpSignal.length
-        ? { evidence: helpSignal, reasons: ["The source explicitly describes a familiar way to ask for help, a break, or more."] }
+      const preferenceMatches = preferencesMatching(familyCommunication, /\b(?:help|break|request|signal|more|aac|gesture|button)\b/i);
+      return helpSignal.length || preferenceMatches.length
+        ? {
+            evidence: helpSignal,
+            matchedPreferences: preferenceMatches,
+            reasons: [helpSignal.length
+              ? "The source explicitly describes a familiar way to ask for help, a break, or more."
+              : "The family recorded a communication method used for help, breaks, or requests."],
+          }
         : null;
     },
-    "choose-between-familiar-activities": () => interests.length >= 2
+    "choose-between-familiar-activities": () => interests.length >= 2 || familyInterests.length >= 2
       ? {
-          evidence: profileRecords(records, "interests"),
-          reasons: ["At least two child interests are explicitly documented; the options still need clinician/family confirmation as familiar and currently welcome."],
+          evidence: [...profileRecords(records, "interests"), ...profileRecords(records, "preferences")],
+          matchedPreferences: familyInterests,
+          reasons: [interests.length >= 2
+            ? "At least two interests are explicitly recorded in the child's documents; confirm both options are available and currently welcome."
+            : "The family saved at least two favorite activities or items; confirm both options are available and currently welcome."],
         }
       : null,
+    "puzzle-together": () => {
+      const pattern = /\b(?:puzzle|jigsaw)\b/i;
+      const evidence = documentInterestEvidence(pattern);
+      const preferenceMatches = preferencesMatching(familyInterests, pattern);
+      return evidence.length || preferenceMatches.length
+        ? {
+            evidence,
+            matchedPreferences: preferenceMatches,
+            reasons: [evidence.length
+              ? "A documented child interest mentions puzzles."
+              : "A family-selected favorite mentions puzzles; confirm it is still welcome."],
+          }
+        : null;
+    },
+    "matching-pairs": () => {
+      const pattern = /\b(?:matching|match game|matching game|pairs|memory cards?)\b/i;
+      const evidence = documentInterestEvidence(pattern);
+      const preferenceMatches = preferencesMatching(familyInterests, pattern);
+      return evidence.length || preferenceMatches.length
+        ? {
+            evidence,
+            matchedPreferences: preferenceMatches,
+            reasons: [evidence.length
+              ? "A documented child interest mentions matching games or cards."
+              : "A family-selected favorite mentions matching games or cards; confirm it is still welcome."],
+          }
+        : null;
+    },
     "build-together": () => /\b(?:blocks?|building|construction|lego|magnetic tiles)\b/i.test(interestText)
       ? {
-          evidence: profileRecords(records, "interests"),
-          reasons: ["A documented interest specifically matches building materials."],
+          evidence: documentInterestEvidence(/\b(?:blocks?|building|construction|lego|magnetic tiles)\b/i),
+          matchedPreferences: preferencesMatching(familyInterests, /\b(?:blocks?|building|construction|lego|magnetic tiles)\b/i),
+          reasons: ["A documented interest specifically matches familiar building materials."],
+        }
+      : preferencesMatching(familyInterests, /\b(?:blocks?|building|construction|lego|magnetic tiles)\b/i).length
+        ? {
+            evidence: [],
+            matchedPreferences: preferencesMatching(familyInterests, /\b(?:blocks?|building|construction|lego|magnetic tiles)\b/i),
+            reasons: ["A family-selected favorite specifically matches familiar building materials."],
+          }
+        : null,
+    "child-led-play": () => interests.length || familyInterests.length
+      ? {
+          evidence: [...profileRecords(records, "interests"), ...profileRecords(records, "preferences")],
+          matchedPreferences: familyInterests,
+          reasons: ["A familiar activity or item is explicitly documented or saved by the family; follow the child's lead."],
         }
       : null,
     "what-happens-next": () => {
@@ -290,13 +417,33 @@ function explicitTemplateSignals(activityId: string, records: EvidenceRecord[]):
           /\b(?:familiar|accepted|already uses|already used)\b/i.test(value);
       });
       const evidence = [...visualProfile, ...visualStrategy];
-      return evidence.length
-        ? { evidence, reasons: ["The source documents a familiar or accepted visual cue for a routine."] }
+      const preferenceMatches = preferencesMatching(
+        [...familyCommunication, ...familyComfort],
+        /\b(?:visual schedule|picture sequence|visual cue|picture schedule)\b/i,
+      );
+      return evidence.length || preferenceMatches.length
+        ? {
+            evidence,
+            matchedPreferences: preferenceMatches,
+            reasons: [evidence.length
+              ? "The source documents a familiar or accepted visual cue for a routine."
+              : "The family recorded a familiar visual or picture-based routine cue."],
+          }
         : null;
     },
     "review-familiar-morning-routine": () => {
       const routine = signalEvidence(records, (value) => /\bmorning routine\b/i.test(value));
-      return routine.length ? { evidence: routine, reasons: ["A morning routine is explicitly documented."] } : null;
+      const preferenceMatches = preferencesMatching(
+        [...familyInterests, ...familyComfort],
+        /\b(?:morning routine|getting ready|before school)\b/i,
+      );
+      return routine.length || preferenceMatches.length
+        ? {
+            evidence: routine,
+            matchedPreferences: preferenceMatches,
+            reasons: [routine.length ? "A morning routine is explicitly documented." : "The family described a familiar morning routine."],
+          }
+        : null;
     },
     "one-small-routine-step": () => {
       const routine = strategies.filter((record) =>
@@ -306,12 +453,46 @@ function explicitTemplateSignals(activityId: string, records: EvidenceRecord[]):
       );
       const dailyLivingGoals = goalDomainMatches(records, "daily_living");
       return routine.length && dailyLivingGoals.length
-        ? { evidence: [...routine, ...dailyLivingGoals], reasons: ["A source documents both a daily-living goal and a specific routine context."] }
+        ? {
+            evidence: [...routine, ...dailyLivingGoals],
+            matchedPreferences: [],
+            reasons: ["A source documents both a daily-living goal and a specific routine context."],
+          }
+        : null;
+    },
+    "familiar-coping-choice-card": () => {
+      const familiarStrategies = strategies.filter((record) => {
+        const i = record.interpretation;
+        const textValue = [
+          text(i.applies_to), text(i.strategy), text(i.context), text(i.communication_support),
+          ...list(i.materials), ...list(i.preconditions), ...list(i.limitations),
+        ].join(" ");
+        return /\b(?:coping|calm|comfort|regulation|break)\b/i.test(textValue) &&
+          /\b(?:familiar|already uses|already used|accepted|known|available)\b/i.test(textValue);
+      });
+      const familySupports = preferencesMatching(
+        [...familyComfort, ...familyCommunication],
+        /\b(?:familiar coping|known coping|calm choice|comfort item already used|familiar break)\b/i,
+      );
+      return familiarStrategies.length || familySupports.length
+        ? {
+            evidence: familiarStrategies,
+            matchedPreferences: familySupports,
+            reasons: [familiarStrategies.length
+              ? "A source names an already-familiar, accepted coping support; the activity only reviews existing options."
+              : "The family recorded an already-familiar coping or comfort option; no new strategy is introduced."],
+          }
         : null;
     },
     "pause-and-notice-communication": () => comm.length
-      ? { evidence: comm, reasons: ["The child's communication method or preference is explicitly documented."] }
-      : null,
+      ? { evidence: comm, matchedPreferences: [], reasons: ["The child's communication method or preference is explicitly documented."] }
+      : familyCommunication.length
+        ? {
+            evidence: [],
+            matchedPreferences: familyCommunication,
+            reasons: ["The family recorded a communication method or preference to keep available."],
+          }
+        : null,
     "request-more-during-play": () => {
       const continueSignal = comm.filter((record) =>
         /\b(?:more|continue|again|finished|all done)\b/i.test(
@@ -323,8 +504,15 @@ function explicitTemplateSignals(activityId: string, records: EvidenceRecord[]):
           `${text(record.interpretation.value)} ${text(record.interpretation.details)}`,
         ),
       );
-      return continueSignal.length && playInterest.length
-        ? { evidence: [...continueSignal, ...playInterest], reasons: ["The source documents both a familiar way to communicate continuing/finished and an activity interest."] }
+      const familyContinueSignal = preferencesMatching(familyCommunication, /\b(?:more|continue|again|finished|all done)\b/i);
+      const familyPlayInterest = preferencesMatching(familyInterests, /\b(?:play|toy|game|blocks?|building|train|music|drawing|puzzle)\b/i);
+      return (continueSignal.length || familyContinueSignal.length) &&
+        (playInterest.length || familyPlayInterest.length)
+        ? {
+            evidence: [...continueSignal, ...playInterest],
+            matchedPreferences: [...familyContinueSignal, ...familyPlayInterest],
+            reasons: ["A familiar play interest and a way to communicate continuing or being finished are available; do not pause or withhold the activity to prompt a request."],
+          }
         : null;
     },
     "take-turns-with-familiar-toy": () => {
@@ -334,12 +522,24 @@ function explicitTemplateSignals(activityId: string, records: EvidenceRecord[]):
           `${text(record.interpretation.value)} ${text(record.interpretation.details)}`,
         ),
       );
-      return playGoal.length && playInterest.length
-        ? { evidence: [...playGoal, ...playInterest], reasons: ["A social-play goal and a matching documented play interest are both present."] }
+      const familyPlayInterest = preferencesMatching(familyInterests, /\b(?:toy|game|blocks?|building|train|puzzle)\b/i);
+      return playGoal.length && (playInterest.length || familyPlayInterest.length)
+        ? {
+            evidence: [...playGoal, ...playInterest],
+            matchedPreferences: familyPlayInterest,
+            reasons: ["A social-play goal and a matching documented or family-selected play interest are both present."],
+          }
         : null;
     },
   };
-  return rules[activityId]?.() || null;
+  const matched = rules[activityId]?.() || null;
+  if (!matched) return null;
+  const matchedPreferences = uniqueTexts(matched.matchedPreferences || []);
+  return {
+    evidence: matched.evidence,
+    reasons: matched.reasons,
+    matchedPreferences,
+  };
 }
 
 function hasUnsafeInstruction(value: string): boolean {
@@ -472,6 +672,7 @@ export function buildChildActivityRecommendations(input: {
   library: ActivityLibraryItem[];
   existingAssignments?: ExistingAssignment[];
   approvedDocumentActivities?: ApprovedDocumentActivity[];
+  familyPreferences?: ParentFamilyActivityPreferences;
 }): ActivityRecommendationResult {
   const records = usableRecords(input.childId, input.records);
   const safetyEvidence = uniqueEvidence(input.records.filter((record) =>
@@ -523,13 +724,43 @@ export function buildChildActivityRecommendations(input: {
 
   for (const activity of input.library) {
     if (activity.riskTier !== "low" || assignedLibraryIds.has(activity.id) || assignedTitles.has(normalized(activity.title))) continue;
-    const matched = explicitTemplateSignals(activity.id, records);
+    const matched = explicitTemplateSignals(activity.id, records, input.familyPreferences);
     if (!matched) continue;
     const safetyText = safetyEvidence.map((evidence) => evidence.sourceExcerpt).join(" ");
     const content = `${activity.title} ${activity.description} ${activity.skill} ${list(activity.steps).join(" ")}`;
     if (hasUnsafeInstruction(content)) continue;
     const evidence = uniqueEvidence(matched.evidence);
-    if (!evidence.length) continue;
+    if (!evidence.length && !matched.matchedPreferences.length) continue;
+    const matchedInterests = uniqueTexts([
+      ...matched.matchedPreferences,
+      ...interestsFrom(matched.evidence),
+    ]);
+    const dislikedTokens = new Set(list(input.familyPreferences?.dislikes).flatMap(preferenceTokens));
+    if (matchedInterests.some((interest) =>
+      preferenceTokens(interest).some((token) => dislikedTokens.has(token)),
+    )) continue;
+    const matchSource = evidence.length
+      ? matched.matchedPreferences.length ? "documents_and_preferences" as const : "documents" as const
+      : "family_preferences" as const;
+    const relatedGoalRecord = matched.evidence.find((record) => record.category === "goal");
+    const relatedGoal = relatedGoalRecord
+      ? text(relatedGoalRecord.interpretation.title) ||
+        text(relatedGoalRecord.interpretation.goal_title) ||
+        text(relatedGoalRecord.interpretation.goal)
+      : null;
+    const baseMaterials = typeof activity.materials === "string" ? [activity.materials] : list(activity.materials);
+    let materials = baseMaterials;
+    if (activity.id === "choose-between-familiar-activities" && matchedInterests.length >= 2) {
+      materials = [`Two options to consider: ${matchedInterests.slice(0, 2).join(" and ")}. Confirm both are available, safe, and currently welcome.`];
+    } else if (activity.id === "puzzle-together" && matchedInterests.length) {
+      materials = [`A familiar puzzle related to ${matchedInterests[0]}; confirm it is currently welcome and appropriate.`];
+    } else if (activity.id === "matching-pairs" && matchedInterests.length) {
+      materials = [`A familiar matching game or cards related to ${matchedInterests[0]}; confirm it is currently welcome and appropriate.`];
+    } else if (activity.id === "build-together" && matchedInterests.length) {
+      materials = [`Familiar, safe building materials related to ${matchedInterests[0]}; let the child choose whether to use them.`];
+    } else if (activity.id === "child-led-play" && matchedInterests.length) {
+      materials = [`A familiar activity or item listed as ${matchedInterests[0]}; confirm it is available, safe, and currently welcome.`];
+    }
     const key = `library:${activity.id}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -542,17 +773,19 @@ export function buildChildActivityRecommendations(input: {
       skill: activity.skill,
       skillDomain: activity.skillDomain,
       estimatedMinutes: typeof activity.estimatedMinutes === "number" ? activity.estimatedMinutes : null,
-      materials: typeof activity.materials === "string" ? [activity.materials] : list(activity.materials),
-      startAction: "",
+      materials,
+      startAction: text(activity.startAction),
       steps: list(activity.steps),
-      ending: "",
+      ending: text(activity.ending),
       pauseConditions: activity.ifDifficult ? [activity.ifDifficult] : [],
       matchReasons: matched.reasons,
       missingInformation: [],
-      relatedGoal: null,
+      relatedGoal,
+      matchSource,
+      matchedPreferences: matched.matchedPreferences,
       riskClassification: safetyEvidence.length
         ? "Low-risk starter; child-specific safety review required"
-        : "Low-risk starter; clinician must confirm current fit",
+        : "General starter; confirm current fit, familiarity, and safety",
       evidence,
       sourceClassification: "research_informed_general_starter",
       researchReferences: Array.isArray(activity.evidenceReferences) ? activity.evidenceReferences : [],
@@ -578,6 +811,7 @@ export function buildParentDocumentActivitySuggestions(input: {
   library: ActivityLibraryItem[];
   supportAreas?: ParentSupportAreaForActivityMatch[];
   existingActivities?: ExistingAssignment[];
+  familyPreferences?: ParentFamilyActivityPreferences;
 }): ParentDocumentActivitySuggestion[] {
   const { recommendations } = buildChildActivityRecommendations({
     childId: input.childId,
@@ -585,6 +819,7 @@ export function buildParentDocumentActivitySuggestions(input: {
     records: input.records,
     library: input.library,
     existingAssignments: input.existingActivities,
+    familyPreferences: input.familyPreferences,
   });
   return recommendations.flatMap((recommendation) => {
     if (
@@ -615,19 +850,35 @@ export function buildParentDocumentActivitySuggestions(input: {
       const limitation = text((reference as Record<string, unknown>).limitation);
       return limitation ? [limitation] : [];
     }).filter((limitation, index, all) => all.indexOf(limitation) === index).slice(0, 4);
+    const categoryByDomain: Record<string, string> = {
+      communication: "Communication",
+      social_play: "Playing Together",
+      transitions: "Transitions",
+      daily_living: "Daily Routines",
+      coping: "Calm & Coping",
+      parent_preparation: "Parent Preparation",
+    };
     return [{
       id: recommendation.id,
       title: recommendation.title,
       description: recommendation.description,
+      category: categoryByDomain[recommendation.skillDomain || ""] || recommendation.skill,
       skill: recommendation.skill,
       estimatedMinutes: recommendation.estimatedMinutes,
       materials: recommendation.materials,
+      startAction: recommendation.startAction,
       steps: recommendation.steps,
+      ending: recommendation.ending,
+      ifDifficult: recommendation.pauseConditions.join(" "),
+      relatedGoal: recommendation.relatedGoal,
       pauseConditions: recommendation.pauseConditions,
       matchReasons: recommendation.matchReasons,
+      matchSource: recommendation.matchSource || "documents",
+      matchedPreferences: recommendation.matchedPreferences || [],
       riskClassification: "General educational idea; check that it is familiar, welcome, and safe for your child.",
       sourceEvidence: recommendation.evidence,
       relatedSupportAreas,
+      researchReferences: recommendation.researchReferences,
       researchLimitations,
     }];
   }).slice(0, MAX_RECOMMENDATIONS);

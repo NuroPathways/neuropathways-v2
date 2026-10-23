@@ -121,6 +121,7 @@ import {
 } from "./parentDailyActions";
 import {
   buildParentDocumentActivitySuggestions,
+  type ParentFamilyActivityPreferences,
   type ParentDocumentActivitySuggestion,
 } from "./activityMatching";
 
@@ -1931,17 +1932,17 @@ export async function getParentDocumentActivitySuggestions(
   parentId: string,
   childId: string,
   existingActions: Array<{ title: string; status?: string }> = [],
+  familyPreferences: ParentFamilyActivityPreferences = {},
 ): Promise<ParentDocumentActivitySuggestion[]> {
   const context = await parentDocumentConcernContext(parentId, childId);
-  if (!context.rows.length) return [];
   const sourcesById = new Map(context.currentSources.map((source) => [source.documentId, source]));
   const documentIds = [...sourcesById.keys()];
-  if (!documentIds.length) return [];
-
-  const runs = await db.select().from(documentExtractionRunsTable).where(and(
-    eq(documentExtractionRunsTable.childId, childId),
-    inArray(documentExtractionRunsTable.documentId, documentIds),
-  ));
+  const runs = documentIds.length
+    ? await db.select().from(documentExtractionRunsTable).where(and(
+        eq(documentExtractionRunsTable.childId, childId),
+        inArray(documentExtractionRunsTable.documentId, documentIds),
+      ))
+    : [];
   const records = runs.flatMap((run) => {
     const source = sourcesById.get(run.documentId);
     if (!source || source.documentVersion !== run.documentVersion || !Array.isArray(run.records)) return [];
@@ -1966,6 +1967,7 @@ export async function getParentDocumentActivitySuggestions(
     records,
     library: careTeamActivityLibrary(),
     existingActivities,
+    familyPreferences,
     supportAreas: context.cards.map((card) => ({
       name: card.displayName,
       description: card.description,

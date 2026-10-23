@@ -108,6 +108,87 @@ test("a goal alone never creates a personalized starter activity", () => {
   assert.deepEqual(result.recommendations, []);
 });
 
+test("matches explicit family interests and communication preferences without inventing document evidence", () => {
+  const result = match([], [libraryItem("puzzle-together"), libraryItem("familiar-aac-choice")], {
+    familyPreferences: {
+      favoriteActivities: ["jigsaw puzzles"],
+      communicationMethods: ["AAC device"],
+    },
+  });
+
+  assert.deepEqual(result.recommendations.map((item) => item.id), [
+    "library:familiar-aac-choice",
+    "library:puzzle-together",
+  ]);
+  assert.equal(result.recommendations[0].matchSource, "family_preferences");
+  assert.deepEqual(result.recommendations[0].evidence, []);
+  assert.deepEqual(result.recommendations[1].matchedPreferences, ["jigsaw puzzles"]);
+});
+
+test("links an activity to the exact goal only when a separate child interest also supports the match", () => {
+  const result = match([
+    record({
+      id: "goal-turns",
+      category: "goal",
+      sourceSection: "Goals",
+      sourceExcerpt: "Offer optional short turns with a familiar toy.",
+      interpretation: { title: "Optional turns with a familiar toy", skill_domain: "social_play" },
+    }),
+    record({
+      id: "interest-toy",
+      sourceExcerpt: "The child enjoys playing with a familiar toy car.",
+      interpretation: { field: "interests", value: "toy car" },
+    }),
+  ], [libraryItem("take-turns-with-familiar-toy")]);
+
+  assert.equal(result.recommendations[0]?.relatedGoal, "Optional turns with a familiar toy");
+  assert.deepEqual(result.recommendations[0]?.evidence.map((item) => item.recordId), ["goal-turns", "interest-toy"]);
+});
+
+test("an explicit family dislike blocks a matching favorite", () => {
+  const result = match([], [libraryItem("puzzle-together")], {
+    familyPreferences: {
+      favoriteActivities: ["jigsaw puzzles"],
+      dislikes: ["puzzles"],
+    },
+  });
+  assert.deepEqual(result.recommendations, []);
+});
+
+test("only an already familiar coping strategy can match the coping-card activity", () => {
+  const existingStrategy = record({
+    id: "strategy-calm-choice",
+    category: "support_strategy",
+    sourceExcerpt: "The child already uses and accepts a calm-choice card.",
+    interpretation: {
+      strategy: "Review the familiar calm-choice card.",
+      context: "A relaxed time, not during distress.",
+      preconditions: ["The child already uses and accepts the card."],
+    },
+  });
+  const newStrategy = record({
+    id: "strategy-new",
+    category: "support_strategy",
+    sourceExcerpt: "Try a new breathing exercise.",
+    interpretation: { strategy: "Try a new breathing exercise." },
+  });
+  assert.equal(
+    match([existingStrategy], [libraryItem("familiar-coping-choice-card")]).recommendations.length,
+    1,
+  );
+  assert.deepEqual(
+    match([newStrategy], [libraryItem("familiar-coping-choice-card")]).recommendations,
+    [],
+  );
+});
+
+test("sensory preferences alone do not invent a new activity or sensory technique", () => {
+  const result = match([], [libraryItem("familiar-coping-choice-card"), libraryItem("child-led-play")], {
+    familyPreferences: { comfortSensoryPreferences: ["prefers quiet spaces"] },
+  });
+  assert.deepEqual(result.recommendations, []);
+});
+
 test("unverified, rejected, wrong-child, and non-extracted records cannot support a match", () => {
   const base = record();
   const invalid = [

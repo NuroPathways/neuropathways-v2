@@ -361,7 +361,9 @@ export const ADDITIONAL_PARENT_ACTIVITY_TEMPLATES: NewParentActivity[] = [
     context: "Child-chosen play that can continue without making the child request access.",
     requiredInformation: ["Know the child's familiar ways of communicating more, continuing, or being finished."],
     materials: "A preferred play activity and any familiar communication aid.",
+    startAction: "Choose an activity your child already wants and keep it available.",
     steps: ["Join the activity only if welcome and keep the materials available.", "Notice any familiar signal to continue; do not pause or withhold the activity to prompt it.", "Continue when requested or stop when the child is finished."],
+    ending: "Finish when your child is done or no longer wants to continue.",
     ifDifficult: "Stop if the activity is no longer wanted; do not ask for another request."
   }),
   newActivity({
@@ -374,7 +376,9 @@ export const ADDITIONAL_PARENT_ACTIVITY_TEMPLATES: NewParentActivity[] = [
     context: "A familiar choice-making moment with the child's own current AAC system available.",
     requiredInformation: ["Confirm the AAC system and choice options are already familiar; do not add symbols or change access."],
     materials: "The child's own AAC device or board, if already used, plus familiar options.",
+    startAction: "Make sure the child's usual AAC system is available and within reach.",
     steps: ["Ensure the child can access their usual communication system.", "Offer a familiar choice and wait without prompting a particular answer.", "Accept the child's response or refusal and follow their lead."],
+    ending: "Finish after one choice or sooner if your child is done.",
     ifDifficult: "Stop offering the choice if the device, symbols, or interaction are not comfortable."
   }),
   newActivity({
@@ -387,7 +391,9 @@ export const ADDITIONAL_PARENT_ACTIVITY_TEMPLATES: NewParentActivity[] = [
     context: "A predictable, low-stakes routine where a preview cue is already familiar.",
     requiredInformation: ["The actual next step is known and the cue format is already accepted."],
     materials: "An optional familiar picture, written cue, or spoken description.",
+    startAction: "Choose one real next step and a cue your child already accepts.",
     steps: ["Name or show only the actual next routine step.", "Allow time for the child to respond, pause, or choose a different way to continue.", "Follow the current routine only when it remains appropriate."],
+    ending: "Finish after the preview; do not require the next step if it no longer fits.",
     ifDifficult: "Put the cue away if it increases stress or the next step changes."
   }),
   newActivity({
@@ -473,7 +479,9 @@ export const ADDITIONAL_PARENT_ACTIVITY_TEMPLATES: NewParentActivity[] = [
     context: "A calm, child-chosen building activity that does not require sharing or turn-taking.",
     requiredInformation: ["The materials are safe and the child currently enjoys this type of play."],
     materials: "Familiar, safe building materials chosen by the child.",
+    startAction: "Offer familiar building materials and let your child choose what to do.",
     steps: ["Place materials within easy reach and let the child choose what to build.", "Build nearby only if welcome; do not change or take apart the child's work.", "Stop or put materials away when the child is finished."],
+    ending: "Finish when your child is done; the child does not need to build a shared project.",
     ifDifficult: "Give space or stop if the child does not want someone building nearby."
   }),
   newActivity({
@@ -486,7 +494,9 @@ export const ADDITIONAL_PARENT_ACTIVITY_TEMPLATES: NewParentActivity[] = [
     context: "A calm moment when the child is interested in reviewing familiar choices.",
     requiredInformation: ["Every option is already familiar, available, and accepted; no new coping strategy is introduced."],
     materials: "Paper or an existing choice board and the child's familiar options.",
+    startAction: "Choose a calm moment and list only coping options your child already knows and accepts.",
     steps: ["Ask whether the child wants to review familiar choices.", "List or show only options the child already knows and accepts.", "Let the child change, remove, or ignore the card; it is not required during distress."],
+    ending: "Finish after reviewing the options or sooner if your child is done.",
     ifDifficult: "Put the card away if it is unwanted; do not use it to delay other support."
   }),
   newActivity({
@@ -525,7 +535,9 @@ export const ADDITIONAL_PARENT_ACTIVITY_TEMPLATES: NewParentActivity[] = [
     context: "A relaxed interaction the child already enjoys, with no response required.",
     requiredInformation: ["Know the child's familiar signals for interest, communication, and being finished."],
     materials: "A familiar shared activity; keep the child's usual communication available.",
+    startAction: "Begin a familiar activity your child enjoys and keep communication available.",
     steps: ["Join only if welcome and continue the familiar activity.", "Allow a brief pause without asking for a response or withholding anything.", "Notice any signal, including no response or being finished, and follow the child's lead."],
+    ending: "Finish when your child signals they are done or moves away.",
     ifDifficult: "Stop the interaction if the child declines or moves away."
   }),
   newActivity({
@@ -538,7 +550,9 @@ export const ADDITIONAL_PARENT_ACTIVITY_TEMPLATES: NewParentActivity[] = [
     context: "A familiar toy the child has chosen, during calm play when an adult turn is welcome.",
     requiredInformation: ["Confirm the child currently wants the toy activity and accepts another person joining."],
     materials: "A familiar, safe toy chosen by the child.",
+    startAction: "Ask whether your child wants you to join their familiar toy play.",
     steps: ["Let the child decide whether another person joins.", "If welcome, offer one short turn and return the toy without requiring the child to wait.", "Stop or return to child-led play whenever the child prefers."],
+    ending: "Finish after one optional turn or whenever your child is ready.",
     ifDifficult: "Stop turn-taking if the child does not want to share the activity."
   }),
   newActivity({
@@ -551,7 +565,9 @@ export const ADDITIONAL_PARENT_ACTIVITY_TEMPLATES: NewParentActivity[] = [
     context: "A calm review of a routine the family already uses; participation and sequence can be changed or declined.",
     requiredInformation: ["The caregiver and child recognize the existing steps; confirm any health, sensory, or access needs."],
     materials: "An optional familiar list or pictures for the three existing steps.",
+    startAction: "Choose only routine steps your family already uses.",
     steps: ["Use only the three steps already in the family's routine.", "Offer to look at or talk through the steps; the child may skip or change the order.", "Do not turn the review into a demand to complete the routine."],
+    ending: "Finish after reviewing the steps or whenever your child is ready.",
     ifDifficult: "Stop the review if the cue or routine is not wanted or no longer fits."
   }),
   newActivity({

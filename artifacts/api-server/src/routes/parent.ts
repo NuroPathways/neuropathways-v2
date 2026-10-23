@@ -526,22 +526,34 @@ export async function getParentDashboardData(parentId: string, childId: string, 
       createdAt: log.createdAt,
     })),
   });
+  const [tools] = await db.select().from(parentFamilyToolsTable).where(and(
+    eq(parentFamilyToolsTable.parentId, parentId), eq(parentFamilyToolsTable.childId, childId),
+  ));
+  const preferences = (tools?.state.preferences || {}) as Record<string, unknown>;
+  const preferenceValues = (key: string) => Array.isArray(preferences[key])
+    ? [...new Set((preferences[key] as unknown[])
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim().slice(0, 100))
+        .filter(Boolean))]
+        .slice(0, 8)
+    : [];
   const documentActivitySuggestions = await getParentDocumentActivitySuggestions(
     parentId,
     childId,
     dailyActions.map((action) => ({ title: action.title, status: action.status })),
+    {
+      favoriteActivities: preferenceValues("favoriteActivities"),
+      favoriteThings: preferenceValues("favoriteThings"),
+      communicationMethods: preferenceValues("communicationMethods"),
+      comfortSensoryPreferences: preferenceValues("comfortSensoryPreferences"),
+      dislikes: preferenceValues("dislikes"),
+    },
   );
   const progressRows = await db.select().from(parentPracticeProgressTable).where(and(
     eq(parentPracticeProgressTable.parentId, parentId),
     eq(parentPracticeProgressTable.childId, childId),
   ));
   const progressByKey = new Map(progressRows.map((progress) => [progress.actionKey, progress]));
-  const [tools] = await db.select().from(parentFamilyToolsTable).where(and(
-    eq(parentFamilyToolsTable.parentId, parentId), eq(parentFamilyToolsTable.childId, childId),
-  ));
-  const preferences = (tools?.state.preferences || {}) as Record<string, unknown>;
-  const preference = (key: string) => Array.isArray(preferences[key])
-    ? (preferences[key] as unknown[]).filter((x): x is string => typeof x === "string").map(x => x.trim().slice(0, 100)).filter(Boolean).slice(0, 3).join(", ") : "";
   return {
     child: serializeParentChild(owned, owned.settings),
     supportCards,
@@ -555,12 +567,6 @@ export async function getParentDashboardData(parentId: string, childId: string, 
       return {
         ...action,
         goalId: activityGoals.find(g => action.actionKey.startsWith(`task:plan-goal-${g.id.toLowerCase().replace(/[^a-z0-9]+/g, "-")}:`))?.id ?? null,
-        description: [
-          action.description,
-          preference("favoriteActivities") ? `Your family's preferred activities: ${preference("favoriteActivities")}. Choose a safe, familiar setting; the interest itself is not treatment.` : "",
-          preference("communicationMethods") ? `Use a communication method already familiar to your child (${preference("communicationMethods")}).` : "",
-          preference("comfortSensoryPreferences") ? `Offer familiar comfort choices: ${preference("comfortSensoryPreferences")}. Respect refusal and pause if uncomfortable.` : "",
-        ].filter(Boolean).join(" "),
         currentStep: progress?.currentStep ?? 0,
         bookmarked: progress?.bookmarked ?? action.status === "saved_for_later",
       };

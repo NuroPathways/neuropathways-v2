@@ -958,6 +958,15 @@ export interface ParentDocumentSupportCard {
   sourceReferences: ParentDocumentSupportSourceReference[];
 }
 
+export type ParentDocumentActivitySuggestionMatchSource = typeof ParentDocumentActivitySuggestionMatchSource[keyof typeof ParentDocumentActivitySuggestionMatchSource];
+
+
+export const ParentDocumentActivitySuggestionMatchSource = {
+  documents: 'documents',
+  family_preferences: 'family_preferences',
+  documents_and_preferences: 'documents_and_preferences',
+} as const;
+
 export interface ParentDocumentActivitySourceEvidence {
   recordId: string;
   category: string;
@@ -971,21 +980,40 @@ export interface ParentDocumentActivitySourceEvidence {
   reviewStatus: string;
 }
 
+export interface ParentActivityEvidenceReference {
+  key: string;
+  title: string;
+  url: string;
+  publishedYear: number;
+  evidenceType: string;
+  designImplication: string;
+  limitation: string;
+}
+
 export interface ParentDocumentActivitySuggestion {
   id: string;
   title: string;
   description: string;
+  category: string;
   skill: string;
   /** @nullable */
   estimatedMinutes: number | null;
   materials: string[];
+  startAction: string;
   steps: string[];
+  ending: string;
+  ifDifficult: string;
+  /** @nullable */
+  relatedGoal: string | null;
   pauseConditions: string[];
   matchReasons: string[];
+  matchSource: ParentDocumentActivitySuggestionMatchSource;
+  matchedPreferences: string[];
   riskClassification: string;
   sourceEvidence: ParentDocumentActivitySourceEvidence[];
   relatedSupportAreas: string[];
   researchLimitations: string[];
+  researchReferences: ParentActivityEvidenceReference[];
 }
 
 export type ParentDailyActionKind = typeof ParentDailyActionKind[keyof typeof ParentDailyActionKind];
@@ -1008,16 +1036,6 @@ export const ParentDailyActionSourceType = {
   recent_log_pattern: 'recent_log_pattern',
   selected_behavior: 'selected_behavior',
 } as const;
-
-export interface ParentActivityEvidenceReference {
-  key: string;
-  title: string;
-  url: string;
-  publishedYear: number;
-  evidenceType: string;
-  designImplication: string;
-  limitation: string;
-}
 
 export interface ParentDailyActionActivityDetails {
   category: string;

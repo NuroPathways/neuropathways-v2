@@ -1807,12 +1807,19 @@ export const GetParentDashboardResponse = zod.object({
   "id": zod.string(),
   "title": zod.string(),
   "description": zod.string(),
+  "category": zod.string(),
   "skill": zod.string(),
   "estimatedMinutes": zod.number().int().nullable(),
   "materials": zod.array(zod.string()),
+  "startAction": zod.string(),
   "steps": zod.array(zod.string()),
+  "ending": zod.string(),
+  "ifDifficult": zod.string(),
+  "relatedGoal": zod.string().nullable(),
   "pauseConditions": zod.array(zod.string()),
   "matchReasons": zod.array(zod.string()),
+  "matchSource": zod.enum(['documents', 'family_preferences', 'documents_and_preferences']),
+  "matchedPreferences": zod.array(zod.string()),
   "riskClassification": zod.string(),
   "sourceEvidence": zod.array(zod.object({
   "recordId": zod.string(),
@@ -1825,7 +1832,16 @@ export const GetParentDashboardResponse = zod.object({
   "reviewStatus": zod.string()
 })),
   "relatedSupportAreas": zod.array(zod.string()),
-  "researchLimitations": zod.array(zod.string())
+  "researchLimitations": zod.array(zod.string()),
+  "researchReferences": zod.array(zod.object({
+  "key": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "publishedYear": zod.number().int(),
+  "evidenceType": zod.string(),
+  "designImplication": zod.string(),
+  "limitation": zod.string()
+}))
 })),
   "documents": zod.array(zod.object({
   "canShare": zod.boolean().optional(),
