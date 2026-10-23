@@ -108,7 +108,12 @@ import {
   getOrCreateParentDailyActions,
   getParentPlanGoals,
   normalizeParentActionDate,
+  careTeamActivityLibrary,
 } from "./parentDailyActions";
+import {
+  buildParentDocumentActivitySuggestions,
+  type ParentDocumentActivitySuggestion,
+} from "./activityMatching";
 
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 const MAX_TEXT_CHARS = 120_000;
@@ -1782,6 +1787,55 @@ export async function getParentDocumentSupportCards(
 ): Promise<ParentDocumentSupportCardWire[]> {
   const context = await parentDocumentConcernContext(parentId, childId);
   return context.cards;
+}
+
+export async function getParentDocumentActivitySuggestions(
+  parentId: string,
+  childId: string,
+  existingActions: Array<{ title: string; status?: string }> = [],
+): Promise<ParentDocumentActivitySuggestion[]> {
+  const context = await parentDocumentConcernContext(parentId, childId);
+  if (!context.rows.length) return [];
+  const sourcesById = new Map(context.currentSources.map((source) => [source.documentId, source]));
+  const documentIds = [...sourcesById.keys()];
+  if (!documentIds.length) return [];
+
+  const runs = await db.select().from(documentExtractionRunsTable).where(and(
+    eq(documentExtractionRunsTable.childId, childId),
+    inArray(documentExtractionRunsTable.documentId, documentIds),
+  ));
+  const records = runs.flatMap((run) => {
+    const source = sourcesById.get(run.documentId);
+    if (!source || source.documentVersion !== run.documentVersion || !Array.isArray(run.records)) return [];
+    return run.records.flatMap((record) => {
+      if (
+        record.childId !== childId ||
+        record.documentId !== run.documentId ||
+        record.documentVersion !== run.documentVersion
+      ) return [];
+      return [{
+        ...record,
+        documentTitle: source.title,
+      }];
+    });
+  });
+  const existingActivities = existingActions.map((action) => ({
+    title: action.title,
+    status: action.status,
+  }));
+  return buildParentDocumentActivitySuggestions({
+    childId,
+    records,
+    library: careTeamActivityLibrary(),
+    existingActivities,
+    supportAreas: context.cards.map((card) => ({
+      name: card.displayName,
+      description: card.description,
+      contexts: card.contexts,
+      observations: card.observations,
+      sourceDocumentIds: card.sourceReferences.map((reference) => reference.documentId),
+    })),
+  });
 }
 
 export async function updateParentDocumentSupportCard(

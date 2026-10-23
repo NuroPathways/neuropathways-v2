@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetParentDashboardQueryKey, logParentDailyAction, updateParentPracticeProgress } from "@workspace/api-client-react";
+import DocumentActivitySuggestions from "./DocumentActivitySuggestions";
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, errMsg } from "./common";
 import FamilyTools from "./FamilyTools";
@@ -182,7 +183,7 @@ function ActivityCard({ activity, assigned, meta, sourceLabel, onStart, onSave, 
   );
 }
 
-export default function PracticePage({ childId, childName = "your child", actions = [], child, documents = [], onOpenSteps, onAddBehavior, card, initialActionId, initialView, onGoals, onHistory, onExitRoute,
+export default function PracticePage({ childId, childName = "your child", actions = [], child, documents = [], documentActivitySuggestions = [], onOpenSteps, onAddBehavior, card, initialActionId, initialView, onGoals, onHistory, onExitRoute,
   assignedActivities = [], initialAssignmentId, hideTitle = false, feedbackVisibility, onSaveAssigned, onAssignedProgress, onRecordAssignedPractice, careError, onRetryCare }) {
   const queryClient = useQueryClient();
   const startView = initialView === "My Routines" ? "routines" : initialView === "Saved for Later" || initialView === "Saved Activities" ? "saved" : "main";
@@ -196,6 +197,11 @@ export default function PracticePage({ childId, childName = "your child", action
   const [busy, setBusy] = useState(false);
   const activeAction = actions.find((action) => action.id === activeId);
   const assigned = useMemo(() => visibleAssignments(assignedActivities, childId), [assignedActivities, childId]);
+  const visibleDocumentActivitySuggestions = (Array.isArray(documentActivitySuggestions) ? documentActivitySuggestions : [])
+    .filter((suggestion) => !assigned.some((item) =>
+      item.libraryId === suggestion.id.replace(/^library:/, "") ||
+      String(item.title || "").trim().toLocaleLowerCase() === String(suggestion.title || "").trim().toLocaleLowerCase(),
+    ));
   const openedInitial = useRef(false);
   // Keep local position authoritative until the dashboard catches up. Serialize
   // step writes so a slower earlier request cannot undo a later pause/finish.
@@ -341,6 +347,8 @@ export default function PracticePage({ childId, childName = "your child", action
               goal={item.goalTitle} />)}
           </div>
         </section>}
+
+        <DocumentActivitySuggestions suggestions={visibleDocumentActivitySuggestions} />
 
         <section className="np-practice-section" aria-labelledby="child-activities-heading" data-testid="section-child-activities">
           <h3 id="child-activities-heading">Activities for {childName}</h3>

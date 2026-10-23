@@ -1803,6 +1803,30 @@ export const GetParentDashboardResponse = zod.object({
   "page": zod.number().int().nullable()
 }))
 })),
+  "documentActivitySuggestions": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "skill": zod.string(),
+  "estimatedMinutes": zod.number().int().nullable(),
+  "materials": zod.array(zod.string()),
+  "steps": zod.array(zod.string()),
+  "pauseConditions": zod.array(zod.string()),
+  "matchReasons": zod.array(zod.string()),
+  "riskClassification": zod.string(),
+  "sourceEvidence": zod.array(zod.object({
+  "recordId": zod.string(),
+  "category": zod.string(),
+  "documentId": zod.string(),
+  "documentTitle": zod.string(),
+  "sourceSection": zod.string().nullable(),
+  "sourcePage": zod.number().int().nullable(),
+  "sourceExcerpt": zod.string(),
+  "reviewStatus": zod.string()
+})),
+  "relatedSupportAreas": zod.array(zod.string()),
+  "researchLimitations": zod.array(zod.string())
+})),
   "documents": zod.array(zod.object({
   "canShare": zod.boolean().optional(),
   "canScan": zod.boolean().optional(),

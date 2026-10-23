@@ -958,6 +958,36 @@ export interface ParentDocumentSupportCard {
   sourceReferences: ParentDocumentSupportSourceReference[];
 }
 
+export interface ParentDocumentActivitySourceEvidence {
+  recordId: string;
+  category: string;
+  documentId: string;
+  documentTitle: string;
+  /** @nullable */
+  sourceSection: string | null;
+  /** @nullable */
+  sourcePage: number | null;
+  sourceExcerpt: string;
+  reviewStatus: string;
+}
+
+export interface ParentDocumentActivitySuggestion {
+  id: string;
+  title: string;
+  description: string;
+  skill: string;
+  /** @nullable */
+  estimatedMinutes: number | null;
+  materials: string[];
+  steps: string[];
+  pauseConditions: string[];
+  matchReasons: string[];
+  riskClassification: string;
+  sourceEvidence: ParentDocumentActivitySourceEvidence[];
+  relatedSupportAreas: string[];
+  researchLimitations: string[];
+}
+
 export type ParentDailyActionKind = typeof ParentDailyActionKind[keyof typeof ParentDailyActionKind];
 
 
@@ -1085,6 +1115,7 @@ export interface ParentDashboard {
   child: ParentChild;
   supportCards: SupportCard[];
   documentSupportCards: ParentDocumentSupportCard[];
+  documentActivitySuggestions: ParentDocumentActivitySuggestion[];
   documents: ParentDocument[];
   logs: ParentLog[];
   dailyActions: ParentDailyAction[];

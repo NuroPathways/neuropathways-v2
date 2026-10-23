@@ -76,6 +76,8 @@ export * from './parentDailyActionStatusInput';
 export * from './parentDailyActionStatusInputStatus';
 export * from './parentDashboard';
 export * from './parentDocument';
+export * from './parentDocumentActivitySourceEvidence';
+export * from './parentDocumentActivitySuggestion';
 export * from './parentDocumentClinicalReviewStatus';
 export * from './parentDocumentDocumentClassificationStatus';
 export * from './parentDocumentExtractionStatus';

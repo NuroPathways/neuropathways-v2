@@ -2038,6 +2038,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ParentDocumentSupportCard"
+        documentActivitySuggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDocumentActivitySuggestion"
         documents:
           type: array
           items:
@@ -2054,7 +2058,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ParentPlanGoal"
-      required: [child, supportCards, documentSupportCards, documents, logs, dailyActions, planGoals]
+      required: [child, supportCards, documentSupportCards, documentActivitySuggestions, documents, logs, dailyActions, planGoals]
     ParentDocumentSupportSourceReference:
       type: object
       properties:
@@ -2143,6 +2147,70 @@ components:
         card:
           $ref: "#/components/schemas/ParentDocumentSupportCard"
       required: [success, card]
+    ParentDocumentActivitySourceEvidence:
+      type: object
+      properties:
+        recordId:
+          type: string
+        category:
+          type: string
+        documentId:
+          type: string
+        documentTitle:
+          type: string
+        sourceSection:
+          type: [string, "null"]
+        sourcePage:
+          type: [integer, "null"]
+        sourceExcerpt:
+          type: string
+        reviewStatus:
+          type: string
+      required: [recordId, category, documentId, documentTitle, sourceSection, sourcePage, sourceExcerpt, reviewStatus]
+    ParentDocumentActivitySuggestion:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        skill:
+          type: string
+        estimatedMinutes:
+          type: [integer, "null"]
+        materials:
+          type: array
+          items:
+            type: string
+        steps:
+          type: array
+          items:
+            type: string
+        pauseConditions:
+          type: array
+          items:
+            type: string
+        matchReasons:
+          type: array
+          items:
+            type: string
+        riskClassification:
+          type: string
+        sourceEvidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDocumentActivitySourceEvidence"
+        relatedSupportAreas:
+          type: array
+          items:
+            type: string
+        researchLimitations:
+          type: array
+          items:
+            type: string
+      required: [id, title, description, skill, estimatedMinutes, materials, steps, pauseConditions, matchReasons, riskClassification, sourceEvidence, relatedSupportAreas, researchLimitations]
     ParentDailyAction:
       type: object
       properties:

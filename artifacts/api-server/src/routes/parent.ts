@@ -48,6 +48,7 @@ import {
   accountAuthorityInvalidStatus,
 } from "../lib/accountAuthority";
 import {
+  getParentDocumentActivitySuggestions,
   getParentDocumentSupportCards,
   getParentSupportCards,
   listParentDocuments,
@@ -524,6 +525,11 @@ export async function getParentDashboardData(parentId: string, childId: string, 
       createdAt: log.createdAt,
     })),
   });
+  const documentActivitySuggestions = await getParentDocumentActivitySuggestions(
+    parentId,
+    childId,
+    dailyActions.map((action) => ({ title: action.title, status: action.status })),
+  );
   const progressRows = await db.select().from(parentPracticeProgressTable).where(and(
     eq(parentPracticeProgressTable.parentId, parentId),
     eq(parentPracticeProgressTable.childId, childId),
@@ -539,6 +545,7 @@ export async function getParentDashboardData(parentId: string, childId: string, 
     child: serializeParentChild(owned, owned.settings),
     supportCards,
     documentSupportCards,
+    documentActivitySuggestions,
     documents,
     logs: [...storedLogs.map(serializeParentLog), ...legacyLogs].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     dailyActions: dailyActions.map((action) => {

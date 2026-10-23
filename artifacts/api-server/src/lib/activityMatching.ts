@@ -101,6 +101,42 @@ export type ActivityRecommendationResult = {
   safetyEvidence: ActivityRecommendationEvidence[];
 };
 
+export type ParentDocumentActivitySuggestion = {
+  id: string;
+  title: string;
+  description: string;
+  skill: string;
+  estimatedMinutes: number | null;
+  materials: string[];
+  steps: string[];
+  pauseConditions: string[];
+  matchReasons: string[];
+  riskClassification: string;
+  sourceEvidence: ActivityRecommendationEvidence[];
+  relatedSupportAreas: string[];
+  researchLimitations: string[];
+};
+
+type ParentSupportAreaForActivityMatch = {
+  name: string;
+  description: string;
+  contexts: string[];
+  observations: string[];
+  sourceDocumentIds: string[];
+};
+
+const SUPPORT_AREA_ACTIVITY_SIGNALS: Record<string, RegExp> = {
+  "what-happens-next": /\b(direction|instruction|transition|routine|sequence|next step)\b/i,
+  "familiar-aac-choice": /\b(communication|speech|express|request|help|break)\b/i,
+  "familiar-help-signal": /\b(help|break|communication|request|signal)\b/i,
+  "choose-between-familiar-activities": /\b(transition|choice|routine|preferred|interest)\b/i,
+  "build-together": /\b(shared play|turn|building|play)\b/i,
+  "one-small-routine-step": /\b(routine|task|daily living|hygiene|self-care)\b/i,
+  "request-more-during-play": /\b(play|request|communication|more|continue)\b/i,
+  "take-turns-with-familiar-toy": /\b(play|turn|social|toy)\b/i,
+  "pause-and-notice-communication": /\b(communication|express|request|signal|language)\b/i,
+};
+
 const MAX_RECOMMENDATIONS = 12;
 const UNSAFE_ACTIVITY_TEXT =
   /\b(?:restraint|seclusion|pinning|physical blocking|punishment|extinction|force(?:d)? compliance|exposure(?: therapy)?|response prevention|withhold(?:ing)? reassurance|deny(?:ing)? reassurance)\b/i;
@@ -534,4 +570,65 @@ export function buildChildActivityRecommendations(input: {
     left.title.localeCompare(right.title),
   );
   return { recommendations: recommendations.slice(0, MAX_RECOMMENDATIONS), safetyEvidence };
+}
+
+export function buildParentDocumentActivitySuggestions(input: {
+  childId: string;
+  records: EvidenceRecord[];
+  library: ActivityLibraryItem[];
+  supportAreas?: ParentSupportAreaForActivityMatch[];
+  existingActivities?: ExistingAssignment[];
+}): ParentDocumentActivitySuggestion[] {
+  const { recommendations } = buildChildActivityRecommendations({
+    childId: input.childId,
+    clinicianId: "",
+    records: input.records,
+    library: input.library,
+    existingAssignments: input.existingActivities,
+  });
+  return recommendations.flatMap((recommendation) => {
+    if (
+      recommendation.priorityTier !== "document_grounded_library" ||
+      recommendation.status !== "suggestion_only" ||
+      recommendation.safetyReviewRequired
+    ) return [];
+    const libraryId = recommendation.id.replace(/^library:/, "");
+    const concernSignal = SUPPORT_AREA_ACTIVITY_SIGNALS[libraryId];
+    const evidenceDocumentIds = new Set(recommendation.evidence.map((evidence) => evidence.documentId));
+    const relatedSupportAreas = (input.supportAreas || [])
+      .filter((area) =>
+        concernSignal &&
+        area.sourceDocumentIds.some((documentId) => evidenceDocumentIds.has(documentId)) &&
+        concernSignal.test([
+          area.name,
+          area.description,
+          ...area.contexts,
+          ...area.observations,
+        ].join(" ")),
+      )
+      .map((area) => text(area.name))
+      .filter(Boolean)
+      .filter((name, index, all) => all.indexOf(name) === index)
+      .slice(0, 4);
+    const researchLimitations = recommendation.researchReferences.flatMap((reference) => {
+      if (!reference || typeof reference !== "object" || Array.isArray(reference)) return [];
+      const limitation = text((reference as Record<string, unknown>).limitation);
+      return limitation ? [limitation] : [];
+    }).filter((limitation, index, all) => all.indexOf(limitation) === index).slice(0, 4);
+    return [{
+      id: recommendation.id,
+      title: recommendation.title,
+      description: recommendation.description,
+      skill: recommendation.skill,
+      estimatedMinutes: recommendation.estimatedMinutes,
+      materials: recommendation.materials,
+      steps: recommendation.steps,
+      pauseConditions: recommendation.pauseConditions,
+      matchReasons: recommendation.matchReasons,
+      riskClassification: "General educational idea; check that it is familiar, welcome, and safe for your child.",
+      sourceEvidence: recommendation.evidence,
+      relatedSupportAreas,
+      researchLimitations,
+    }];
+  }).slice(0, MAX_RECOMMENDATIONS);
 }

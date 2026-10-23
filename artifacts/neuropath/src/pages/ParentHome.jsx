@@ -166,6 +166,7 @@ function Body({ child }) {
           child={d.child || child}
           actions={d.dailyActions || []}
           documents={d.documents || []}
+          documentActivitySuggestions={d.documentActivitySuggestions || []}
           initialActionId={sp.get("activity_id")}
           hideTitle
           feedbackVisibility={isLegacy
