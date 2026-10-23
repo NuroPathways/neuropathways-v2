@@ -291,7 +291,12 @@ describe("support guidance", () => {
 
   it("loads parent-owned document suggestions through the authorized parent dashboard", async () => {
     supportMocks.filterProfiles.mockResolvedValueOnce([]);
-    supportMocks.getParentDashboard.mockResolvedValueOnce({ documentSupportCards: [documentConcern] });
+    supportMocks.getParentDashboard.mockResolvedValueOnce({
+      documentSupportCards: [{
+        ...documentConcern,
+        generalSupportSuggestions: ["Try one short direction, then pause for a response."],
+      }],
+    });
     render(
       <SupportNowOverlay
         user={{ id: "parent-1", role: "parent", account_type: "parent_free" }}
@@ -305,7 +310,10 @@ describe("support guidance", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Continue to support options" }));
     fireEvent.click(await screen.findByRole("button", { name: /Help With a Behavior/ }));
-    expect(await screen.findByRole("button", { name: /Difficulty With Verbal Instructions/ })).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: /Difficulty With Verbal Instructions/ }));
+    expect(await screen.findByTestId("section-general-support-suggestions")).toBeTruthy();
+    expect(screen.getByText("Suggested from uploaded documents — not clinician-reviewed")).toBeTruthy();
+    expect(screen.getByText("Try one short direction, then pause for a response.")).toBeTruthy();
     expect(supportMocks.getParentDashboard).toHaveBeenCalledWith("child-1", expect.objectContaining({
       credentials: "include",
       headers: expect.any(Object),

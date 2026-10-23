@@ -99,6 +99,7 @@ const MAX_CARDS = 120;
 const MAX_REFERENCES = 120;
 const MAX_TEXT = 1_000;
 export const SUPPORT_CANDIDATE_BATCH_SIZE = 60;
+export const SUPPORT_CONCERN_GENERATION_BATCH_SIZE = 30;
 const SUPPORT_CANDIDATE_SOURCE_CATEGORIES = new Set(["clinical_observation", "behavior", "profile_information"]);
 const SUPPORT_PROFILE_FIELDS = new Set(["presenting_concerns", "functional_difficulties", "support_needs"]);
 
@@ -324,7 +325,7 @@ export function supportConcernCardToolSchema() {
 }
 
 export function buildSupportConcernGenerationPrompt(records: DocumentExtractionRecord[]): string {
-  const boundedRecords = records.slice(0, 30).map((record) => ({
+  const boundedRecords = records.slice(0, SUPPORT_CONCERN_GENERATION_BATCH_SIZE).map((record) => ({
     extraction_id: record.id,
     document_id: record.documentId,
     support_area_name: cleanText(record.interpretation.name, 160),
@@ -352,16 +353,79 @@ function cardId(childId: string, behaviorName: string): string {
 
 function isSafetySensitiveTopic(records: DocumentExtractionRecord[]): boolean {
   const text = records.flatMap((record) => [
+    record.sourceExcerpt,
     record.interpretation.name,
     record.interpretation.description,
     record.interpretation.contexts,
     record.interpretation.observations,
   ]).flat().filter((value): value is string => typeof value === "string").join(" ");
-  return /\b(?:self[- ]?(?:injur\w*|harm)|suicid\w*|elopement|run(?:ning)? away|bolting|wandering away|aggress\w*|violence|unsafe self[- ]directed|head[- ]?banging|hitting (?:oneself|themselves|others|someone)|biting|choking|dangerous behavior)\b/i.test(text);
+  return /\b(?:self[- ]?(?:injur\w*|harm)|suicid\w*|elopement|run(?:ning)? away|bolting|wandering away|aggress\w*|violence|unsafe self[- ]directed|head[- ]?banging|hit(?:s|ting)?|biting|choking|dangerous behavior)\b/i.test(text);
 }
 
 function unsafeSuggestion(value: string): boolean {
   return /\b(?:restraint|restrain\w*|seclusion|seclude\w*|physical(?:ly)?[ -]+block\w*|pin(?:ning)?|immobiliz\w*|extinction|exposure protocol|force(?:d)? compliance)\b/i.test(value);
+}
+
+export function supportConcernSuggestionSourceRecords(
+  records: DocumentExtractionRecord[],
+  childId: string,
+): DocumentExtractionRecord[] {
+  return verifiedSupportConcernRecords(records, childId)
+    .filter((record) => !isSafetySensitiveTopic([record]));
+}
+
+export function attachGeneratedSupportConcernSuggestions(
+  records: DocumentExtractionRecord[],
+  sourceRecords: DocumentExtractionRecord[],
+  generatedGroups: GeneratedConcernGroup[] | null,
+): DocumentExtractionRecord[] {
+  if (!generatedGroups?.length || !sourceRecords.length) return records;
+  const sourceById = new Map(sourceRecords.map((record) => [record.id, record]));
+  const updatedById = new Map<string, DocumentExtractionRecord>();
+  const claimedSourceIds = new Set<string>();
+  for (const group of generatedGroups.slice(0, MAX_CARDS)) {
+    const ids = Array.isArray(group?.source_extraction_ids)
+      ? [...new Set(group.source_extraction_ids.filter((id): id is string => typeof id === "string"))]
+      : [];
+    const suggestions = cleanStrings(group.general_support_suggestions, 5, 320)
+      .filter((suggestion) => !unsafeSuggestion(suggestion));
+    if (!suggestions.length) continue;
+    for (const id of ids) {
+      const source = sourceById.get(id);
+      if (!source || claimedSourceIds.has(id) || isSafetySensitiveTopic([source])) continue;
+      claimedSourceIds.add(id);
+      updatedById.set(id, {
+        ...source,
+        interpretation: {
+          ...source.interpretation,
+          general_support_suggestions: suggestions,
+        },
+      });
+    }
+  }
+  if (!updatedById.size) return records;
+  return records.map((record) => updatedById.get(record.id) || record);
+}
+
+export function storedSupportConcernSuggestionGroups(
+  records: DocumentExtractionRecord[],
+): GeneratedConcernGroup[] {
+  return records.flatMap((record) => {
+    const suggestions = cleanStrings(record.interpretation.general_support_suggestions, 5, 320)
+      .filter((suggestion) => !unsafeSuggestion(suggestion));
+    if (
+      record.category !== "support_concern" ||
+      !suggestions.length ||
+      record.sourceExcerptVerified !== true ||
+      record.extractionStatus !== "extracted" ||
+      record.reviewStatus !== "unreviewed" ||
+      isSafetySensitiveTopic([record])
+    ) return [];
+    return [{
+      source_extraction_ids: [record.id],
+      general_support_suggestions: suggestions,
+    }];
+  });
 }
 
 function fallbackGroups(records: DocumentExtractionRecord[]): DocumentExtractionRecord[][] {

@@ -321,6 +321,8 @@ export default function ParentHome() {
         /safety|crisis/i.test(`${document.documentType || ""} ${document.title || ""} ${document.fileName || ""}`),
       ),
       behaviors: parentDirectBehaviors(dashboard.child || {}, dashboard.supportCards, starterLibrary),
+      documentSupportCards: Array.isArray(dashboard.documentSupportCards) ? dashboard.documentSupportCards : [],
+      documentSupportCardsLoadError: !Array.isArray(dashboard.documentSupportCards),
     };
   }, []);
   const isLegacyFamily = (user?.accountType || user?.account_type) === "legacy_family";

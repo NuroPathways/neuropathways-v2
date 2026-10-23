@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { DocumentExtractionRecord } from "@workspace/db";
 import {
+  attachGeneratedSupportConcernSuggestions,
   buildSupportConcernCandidatePrompt,
   buildSupportConcernGenerationPrompt,
   createDocumentInformedConcernCards,
@@ -12,6 +13,8 @@ import {
   savedDocumentInformedConcernCards,
   savedParentDocumentSupportCardOverrides,
   supportConcernCandidateSourceRecords,
+  supportConcernSuggestionSourceRecords,
+  storedSupportConcernSuggestionGroups,
   updateParentDocumentSupportCardOverride,
   verifiedSupportConcernRecords,
 } from "./documentSupportConcernCards";
@@ -307,6 +310,61 @@ test("generated support-area candidates keep exact source citations and never gr
     })[0].clinicianApproved,
     false,
   );
+});
+
+test("generated card ideas attach only to verified low-risk source concerns and stay distinct from approval", () => {
+  const source = record();
+  const highRisk = record({
+    id: "high-risk",
+    sourceExcerpt: "The child has hit other people during an unsafe episode.",
+  });
+  const unverified = record({
+    id: "unverified",
+    sourceExcerptVerified: false,
+    reviewStatus: "needs_review",
+  });
+  const eligible = supportConcernSuggestionSourceRecords([source, highRisk, unverified], "child-1");
+  assert.deepEqual(eligible.map((item) => item.id), ["extraction-1"]);
+
+  const attached = attachGeneratedSupportConcernSuggestions(
+    [source, highRisk, unverified],
+    eligible,
+    [{
+      source_extraction_ids: ["extraction-1", "high-risk", "unverified", "fabricated-id"],
+      general_support_suggestions: [
+        "Try one short direction, then pause for a response.",
+        "Use restraint if the child does not respond.",
+      ],
+    }],
+  );
+  assert.deepEqual(attached[0].interpretation.general_support_suggestions, [
+    "Try one short direction, then pause for a response.",
+  ]);
+  assert.equal(attached[1].interpretation.general_support_suggestions, undefined);
+  assert.equal(attached[2].interpretation.general_support_suggestions, undefined);
+
+  const generatedGroups = storedSupportConcernSuggestionGroups(attached);
+  const cards = createDocumentInformedConcernCards({
+    childId: "child-1",
+    records: [attached[0]],
+    sourceTitles: [{ documentId: "document-1", title: "Session note" }],
+    generatedGroups,
+  });
+  assert.equal(cards.length, 1);
+  assert.deepEqual(cards[0].generalSupportSuggestions, [
+    "Try one short direction, then pause for a response.",
+  ]);
+  assert.equal(cards[0].clinicianApproved, false);
+  assert.equal(cards[0].source, "document_informed");
+
+  const mixedRiskCards = createDocumentInformedConcernCards({
+    childId: "child-1",
+    records: attached.slice(0, 2),
+    sourceTitles: [{ documentId: "document-1", title: "Session note" }],
+    generatedGroups,
+  });
+  assert.equal(mixedRiskCards[0].safetySensitiveTopic, true);
+  assert.deepEqual(mixedRiskCards[0].generalSupportSuggestions, []);
 });
 
 test("stored candidate cards merge source references without creating duplicate card identities", () => {
