@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { getParentBehaviors, getParentDashboard, parentBehaviorIdentity } from "@workspace/api-client-react";
-import type { SupportCard } from "@workspace/api-client-react";
+import type { ParentDocumentSupportCard, SupportCard } from "@workspace/api-client-react";
 import { ChildSwitch } from "@/components/ChildSwitch";
 import { Card, ErrorBox, H, Screen, Skeleton, T, msg } from "@/components/ParentUi";
 import { useParent } from "@/context/ParentContext";
@@ -33,16 +34,89 @@ function GuidanceSection({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+function DocumentSupportDetail({
+  card,
+  onOpenSafety,
+  onBack,
+}: {
+  card: ParentDocumentSupportCard;
+  onOpenSafety: () => void;
+  onBack: () => void;
+}) {
+  const c = useColors();
+  return (
+    <>
+      <Card>
+        <T weight="bold" size={18}>{card.displayName || card.behaviorName}</T>
+        <T size={12} weight="semi" color={c.secondary}>Suggested from uploaded documents — not clinician-reviewed</T>
+        {card.description ? <T size={14}>{card.description}</T> : null}
+        {card.sourceReviewRequired ? (
+          <Card tone="warn">
+            <T weight="bold" size={14}>Review the source before relying on this information.</T>
+            <T size={13}>One or more excerpts have not been verified. Suggestions are withheld until the source is reviewed.</T>
+          </Card>
+        ) : null}
+        <GuidanceSection title="Documented observations" items={card.observations} />
+        <GuidanceSection title="Situations described in documents" items={card.contexts} />
+        <GuidanceSection title="What is not known" items={card.uncertainty} />
+        {!card.sourceReviewRequired && !card.safetySensitiveTopic && card.generalSupportSuggestions.length ? (
+          <Card>
+            <T weight="bold" size={16}>Optional general ideas — not treatment</T>
+            {card.generalSupportSuggestions.map((item, index) => (
+              <View key={`document-idea-${index}`} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+                <T weight="bold" color={c.primary}>{index + 1}.</T>
+                <View style={{ flex: 1 }}><T size={14}>{item}</T></View>
+              </View>
+            ))}
+            <T size={12} color={c.secondary}>These are general educational ideas, not an individualized plan or clinician-approved strategy.</T>
+          </Card>
+        ) : null}
+        {card.safetySensitiveTopic ? (
+          <Card tone="warn">
+            <T weight="bold" size={14}>This concern is documented, but no individualized crisis or physical-intervention instructions are provided here.</T>
+            <T size={13}>Use the child's current verified safety plan if available. If anyone is in immediate danger or hurt, call 911 or local emergency services.</T>
+            <Pressable accessibilityRole="button" testID="document-support-open-safety" onPress={onOpenSafety} style={{ minHeight: 44, justifyContent: "center" }}>
+              <T weight="semi" color={c.destructive}>Open safety plan</T>
+            </Pressable>
+          </Card>
+        ) : null}
+        <GuidanceSection title="Review status and missing information" items={card.missingClinicalInformation} />
+        <View style={{ gap: 8 }}>
+          <T weight="bold" size={16}>From your documents</T>
+          {card.sourceReferences.map((reference, index) => (
+            <Card key={`${reference.documentId}-${index}`} tone={reference.excerptVerified === false ? "warn" : undefined}>
+              <T weight="semi" size={14}>{reference.title}</T>
+              {reference.section ? <T size={12} color={c.secondary}>{reference.section}{reference.page ? ` · Page ${reference.page}` : ""}</T> : null}
+              {reference.excerptVerified === false ? <T size={12} color={c.destructive}>Source excerpt needs review</T> : null}
+              {reference.excerpt ? <T size={13}>{reference.excerpt}</T> : null}
+            </Card>
+          ))}
+        </View>
+      </Card>
+      <Pressable accessibilityRole="button" testID="document-support-back" onPress={onBack} style={{ minHeight: 48, justifyContent: "center" }}>
+        <T color={c.primary} weight="semi">Choose another support area</T>
+      </Pressable>
+    </>
+  );
+}
+
 export default function HelpNow() {
   const c = useColors();
   const { child, opts } = useParent();
+  const params = useLocalSearchParams<{ documentCardId?: string | string[] }>();
+  const requestedDocumentCardId = Array.isArray(params.documentCardId) ? params.documentCardId[0] : params.documentCardId;
+  const [selectedDocumentOverride, setSelectedDocumentOverride] = useState<string | null | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [simpler, setSimpler] = useState(false);
   const query = useQuery({ queryKey: ["parent-dashboard", child?.id], queryFn: () => getParentDashboard(child!.id, opts), enabled: !!child });
+  useEffect(() => setSelectedDocumentOverride(undefined), [requestedDocumentCardId]);
   const behaviors = getParentBehaviors(query.data?.child ?? child ?? {});
   const cards = (query.data?.supportCards ?? []).filter((card) => !card.conflict);
+  const documentCards = (query.data?.documentSupportCards ?? []).filter((card) => !card.dismissed);
+  const selectedDocumentId = selectedDocumentOverride === undefined ? requestedDocumentCardId : selectedDocumentOverride;
+  const selectedDocument = documentCards.find((card) => card.id === selectedDocumentId);
   const activeIds = new Set(behaviors.map(parentBehaviorIdentity));
   const discoveredCards = cards.filter((card) => !activeIds.has(parentBehaviorIdentity(card)) && card.source !== "starter");
   const selected = cards.find((card) => parentBehaviorIdentity(card) === selectedId);
@@ -79,7 +153,13 @@ export default function HelpNow() {
       <T size={14} color={c.secondary}>Choose saved guidance from its labeled source. Take one step at a time, and stop if it does not feel safe.</T>
       {query.isLoading ? <Skeleton lines={4} /> : query.isError ? <ErrorBox message={msg(query.error, "Saved support could not load.")} onRetry={() => query.refetch()} /> : (
         <>
-          {selected ? (
+          {selectedDocument ? (
+            <DocumentSupportDetail
+              card={selectedDocument}
+              onOpenSafety={() => setSafetyOpen(true)}
+              onBack={() => { setSelectedDocumentOverride(null); setSelectedId(null); }}
+            />
+          ) : selected ? (
             <>
               <Card>
                 <T weight="bold" size={18}>{selected.behaviorName}</T>
@@ -129,9 +209,36 @@ export default function HelpNow() {
                 </Pressable>
               ))}
             </>
-          ) : (
+          ) : documentCards.length ? null : (
             <Card><T weight="bold" size={17}>No saved support areas yet</T><T size={14} color={c.secondary}>Contact your care team or add a support area to see child-specific steps here.</T></Card>
           )}
+          {!selectedDocument && !selected && documentCards.length ? (
+            <>
+              <T weight="bold" size={16}>Suggested from uploaded documents</T>
+              <T size={13} color={c.secondary}>These source-linked suggestions are not clinician-reviewed. Open one to see its document evidence and review status.</T>
+              {documentCards.map((documentCard) => (
+                <Pressable
+                  key={documentCard.id}
+                  testID={`document-support-${documentCard.id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Review document suggestion: ${documentCard.displayName}`}
+                  onPress={() => { setSelectedId(null); setSelectedDocumentOverride(documentCard.id); }}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+                >
+                  <Card>
+                    <T weight="bold" size={16}>{documentCard.displayName || documentCard.behaviorName}</T>
+                    <T size={13} weight="semi" color={c.secondary}>
+                      {documentCard.sourceReviewRequired
+                        ? "Needs source review · suggestions withheld"
+                        : "Source-linked · not clinician-reviewed"}
+                    </T>
+                    {documentCard.description ? <T size={13}>{documentCard.description}</T> : null}
+                    <T size={13} color={c.primary}>View source and details</T>
+                  </Card>
+                </Pressable>
+              ))}
+            </>
+          ) : null}
           {discoveredCards.length ? (
             <>
               <T weight="bold" size={16}>Also found in plans</T>

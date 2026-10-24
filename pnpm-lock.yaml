@@ -563,6 +563,9 @@ importers:
 
   artifacts/neuropath-mobile:
     dependencies:
+      '@workspace/neuropathways-foundations':
+        specifier: workspace:*
+        version: link:../neuropathways-foundations
       expo-document-picker:
         specifier: ~14.0.8
         version: 14.0.8(expo@54.0.37)

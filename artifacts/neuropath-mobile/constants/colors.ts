@@ -1,45 +1,32 @@
+import tokens from "@workspace/neuropathways-foundations";
+
+type FoundationPalette = typeof tokens.color.light | typeof tokens.color.dark;
+
+const mobilePalette = (palette: FoundationPalette) => ({
+  text: palette.foreground,
+  tint: palette.primary,
+  background: palette.background,
+  foreground: palette.foreground,
+  card: palette.card,
+  cardForeground: palette.cardForeground,
+  primary: palette.primary,
+  primaryForeground: palette.primaryForeground,
+  secondary: palette.mutedForeground,
+  secondaryForeground: palette.secondaryForeground,
+  muted: palette.muted,
+  mutedForeground: palette.mutedForeground,
+  accent: palette.accent,
+  accentForeground: palette.accentForeground,
+  destructive: palette.destructive,
+  destructiveForeground: palette.destructiveForeground,
+  border: palette.border,
+  input: palette.input,
+});
+
 const colors = {
-  light: {
-    text: "#1C2131",
-    tint: "#456C9D",
-    background: "#F2F5F7",
-    foreground: "#1C2131",
-    card: "#FFFFFF",
-    cardForeground: "#1C2131",
-    primary: "#456C9D",
-    primaryForeground: "#FFFFFF",
-    secondary: "#646E82",
-    secondaryForeground: "#FFFFFF",
-    muted: "#E9EDF1",
-    mutedForeground: "#5E6A7D",
-    accent: "#7FB8B8",
-    accentForeground: "#1C2131",
-    destructive: "#DB3333",
-    destructiveForeground: "#FFFFFF",
-    border: "#D6DCE6",
-    input: "#D6DCE6",
-  },
-  dark: {
-    text: "#F2F5F7",
-    tint: "#809BCB",
-    background: "#0F131A",
-    foreground: "#F2F5F7",
-    card: "#1B2232",
-    cardForeground: "#F2F5F7",
-    primary: "#809BCB",
-    primaryForeground: "#0F131A",
-    secondary: "#97A3B4",
-    secondaryForeground: "#0F131A",
-    muted: "#272E3F",
-    mutedForeground: "#97A3B4",
-    accent: "#85BCBC",
-    accentForeground: "#0F131A",
-    destructive: "#DF5858",
-    destructiveForeground: "#0F131A",
-    border: "#2F3B51",
-    input: "#2F3B51",
-  },
-  radius: 12,
+  light: mobilePalette(tokens.color.light),
+  dark: mobilePalette(tokens.color.dark),
+  radius: Number.parseFloat(tokens.radius) * 16,
 };
 
 export default colors;

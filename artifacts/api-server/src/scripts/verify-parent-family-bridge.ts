@@ -359,6 +359,27 @@ await check("Legacy-parent document reading completes against the real scanner",
   assert.equal(listed.status, 200);
   assert.equal(listed.data.find((d: any) => d.id === document.id)?.scanStatus, "done");
 });
+await check("A source-supported parent upload creates a child-scoped document support card", async () => {
+  const fileName = `support-card-${id()}.txt`;
+  const form = new FormData();
+  form.set("authorizedUploader", "true");
+  form.set("file", new Blob([
+    "Synthetic verification note: During transitions away from a preferred puzzle, the child sometimes cries and raises their voice. A visual timer and offering a choice of the next activity are documented as helpful. The note does not identify a cause or diagnose the child.",
+  ], { type: "text/plain" }), fileName);
+  const created = await call(`${childPath}/documents`, "POST", form, familyHeaders);
+  assert.ok([200, 201].includes(created.status), `Family upload HTTP ${created.status}`);
+  const documentId = created.data.id;
+  const scanned = await call(`${childPath}/documents/${documentId}/scan`, "POST", {}, familyHeaders);
+  assert.equal(scanned.status, 200, `Document scan HTTP ${scanned.status}: ${scanned.data.error || ""}`);
+  const dashboard = await call(`${childPath}/dashboard`, "GET", undefined, familyHeaders);
+  assert.equal(dashboard.status, 200);
+  const card = dashboard.data.documentSupportCards.find((candidate: any) =>
+    candidate.childId === f.legacy.childId &&
+    candidate.sourceReferences.some((reference: any) => reference.documentId === documentId),
+  );
+  assert.ok(card, "The source-grounded document card should be returned to the uploading parent.");
+  assert.equal(card.clinicianApproved, false);
+});
 await check("Expired web/native credentials cannot fall back to another valid parent token", async () => {
   const expiredWeb = crypto.randomBytes(32).toString("base64url"), expiredMobile = crypto.randomBytes(32).toString("hex");
   await db.insert(clientSessionsTable).values({ inviteToken: expiredWeb, childId: f.legacy.childId, username: f.legacy.username, expiresAt: new Date(Date.now() - 1000) });

@@ -204,6 +204,7 @@ export default function SupportNow() {
   // Re-sync behavior, goal and source text from the server whenever this tab regains focus (e.g. after a scan).
   useFocusEffect(useCallback(() => { if (child) refetch(); }, [child, refetch]));
   const savedCards = q.data?.supportCards ?? [];
+  const documentSupportCards = (q.data?.documentSupportCards ?? []).filter((card) => !card.dismissed);
   const behaviors = getParentBehaviors(q.data?.child ?? child ?? {});
   const activeIds = new Set(behaviors.map(parentBehaviorIdentity));
   const foundCards = savedCards.filter((k) => !activeIds.has(parentBehaviorIdentity(k)) && k.source !== "starter");
@@ -322,7 +323,42 @@ export default function SupportNow() {
                   {!hasPlanGoal(k) && k.goal ? <T size={13}>Saved guidance goal: {k.goal}</T> : null}
                 </Pressable>
               ))}
-              {!behaviors.length && !foundCards.length ? <T size={14}>No behavior support is available yet.</T> : null}
+              {documentSupportCards.length ? (
+                <View style={{ gap: 8 }}>
+                  <T weight="bold" size={16}>Suggested from uploaded documents</T>
+                  <T size={13} color={c.secondary}>These source-linked suggestions are separate from saved support plans and are not clinician-reviewed.</T>
+                  {documentSupportCards.map((documentCard) => (
+                    <Pressable
+                      key={documentCard.id}
+                      testID={`home-document-support-${documentCard.id}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Review document suggestion: ${documentCard.displayName}`}
+                      onPress={() => router.push({
+                        pathname: "/(parent)/help-now",
+                        params: { documentCardId: documentCard.id },
+                      } as never)}
+                      style={({ pressed }) => ({
+                        borderWidth: 1.5,
+                        borderColor: c.border,
+                        backgroundColor: c.card,
+                        borderRadius: 14,
+                        padding: 14,
+                        gap: 4,
+                        opacity: pressed ? 0.85 : 1,
+                      })}
+                    >
+                      <T weight="bold" size={16}>{documentCard.displayName || documentCard.behaviorName}</T>
+                      <T size={13} weight="semi" color={c.secondary}>
+                        {documentCard.sourceReviewRequired
+                          ? "Needs source review · suggestions withheld"
+                          : "Source-linked · not clinician-reviewed"}
+                      </T>
+                      <T size={13} color={c.primary}>Open source and details</T>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+              {!behaviors.length && !foundCards.length && !documentSupportCards.length ? <T size={14}>No behavior support is available yet.</T> : null}
               <Btn kind="ghost" icon="upload" label="Upload a Plan" onPress={() => router.push("/(parent)/documents" as never)} />
               <Btn kind="ghost" icon="plus" label="Add Another Behavior" onPress={() => router.push({ pathname: "/parent-edit", params: { add: "pick" } } as never)} />
             </Card>
@@ -404,6 +440,33 @@ export default function SupportNow() {
           })}
           <T weight="bold" size={17}>Behavior Support Library</T>
           <BehaviorLibrary behaviors={behaviors} cards={savedCards} onOpen={(id) => { setShowHelpBlocks(true); setSelectedId(id); }} />
+          {documentSupportCards.length ? (
+            <Card>
+              <T weight="bold" size={17}>Suggested from uploaded documents</T>
+              <T size={13} color={c.secondary}>These cards are separate from saved plans and are not clinician-reviewed.</T>
+              {documentSupportCards.map((documentCard) => (
+                <Pressable
+                  key={`library-${documentCard.id}`}
+                  testID={`library-document-support-${documentCard.id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Review document suggestion: ${documentCard.displayName || documentCard.behaviorName}`}
+                  onPress={() => router.push({
+                    pathname: "/(parent)/help-now",
+                    params: { documentCardId: documentCard.id },
+                  } as never)}
+                  style={({ pressed }) => ({ borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10, gap: 4, opacity: pressed ? 0.85 : 1 })}
+                >
+                  <T weight="semi" size={15}>{documentCard.displayName || documentCard.behaviorName}</T>
+                  <T size={13} color={c.secondary}>
+                    {documentCard.sourceReviewRequired
+                      ? "Needs source review · suggestions withheld"
+                      : "Source-linked · not clinician-reviewed"}
+                  </T>
+                  <T size={13} color={c.primary}>Open source and details</T>
+                </Pressable>
+              ))}
+            </Card>
+          ) : null}
           <Card>
             <T weight="bold" size={17}>Quick actions</T>
             <Btn icon="edit-3" label="Log What Happened" onPress={() => router.push("/(parent)/log" as never)} />
