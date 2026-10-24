@@ -7,19 +7,30 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { getBehaviorAppearance } from "@/components/support/behaviorVisuals";
 
-function Section({ title, items, colorClass }) {
-  if (!items || items.length === 0) return null;
+const CLIENT_SUPPORT_CONTENT_VERSION = 1;
+
+function Section({ title, items, colorClass, emptyText }) {
+  const visibleItems = Array.isArray(items)
+    ? items.filter((item) => typeof item === "string" && item.trim())
+    : [];
+  if (visibleItems.length === 0 && !emptyText) return null;
   return (
     <div className="mb-5">
       <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">{title}</h3>
-      <div className="space-y-2">
-        {items.map((item, i) => (
-          <div key={i} className={"flex items-start gap-3 p-3 rounded-xl border " + colorClass}>
-            <span className="text-xs font-bold mt-0.5 flex-shrink-0">{i + 1}</span>
-            <p className="text-sm leading-snug">{item}</p>
-          </div>
-        ))}
-      </div>
+      {visibleItems.length > 0 ? (
+        <div className="space-y-2">
+          {visibleItems.map((item, i) => (
+            <div key={i} className={"flex items-start gap-3 p-3 rounded-xl border " + colorClass}>
+              <span className="text-xs font-bold mt-0.5 flex-shrink-0">{i + 1}</span>
+              <p className="text-sm leading-snug">{item}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className={"rounded-xl border p-3 " + colorClass}>
+          <p className="text-sm leading-snug">{emptyText}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -147,7 +158,11 @@ export default function HelpNow() {
         const existingProfile = profiles[0];
         const scannedIds = new Set(existingProfile?.source_doc_ids || existingProfile?.sourceDocIds || []);
         const hasNewDocs = docsWithFiles.some(d => !scannedIds.has(d.id));
-        const needsBuild = !existingProfile || hasNewDocs || !(existingProfile.behaviors?.length > 0);
+        const currentProfileBehaviors = Array.isArray(existingProfile?.behaviors) ? existingProfile.behaviors : [];
+        const needsSupportRefresh = currentProfileBehaviors.some(
+          (behavior) => Number(behavior?.support_content_version) !== CLIENT_SUPPORT_CONTENT_VERSION,
+        );
+        const needsBuild = !existingProfile || hasNewDocs || currentProfileBehaviors.length === 0 || needsSupportRefresh;
         if (needsBuild && docsWithFiles.length > 0) runBuild(foundChild);
       }
     };
@@ -176,14 +191,7 @@ export default function HelpNow() {
   };
 
   const handleSelectBehavior = (behavior) => {
-    setSelectedBehavior({
-      ...behavior,
-      triggers: [],
-      clinical_interventions: [],
-      prevention_tips: [],
-      reinforcement_rewards: [],
-      linked_goals: [],
-    });
+    setSelectedBehavior({ ...behavior });
     // Information event only — viewing guidance does NOT log a behavior occurrence.
     // Actual behaviors are logged via the "Log This Behavior" button.
     if (child) {
@@ -210,6 +218,16 @@ export default function HelpNow() {
   const profileBehaviors = Array.isArray(profile?.behaviors)
     ? profile.behaviors
     : Object.values(profile?.behaviors || {});
+  const profileSourceDocIds = Array.isArray(profile?.sourceDocIds)
+    ? profile.sourceDocIds
+    : Array.isArray(profile?.source_doc_ids)
+      ? profile.source_doc_ids
+      : [];
+  const documentDraftBehaviors = isIndividualClient && profileSourceDocIds.length > 0
+    ? profileBehaviors.filter((behavior) =>
+      Number(behavior?.support_content_version) === CLIENT_SUPPORT_CONTENT_VERSION,
+    )
+    : [];
   const fallbackBehaviors = behaviorPlans.map(bp => ({
     ...bp,
     name: bp.behavior_name,
@@ -220,17 +238,36 @@ export default function HelpNow() {
     when_to_contact_clinician: '',
     linked_goals: [],
   }));
-  const behaviors = [...profileBehaviors, ...fallbackBehaviors].filter((behavior) => (
-    hasCurrentClinicalApproval(behavior)
+  const behaviors = [...profileBehaviors, ...fallbackBehaviors].filter((behavior) => {
+    const clinicianApproved = hasCurrentClinicalApproval(behavior);
+    const documentDraft = documentDraftBehaviors.includes(behavior);
+    return (clinicianApproved || documentDraft)
     && (!isHighRiskBehavior(behavior) || (
       Boolean(behavior.planId ?? behavior.plan_id)
       && String(behavior.childId ?? behavior.child_id ?? "") === String(child?.id ?? "")
       && ["approved", "active"].includes(String(behavior.planStatus ?? behavior.plan_status ?? "").toLowerCase())
-    ))
-  ));
+    ));
+  });
   const hasProfile = behaviors.length > 0;
   const docsExist = docsCount > 0;
   const selectedBehaviorAppearance = selectedBehavior ? getBehaviorAppearance(selectedBehavior) : null;
+  const selectedIsClinicianApproved = selectedBehavior ? hasCurrentClinicalApproval(selectedBehavior) : false;
+  const selectedIsDocumentDraft = Boolean(
+    selectedBehavior
+    && isIndividualClient
+    && !selectedIsClinicianApproved
+    && profileSourceDocIds.length > 0
+    && Number(selectedBehavior.support_content_version) === CLIENT_SUPPORT_CONTENT_VERSION,
+  );
+  const hiddenHighRiskDocumentDrafts = documentDraftBehaviors.filter(isHighRiskBehavior);
+  const practiceSkillItems = selectedBehavior
+    ? [
+      ...(typeof selectedBehavior.practice_a_helpful_skill === "string" && selectedBehavior.practice_a_helpful_skill.trim()
+        ? [selectedBehavior.practice_a_helpful_skill.trim()]
+        : []),
+      ...(Array.isArray(selectedBehavior.practice_skill_steps) ? selectedBehavior.practice_skill_steps : []),
+    ]
+    : [];
 
   // All treatment goal titles on file — used as a fallback so Goal Mapping always shows.
   const goalsForBehavior = [];
@@ -321,9 +358,22 @@ export default function HelpNow() {
                 <div className="text-center py-12 space-y-4">
                   <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-left">
                     <p className="text-sm font-semibold text-yellow-800 mb-1">
-                      {portalFailed ? "We couldn't load the current plan." : "No current approved behavior steps are available."}
+                      {portalFailed
+                        ? "We couldn't load the current plan."
+                        : isIndividualClient
+                          ? "No source-based help cards are available yet."
+                          : "No current approved behavior steps are available."}
                     </p>
-                    <p className="text-sm text-yellow-700">Draft, expired, or unreviewed guidance is not shown here. Check any saved safety plan below or contact your care team.</p>
+                    <p className="text-sm text-yellow-700">
+                      {isIndividualClient
+                        ? "After your document is scanned, source-based cards appear here as suggestions. Safety-sensitive behavior still requires an approved plan."
+                        : "Draft, expired, or unreviewed guidance is not shown here. Check any saved safety plan below or contact your care team."}
+                    </p>
+                    {hiddenHighRiskDocumentDrafts.length > 0 && (
+                      <p className="mt-3 text-sm font-medium text-amber-900" role="note">
+                        Safety-sensitive concerns in unreviewed documents are not shown as individualized steps. Use the current approved safety plan or contact your care team.
+                      </p>
+                    )}
                     {Array.isArray(profile?.crisis_plan) && profile.crisis_plan.length > 0 && (
                       <div className="mt-4 rounded-xl bg-red-600 p-4 text-left text-white">
                         <p className="mb-2 flex items-center gap-2 text-sm font-bold"><ShieldAlert className="h-4 w-4" /> Saved safety plan</p>
@@ -361,7 +411,14 @@ export default function HelpNow() {
                             <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${appearance.iconClasses}`}>
                               <BehaviorIcon className="h-5 w-5" aria-hidden="true" />
                             </span>
-                            <span className="min-w-0 flex-1 pt-1 text-sm font-semibold leading-snug">{behavior.name}</span>
+                            <span className="min-w-0 flex-1 pt-1 text-sm font-semibold leading-snug">
+                              {behavior.name}
+                              {documentDraftBehaviors.includes(behavior) && !hasCurrentClinicalApproval(behavior) && (
+                                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                                  From scanned documents · not clinician-reviewed
+                                </span>
+                              )}
+                            </span>
                             <ChevronRight className="w-4 h-4 mt-1 flex-shrink-0 opacity-60" aria-hidden="true" />
                           </span>
                         </button>
@@ -370,8 +427,15 @@ export default function HelpNow() {
                   </div>
 
                   <p className="text-xs text-muted-foreground text-center mt-4">
-                    Only showing behaviors from {child.child_name}'s clinician-approved plans.
+                    {documentDraftBehaviors.length > 0
+                      ? "Document-based suggestions are not clinician-reviewed. Safety-sensitive behaviors remain limited to an approved plan."
+                      : `Only showing behaviors from ${child.child_name}'s clinician-approved plans.`}
                   </p>
+                  {hiddenHighRiskDocumentDrafts.length > 0 && (
+                    <p className="mt-3 text-center text-sm font-medium text-amber-900" role="note">
+                      Safety-sensitive concerns in unreviewed documents are not shown as individualized steps. Use the current approved safety plan or contact your care team.
+                    </p>
+                  )}
 
                 </>
               )}
@@ -390,7 +454,11 @@ export default function HelpNow() {
                   )}
                   <div>
                     <h2 className="font-bold text-foreground text-lg">{selectedBehavior.name}</h2>
-                    <p className="text-xs text-primary font-medium">Clinician-approved guidance</p>
+                    <p className="text-xs text-primary font-medium">
+                      {selectedIsClinicianApproved
+                        ? "Clinician-approved guidance"
+                        : "From scanned documents · not clinician-reviewed"}
+                    </p>
                   </div>
                 </div>
                 {selectedBehavior.description && (
@@ -399,12 +467,20 @@ export default function HelpNow() {
               </div>
 
               <Section
-                title="Do This Right Now"
+                title={selectedIsDocumentDraft ? "Try one step" : "Do This Right Now"}
                 items={selectedBehavior.do_this_right_now}
                 colorClass="bg-orange-50 border-orange-200 text-orange-800"
+                emptyText={selectedIsDocumentDraft ? "No first step was stated in the scanned documents, so no extra instruction was added." : undefined}
               />
 
-              {selectedBehavior.interventions && selectedBehavior.interventions.length > 0 ? (
+              {selectedIsDocumentDraft ? (
+                <Section
+                  title="Strategies described in the documents"
+                  items={selectedBehavior.interventions}
+                  colorClass="bg-green-50 border-green-200 text-green-800"
+                  emptyText="No strategy steps were stated in the scanned documents."
+                />
+              ) : selectedBehavior.interventions && selectedBehavior.interventions.length > 0 ? (
                 <Section
                   title="Clinician-Approved Strategies"
                   items={selectedBehavior.interventions}
@@ -421,12 +497,13 @@ export default function HelpNow() {
               )}
 
               <Section
-                title="If It Escalates"
+                title={selectedIsDocumentDraft ? "Steps to de-escalate" : "If It Escalates"}
                 items={selectedBehavior.if_it_escalates}
                 colorClass="bg-red-50 border-red-200 text-red-800"
+                emptyText={selectedIsDocumentDraft ? "No de-escalation steps were stated in the scanned documents. Follow the current approved safety plan for urgent safety needs." : undefined}
               />
 
-              {selectedBehavior.clinical_interventions && selectedBehavior.clinical_interventions.length > 0 && (
+              {selectedIsClinicianApproved && selectedBehavior.clinical_interventions && selectedBehavior.clinical_interventions.length > 0 && (
                 <div className="mb-5">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Clinical Techniques In Use</h3>
                   <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
@@ -440,11 +517,15 @@ export default function HelpNow() {
                 </div>
               )}
 
-              {selectedBehavior.what_may_be_happening && (
+              {(selectedBehavior.what_may_be_happening || selectedIsDocumentDraft) && (
                 <div className="mb-5">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Why This Is Happening</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                    {selectedIsDocumentDraft ? "What may be happening" : "Why This Is Happening"}
+                  </h3>
                   <div className="bg-card border border-border rounded-xl p-4">
-                    <p className="text-sm text-foreground leading-relaxed">{selectedBehavior.what_may_be_happening}</p>
+                    <p className="text-sm text-foreground leading-relaxed">
+                      {selectedBehavior.what_may_be_happening || "The scanned documents do not explain why this may happen, so we will not guess."}
+                    </p>
                   </div>
                 </div>
               )}
@@ -463,43 +544,42 @@ export default function HelpNow() {
                 </div>
               )}
 
-              {selectedBehavior.avoid && selectedBehavior.avoid.length > 0 && (
-                <div className="mb-5">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Things to Avoid</h3>
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-1">
-                    {selectedBehavior.avoid.map((a, i) => (
-                      <p key={i} className="text-sm text-red-800 flex items-start gap-2">
-                        <span className="text-red-500 font-bold mt-0.5">x</span> {a}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <Section
+                title="Things to avoid"
+                items={selectedBehavior.avoid}
+                colorClass="bg-red-50 border-red-200 text-red-800"
+                emptyText={selectedIsDocumentDraft ? "No specific things to avoid were stated in the scanned documents." : undefined}
+              />
 
-              {selectedBehavior.prevention_tips && selectedBehavior.prevention_tips.length > 0 && (
-                <div className="mb-5">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Prevention Tips</h3>
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-1.5">
-                    {selectedBehavior.prevention_tips.map((p, i) => (
-                      <p key={i} className="text-sm text-blue-800 flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" /> {p}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <Section
+                title={selectedIsDocumentDraft ? "Prevention ideas" : "Prevention Tips"}
+                items={selectedBehavior.prevention_tips}
+                colorClass="bg-blue-50 border-blue-200 text-blue-800"
+                emptyText={selectedIsDocumentDraft ? "No prevention ideas were stated in the scanned documents." : undefined}
+              />
 
-              {selectedBehavior.reinforcement_rewards && selectedBehavior.reinforcement_rewards.length > 0 && (
-                <div className="mb-5">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Reinforcement &amp; Rewards</h3>
-                  <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 space-y-1.5">
-                    {selectedBehavior.reinforcement_rewards.map((r, i) => (
-                      <p key={i} className="text-sm text-teal-800 flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" /> {r}
-                      </p>
-                    ))}
-                  </div>
-                </div>
+              <Section
+                title={selectedIsDocumentDraft ? "Encouragement" : "Reinforcement & Rewards"}
+                items={selectedBehavior.reinforcement_rewards}
+                colorClass="bg-teal-50 border-teal-200 text-teal-800"
+                emptyText={selectedIsDocumentDraft ? "No encouragement or reward was specified in the scanned documents." : undefined}
+              />
+
+              {selectedIsDocumentDraft && (
+                <>
+                  <Section
+                    title="Practice a helpful skill"
+                    items={practiceSkillItems}
+                    colorClass="bg-teal-50 border-teal-200 text-teal-800"
+                    emptyText="No practice skill was stated in the scanned documents, so one has not been added."
+                  />
+                  <Section
+                    title="What to notice"
+                    items={selectedBehavior.what_to_notice}
+                    colorClass="bg-blue-50 border-blue-200 text-blue-800"
+                    emptyText="No observation details were stated in the scanned documents."
+                  />
+                </>
               )}
 
               {goalsForBehavior.length > 0 && (
@@ -581,10 +661,14 @@ export default function HelpNow() {
                 </div>
               )}
 
-              {selectedBehavior.when_to_contact_clinician && (
+              {(selectedBehavior.when_to_contact_clinician || selectedIsDocumentDraft) && (
                 <div className="mb-5 bg-amber-50 border border-amber-200 rounded-2xl p-4">
-                  <p className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-1">Contact Your Clinician If</p>
-                  <p className="text-sm text-amber-800">{selectedBehavior.when_to_contact_clinician}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-1">
+                    {selectedIsDocumentDraft ? "When to contact your clinician" : "Contact Your Clinician If"}
+                  </p>
+                  <p className="text-sm text-amber-800">
+                    {selectedBehavior.when_to_contact_clinician || "No contact guidance was stated in the scanned documents."}
+                  </p>
                 </div>
               )}
 

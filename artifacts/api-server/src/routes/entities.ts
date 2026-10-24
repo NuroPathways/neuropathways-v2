@@ -47,6 +47,7 @@ import {
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
 const router = Router();
+const CLIENT_SUPPORT_CONTENT_VERSION = 1;
 
 const CURRENT_PRIVACY_POLICY_VERSION = "1.0";
 const CURRENT_HEALTH_CONSENT_VERSION = "1.0";
@@ -1166,6 +1167,11 @@ router.post("/build-client-profile", async (req: any, res) => {
     // the file is actually read — otherwise Scan would silently no-op on new docs.
     const allScannableDocs = [...docsWithFiles, ...docsWithNotes];
     const existingSourceIds: string[] = Array.isArray((existingProfile as any)?.sourceDocIds) ? (existingProfile as any).sourceDocIds : [];
+    const hasCurrentSupportContent = Array.isArray((existingProfile as any)?.behaviors)
+      && (existingProfile as any).behaviors.length > 0
+      && (existingProfile as any).behaviors.every(
+        (behavior: any) => Number(behavior?.support_content_version) === CLIENT_SUPPORT_CONTENT_VERSION,
+      );
     const hasUnscannedDoc = allScannableDocs.some(d => !existingSourceIds.includes(d.id));
     const priorExtractionRuns = allScannableDocs.length
       ? await db.select().from(documentExtractionRunsTable)
@@ -1184,6 +1190,7 @@ router.post("/build-client-profile", async (req: any, res) => {
       existingProfile &&
       Array.isArray((existingProfile as any).behaviors) &&
       (existingProfile as any).behaviors.length > 0 &&
+      hasCurrentSupportContent &&
       !force_rebuild &&
       existingSourceIds.every(id => docs.some(doc => doc.id === id)) &&
       !hasUnscannedDoc &&
@@ -1371,6 +1378,8 @@ router.post("/build-client-profile", async (req: any, res) => {
 
 You are a clinical assistant. Analyze the clinical documents above for ${childName}${diagnosis ? ` (diagnosis: ${diagnosis})` : ""} and record a structured behavioral profile by calling the save_behavioral_profile tool. Also populate document_extractions with separate source-cited records for each explicit profile fact, behavior, support_concern candidate, clinical observation, goal, support strategy, safety instruction, and potential home activity. A support_concern candidate may come from an observable difficulty or support need even when the source has no formal target-behavior heading; it is a suggestion, not clinician approval or a diagnosis. Use the exact document id shown with each source heading, and an exact excerpt from that source. Do not classify an activity from a goal alone. Keep the legacy profile fields and the document_extractions classifications consistent.
 
+Client-uploaded documents must not be treated as clinician-approved merely because they were scanned. For every behavior, return every support field in the tool schema; use an empty string or empty array when the documents do not support that field. Do not invent a behavior function, diagnosis, risk level, treatment, de-escalation instruction, avoidance rule, reward, or practice skill. Use cautious wording for possible explanations and distinguish source statements from uncertainty. Only use safety steps that are explicitly stated in the source; never generate restraint, blocking, seclusion, or crisis procedures.
+
 Base every field only on the documents. Use an empty array for any list not supported by the documents.
 
 Write all parent- and client-facing guidance in plain language that a sixth-grade reader can understand:
@@ -1404,19 +1413,27 @@ Example: do not write only "${childName} will complete a graduated exposure hier
                 name: { type: "string", description: "Short behavior name, e.g. 'Aggressive Outbursts'." },
                 emoji: { type: "string", description: "A single relevant emoji." },
                 description: { type: "string", description: "A plain-language, 1-2 sentence description of what a parent may observe." },
-                what_may_be_happening: { type: "string", description: "A plain-language explanation for parents. Explain any necessary clinical term." },
-                do_this_right_now: { type: "array", items: { type: "string" }, description: "Short, specific actions a parent or client can do immediately." },
-                interventions: { type: "array", items: { type: "string" }, description: "Clinician-approved strategies rewritten as concrete actions with examples, not unexplained treatment jargon." },
-                if_it_escalates: { type: "array", items: { type: "string" }, description: "Specific, observable escalation steps in the order they should be followed." },
-                avoid: { type: "array", items: { type: "string" }, description: "Specific actions not to take." },
-                prevention_tips: { type: "array", items: { type: "string" }, description: "Concrete steps that can be completed before a difficult situation." },
-                reinforcement_rewards: { type: "array", items: { type: "string" }, description: "Specific ways to recognize or reward the desired action." },
+                what_may_be_happening: { type: "string", maxLength: 1200, description: "A cautious, plain-language explanation supported by the document. Leave empty when the document does not explain; do not infer a cause or function." },
+                do_this_right_now: { type: "array", maxItems: 4, items: { type: "string", maxLength: 320 }, description: "Short, concrete first steps explicitly supported by the source." },
+                interventions: { type: "array", maxItems: 6, items: { type: "string", maxLength: 400 }, description: "Strategies explicitly stated in source documents, rewritten plainly. This field alone does not establish clinician approval." },
+                if_it_escalates: { type: "array", maxItems: 5, items: { type: "string", maxLength: 320 }, description: "Source-stated de-escalation steps in order. Return an empty array if none are stated; never invent crisis or physical-intervention procedures." },
+                avoid: { type: "array", maxItems: 4, items: { type: "string", maxLength: 320 }, description: "Actions the source explicitly says to avoid." },
+                prevention_tips: { type: "array", maxItems: 4, items: { type: "string", maxLength: 320 }, description: "Concrete prevention steps explicitly supported by the source." },
+                reinforcement_rewards: { type: "array", maxItems: 4, items: { type: "string", maxLength: 320 }, description: "Source-stated encouragement or reinforcement; do not invent preferred rewards." },
+                practice_a_helpful_skill: { type: "string", maxLength: 400, description: "A source-supported communication or coping skill to practice while calm. Leave empty if none is stated." },
+                practice_skill_steps: { type: "array", maxItems: 5, items: { type: "string", maxLength: 240 }, description: "Simple ordered practice steps supported by the document; return an empty array if unsupported." },
+                what_to_notice: { type: "array", maxItems: 6, items: { type: "string", maxLength: 240 }, description: "Observable patterns or signs the document says to notice. Do not infer intent or behavioral function." },
                 clinical_interventions: { type: "array", items: { type: "string" }, description: "Therapy techniques, e.g. ABA, CBT." },
-                when_to_contact_clinician: { type: "string" },
-                linked_goals: { type: "array", items: { type: "string" }, description: "Treatment goal titles this behavior maps to." },
-                triggers: { type: "array", items: { type: "string" } },
+                when_to_contact_clinician: { type: "string", maxLength: 600 },
+                linked_goals: { type: "array", maxItems: 8, items: { type: "string", maxLength: 300 }, description: "Treatment goal titles explicitly linked to this behavior in the source." },
+                triggers: { type: "array", maxItems: 6, items: { type: "string", maxLength: 240 }, description: "Situations explicitly described in the source; do not infer triggers." },
               },
-              required: ["name", "description"],
+              required: [
+                "name", "description", "what_may_be_happening", "do_this_right_now", "interventions",
+                "if_it_escalates", "avoid", "prevention_tips", "reinforcement_rewards",
+                "practice_a_helpful_skill", "practice_skill_steps", "what_to_notice",
+                "clinical_interventions", "when_to_contact_clinician", "linked_goals", "triggers",
+              ],
             },
           },
           goals: {
@@ -1653,7 +1670,12 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       childId: child_id,
       clinicianId: clinicianId ?? existingProfile?.clinicianId ?? null,
       tenantId: clinicianId ?? existingProfile?.tenantId ?? null,
-      behaviors: extracted.behaviors || [],
+      behaviors: (Array.isArray(extracted.behaviors) ? extracted.behaviors : [])
+        .filter((behavior: any) => behavior && typeof behavior === "object" && !Array.isArray(behavior))
+        .map((behavior: any) => ({
+          ...behavior,
+          support_content_version: CLIENT_SUPPORT_CONTENT_VERSION,
+        })),
       goals: extracted.goals || [],
       diagnoses: extracted.diagnoses || (diagnosis ? [diagnosis] : []),
       objectives: extracted.objectives || [],

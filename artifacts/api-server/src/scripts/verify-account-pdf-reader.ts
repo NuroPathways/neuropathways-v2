@@ -19,8 +19,8 @@ const f = JSON.parse(await fs.readFile("/tmp/np-parent-unification-fixtures.json
 assert.match(f.run, /^[0-9a-f-]{36}$/i);
 const base = "http://localhost:80/api";
 const pdf = makePdfFixture([
-  "Behavior: Elopement. Goal: Ask for a break using a familiar signal.",
-  "During calm supervised practice, offer the familiar break signal and pause.",
+  "Behavior: Difficulty with transitions. During a transition away from a puzzle, the client sometimes cries and raises their voice. The document says stopping a preferred activity may be difficult; the exact reason is unknown.",
+  "Try now: Show the familiar break card and wait. If the voice rises, pause the request, use one calm short sentence, and give space. Avoid repeating directions quickly or removing the break card. Prevention: Show a visual timer with two-minute and one-minute warnings. Encouragement: Say, 'You asked for a break,' when the card is used. Practice skill: Ask for a break using the break card. Steps: point to the card, hand it over, and wait for the short pause. Notice: write down the transition, early signs, and whether the timer or card helped.",
 ]);
 async function request(route: string, headers: Record<string, string>, body?: unknown) {
   const response = await fetch(`${base}${route}`, {
@@ -93,6 +93,36 @@ try {
   });
   assert.equal(individualScan.status, 200, `individual client scan HTTP ${individualScan.status}`);
   await assertScanned(saved.data.id);
+  const scannedProfile = individualScan.data.profile;
+  assert.ok(scannedProfile?.sourceDocIds?.includes(saved.data.id), "profile includes the client-uploaded source document");
+  const transitionSupport = (scannedProfile?.behaviors || []).find((behavior: any) =>
+    /transition/i.test(String(behavior?.name || "")),
+  );
+  assert.ok(transitionSupport, "client-uploaded document produces a transition support card");
+  assert.equal(transitionSupport.support_content_version, 1, "support-card fields are current");
+  for (const field of [
+    "do_this_right_now",
+    "interventions",
+    "if_it_escalates",
+    "avoid",
+    "prevention_tips",
+    "reinforcement_rewards",
+    "practice_skill_steps",
+    "what_to_notice",
+  ]) {
+    assert.ok(Array.isArray(transitionSupport[field]), `support card includes ${field}`);
+    assert.ok(transitionSupport[field].length > 0, `synthetic source provides ${field}`);
+  }
+  assert.equal(typeof transitionSupport.practice_a_helpful_skill, "string");
+  assert.ok(transitionSupport.practice_a_helpful_skill.trim(), "support card includes a practice skill");
+  const clientPortal = await request("/client-portal-data", {}, {
+    child_id: f.individual.childId, invite_token: individualToken,
+  });
+  assert.equal(clientPortal.status, 200, "individual client can load its own generated support card");
+  assert.ok(
+    clientPortal.data.profile?.behaviors?.some((behavior: any) => behavior.support_content_version === 1),
+    "client portal exposes the same expanded support card",
+  );
   console.log("PASS individual client: authorized upload, document registration and real two-page PDF scan");
 
   const clinicianToken = await createSession({ user: { id: f.clinician.id }, access_token: "synthetic" } as any);
