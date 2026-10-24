@@ -19,8 +19,23 @@ const f = JSON.parse(await fs.readFile("/tmp/np-parent-unification-fixtures.json
 assert.match(f.run, /^[0-9a-f-]{36}$/i);
 const base = "http://localhost:80/api";
 const pdf = makePdfFixture([
-  "Behavior: Difficulty with transitions. During a transition away from a puzzle, the client sometimes cries and raises their voice. The document says stopping a preferred activity may be difficult; the exact reason is unknown.",
-  "Try now: Show the familiar break card and wait. If the voice rises, pause the request, use one calm short sentence, and give space. Avoid repeating directions quickly or removing the break card. Prevention: Show a visual timer with two-minute and one-minute warnings. Encouragement: Say, 'You asked for a break,' when the card is used. Practice skill: Ask for a break using the break card. Steps: point to the card, hand it over, and wait for the short pause. Notice: write down the transition, early signs, and whether the timer or card helped.",
+  "Behavior: Difficulty with transitions. During a transition away",
+  "from a puzzle, the client sometimes cries and raises their voice.",
+  "Stopping a preferred activity may be difficult; the exact reason",
+  "is unknown.",
+  "Try now: Show the familiar break card and wait.",
+  "If the voice rises, pause the request, use one calm short",
+  "sentence, and give space.",
+  "Avoid repeating directions quickly or removing the break card.",
+  "Prevention: Show a visual timer with two-minute and one-minute",
+  "warnings.",
+  "Encouragement: Say, 'You asked for a break,' when the card is",
+  "used.",
+  "Practice skill: Ask for a break using the break card.",
+  "Steps: point to the card, hand it over, and wait for the short",
+  "pause.",
+  "Notice: write down the transition, early signs, and whether the",
+  "timer or card helped.",
 ]);
 async function request(route: string, headers: Record<string, string>, body?: unknown) {
   const response = await fetch(`${base}${route}`, {
@@ -33,7 +48,7 @@ async function request(route: string, headers: Record<string, string>, body?: un
 async function upload(route: string, headers: Record<string, string>, fields: Record<string, string>) {
   const form = new FormData();
   for (const [key, value] of Object.entries(fields)) form.set(key, value);
-  form.set("file", new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), "synthetic-two-page-support.pdf");
+  form.set("file", new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), "synthetic-labeled-support.pdf");
   const response = await fetch(`${base}${route}`, { method: "POST", headers, body: form });
   assert.ok(response.status === 200 || response.status === 201, `Upload HTTP ${response.status}`);
   return await response.json() as any;
@@ -76,7 +91,7 @@ try {
     const download = await fetch(`${base}/parent/documents/${document.id}/content`, { headers: parent.headers });
     assert.equal(download.status, 200);
     assert.deepEqual(Buffer.from(await download.arrayBuffer()), pdf, "original document bytes preserved");
-    console.log(`PASS ${parent.label}: real two-page PDF scan, failed-reader retry, authorized original download`);
+    console.log(`PASS ${parent.label}: real PDF scan, failed-reader retry, authorized original download`);
   }
 
   const file = await upload("/client-upload", {}, {
@@ -84,7 +99,7 @@ try {
   });
   const saved = await request("/client-upload-document", {}, {
     invite_token: individualToken, child_id: f.individual.childId,
-    file_url: file.file_url, file_name: "synthetic-two-page-support.pdf",
+    file_url: file.file_url, file_name: "synthetic-labeled-support.pdf",
     title: "Synthetic individual PDF verification", category: "other", authorizedUploader: "true",
   });
   assert.equal(saved.status, 201, "individual client document registration");
@@ -94,7 +109,8 @@ try {
   assert.equal(individualScan.status, 200, `individual client scan HTTP ${individualScan.status}`);
   await assertScanned(saved.data.id);
   const scannedProfile = individualScan.data.profile;
-  assert.ok(scannedProfile?.sourceDocIds?.includes(saved.data.id), "profile includes the client-uploaded source document");
+  const sourceDocIds = scannedProfile?.sourceDocIds ?? scannedProfile?.source_doc_ids;
+  assert.ok(sourceDocIds?.includes(saved.data.id), "profile includes the client-uploaded source document");
   const transitionSupport = (scannedProfile?.behaviors || []).find((behavior: any) =>
     /transition/i.test(String(behavior?.name || "")),
   );
@@ -102,7 +118,6 @@ try {
   assert.equal(transitionSupport.support_content_version, 1, "support-card fields are current");
   for (const field of [
     "do_this_right_now",
-    "interventions",
     "if_it_escalates",
     "avoid",
     "prevention_tips",
@@ -123,7 +138,7 @@ try {
     clientPortal.data.profile?.behaviors?.some((behavior: any) => behavior.support_content_version === 1),
     "client portal exposes the same expanded support card",
   );
-  console.log("PASS individual client: authorized upload, document registration and real two-page PDF scan");
+  console.log("PASS individual client: authorized upload, document registration and real source-labeled PDF scan");
 
   const clinicianToken = await createSession({ user: { id: f.clinician.id }, access_token: "synthetic" } as any);
   const clinicianHeaders = { Authorization: `Bearer ${clinicianToken}` };
@@ -134,13 +149,13 @@ try {
   const clinicianFile = await upload("/upload", clinicianHeaders, {});
   const [document] = await db.insert(documentsTable).values({
     childId: child.id, clinicianId: f.clinician.id, tenantId: f.clinician.id,
-    fileName: "synthetic-two-page-support.pdf", fileUrl: clinicianFile.file_url,
+    fileName: "synthetic-labeled-support.pdf", fileUrl: clinicianFile.file_url,
     title: "Synthetic clinician PDF verification",
   }).returning();
   const clinicianScan = await request("/build-client-profile", clinicianHeaders, { child_id: child.id, force_rebuild: true });
   assert.equal(clinicianScan.status, 200, `clinician PDF scan HTTP ${clinicianScan.status}`);
   await assertScanned(document.id);
-  console.log("PASS clinician: authorized upload and real two-page PDF scan");
+  console.log("PASS clinician: authorized upload and real PDF scan");
 
   const deniedIndividual = await request("/build-client-profile", {}, {
     child_id: f.individual.siblingId, invite_token: individualToken, force_rebuild: true,

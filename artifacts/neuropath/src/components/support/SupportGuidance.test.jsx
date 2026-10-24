@@ -214,7 +214,10 @@ describe("support guidance", () => {
     render(
       <BehaviorSelector
         child={{ id: "child-1", child_name: "Sam" }}
-        profile={{ documentSupportCards: [documentConcern] }}
+        profile={{
+          documentSupportCards: [documentConcern],
+          sourceDocuments: [{ id: "document-1", uploadedBy: "parent" }],
+        }}
         parentDirect
         onBack={() => {}}
         onOpenSafety={() => {}}
@@ -222,9 +225,10 @@ describe("support guidance", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Suggested from uploaded documents" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Document support cards" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Difficulty With Verbal Instructions/ }));
-    expect(screen.getByTestId("label-document-informed-status").textContent).toContain("not clinician-reviewed");
+    expect(screen.getByText("Client-uploaded")).toBeTruthy();
+    expect(screen.getByTestId("label-document-informed-status").textContent).toContain("Not clinician-reviewed");
     expect(screen.getByText("Offer one short direction at a time.")).toBeTruthy();
     expect(screen.getByText("Difficulty following several spoken instructions at once.")).toBeTruthy();
     expect(screen.getByText(/not an individualized plan/)).toBeTruthy();
@@ -287,7 +291,7 @@ describe("support guidance", () => {
       documentConcern.id,
       { action: "rename", label: "Instructions feel overwhelming" },
     );
-    expect(screen.getByTestId("label-document-informed-status").textContent).toContain("not clinician-reviewed");
+    expect(screen.getByTestId("label-document-informed-status").textContent).toContain("Not clinician-reviewed");
   });
 
   it("loads parent-owned document suggestions through the authorized parent dashboard", async () => {
@@ -297,6 +301,7 @@ describe("support guidance", () => {
         ...documentConcern,
         generalSupportSuggestions: ["Try one short direction, then pause for a response."],
       }],
+      documents: [{ id: "document-1", uploadedBy: "parent" }],
     });
     render(
       <SupportNowOverlay
@@ -313,7 +318,8 @@ describe("support guidance", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Help With a Behavior/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Difficulty With Verbal Instructions/ }));
     expect(await screen.findByTestId("section-general-support-suggestions")).toBeTruthy();
-    expect(screen.getByText("Suggested from uploaded documents — not clinician-reviewed")).toBeTruthy();
+    expect(screen.getByText("Client-uploaded")).toBeTruthy();
+    expect(screen.getByTestId("label-document-informed-status").textContent).toContain("Not clinician-reviewed");
     expect(screen.getByText("Try one short direction, then pause for a response.")).toBeTruthy();
     expect(supportMocks.getParentDashboard).toHaveBeenCalledWith("child-1", expect.objectContaining({
       credentials: "include",

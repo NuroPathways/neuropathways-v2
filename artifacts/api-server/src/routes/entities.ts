@@ -19,6 +19,7 @@ import { legacyVisibleDocuments, isParentOwnedChild, isParentOwnedDocument, fami
 import { isParentDocument, readParentDocumentBytes, extractParentDocumentText } from "../lib/parentDocuments";
 import { clinicalScanServiceError } from "../lib/clinicalPdf";
 import { prepareSupportPdf } from "../lib/supportPdf";
+import { fillExplicitlyLabeledSupportFields } from "../lib/documentSupportFallback";
 import {
   DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE,
   documentExtractionsToolProperty,
@@ -1143,6 +1144,15 @@ router.post("/build-client-profile", async (req: any, res) => {
   if (!clinicianId) {
     clinicianId = child.clinicianId ?? null;
   }
+  let isIndividualClientAccount = false;
+  if (!req.isAuthenticated?.()) {
+    const [family] = child.familyId
+      ? await db.select({ accountType: familiesTable.accountType }).from(familiesTable)
+        .where(eq(familiesTable.id, child.familyId))
+      : [];
+    isIndividualClientAccount = String(child.accountType ?? "").toLowerCase() === "individual"
+      || String(family?.accountType ?? "").toLowerCase() === "individual";
+  }
 
   console.info(`[NeuroPath] buildClientProfile: start child=${child_id} clinician=${clinicianId} force_rebuild=${!!force_rebuild}`);
   try {
@@ -1380,6 +1390,8 @@ You are a clinical assistant. Analyze the clinical documents above for ${childNa
 
 Client-uploaded documents must not be treated as clinician-approved merely because they were scanned. For every behavior, return every support field in the tool schema; use an empty string or empty array when the documents do not support that field. Do not invent a behavior function, diagnosis, risk level, treatment, de-escalation instruction, avoidance rule, reward, or practice skill. Use cautious wording for possible explanations and distinguish source statements from uncertainty. Only use safety steps that are explicitly stated in the source; never generate restraint, blocking, seclusion, or crisis procedures.
 
+When a document explicitly labels support sections, copy the supported details into the matching fields. For example, "Try now" or "First step" goes in do_this_right_now; "If it escalates" or a sentence beginning "If the voice rises" goes in if_it_escalates; "Avoid" goes in avoid; "Prevention" goes in prevention_tips; "Encouragement" or "Praise" goes in reinforcement_rewards; "Practice skill" goes in practice_a_helpful_skill; "Steps" goes in practice_skill_steps; and "What to notice" or "Monitor" goes in what_to_notice. Do not leave these fields empty when the source explicitly provides matching content. Keep the source's original meaning and sequence.
+
 Base every field only on the documents. Use an empty array for any list not supported by the documents.
 
 Write all parent- and client-facing guidance in plain language that a sixth-grade reader can understand:
@@ -1542,6 +1554,12 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     const extractionSources = includedDocIds
       .map((id) => extractionSourceById.get(id))
       .filter((source): source is DocumentExtractionSource => Boolean(source));
+    if (isIndividualClientAccount && Array.isArray(extracted.behaviors) && extracted.behaviors.length === 1) {
+      const sourceTexts = extractionSources
+        .map((source) => source.searchableText)
+        .filter((text): text is string => Boolean(text?.trim()));
+      extracted.behaviors[0] = fillExplicitlyLabeledSupportFields(extracted.behaviors[0], sourceTexts);
+    }
     const normalizedExtractions = normalizeDocumentExtractions(extracted.document_extractions, extractionSources);
     const candidateSourceRecords = supportConcernCandidateSourceRecords(
       normalizedExtractions.records,

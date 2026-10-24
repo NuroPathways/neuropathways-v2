@@ -16,3 +16,9 @@ Legacy clinician-profile safety notes may be shown to a parent only when every l
 **Why:** The user requires review between phases so automatically identified concerns are not mistaken for approved clinical treatment or prematurely exposed as parent-facing guidance.
 
 **How to apply:** Preserve source-document links and uncertainty during extraction and card generation. Keep candidate storage isolated from current support-card consumers; change Help Now or Practice only after the corresponding phase is explicitly authorized.
+
+For individual-client uploads, document-derived support sections may be shown as suggestions only when clearly labeled as not clinician-reviewed. Populate fields only from supported source content; when details are absent, say so rather than guessing. Do not weaken the approved-plan gate for safety-sensitive behaviors.
+
+**Why:** A model can omit plainly stated sections, but inventing missing clinical or safety guidance is not an acceptable way to make a card look complete.
+
+**How to apply:** Preserve source wording when recovering clearly labeled sections, avoid assigning one behavior's text to another, and keep empty-state explanations visible for unsupported fields.

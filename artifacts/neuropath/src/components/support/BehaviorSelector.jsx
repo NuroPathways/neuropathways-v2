@@ -6,6 +6,7 @@ import { Disclosure } from "@workspace/neuropathways-foundations/components/ui/d
 import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
 import { Input } from "@workspace/neuropathways-foundations/components/ui/input";
 import { getBehaviorAppearance } from "./behaviorVisuals";
+import { supportSourceDocumentIds, supportUploadSourceLabel } from "./supportUploadSource";
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -86,7 +87,7 @@ function requiresPlanBinding(behavior) {
     || ["high", "high_risk", "high-risk"].includes(textValue(behavior.riskTier ?? behavior.risk_tier).toLowerCase());
 }
 
-function normalizeBehaviorRows(value) {
+function normalizeBehaviorRows(value, profile) {
   let rows = value;
   if (typeof rows === "string") {
     try { rows = JSON.parse(rows); } catch { return []; }
@@ -103,12 +104,23 @@ function normalizeBehaviorRows(value) {
       );
     }
   }
-  return Array.isArray(rows)
-    ? rows.map(normalizeBehavior).filter((behavior) => behavior.name.trim())
-    : [];
+  if (!Array.isArray(rows)) return [];
+  const sourceDocuments = Array.isArray(profile?.sourceDocuments) ? profile.sourceDocuments : [];
+  const profileSourceDocIds = supportSourceDocumentIds(profile);
+  const clinicianId = profile?.child?.clinicianId ?? profile?.child?.clinician_id;
+  return rows.map(normalizeBehavior).filter((behavior) => behavior.name.trim()).map((behavior) => {
+    const ids = supportSourceDocumentIds(behavior, profileSourceDocIds);
+    const fallback = /^clinician-uploaded\b/i.test(behavior.sourceLabel)
+      ? "Clinician-uploaded"
+      : "Upload source unavailable";
+    return {
+      ...behavior,
+      sourceLabel: supportUploadSourceLabel(sourceDocuments, ids, clinicianId, fallback),
+    };
+  });
 }
 
-function normalizeDocumentConcernRows(value) {
+function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId = null) {
   if (!Array.isArray(value)) return [];
   return value.flatMap((row) => {
     if (!isRecord(row) || typeof row.id !== "string" || typeof row.behaviorName !== "string") return [];
@@ -139,9 +151,12 @@ function normalizeDocumentConcernRows(value) {
       sourceReviewRequired,
       sourceReferences,
       documentInformed: true,
-      sourceLabel: sourceReviewRequired
-        ? "Suggested from uploaded documents · source review needed"
-        : "Suggested from uploaded documents · not clinician-reviewed",
+      sourceLabel: supportUploadSourceLabel(
+        sourceDocuments,
+        supportSourceDocumentIds(row, sourceReferences.map((reference) => reference.documentId)),
+        clinicianId,
+      ),
+      reviewLabel: sourceReviewRequired ? "Needs source review" : "Not clinician-reviewed",
     }];
   });
 }
@@ -209,7 +224,7 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
               <span className={`np-help-guidance-icon ${appearance.iconClasses}`} aria-hidden="true"><BehaviorIcon /></span>
               {behavior.name}
             </h2>
-            <p>{behavior.sourceLabel || "Support guidance"}</p>
+            <p>{behavior.sourceLabel || "Upload source unavailable"}</p>
           </div>
         </div>
         <div className="np-help-body">
@@ -245,7 +260,7 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
             <span className={`np-help-guidance-icon ${appearance.iconClasses}`} aria-hidden="true"><BehaviorIcon /></span>
             {behavior.name}
           </h2>
-          <p>{behavior.sourceLabel || "Support guidance"}</p>
+          <p>{behavior.sourceLabel || "Upload source unavailable"}</p>
         </div>
       </div>
 
@@ -438,9 +453,7 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
         </div>
       </div>
       <div className="np-help-body" data-testid="document-informed-support-card">
-        <p className="np-help-label" data-testid="label-document-informed-status">
-          Suggested from uploaded documents — not clinician-reviewed
-        </p>
+        <p className="np-help-label" data-testid="label-document-informed-status">{behavior.reviewLabel}</p>
         {behavior.sourceReviewRequired && (
           <div className="np-help-notice" data-tone="caution" role="note" data-testid="notice-source-review">
             <p className="np-help-text np-help-strong">Review the source before relying on this information.</p>
@@ -553,7 +566,7 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
     if (dialog) dialog.scrollTop = 0;
   }, [selectedBehavior]);
 
-  const behaviors = normalizeBehaviorRows(profile?.behaviors).filter((behavior) => {
+  const behaviors = normalizeBehaviorRows(profile?.behaviors, { ...profile, child }).filter((behavior) => {
     if (behavior.conflict === true || Boolean(textValue(behavior.conflictMessage ?? behavior.conflict_message))) return false;
     if (parentDirect) return behavior.parentDirectEligible === true;
     return hasCurrentClinicalApproval(behavior)
@@ -565,7 +578,7 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
         ));
   });
   const documentConcernCards = parentDirect
-    ? normalizeDocumentConcernRows(profile?.documentSupportCards)
+    ? normalizeDocumentConcernRows(profile?.documentSupportCards, profile?.sourceDocuments, child?.clinician_id ?? child?.clinicianId)
     : [];
   const activeDocumentConcernCards = documentConcernCards.filter((card) => !card.dismissed);
   const dismissedDocumentConcernCards = documentConcernCards.filter((card) => card.dismissed);
@@ -696,7 +709,7 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
             )}
             {activeDocumentConcernCards.length > 0 && (
               <section className="np-help-group" aria-labelledby="document-informed-support-heading" data-testid="section-document-informed-support">
-                <h3 className="np-help-label" id="document-informed-support-heading">Suggested from uploaded documents</h3>
+                <h3 className="np-help-label" id="document-informed-support-heading">Document support cards</h3>
                 <p className="np-help-muted">These are source-linked suggestions, not clinician-reviewed or approved treatment.</p>
                 <div className="np-help-behavior-grid">
                   {activeDocumentConcernCards.map((behavior, index) => {
@@ -711,7 +724,7 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
                         className="np-help-option"
                         icon={<BehaviorIcon aria-hidden="true" />}
                         label={behavior.name}
-                        description={behavior.sourceReviewRequired ? "Needs source review" : "Not clinician-reviewed"}
+                        description={behavior.sourceLabel || "Upload source unavailable"}
                       />
                     );
                   })}

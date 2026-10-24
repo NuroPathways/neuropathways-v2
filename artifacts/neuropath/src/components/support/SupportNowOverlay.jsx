@@ -32,7 +32,7 @@ const splitGuidance = (value) => String(value || "")
 
 const behaviorFromPlan = (plan) => ({
   name: plan.behavior_name || plan.behaviorName || "Behavior support",
-  sourceLabel: "Clinician-uploaded plan",
+  sourceLabel: "Clinician-uploaded",
   what_may_be_happening: plan.behavior_description || plan.behaviorDescription || plan.behavior_function || plan.behaviorFunction,
   interventions: splitGuidance(plan.strategy_steps || plan.strategySteps),
   if_it_escalates: splitGuidance(plan.deescalation_steps || plan.deescalationSteps),
@@ -194,18 +194,23 @@ export default function SupportNowOverlay({
     setLoadingProfile(true);
     setProfileLoadError(false);
     try {
-      const withDocumentSupportCards = async (loadedProfile) => {
-        if (parentDirect !== true && !isParentSupportAccount(user)) return loadedProfile;
+      const withDocumentSupportCards = async (loadedProfile, sourceDocuments = []) => {
+        const profileWithSources = {
+          ...(loadedProfile && typeof loadedProfile === "object" ? loadedProfile : {}),
+          sourceDocuments: Array.isArray(sourceDocuments) ? sourceDocuments : [],
+        };
+        if (parentDirect !== true && !isParentSupportAccount(user)) return profileWithSources;
         try {
           const dashboard = await getParentDashboard(childId, parentRequest());
           return {
-            ...(loadedProfile && typeof loadedProfile === "object" ? loadedProfile : {}),
+            ...profileWithSources,
             documentSupportCards: Array.isArray(dashboard.documentSupportCards) ? dashboard.documentSupportCards : [],
             documentSupportCardsLoadError: false,
+            sourceDocuments: Array.isArray(dashboard.documents) ? dashboard.documents : profileWithSources.sourceDocuments,
           };
         } catch {
           return {
-            ...(loadedProfile && typeof loadedProfile === "object" ? loadedProfile : {}),
+            ...profileWithSources,
             documentSupportCards: [],
             documentSupportCardsLoadError: true,
           };
@@ -256,7 +261,7 @@ export default function SupportNowOverlay({
               behaviors: hasGeneratedBehaviors
                 ? generatedBehaviors
                 : approvedPlanBehaviors,
-            }));
+            }, res.data.documents));
             return;
           }
         } catch {
