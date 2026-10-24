@@ -229,9 +229,10 @@ describe("support guidance", () => {
     fireEvent.click(screen.getByRole("button", { name: /Difficulty With Verbal Instructions/ }));
     expect(screen.getByText("Client-uploaded")).toBeTruthy();
     expect(screen.getByTestId("label-document-informed-status").textContent).toContain("Not clinician-reviewed");
+    expect(screen.getByTestId("section-active-step")).toBeTruthy();
+    expect(screen.getByText("Try one step")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Things to Avoid" })).toBeTruthy();
     for (const title of [
-      "Try one step",
-      "Things to Avoid",
       "What may be happening",
       "Prevention Ideas",
       "Encouragement",
@@ -240,10 +241,8 @@ describe("support guidance", () => {
     ]) {
       expect(screen.getByRole("button", { name: title })).toBeTruthy();
     }
-    fireEvent.click(screen.getByRole("button", { name: "Try one step" }));
     expect(screen.getByText("Offer one short direction at a time.")).toBeTruthy();
     expect(screen.getByText(/Optional general ideas only/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Things to Avoid" }));
     expect(screen.getByText("No specific things to avoid are stated in the uploaded document.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "What may be happening" }));
     expect(screen.getByText("Several spoken directions may be difficult to follow.")).toBeTruthy();
@@ -337,8 +336,7 @@ describe("support guidance", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Continue to support options" }));
     fireEvent.click(await screen.findByRole("button", { name: /Help With a Behavior/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Difficulty With Verbal Instructions/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Try one step" }));
-    expect(await screen.findByTestId("document-support-try-one-step")).toBeTruthy();
+    expect(await screen.findByTestId("section-active-step")).toBeTruthy();
     expect(screen.getByText("Client-uploaded")).toBeTruthy();
     expect(screen.getByTestId("label-document-informed-status").textContent).toContain("Not clinician-reviewed");
     expect(screen.getByText("Try one short direction, then pause for a response.")).toBeTruthy();

@@ -180,29 +180,19 @@ function SourceNote({ count }) {
 }
 
 // Non-urgent supporting information: collapsed by default via package Disclosure.
-function Section({ title, items, testId, tone = "default" }) {
-  if (!items || items.length === 0) return null;
+function Section({ title, items = [], testId, tone = "default", emptyText, showSourceNote = true }) {
   const visibleItems = items.slice(0, 5);
+  if (visibleItems.length === 0 && !emptyText) return null;
   return (
     <Disclosure className={`np-help-disclosure np-help-disclosure--${tone}`} title={title} data-testid={testId}>
-      <ol className="np-help-steps" data-tone={tone}>
-        {visibleItems.map((item, i) => <li key={i}><span>{item}</span></li>)}
-      </ol>
-      <SourceNote count={visibleItems.length} />
-    </Disclosure>
-  );
-}
-
-function DocumentSupportSection({ title, items, emptyText, testId, children }) {
-  return (
-    <Disclosure className="np-help-disclosure" title={title} data-testid={testId}>
-      {children || (items.length > 0 ? (
+      {visibleItems.length > 0 ? (
         <ol className="np-help-steps">
-          {items.slice(0, 5).map((item, index) => <li key={index}><span>{item}</span></li>)}
+          {visibleItems.map((item, i) => <li key={i}><span>{item}</span></li>)}
         </ol>
       ) : (
         <p className="np-help-muted" data-testid={`${testId}-empty`}>{emptyText}</p>
-      ))}
+      )}
+      {visibleItems.length > 0 && showSourceNote && <SourceNote count={visibleItems.length} />}
     </Disclosure>
   );
 }
@@ -475,87 +465,77 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
           </div>
         )}
 
-        <section className="np-help-disclosures" aria-label="Support guidance">
-          <DocumentSupportSection
-            title="Try one step"
-            items={behavior.generalSupportSuggestions}
-            emptyText="No optional step is available in this document support card. Use an existing individualized plan or ask your clinician for guidance."
-            testId="document-support-try-one-step"
-          >
-            {behavior.generalSupportSuggestions.length > 0 ? (
-              <>
-                <ol className="np-help-steps">
-                  {behavior.generalSupportSuggestions.map((item, index) => <li key={index}><span>{item}</span></li>)}
-                </ol>
-                <p className="np-help-muted">Optional general ideas only—not an individualized plan, treatment, or clinician-approved instructions.</p>
-              </>
-            ) : (
-              <p className="np-help-muted" data-testid="document-support-try-one-step-empty">
-                No optional step is available in this document support card. Use an existing individualized plan or ask your clinician for guidance.
-              </p>
-            )}
-          </DocumentSupportSection>
-
-          <DocumentSupportSection
-            title="Things to Avoid"
-            items={[]}
-            emptyText="No specific things to avoid are stated in the uploaded document."
-            testId="document-support-things-to-avoid"
-          />
-
-          <DocumentSupportSection
-            title="What may be happening"
-            items={[]}
-            emptyText="No explanation is stated in the uploaded document."
-            testId="document-support-what-may-be-happening"
-          >
+        <section className="np-help-active" data-testid="section-active-step" data-tone="immediate">
+          <p className="np-help-label">Try one step</p>
+          {behavior.generalSupportSuggestions.length > 0 ? (
             <>
-              <p className="np-help-text">{behavior.description || "No explanation is stated in the uploaded document."}</p>
-              {behavior.contexts.length > 0 && (
-                <div className="np-help-group">
-                  <p className="np-help-label">Situations described</p>
-                  <div className="np-help-context-chips">
-                    {behavior.contexts.map((item, index) => <span key={index} className="np-help-context-chip">{item}</span>)}
-                  </div>
-                </div>
+              <p className="np-help-active-step" data-testid="text-active-step">
+                {behavior.generalSupportSuggestions[0]}
+              </p>
+              {behavior.generalSupportSuggestions.length > 1 && (
+                <ul className="np-help-bullets" aria-label="Other optional ideas">
+                  {behavior.generalSupportSuggestions.slice(1, 5).map((item, index) => <li key={index}>{item}</li>)}
+                </ul>
               )}
-              {behavior.uncertainty.length > 0 && behavior.uncertainty.map((item, index) => (
-                <p className="np-help-muted" key={index}>{item}</p>
-              ))}
-              {!behavior.uncertainty.length && (
-                <p className="np-help-muted">This describes what the document reports; it does not establish a cause.</p>
-              )}
+              <p className="np-help-muted">Optional general ideas only—not an individualized plan, treatment, or clinician-approved instructions.</p>
             </>
-          </DocumentSupportSection>
+          ) : (
+            <p className="np-help-active-step" data-testid="document-support-try-one-step-empty">
+              No optional step is available in this document support card. Use an existing individualized plan or ask your clinician for guidance.
+            </p>
+          )}
+        </section>
 
-          <DocumentSupportSection
+        <section className="np-help-group np-help-urgent-section" data-testid="section-avoid">
+          <h3 className="np-help-label">Things to Avoid</h3>
+          <p className="np-help-muted">No specific things to avoid are stated in the uploaded document.</p>
+        </section>
+
+        <div className="np-help-disclosures">
+          <Disclosure className="np-help-disclosure np-help-disclosure--context" title="What may be happening" data-testid="disclosure-explanation">
+            <p className="np-help-text">{behavior.description || "No explanation is stated in the uploaded document."}</p>
+            {behavior.contexts.length > 0 && (
+              <div className="np-help-context-chips" aria-label="Situations described in documents">
+                {behavior.contexts.map((item, index) => <span key={index} className="np-help-context-chip">{item}</span>)}
+              </div>
+            )}
+            {behavior.uncertainty.length > 0
+              ? behavior.uncertainty.map((item, index) => <p className="np-help-muted" key={index}>{item}</p>)
+              : <p className="np-help-muted">This describes what the document reports; it does not establish a cause.</p>}
+          </Disclosure>
+          <Section
             title="Prevention Ideas"
             items={[]}
             emptyText="No prevention ideas are stated in the uploaded document."
-            testId="document-support-prevention-ideas"
+            testId="disclosure-prevention"
+            tone="prevention"
+            showSourceNote={false}
           />
-
-          <DocumentSupportSection
+          <Section
             title="Encouragement"
             items={[]}
             emptyText="No encouragement guidance is stated in the uploaded document."
-            testId="document-support-encouragement"
+            testId="disclosure-encouragement"
+            tone="encouragement"
+            showSourceNote={false}
           />
-
-          <DocumentSupportSection
+          <Section
             title="Practice a helpful skill"
             items={[]}
             emptyText="No practice skill is stated in the uploaded document."
-            testId="document-support-practice-skill"
+            testId="disclosure-skill"
+            tone="skill"
+            showSourceNote={false}
           />
-
-          <DocumentSupportSection
+          <Section
             title="What to notice"
             items={behavior.observations}
             emptyText="No observations to track are stated in the uploaded document."
-            testId="document-support-what-to-notice"
+            testId="disclosure-notice"
+            tone="context"
+            showSourceNote={false}
           />
-        </section>
+        </div>
 
         {behavior.safetySensitiveTopic && (
           <div className="np-help-notice" data-tone="urgent" role="note" data-testid="notice-document-safety">
