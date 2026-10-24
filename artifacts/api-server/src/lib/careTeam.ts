@@ -63,6 +63,31 @@ export function resolveAssignment(snapshot: Record<string, unknown>) {
   };
 }
 
+export function isCareTeamActivityComplete(definition: Record<string, unknown>) {
+  const resolved = resolveAssignment(definition);
+  return Boolean(
+    resolved.title.trim() &&
+    resolved.description.trim() &&
+    resolved.skill.trim() &&
+    resolved.steps.length > 0 &&
+    resolved.steps.every((step) => step.trim()),
+  );
+}
+
+export function isCareTeamRecommendationComplete(
+  definition: Record<string, unknown>,
+  review: Record<string, unknown> | null,
+) {
+  if (!isCareTeamActivityComplete(definition)) return false;
+  const resolved = resolveAssignment(definition);
+  const missing = Array.isArray(review?.missingInformation) ? review.missingInformation.map(String) : [];
+  if (missing.length || review?.sourceClassification === "document_candidate") {
+    if (resolved.steps.filter((step) => step.trim()).length < 2) return false;
+    if (missing.some((item) => /pause|stop|safety/i.test(item)) && !resolved.ifDifficult.trim()) return false;
+  }
+  return true;
+}
+
 export async function assignmentWire(row: typeof careTeamAssignmentsTable.$inferSelect, parentId?: string) {
   const [version] = row.status === "published" ? await db.select().from(careTeamVersionsTable)
     .where(and(eq(careTeamVersionsTable.assignmentId, row.id), eq(careTeamVersionsTable.version, row.version))) : [];

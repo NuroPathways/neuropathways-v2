@@ -12,7 +12,10 @@ import {
 import { requireParent, parentActor, ownedParentChild } from "../lib/parentAuth";
 import { careTeamActivityLibrary } from "../lib/parentDailyActions";
 import { isActivityPublishConfirmationSatisfied } from "../lib/parentActivityLibrary";
-import { assignmentWire, careGoalWire, careWorkspace, readableGoalTitle, carePracticeHistory, resolveAssignment } from "../lib/careTeam";
+import {
+  assignmentWire, careGoalWire, careWorkspace, readableGoalTitle, carePracticeHistory, resolveAssignment,
+  isCareTeamActivityComplete, isCareTeamRecommendationComplete,
+} from "../lib/careTeam";
 import type { ActivityRecommendation } from "../lib/activityMatching";
 
 const router = Router();
@@ -55,24 +58,6 @@ const activityReviewFor = (definition: Record<string, unknown>) => {
   return review && typeof review === "object" ? review as Record<string, unknown> : null;
 };
 function activityIsComplete(definition: Record<string, unknown>) {
-  const resolved = resolveAssignment(definition);
-  return Boolean(
-    resolved.title.trim() &&
-    resolved.description.trim() &&
-    resolved.skill.trim() &&
-    resolved.steps.length > 0 &&
-    resolved.steps.every((step) => step.trim()),
-  );
-}
-function recommendationActivityIsComplete(definition: Record<string, unknown>, review: Record<string, unknown> | null) {
-  if (!activityIsComplete(definition)) return false;
-  const resolved = resolveAssignment(definition);
-  const missing = Array.isArray(review?.missingInformation) ? review.missingInformation.map(String) : [];
-  if (missing.length || review?.sourceClassification === "document_candidate") {
-    if (resolved.steps.filter((step) => step.trim()).length < 2) return false;
-    if (missing.some((item) => /pause|stop|safety/i.test(item)) && !resolved.ifDifficult.trim()) return false;
-  }
-  return true;
 }
 
 router.get("/care-team/activity-library", (req, res) => {
@@ -223,11 +208,11 @@ async function saveAssignment(req: Request, res: Response, update: boolean) {
         planConfirmed: Boolean(planConfirmed),
         ...(nextReview ? { activityReview: nextReview } : {}),
       };
-      if (!library && !activityIsComplete(definition) && ["approved", "published"].includes(status)) {
+      if (!library && !isCareTeamActivityComplete(definition) && ["approved", "published"].includes(status)) {
         throw new Conflict("Complete the title, description, skill, and parent-facing instructions before approval or publication.");
       }
       if (recommendationId && ["approved", "published"].includes(status) &&
-        !recommendationActivityIsComplete(definition, activityReviewFor(definition))) {
+        !isCareTeamRecommendationComplete(definition, activityReviewFor(definition))) {
         throw new Conflict("Complete and verify the missing activity details above before approval or publication.");
       }
       if (recommendationId && ["approved", "published"].includes(status)) {
@@ -350,6 +335,12 @@ router.post("/clinician/children/:childId/activity-recommendations/:recommendati
         : action === "reject" ? "rejected"
           : "needs_details";
     const prepared = recommendationReviewDefinition(recommendation, req.user!.id, action, reviewNote);
+    if (action === "approve" && !isCareTeamRecommendationComplete(
+      prepared.definition,
+      activityReviewFor(prepared.definition),
+    )) {
+      return res.status(409).json({ error: "Complete and verify the missing activity details before approval." });
+    }
     const result = await db.transaction(async (tx) => {
       await tx.select({ id: childrenTable.id }).from(childrenTable)
         .where(eq(childrenTable.id, child.id)).for("update");

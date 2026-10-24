@@ -197,6 +197,59 @@ describe("Care team forms", () => {
     );
   });
 
+  it("opens the cited editing form when a clinician starts reviewing a suggestion", async () => {
+    const recommendation = {
+      id: "document:activity-1",
+      status: "suggestion_only",
+      title: "Familiar communication choice",
+      description: "Offer one familiar choice.",
+      skill: "Communication",
+      steps: ["Offer a choice."],
+      evidence: [{
+        recordId: "record-1", documentId: "doc-1", documentTitle: "Communication plan",
+        sourceExcerpt: "The child uses a familiar communication board.",
+        reviewStatus: "unreviewed",
+      }],
+      missingInformation: [],
+      sourceClassification: "document_candidate",
+      riskClassification: "Low risk",
+      relatedGoal: null,
+      matchReasons: ["The child already uses the communication board."],
+      materials: [],
+      pauseConditions: ["Pause if the child is finished."],
+    };
+    api.reviewCareTeamActivityRecommendation.mockResolvedValue({
+      id: "review-activity-1",
+      recommendationId: recommendation.id,
+      status: "needs_review",
+      version: 0,
+      title: recommendation.title,
+      description: recommendation.description,
+      skill: recommendation.skill,
+      steps: recommendation.steps,
+      sourceEvidence: recommendation.evidence,
+      sourceClassification: recommendation.sourceClassification,
+      riskClassification: recommendation.riskClassification,
+      relatedGoal: null,
+      missingInformation: [],
+      reviewNote: "",
+      planConfirmed: false,
+    });
+    ws.current = {
+      goals: [], assignments: [], recentPractice: [], observations: [],
+      activityRecommendations: [recommendation],
+    };
+    wrap(<CareTeamWorkspace childId="c1" childName="John" />);
+    fireEvent.click(screen.getByTestId(`button-review-suggestion-${recommendation.id}`));
+    await waitFor(() => expect(screen.getByTestId("input-activity-title").value).toBe(recommendation.title));
+    expect(api.reviewCareTeamActivityRecommendation).toHaveBeenCalledWith(
+      "c1", recommendation.id, { action: "start_review" },
+    );
+    expect(screen.getByText("The child uses a familiar communication board.")).toBeTruthy();
+    expect(screen.getByTestId("button-save-draft")).toBeTruthy();
+    expect(screen.getByTestId("button-approve-activity").disabled).toBe(true);
+  });
+
   it("explains when goals did not produce child-specific suggestions", () => {
     ws.current = {
       goals: [], assignments: [], recentPractice: [], observations: [],

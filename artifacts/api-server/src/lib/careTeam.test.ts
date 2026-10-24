@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readableGoalTitle, resolveAssignment, careGoalWire } from "./careTeam";
+import { readableGoalTitle, resolveAssignment, careGoalWire, isCareTeamActivityComplete, isCareTeamRecommendationComplete } from "./careTeam";
 import { careTeamActivityLibrary } from "./parentDailyActions";
 import { isActivityPublishConfirmationSatisfied } from "./parentActivityLibrary";
 
@@ -21,6 +21,23 @@ describe("care-team source and clinical progress boundaries", () => {
     const activity = resolveAssignment({ title: "Existing title" });
     assert.deepEqual(activity.steps, []);
     assert.equal(activity.whyItMayHelp, "");
+  });
+  it("requires complete instructions before approving a document candidate", () => {
+    const review = { sourceClassification: "document_candidate", missingInformation: [] };
+    const oneStep = {
+      title: "Familiar communication choice", description: "Offer one familiar choice.",
+      skill: "Communication", steps: ["Offer a choice."],
+    };
+    const complete = { ...oneStep, steps: ["Offer one familiar choice.", "Pause and accept any response."] };
+    assert.equal(isCareTeamActivityComplete(oneStep), true);
+    assert.equal(isCareTeamRecommendationComplete(oneStep, review), false);
+    assert.equal(isCareTeamRecommendationComplete(complete, review), true);
+    assert.equal(isCareTeamRecommendationComplete({
+      ...complete, ifDifficult: "",
+    }, { ...review, missingInformation: ["Add a pause or stop instruction"] }), false);
+    assert.equal(isCareTeamRecommendationComplete({
+      ...complete, ifDifficult: "Pause if the child is finished.",
+    }, { ...review, missingInformation: ["Add a pause or stop instruction"] }), true);
   });
   it("does not create a clinical percentage for observation-only goals", () => {
     const goal = careGoalWire({
