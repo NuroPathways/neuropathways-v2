@@ -212,8 +212,13 @@ await check("Routines and preferences persist without replacing family support s
   assert.equal((await call(`${childPath}/family-tools`, "PUT", state, familyHeaders)).status, 200);
   const r = await call(`${childPath}/family-tools`, "GET", undefined, mobileHeaders);
   assert.equal(r.data.routines[0].name, "Morning routine");
+  assert.equal(r.data.preferences.favoriteActivities[0], "building blocks");
+  assert.equal(r.data.preferences.communicationMethods[0], "picture card");
   const dash = await call(`${childPath}/dashboard`, "GET", undefined, familyHeaders);
-  assert.ok(dash.data.dailyActions.some((a: any) => a.description.includes("building blocks")));
+  assert.ok(dash.data.documentActivitySuggestions.some((activity: any) =>
+    activity.matchSource === "family_preferences" && activity.matchedPreferences.includes("building blocks"),
+  ), "Saved family interests should select specific suggestions, not be appended to every daily action.");
+  assert.equal(dash.data.dailyActions.some((a: any) => a.description.includes("building blocks")), false);
   assert.ok(dash.data.child.behaviors.some((b: any) => b.behaviorKey === "elopement"));
 });
 await check("Clinical goal edits denied; parent goal create/edit/delete works", async () => {
