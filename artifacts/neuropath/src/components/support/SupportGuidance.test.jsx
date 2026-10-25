@@ -57,6 +57,16 @@ const documentConcern = {
   observations: ["Frustration during multi-step assignments"],
   uncertainty: ["The source does not state why this occurs."],
   generalSupportSuggestions: ["Offer one short direction at a time."],
+  supportSections: {
+    tryOneSteps: ["Give one short direction, then wait.", "Offer the next step after a response."],
+    simplerStep: "Pause and offer one clear choice.",
+    thingsToAvoid: ["Avoid stacking several spoken directions at once."],
+    whatMayBeHappening: ["Several spoken directions may be harder to follow at once."],
+    preventionIdeas: ["Share one direction at a time."],
+    encouragement: ["Notice the effort when Sam responds."],
+    practiceSkill: ["Practice asking for one direction at a time during a calm moment."],
+    whatToNotice: ["Whether one direction at a time reduces frustration."],
+  },
   missingClinicalInformation: ["This is a document-informed suggestion, not clinician-approved treatment."],
   safetySensitiveTopic: false,
   sourceReviewRequired: false,
@@ -230,7 +240,19 @@ describe("support guidance", () => {
     expect(screen.getByText("Client-uploaded")).toBeTruthy();
     expect(screen.getByTestId("label-document-informed-status").textContent).toContain("Not clinician-reviewed");
     expect(screen.getByTestId("section-active-step")).toBeTruthy();
-    expect(screen.getByText("Try one step")).toBeTruthy();
+    expect(screen.getByText(/Try one step/)).toBeTruthy();
+    expect(screen.getByText("Give one short direction, then wait.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Next" }).disabled).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Offer the next step after a response.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back" }).disabled).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Give one short direction, then wait.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "This isn't working" }));
+    expect(screen.getByText("Pause and offer one clear choice.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Return to saved step" }));
+    expect(screen.getByText("Give one short direction, then wait.")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Things to Avoid" })).toBeTruthy();
     for (const title of [
       "What may be happening",
@@ -241,16 +263,24 @@ describe("support guidance", () => {
     ]) {
       expect(screen.getByRole("button", { name: title })).toBeTruthy();
     }
-    expect(screen.getByText("Offer one short direction at a time.")).toBeTruthy();
-    expect(screen.getByText(/Optional general ideas only/)).toBeTruthy();
-    expect(screen.getByText("No specific things to avoid are stated in the uploaded document.")).toBeTruthy();
+    expect(screen.getByText("Avoid stacking several spoken directions at once.")).toBeTruthy();
+    expect(screen.getByTestId("label-ai-generated-guidance")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "What may be happening" }));
-    expect(screen.getByText("Several spoken directions may be difficult to follow.")).toBeTruthy();
+    expect(screen.getByText("Several spoken directions may be harder to follow at once.")).toBeTruthy();
+    expect(screen.getByText(/The document reports: Several spoken directions may be difficult to follow/)).toBeTruthy();
     expect(screen.getByText("The source does not state why this occurs.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "What to notice" }));
+    expect(screen.getByText("Whether one direction at a time reduces frustration.")).toBeTruthy();
     expect(screen.getByText("Frustration during multi-step assignments")).toBeTruthy();
     expect(screen.getByText("Difficulty following several spoken instructions at once.")).toBeTruthy();
-    expect(screen.getByText(/not an individualized plan/)).toBeTruthy();
+    expect(screen.getByTestId("label-ai-generated-guidance").textContent).toContain("not clinician-reviewed");
+    for (const expected of [
+      "Share one direction at a time.",
+      "Notice the effort when Sam responds.",
+      "Practice asking for one direction at a time during a calm moment.",
+    ]) {
+      expect(screen.getByText(expected)).toBeTruthy();
+    }
   });
 
   it("withholds suggestions for safety-sensitive or source-review-required draft cards", () => {
@@ -339,7 +369,7 @@ describe("support guidance", () => {
     expect(await screen.findByTestId("section-active-step")).toBeTruthy();
     expect(screen.getByText("Client-uploaded")).toBeTruthy();
     expect(screen.getByTestId("label-document-informed-status").textContent).toContain("Not clinician-reviewed");
-    expect(screen.getByText("Try one short direction, then pause for a response.")).toBeTruthy();
+    expect(screen.getByText("Give one short direction, then wait.")).toBeTruthy();
     expect(supportMocks.getParentDashboard).toHaveBeenCalledWith("child-1", expect.objectContaining({
       credentials: "include",
       headers: expect.any(Object),

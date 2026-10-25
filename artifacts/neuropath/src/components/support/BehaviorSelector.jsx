@@ -146,6 +146,28 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
       observations: listItems(row.observations),
       uncertainty: listItems(row.uncertainty),
       generalSupportSuggestions,
+      supportSections: safetySensitiveTopic || sourceReviewRequired
+        ? {
+          tryOneSteps: [],
+          simplerStep: "",
+          thingsToAvoid: [],
+          whatMayBeHappening: [],
+          preventionIdeas: [],
+          encouragement: [],
+          practiceSkill: [],
+          whatToNotice: [],
+        }
+        : {
+          tryOneSteps: listItems(row.supportSections?.tryOneSteps).slice(0, 5)
+            .concat(listItems(row.supportSections?.tryOneSteps).length ? [] : generalSupportSuggestions).slice(0, 5),
+          simplerStep: textValue(row.supportSections?.simplerStep),
+          thingsToAvoid: listItems(row.supportSections?.thingsToAvoid).slice(0, 5),
+          whatMayBeHappening: listItems(row.supportSections?.whatMayBeHappening).slice(0, 4),
+          preventionIdeas: listItems(row.supportSections?.preventionIdeas).slice(0, 5),
+          encouragement: listItems(row.supportSections?.encouragement).slice(0, 5),
+          practiceSkill: listItems(row.supportSections?.practiceSkill).slice(0, 5),
+          whatToNotice: listItems(row.supportSections?.whatToNotice).slice(0, 5),
+        },
       missingClinicalInformation: listItems(row.missingClinicalInformation),
       safetySensitiveTopic,
       sourceReviewRequired,
@@ -197,9 +219,42 @@ function Section({ title, items = [], testId, tone = "default", emptyText, showS
   );
 }
 
-function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onOpenSafety }) {
+function TryOneStepPanel({ steps = [], simplerStep, tone = "immediate", emptyText, strategyLabel }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [showSimpler, setShowSimpler] = useState(false);
+  const visibleSteps = Array.isArray(steps) ? steps : [];
+  return (
+    <section className="np-help-active" data-testid="section-active-step" data-tone={tone}>
+      {strategyLabel && <p className="np-help-label" data-testid="label-strategy-source">{strategyLabel}</p>}
+      <p className="np-help-label">
+        {showSimpler
+          ? "A simpler supported step"
+          : visibleSteps.length
+            ? <>Try one step · Step {Math.min(stepIndex, visibleSteps.length - 1) + 1}</>
+            : "Try one step"}
+      </p>
+      {showSimpler
+        ? <p className="np-help-active-step" data-testid="text-simpler-step">{simplerStep}</p>
+        : visibleSteps.length
+          ? <>
+            <p className="np-help-active-step" data-testid="text-active-step" aria-live="polite">
+              {visibleSteps[Math.min(stepIndex, visibleSteps.length - 1)]}
+            </p>
+            <div className="np-help-step-nav">
+              <button type="button" disabled={stepIndex === 0} onClick={() => setStepIndex((value) => Math.max(0, value - 1))} data-testid="button-step-back" className="np-help-btn">Back</button>
+              <span aria-live="polite">Step {stepIndex + 1} of {visibleSteps.length}</span>
+              <button type="button" disabled={stepIndex >= visibleSteps.length - 1} onClick={() => setStepIndex((value) => Math.min(visibleSteps.length - 1, value + 1))} data-testid="button-step-next" data-variant="primary" className="np-help-btn">Next<ArrowRight aria-hidden="true" /></button>
+            </div>
+          </>
+          : <p className="np-help-active-step" data-testid="document-support-try-one-step-empty">{emptyText}</p>}
+      <button type="button" onClick={() => setShowSimpler((value) => !value)} data-testid="button-toggle-simpler" className="np-help-btn" style={{ justifySelf: "start" }}>
+        {showSimpler ? "Return to saved step" : "This isn't working"}
+      </button>
+    </section>
+  );
+}
+
+function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onOpenSafety }) {
   const directSteps = behavior.do_this_right_now || [];
   const strategies = behavior.interventions || [];
   const immediateSteps = directSteps.length ? directSteps : strategies;
@@ -269,52 +324,15 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
       </div>
 
       <div className="np-help-body">
-        <section className="np-help-active" data-testid="section-active-step" data-tone={activeTone}>
-          {!directSteps.length && strategies.length > 0 && (
-            <p className="np-help-label" data-testid="label-strategy-source">
-              {strategyIsClinicallyApproved ? "Clinician-approved strategies" : "Saved support strategies"}
-            </p>
-          )}
-          <p className="np-help-label">
-            {showSimpler
-              ? "A simpler supported step"
-              : immediateSteps.length
-                ? <>Try one step · Step {Math.min(stepIndex, immediateSteps.length - 1) + 1}</>
-                : "Try one step"}
-          </p>
-          {showSimpler
-            ? <p className="np-help-active-step" data-testid="text-simpler-step">{simplerStep}</p>
-            : immediateSteps.length
-              ? <>
-                {directSteps.length ? (
-                  <p className="np-help-active-step" data-testid="text-active-step" aria-live="polite">
-                    {immediateSteps[Math.min(stepIndex, immediateSteps.length - 1)]}
-                  </p>
-                ) : (
-                  <ol className="np-help-steps" data-tone={activeTone}>
-                    {immediateSteps.map((instruction, index) => (
-                      <li key={index} aria-current={index === stepIndex ? "step" : undefined}>
-                        <span
-                          data-testid={index === stepIndex ? "text-active-step" : undefined}
-                          aria-live={index === stepIndex ? "polite" : undefined}
-                        >
-                          {instruction}
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-                <div className="np-help-step-nav">
-                  <button type="button" disabled={stepIndex === 0} onClick={() => setStepIndex((value) => Math.max(0, value - 1))} data-testid="button-step-back" className="np-help-btn">Back</button>
-                  <span aria-live="polite">Step {stepIndex + 1} of {immediateSteps.length}</span>
-                  <button type="button" disabled={stepIndex >= immediateSteps.length - 1} onClick={() => setStepIndex((value) => Math.min(immediateSteps.length - 1, value + 1))} data-testid="button-step-next" data-variant="primary" className="np-help-btn">Next<ArrowRight aria-hidden="true" /></button>
-                </div>
-              </>
-              : <p className="np-help-active-step">No immediate step is saved for this support area. Pause, reduce demands if possible, and use the safety information below.</p>}
-          <button type="button" onClick={() => setShowSimpler((value) => !value)} data-testid="button-toggle-simpler" className="np-help-btn" style={{ justifySelf: "start" }}>
-            {showSimpler ? "Return to saved step" : "This isn't working"}
-          </button>
-        </section>
+        <TryOneStepPanel
+          steps={immediateSteps}
+          simplerStep={simplerStep}
+          tone={activeTone}
+          emptyText="No immediate step is saved for this support area. Pause, reduce demands if possible, and use the safety information below."
+          strategyLabel={!directSteps.length && strategies.length > 0
+            ? strategyIsClinicallyApproved ? "Clinician-approved strategies" : "Saved support strategies"
+            : undefined}
+        />
 
         {directSteps.length > 0 && strategies.length > 0 && (
           <section className="np-help-group np-help-guidance-section" data-tone="strategy" data-testid="section-clinical-strategies">
@@ -458,6 +476,11 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
       </div>
       <div className="np-help-body" data-testid="document-informed-support-card">
         <p className="np-help-label" data-testid="label-document-informed-status">{behavior.reviewLabel}</p>
+        {!behavior.sourceReviewRequired && !behavior.safetySensitiveTopic && (
+          <p className="np-help-muted" data-testid="label-ai-generated-guidance">
+            AI-generated general ideas based on verified information from the uploaded document. These are not clinician-reviewed or individualized treatment.
+          </p>
+        )}
         {behavior.sourceReviewRequired && (
           <div className="np-help-notice" data-tone="caution" role="note" data-testid="notice-source-review">
             <p className="np-help-text np-help-strong">Review the source before relying on this information.</p>
@@ -465,35 +488,32 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
           </div>
         )}
 
-        <section className="np-help-active" data-testid="section-active-step" data-tone="immediate">
-          <p className="np-help-label">Try one step</p>
-          {behavior.generalSupportSuggestions.length > 0 ? (
-            <>
-              <p className="np-help-active-step" data-testid="text-active-step">
-                {behavior.generalSupportSuggestions[0]}
-              </p>
-              {behavior.generalSupportSuggestions.length > 1 && (
-                <ul className="np-help-bullets" aria-label="Other optional ideas">
-                  {behavior.generalSupportSuggestions.slice(1, 5).map((item, index) => <li key={index}>{item}</li>)}
-                </ul>
-              )}
-              <p className="np-help-muted">Optional general ideas only—not an individualized plan, treatment, or clinician-approved instructions.</p>
-            </>
-          ) : (
-            <p className="np-help-active-step" data-testid="document-support-try-one-step-empty">
-              No optional step is available in this document support card. Use an existing individualized plan or ask your clinician for guidance.
-            </p>
-          )}
-        </section>
+        <TryOneStepPanel
+          steps={behavior.supportSections.tryOneSteps}
+          simplerStep={behavior.supportSections.simplerStep || "Pause this suggestion and use the child’s current support plan, or contact the clinician for help."}
+          tone="immediate"
+          emptyText="No safe general step could be generated for this document support card. Use an existing individualized plan or ask the clinician for guidance."
+        />
 
         <section className="np-help-group np-help-urgent-section" data-testid="section-avoid">
           <h3 className="np-help-label">Things to Avoid</h3>
-          <p className="np-help-muted">No specific things to avoid are stated in the uploaded document.</p>
+          {behavior.supportSections.thingsToAvoid.length > 0 ? (
+            <ul className="np-help-bullets" data-tone="urgent">
+              {behavior.supportSections.thingsToAvoid.map((item, index) => <li key={index}>{item}</li>)}
+            </ul>
+          ) : (
+            <p className="np-help-muted">No safe, document-informed avoid suggestion is available for this card.</p>
+          )}
         </section>
 
         <div className="np-help-disclosures">
           <Disclosure className="np-help-disclosure np-help-disclosure--context" title="What may be happening" data-testid="disclosure-explanation">
-            <p className="np-help-text">{behavior.description || "No explanation is stated in the uploaded document."}</p>
+            {behavior.supportSections.whatMayBeHappening.length > 0
+              ? behavior.supportSections.whatMayBeHappening.map((item, index) => <p className="np-help-text" key={index}>{item}</p>)
+              : <p className="np-help-text">{behavior.description || "No explanation is stated in the uploaded document."}</p>}
+            {behavior.supportSections.whatMayBeHappening.length > 0 && behavior.description && (
+              <p className="np-help-muted">The document reports: {behavior.description}</p>
+            )}
             {behavior.contexts.length > 0 && (
               <div className="np-help-context-chips" aria-label="Situations described in documents">
                 {behavior.contexts.map((item, index) => <span key={index} className="np-help-context-chip">{item}</span>)}
@@ -505,32 +525,32 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
           </Disclosure>
           <Section
             title="Prevention Ideas"
-            items={[]}
-            emptyText="No prevention ideas are stated in the uploaded document."
+            items={behavior.supportSections.preventionIdeas}
+            emptyText="No safe prevention idea could be generated from the available document information."
             testId="disclosure-prevention"
             tone="prevention"
             showSourceNote={false}
           />
           <Section
             title="Encouragement"
-            items={[]}
-            emptyText="No encouragement guidance is stated in the uploaded document."
+            items={behavior.supportSections.encouragement}
+            emptyText="No safe encouragement idea could be generated from the available document information."
             testId="disclosure-encouragement"
             tone="encouragement"
             showSourceNote={false}
           />
           <Section
             title="Practice a helpful skill"
-            items={[]}
-            emptyText="No practice skill is stated in the uploaded document."
+            items={behavior.supportSections.practiceSkill}
+            emptyText="No safe practice skill could be generated from the available document information."
             testId="disclosure-skill"
             tone="skill"
             showSourceNote={false}
           />
           <Section
             title="What to notice"
-            items={behavior.observations}
-            emptyText="No observations to track are stated in the uploaded document."
+            items={[...new Set([...behavior.supportSections.whatToNotice, ...behavior.observations])]}
+            emptyText="No observations are available to notice or track."
             testId="disclosure-notice"
             tone="context"
             showSourceNote={false}

@@ -91,12 +91,37 @@ test("candidate cards preserve source excerpts, uncertainty, and the unreviewed 
         "Offer one short direction at a time and allow processing time.",
         "Use restraint if needed.",
       ],
+      try_one_steps: [
+        "Give one short direction.",
+        "Pause and allow time for a response.",
+        "Use a blocking procedure immediately.",
+      ],
+      simpler_step: "Pause the request and offer one clear choice.",
+      things_to_avoid: ["Avoid stacking spoken directions.", "Use restraint if needed."],
+      what_may_be_happening: ["Several spoken directions may be difficult to process at once."],
+      prevention_ideas: ["Share one direction at a time."],
+      encouragement: ["Notice the effort to respond."],
+      practice_a_helpful_skill: ["Practice asking for one direction at a time during a calm moment."],
+      what_to_notice: ["Whether one direction at a time reduces frustration."],
     }],
     now: new Date("2026-10-23T12:00:00.000Z"),
   });
   assert.equal(cards.length, 1);
   assert.equal(cards[0].behaviorName, "Difficulty With Verbal Instructions");
   assert.deepEqual(cards[0].generalSupportSuggestions, ["Offer one short direction at a time and allow processing time."]);
+  assert.deepEqual(cards[0].supportSections.tryOneSteps, [
+    "Give one short direction.",
+    "Pause and allow time for a response.",
+  ]);
+  assert.deepEqual(cards[0].supportSections.thingsToAvoid, ["Avoid stacking spoken directions."]);
+  assert.deepEqual(cards[0].supportSections.preventionIdeas, ["Share one direction at a time."]);
+  assert.deepEqual(cards[0].supportSections.encouragement, ["Notice the effort to respond."]);
+  assert.deepEqual(cards[0].supportSections.practiceSkill, [
+    "Practice asking for one direction at a time during a calm moment.",
+  ]);
+  assert.deepEqual(cards[0].supportSections.whatToNotice, [
+    "Whether one direction at a time reduces frustration.",
+  ]);
   assert.equal(cards[0].sourceReferences[0].excerpt, source.sourceExcerpt);
   assert.equal(cards[0].sourceReferences[0].title, "Intake Assessment");
   assert.deepEqual(cards[0].uncertainty, ["The source does not state why this occurs."]);
@@ -124,6 +149,8 @@ test("high-risk concerns retain source facts but never keep generated interventi
   });
   assert.equal(card.safetySensitiveTopic, true);
   assert.deepEqual(card.generalSupportSuggestions, []);
+  assert.deepEqual(card.supportSections.tryOneSteps, []);
+  assert.deepEqual(card.supportSections.thingsToAvoid, []);
   assert.match(card.missingClinicalInformation[1], /verified safety plan/);
 });
 
@@ -137,6 +164,7 @@ test("missing or invalid model grouping falls back to the verified extracted con
   });
   assert.equal(card.generationStatus, "extraction_only");
   assert.deepEqual(card.generalSupportSuggestions, []);
+  assert.deepEqual(card.supportSections.tryOneSteps, []);
   assert.equal(card.sourceReferences[0].title, "Uploaded document");
 });
 
@@ -199,6 +227,32 @@ test("candidate prompt exposes only bounded concern fields and treats excerpts a
   assert.match(prompt, /extraction-1/);
   assert.match(prompt, /verified_excerpt/);
   assert.doesNotMatch(prompt, /approvedBy/);
+});
+
+test("generation prompt includes verified facts from the same child's source documents only", () => {
+  const concern = record();
+  const sameDocumentFact = record({
+    id: "verified-context",
+    category: "clinical_observation",
+    interpretation: { observation: "Written directions helped during classroom work." },
+  });
+  const unverifiedFact = record({
+    id: "unverified-context",
+    sourceExcerptVerified: false,
+    interpretation: { observation: "Unverified private detail." },
+  });
+  const otherChildFact = record({
+    id: "other-child-context",
+    childId: "child-2",
+    interpretation: { observation: "Another child detail." },
+  });
+  const prompt = buildSupportConcernGenerationPrompt(
+    [concern],
+    [sameDocumentFact, unverifiedFact, otherChildFact],
+  );
+  assert.match(prompt, /Written directions helped during classroom work/);
+  assert.doesNotMatch(prompt, /Unverified private detail/);
+  assert.doesNotMatch(prompt, /Another child detail/);
 });
 
 test("candidate discovery considers source-linked observations without requiring a formal target and excludes non-concern categories", () => {
@@ -340,6 +394,10 @@ test("generated card ideas attach only to verified low-risk source concerns and 
   assert.deepEqual(attached[0].interpretation.general_support_suggestions, [
     "Try one short direction, then pause for a response.",
   ]);
+  assert.deepEqual(
+    attached[0].interpretation.generated_support_sections.tryOneSteps,
+    ["Try one short direction, then pause for a response."],
+  );
   assert.equal(attached[1].interpretation.general_support_suggestions, undefined);
   assert.equal(attached[2].interpretation.general_support_suggestions, undefined);
 
