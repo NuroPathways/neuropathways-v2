@@ -268,8 +268,9 @@ describe("support guidance", () => {
     expect(screen.getByTestId("label-ai-generated-guidance")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "What may be happening" }));
     expect(screen.getByText("Several spoken directions may be harder to follow at once.")).toBeTruthy();
-    expect(screen.getByText(/The document reports: Several spoken directions may be difficult to follow/)).toBeTruthy();
-    expect(screen.getByText("The source does not state why this occurs.")).toBeTruthy();
+    expect(screen.getByText("Several spoken directions may be difficult to follow.")).toBeTruthy();
+    expect(screen.getByText("Documented context: schoolwork")).toBeTruthy();
+    expect(screen.queryByText("The source does not state why this occurs.")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "What to notice" }));
     expect(screen.getByText("Whether one direction at a time reduces frustration.")).toBeTruthy();
     expect(screen.getByText("Frustration during multi-step assignments")).toBeTruthy();
@@ -285,6 +286,42 @@ describe("support guidance", () => {
     ]) {
       expect(screen.getByText(expected)).toBeTruthy();
     }
+  });
+
+  it("shows document-derived facts without empty-section or generation-error messages", () => {
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Sam" }}
+        profile={{
+          documentSupportCards: [{
+            ...documentConcern,
+            generationStatus: "extraction_only",
+            generalSupportSuggestions: [],
+            supportSections: {
+              tryOneSteps: [],
+              simplerStep: "",
+              thingsToAvoid: [],
+              whatMayBeHappening: [],
+              preventionIdeas: [],
+              encouragement: [],
+              practiceSkill: [],
+              whatToNotice: [],
+            },
+          }],
+        }}
+        parentDirect
+        onBack={() => {}}
+        onOpenSafety={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Difficulty With Verbal Instructions/ }));
+    expect(screen.getByText("From the document")).toBeTruthy();
+    expect(screen.getByText("Several spoken directions may be difficult to follow.")).toBeTruthy();
+    expect(screen.queryByText(/No safe general step could be generated/)).toBeNull();
+    expect(screen.queryByText(/No safe, document-informed avoid suggestion/)).toBeNull();
+    expect(screen.queryByTestId("notice-generation-unavailable")).toBeNull();
   });
 
   it("withholds suggestions for safety-sensitive or source-review-required draft cards", () => {

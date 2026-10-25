@@ -17,8 +17,8 @@ Legacy clinician-profile safety notes may be shown to a parent only when every l
 
 **How to apply:** Preserve source-document links and uncertainty during extraction and card generation. Keep candidate storage isolated from current support-card consumers; change Help Now or Practice only after the corresponding phase is explicitly authorized.
 
-For individual-client uploads, document-derived support sections may be shown as suggestions only when clearly labeled as not clinician-reviewed. Populate fields only from supported source content; when details are absent, say so rather than guessing. Do not weaken the approved-plan gate for safety-sensitive behaviors.
+For document-informed support cards, use all relevant verified facts from the same child's uploaded documents, summarize them in plain language, and put the resulting specifics into the matching sections. Do not show generic "the document does not specify..." or "no safe suggestion" filler in place of useful card content. Cautious, low-risk caregiver ideas may be added when they directly fit the documented context, but keep them distinct from source facts and label them as AI-generated and not clinician-reviewed.
 
-**Why:** A model can omit plainly stated sections, but inventing missing clinical or safety guidance is not an acceptable way to make a card look complete.
+**Why:** The user wants document-supported cards to contain concrete extracted summaries rather than generic absence messages, and has authorized carefully bounded AI suggestions when the document does not provide a ready-made section.
 
-**How to apply:** Preserve source wording when recovering clearly labeled sections, avoid assigning one behavior's text to another, and keep empty-state explanations visible for unsupported fields.
+**How to apply:** Rank and include relevant verified source details, prioritize documented supports and successful approaches, summarize rather than copy excerpts, and suppress boilerplate about missing frequency or triggers. Keep the source citation and provenance visible. Do not infer diagnosis, function, intent, risk, preferences, or missing clinical facts, and do not create crisis, physical-intervention, or individualized treatment instructions. Retain source-review and approved-plan gates for unverified and safety-sensitive content.

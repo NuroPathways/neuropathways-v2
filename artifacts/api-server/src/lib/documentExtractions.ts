@@ -438,7 +438,7 @@ export function documentExtractionsToolProperty() {
               enum: ["documented_concern", "possible_support_area"],
               description: "Use documented_concern only when the source itself describes a concern; otherwise possible_support_area. Neither is a diagnosis, function, intent, approved treatment, or formal target.",
             },
-            uncertainty: text("What the source does not establish about this possible support area; do not speculate.", 1_000),
+            uncertainty: text("A brief ambiguity only when the source itself is unclear; otherwise leave empty. Do not list missing frequency, intensity, duration, or triggers.", 500),
             name: text("A documented behavior name or a plain-language support-area candidate; do not imply a confirmed target.", 300),
             observable_description: text("Observable description; do not infer behavioral function.", MAX_VALUE_LENGTH),
             contexts: stringArray,

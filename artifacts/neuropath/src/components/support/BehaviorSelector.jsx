@@ -36,6 +36,21 @@ function listItems(value) {
   return [];
 }
 
+function supportFactText(value) {
+  const text = textValue(value);
+  if (!text) return "";
+  const unhelpfulGap = /\b(?:the (?:document|source|notes|record|report) (?:does not|doesn't|did not|didn't|never) (?:specify|state|mention|identify|describe|establish)|(?:frequency|intensity|duration|specific triggers?) (?:is not|isn't|was not|wasn't|are not|aren't|were not|weren't) (?:specified|stated|documented|identified)|no safe (?:general|document-informed|prevention|support|practice)|not enough evidence to|the source does not establish)\b/i;
+  return text.split(/(?<=[.!?])\s+/).filter((sentence) => !unhelpfulGap.test(sentence)).join(" ").trim();
+}
+
+function documentFactSummary(behavior) {
+  return [...new Set([
+    supportFactText(behavior.description),
+    ...listItems(behavior.contexts).map((item) => `Documented context: ${supportFactText(item)}`),
+    ...listItems(behavior.observations).map((item) => `Documented observation: ${supportFactText(item)}`),
+  ].filter(Boolean))];
+}
+
 function normalizeBehavior(value, index) {
   const raw = isRecord(value) ? value : { name: typeof value === "string" ? value : "" };
   const behaviorKey = textValue(raw.behaviorKey ?? raw.behavior_key ?? raw.key);
@@ -135,15 +150,15 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
     const sourceReviewRequired = row.sourceReviewRequired === true || row.reviewStatus === "needs_review";
     const generalSupportSuggestions = safetySensitiveTopic || sourceReviewRequired
       ? []
-      : listItems(row.generalSupportSuggestions).slice(0, 5);
+      : listItems(row.generalSupportSuggestions).map(supportFactText).filter(Boolean).slice(0, 5);
     return [{
       ...row,
       id: row.id,
       name: textValue(row.displayName) || textValue(row.behaviorName),
       originalName: textValue(row.behaviorName),
-      description: textValue(row.description),
-      contexts: listItems(row.contexts),
-      observations: listItems(row.observations),
+      description: supportFactText(row.description),
+      contexts: listItems(row.contexts).map(supportFactText).filter(Boolean),
+      observations: listItems(row.observations).map(supportFactText).filter(Boolean),
       uncertainty: listItems(row.uncertainty),
       generalSupportSuggestions,
       supportSections: safetySensitiveTopic || sourceReviewRequired
@@ -158,15 +173,15 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
           whatToNotice: [],
         }
         : {
-          tryOneSteps: listItems(row.supportSections?.tryOneSteps).slice(0, 5)
+          tryOneSteps: listItems(row.supportSections?.tryOneSteps).map(supportFactText).filter(Boolean).slice(0, 5)
             .concat(listItems(row.supportSections?.tryOneSteps).length ? [] : generalSupportSuggestions).slice(0, 5),
-          simplerStep: textValue(row.supportSections?.simplerStep),
-          thingsToAvoid: listItems(row.supportSections?.thingsToAvoid).slice(0, 5),
-          whatMayBeHappening: listItems(row.supportSections?.whatMayBeHappening).slice(0, 4),
-          preventionIdeas: listItems(row.supportSections?.preventionIdeas).slice(0, 5),
-          encouragement: listItems(row.supportSections?.encouragement).slice(0, 5),
-          practiceSkill: listItems(row.supportSections?.practiceSkill).slice(0, 5),
-          whatToNotice: listItems(row.supportSections?.whatToNotice).slice(0, 5),
+          simplerStep: supportFactText(row.supportSections?.simplerStep),
+          thingsToAvoid: listItems(row.supportSections?.thingsToAvoid).map(supportFactText).filter(Boolean).slice(0, 5),
+          whatMayBeHappening: listItems(row.supportSections?.whatMayBeHappening).map(supportFactText).filter(Boolean).slice(0, 4),
+          preventionIdeas: listItems(row.supportSections?.preventionIdeas).map(supportFactText).filter(Boolean).slice(0, 5),
+          encouragement: listItems(row.supportSections?.encouragement).map(supportFactText).filter(Boolean).slice(0, 5),
+          practiceSkill: listItems(row.supportSections?.practiceSkill).map(supportFactText).filter(Boolean).slice(0, 5),
+          whatToNotice: listItems(row.supportSections?.whatToNotice).map(supportFactText).filter(Boolean).slice(0, 5),
         },
       missingClinicalInformation: listItems(row.missingClinicalInformation),
       safetySensitiveTopic,
@@ -219,7 +234,7 @@ function Section({ title, items = [], testId, tone = "default", emptyText, showS
   );
 }
 
-function TryOneStepPanel({ steps = [], simplerStep, tone = "immediate", emptyText, strategyLabel, showStepList = false }) {
+function TryOneStepPanel({ steps = [], simplerStep, tone = "immediate", emptyText, emptyLabel, strategyLabel, showStepList = false }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [showSimpler, setShowSimpler] = useState(false);
   const visibleSteps = Array.isArray(steps) ? steps : [];
@@ -231,7 +246,7 @@ function TryOneStepPanel({ steps = [], simplerStep, tone = "immediate", emptyTex
           ? "A simpler supported step"
           : visibleSteps.length
             ? <>Try one step · Step {Math.min(stepIndex, visibleSteps.length - 1) + 1}</>
-            : "Try one step"}
+            : emptyLabel || "Try one step"}
       </p>
       {showSimpler
         ? <p className="np-help-active-step" data-testid="text-simpler-step">{simplerStep}</p>
@@ -448,6 +463,11 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
   const [error, setError] = useState("");
   const appearance = getBehaviorAppearance({ name: behavior.name });
   const BehaviorIcon = appearance.Icon;
+  const documentedFacts = documentFactSummary(behavior);
+  const tryOneSteps = behavior.supportSections.tryOneSteps.length
+    ? behavior.supportSections.tryOneSteps
+    : behavior.generalSupportSuggestions;
+  const sourceSummary = documentedFacts[0] || behavior.observations[0] || behavior.contexts[0] || "";
 
   const update = async (action, nextLabel) => {
     setSaving(true);
@@ -492,12 +512,6 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
             AI-generated general ideas based on verified information from the uploaded document. These are not clinician-reviewed or individualized treatment.
           </p>
         )}
-        {!behavior.sourceReviewRequired && !behavior.safetySensitiveTopic && behavior.generationStatus !== "generated" && (
-          <div className="np-help-notice" data-tone="caution" role="status" data-testid="notice-generation-unavailable">
-            <p className="np-help-text np-help-strong">AI support sections are not available yet.</p>
-            <p className="np-help-text">The document summary is still available. Open Documents and choose “Read again” to retry generating the support sections.</p>
-          </div>
-        )}
         {behavior.sourceReviewRequired && (
           <div className="np-help-notice" data-tone="caution" role="note" data-testid="notice-source-review">
             <p className="np-help-text np-help-strong">Review the source before relying on this information.</p>
@@ -506,44 +520,34 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
         )}
 
         <TryOneStepPanel
-          steps={behavior.supportSections.tryOneSteps}
-          simplerStep={behavior.supportSections.simplerStep || "Pause this suggestion and use the child’s current support plan, or contact the clinician for help."}
+          steps={tryOneSteps}
+          simplerStep={behavior.supportSections.simplerStep || tryOneSteps[0] || sourceSummary}
           tone="immediate"
-          emptyText="No safe general step could be generated for this document support card. Use an existing individualized plan or ask the clinician for guidance."
+          emptyText={sourceSummary}
+          emptyLabel="From the document"
         />
 
-        <section className="np-help-group np-help-urgent-section" data-testid="section-avoid">
-          <h3 className="np-help-label">Things to Avoid</h3>
-          {behavior.supportSections.thingsToAvoid.length > 0 ? (
+        {behavior.supportSections.thingsToAvoid.length > 0 && (
+          <section className="np-help-group np-help-urgent-section" data-testid="section-avoid">
+            <h3 className="np-help-label">Things to Avoid</h3>
             <ul className="np-help-bullets" data-tone="urgent">
               {behavior.supportSections.thingsToAvoid.map((item, index) => <li key={index}>{item}</li>)}
             </ul>
-          ) : (
-            <p className="np-help-muted">No safe, document-informed avoid suggestion is available for this card.</p>
-          )}
-        </section>
+          </section>
+        )}
 
         <div className="np-help-disclosures">
           <Disclosure className="np-help-disclosure np-help-disclosure--context" title="What may be happening" data-testid="disclosure-explanation">
-            {behavior.supportSections.whatMayBeHappening.length > 0
-              ? behavior.supportSections.whatMayBeHappening.map((item, index) => <p className="np-help-text" key={index}>{item}</p>)
-              : <p className="np-help-text">{behavior.description || "No explanation is stated in the uploaded document."}</p>}
-            {behavior.supportSections.whatMayBeHappening.length > 0 && behavior.description && (
-              <p className="np-help-muted">The document reports: {behavior.description}</p>
-            )}
-            {behavior.contexts.length > 0 && (
-              <div className="np-help-context-chips" aria-label="Situations described in documents">
-                {behavior.contexts.map((item, index) => <span key={index} className="np-help-context-chip">{item}</span>)}
+            {behavior.supportSections.whatMayBeHappening.map((item, index) => <p className="np-help-text" key={index}>{item}</p>)}
+            {documentedFacts.length > 0 && (
+              <div className="np-help-context-chips" aria-label="Facts extracted from the uploaded document">
+                {documentedFacts.map((item, index) => <span key={index} className="np-help-context-chip">{item}</span>)}
               </div>
             )}
-            {behavior.uncertainty.length > 0
-              ? behavior.uncertainty.map((item, index) => <p className="np-help-muted" key={index}>{item}</p>)
-              : <p className="np-help-muted">This describes what the document reports; it does not establish a cause.</p>}
           </Disclosure>
           <Section
             title="Prevention Ideas"
             items={behavior.supportSections.preventionIdeas}
-            emptyText="No safe prevention idea could be generated from the available document information."
             testId="disclosure-prevention"
             tone="prevention"
             showSourceNote={false}
@@ -551,7 +555,6 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
           <Section
             title="Encouragement"
             items={behavior.supportSections.encouragement}
-            emptyText="No safe encouragement idea could be generated from the available document information."
             testId="disclosure-encouragement"
             tone="encouragement"
             showSourceNote={false}
@@ -559,7 +562,6 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
           <Section
             title="Practice a helpful skill"
             items={behavior.supportSections.practiceSkill}
-            emptyText="No safe practice skill could be generated from the available document information."
             testId="disclosure-skill"
             tone="skill"
             showSourceNote={false}
@@ -567,7 +569,6 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
           <Section
             title="What to notice"
             items={[...new Set([...behavior.supportSections.whatToNotice, ...behavior.observations])]}
-            emptyText="No observations are available to notice or track."
             testId="disclosure-notice"
             tone="context"
             showSourceNote={false}
