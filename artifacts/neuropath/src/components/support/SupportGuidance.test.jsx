@@ -71,6 +71,7 @@ const documentConcern = {
   safetySensitiveTopic: false,
   sourceReviewRequired: false,
   reviewStatus: "unreviewed",
+  generationStatus: "generated",
   clinicianApproved: false,
   dismissed: false,
   sourceReferences: [{
@@ -274,6 +275,9 @@ describe("support guidance", () => {
     expect(screen.getByText("Frustration during multi-step assignments")).toBeTruthy();
     expect(screen.getByText("Difficulty following several spoken instructions at once.")).toBeTruthy();
     expect(screen.getByTestId("label-ai-generated-guidance").textContent).toContain("not clinician-reviewed");
+    fireEvent.click(screen.getByRole("button", { name: "Prevention Ideas" }));
+    fireEvent.click(screen.getByRole("button", { name: "Encouragement" }));
+    fireEvent.click(screen.getByRole("button", { name: "Practice a helpful skill" }));
     for (const expected of [
       "Share one direction at a time.",
       "Notice the effort when Sam responds.",

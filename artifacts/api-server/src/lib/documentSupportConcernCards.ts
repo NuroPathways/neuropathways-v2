@@ -91,6 +91,7 @@ export type ParentDocumentSupportCardWire = {
   safetySensitiveTopic: boolean;
   sourceReviewRequired: boolean;
   reviewStatus: "unreviewed" | "needs_review";
+  generationStatus: "generated" | "extraction_only";
   clinicianApproved: false;
   dismissed: boolean;
   sourceReferences: Array<{
@@ -453,7 +454,7 @@ function isSafetySensitiveTopic(records: DocumentExtractionRecord[]): boolean {
 }
 
 function unsafeSuggestion(value: string): boolean {
-  return /\b(?:restraint|restrain\w*|seclusion|seclude\w*|physical(?:ly)?[ -]+block\w*|pin(?:ning)?|immobiliz\w*|extinction|exposure protocol|force(?:d)? compliance|hold(?:ing)? (?:down|still|their hands)|physically guide|manual guidance|block(?:ing)? the (?:door|exit|path)|stand between|prevent (?:them|the child) from leaving|ignore (?:the )?(?:injury|self[- ]?harm|danger|safety))\b/i.test(value);
+  return /\b(?:restraint|restrain\w*|seclusion|seclude\w*|blocking procedure|physical(?:ly)?[ -]+block\w*|pin(?:ning)?|immobiliz\w*|extinction|exposure protocol|force(?:d)? compliance|hold(?:ing)? (?:down|still|their hands)|physically guide|manual guidance|block(?:ing)? the (?:door|exit|path)|stand between|prevent (?:them|the child) from leaving|ignore (?:the )?(?:injury|self[- ]?harm|danger|safety))\b/i.test(value);
 }
 
 function normalizedGeneratedSupportSections(group: GeneratedConcernGroup) {
@@ -832,6 +833,12 @@ export function projectParentDocumentSupportCards(
       const safetySensitiveTopic = card.safetySensitiveTopic === true;
       const sourceReviewRequired = card.sourceReviewRequired === true
         || sourceReferences.some((reference) => !reference.excerptVerified);
+      const supportSections = safetySensitiveTopic || sourceReviewRequired
+        ? mergeGeneratedSupportSections()
+        : mergeGeneratedSupportSections(card.supportSections);
+      const hasGeneratedSupportContent = Object.values(supportSections).some((value) =>
+        typeof value === "string" ? value.length > 0 : value.length > 0,
+      );
       return [{
         id: card.id,
         childId: card.childId,
@@ -845,13 +852,14 @@ export function projectParentDocumentSupportCards(
         generalSupportSuggestions: safetySensitiveTopic || sourceReviewRequired
           ? []
           : cleanStrings(card.generalSupportSuggestions, 5, 320),
-        supportSections: safetySensitiveTopic || sourceReviewRequired
-          ? mergeGeneratedSupportSections()
-          : mergeGeneratedSupportSections(card.supportSections),
+        supportSections,
         missingClinicalInformation: cleanStrings(card.missingClinicalInformation, 8, 320),
         safetySensitiveTopic,
         sourceReviewRequired,
         reviewStatus: sourceReviewRequired ? "needs_review" as const : card.reviewStatus,
+        generationStatus: sourceReviewRequired || safetySensitiveTopic || !hasGeneratedSupportContent
+          ? "extraction_only" as const
+          : card.generationStatus,
         clinicianApproved: false as const,
         dismissed: Boolean(override?.dismissedAt),
         sourceReferences,

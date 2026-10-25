@@ -108,7 +108,10 @@ test("candidate cards preserve source excerpts, uncertainty, and the unreviewed 
   });
   assert.equal(cards.length, 1);
   assert.equal(cards[0].behaviorName, "Difficulty With Verbal Instructions");
-  assert.deepEqual(cards[0].generalSupportSuggestions, ["Offer one short direction at a time and allow processing time."]);
+  assert.deepEqual(cards[0].generalSupportSuggestions, [
+    "Give one short direction.",
+    "Pause and allow time for a response.",
+  ]);
   assert.deepEqual(cards[0].supportSections.tryOneSteps, [
     "Give one short direction.",
     "Pause and allow time for a response.",
@@ -389,19 +392,28 @@ test("generated card ideas attach only to verified low-risk source concerns and 
         "Try one short direction, then pause for a response.",
         "Use restraint if the child does not respond.",
       ],
+      try_one_steps: ["Try one short direction, then pause for a response."],
+      simpler_step: "Pause and use the current support plan.",
+      things_to_avoid: ["Avoid stacking directions.", "Use restraint if the child does not respond."],
+      what_may_be_happening: ["Several spoken directions may be difficult to process."],
+      prevention_ideas: ["Give one direction at a time."],
+      encouragement: ["Notice the effort to respond."],
+      practice_a_helpful_skill: ["Practice asking for one direction at a time when calm."],
+      what_to_notice: ["Whether one direction at a time helps."],
     }],
   );
   assert.deepEqual(attached[0].interpretation.general_support_suggestions, [
     "Try one short direction, then pause for a response.",
   ]);
   assert.deepEqual(
-    attached[0].interpretation.generated_support_sections.tryOneSteps,
+    (attached[0].interpretation.generated_support_sections as Record<string, unknown>).tryOneSteps,
     ["Try one short direction, then pause for a response."],
   );
   assert.equal(attached[1].interpretation.general_support_suggestions, undefined);
   assert.equal(attached[2].interpretation.general_support_suggestions, undefined);
 
   const generatedGroups = storedSupportConcernSuggestionGroups(attached);
+  assert.deepEqual(generatedGroups[0].things_to_avoid, ["Avoid stacking directions."]);
   const cards = createDocumentInformedConcernCards({
     childId: "child-1",
     records: [attached[0]],
@@ -412,6 +424,15 @@ test("generated card ideas attach only to verified low-risk source concerns and 
   assert.deepEqual(cards[0].generalSupportSuggestions, [
     "Try one short direction, then pause for a response.",
   ]);
+  assert.deepEqual(cards[0].supportSections.whatMayBeHappening, [
+    "Several spoken directions may be difficult to process.",
+  ]);
+  assert.deepEqual(cards[0].supportSections.preventionIdeas, ["Give one direction at a time."]);
+  assert.deepEqual(cards[0].supportSections.encouragement, ["Notice the effort to respond."]);
+  assert.deepEqual(cards[0].supportSections.practiceSkill, [
+    "Practice asking for one direction at a time when calm.",
+  ]);
+  assert.deepEqual(cards[0].supportSections.whatToNotice, ["Whether one direction at a time helps."]);
   assert.equal(cards[0].clinicianApproved, false);
   assert.equal(cards[0].source, "document_informed");
 
@@ -423,6 +444,7 @@ test("generated card ideas attach only to verified low-risk source concerns and 
   });
   assert.equal(mixedRiskCards[0].safetySensitiveTopic, true);
   assert.deepEqual(mixedRiskCards[0].generalSupportSuggestions, []);
+  assert.deepEqual(mixedRiskCards[0].supportSections.tryOneSteps, []);
 });
 
 test("stored candidate cards merge source references without creating duplicate card identities", () => {

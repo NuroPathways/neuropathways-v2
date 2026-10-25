@@ -219,7 +219,7 @@ function Section({ title, items = [], testId, tone = "default", emptyText, showS
   );
 }
 
-function TryOneStepPanel({ steps = [], simplerStep, tone = "immediate", emptyText, strategyLabel }) {
+function TryOneStepPanel({ steps = [], simplerStep, tone = "immediate", emptyText, strategyLabel, showStepList = false }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [showSimpler, setShowSimpler] = useState(false);
   const visibleSteps = Array.isArray(steps) ? steps : [];
@@ -237,9 +237,19 @@ function TryOneStepPanel({ steps = [], simplerStep, tone = "immediate", emptyTex
         ? <p className="np-help-active-step" data-testid="text-simpler-step">{simplerStep}</p>
         : visibleSteps.length
           ? <>
-            <p className="np-help-active-step" data-testid="text-active-step" aria-live="polite">
-              {visibleSteps[Math.min(stepIndex, visibleSteps.length - 1)]}
-            </p>
+            {showStepList
+              ? <ol className="np-help-steps" data-tone={tone}>
+                {visibleSteps.map((instruction, index) => (
+                  <li key={index} aria-current={index === stepIndex ? "step" : undefined}>
+                    <span data-testid={index === stepIndex ? "text-active-step" : undefined} aria-live={index === stepIndex ? "polite" : undefined}>
+                      {instruction}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              : <p className="np-help-active-step" data-testid="text-active-step" aria-live="polite">
+                {visibleSteps[Math.min(stepIndex, visibleSteps.length - 1)]}
+              </p>}
             <div className="np-help-step-nav">
               <button type="button" disabled={stepIndex === 0} onClick={() => setStepIndex((value) => Math.max(0, value - 1))} data-testid="button-step-back" className="np-help-btn">Back</button>
               <span aria-live="polite">Step {stepIndex + 1} of {visibleSteps.length}</span>
@@ -332,6 +342,7 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
           strategyLabel={!directSteps.length && strategies.length > 0
             ? strategyIsClinicallyApproved ? "Clinician-approved strategies" : "Saved support strategies"
             : undefined}
+          showStepList={!directSteps.length}
         />
 
         {directSteps.length > 0 && strategies.length > 0 && (
@@ -476,10 +487,16 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
       </div>
       <div className="np-help-body" data-testid="document-informed-support-card">
         <p className="np-help-label" data-testid="label-document-informed-status">{behavior.reviewLabel}</p>
-        {!behavior.sourceReviewRequired && !behavior.safetySensitiveTopic && (
+        {!behavior.sourceReviewRequired && !behavior.safetySensitiveTopic && behavior.generationStatus === "generated" && (
           <p className="np-help-muted" data-testid="label-ai-generated-guidance">
             AI-generated general ideas based on verified information from the uploaded document. These are not clinician-reviewed or individualized treatment.
           </p>
+        )}
+        {!behavior.sourceReviewRequired && !behavior.safetySensitiveTopic && behavior.generationStatus !== "generated" && (
+          <div className="np-help-notice" data-tone="caution" role="status" data-testid="notice-generation-unavailable">
+            <p className="np-help-text np-help-strong">AI support sections are not available yet.</p>
+            <p className="np-help-text">The document summary is still available. Open Documents and choose “Read again” to retry generating the support sections.</p>
+          </div>
         )}
         {behavior.sourceReviewRequired && (
           <div className="np-help-notice" data-tone="caution" role="note" data-testid="notice-source-review">

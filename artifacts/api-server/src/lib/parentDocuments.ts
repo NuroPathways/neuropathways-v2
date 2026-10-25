@@ -822,7 +822,7 @@ async function readParentDocument(
   ]);
   const selectedBehaviors = parentBehaviorsFromSettings(settings);
   const fingerprint = parentScanFingerprint({
-    documentClassificationVersion: "clinical-document-purpose-support-concerns-and-draft-cards-v4",
+    documentClassificationVersion: "clinical-document-purpose-support-concerns-generated-sections-and-draft-cards-v5",
     documentId, hash: metadata.sha256, clinicianId: child.clinicianId,
     selectedBehaviors: selectedBehaviors.map((behavior) => ({
       behaviorKey: behavior.behaviorKey,
