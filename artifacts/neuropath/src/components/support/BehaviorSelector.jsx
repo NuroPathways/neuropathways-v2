@@ -95,8 +95,12 @@ function supportFactText(value) {
   const text = textValue(value);
   if (!text) return "";
   const unhelpfulGap = /\b(?:the (?:document|source|notes|record|report) (?:does not|doesn't|did not|didn't|never) (?:specify|state|mention|identify|describe|establish)|(?:frequency|intensity|duration|specific triggers?) (?:is not|isn't|was not|wasn't|are not|aren't|were not|weren't) (?:specified|stated|documented|identified)|no safe (?:general|document-informed|prevention|support|practice)|not enough evidence to|the source does not establish)\b/i;
+  const aiSuggestionLabelCopy = /\b(?:AI[- ]generated|AI suggestions?|suggested by AI)\b/i;
   return removeRepeatedSupportPhrases(
-    text.split(/(?<=[.!?])\s+/).filter((sentence) => !unhelpfulGap.test(sentence)).join(" ").trim(),
+    text.split(/(?<=[.!?])\s+/)
+      .filter((sentence) => !unhelpfulGap.test(sentence) && !aiSuggestionLabelCopy.test(sentence))
+      .join(" ")
+      .trim(),
   );
 }
 
@@ -111,7 +115,7 @@ function documentFactSummary(behavior) {
 function normalizeBehavior(value, index) {
   const raw = isRecord(value) ? value : { name: typeof value === "string" ? value : "" };
   const behaviorKey = textValue(raw.behaviorKey ?? raw.behavior_key ?? raw.key);
-  const name = textValue(raw.name ?? raw.behaviorName ?? raw.behavior_name ?? raw.title) || `Behavior ${index + 1}`;
+  const name = supportFactText(raw.name ?? raw.behaviorName ?? raw.behavior_name ?? raw.title) || `Behavior ${index + 1}`;
 
   return {
     ...raw,
@@ -213,6 +217,8 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
         ...reference,
         uploadedBy,
         familyUploaded: supportUploadIsFamilyOwned({ uploadedBy }),
+        title: supportFactText(reference.title) || "Uploaded document",
+        section: supportFactText(reference.section),
         excerpt: supportFactText(reference.excerpt),
       };
     });
@@ -226,8 +232,8 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
     return [{
       ...row,
       id: row.id,
-      name: textValue(row.displayName) || textValue(row.behaviorName),
-      originalName: textValue(row.behaviorName),
+      name: supportFactText(row.displayName) || supportFactText(row.behaviorName) || "Document support area",
+      originalName: supportFactText(row.behaviorName) || "Document support area",
       description: supportFactText(row.description),
       contexts: listItems(row.contexts).map(supportFactText).filter(Boolean),
       observations: listItems(row.observations).map(supportFactText).filter(Boolean),
@@ -587,7 +593,9 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
         </div>
       </div>
       <div className="np-help-body" data-testid="document-informed-support-card">
-        <p className="np-help-label" data-testid="label-document-informed-status">{behavior.reviewLabel}</p>
+        {behavior.reviewLabel !== behavior.sourceLabel && (
+          <p className="np-help-label" data-testid="label-document-informed-status">{behavior.reviewLabel}</p>
+        )}
         {behavior.sourceReviewRequired && (
           <div className="np-help-notice" data-tone="caution" role="note" data-testid="notice-source-review">
             <p className="np-help-text np-help-strong">Review the source before relying on this information.</p>

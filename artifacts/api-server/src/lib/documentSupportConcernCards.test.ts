@@ -134,6 +134,49 @@ test("candidate cards preserve source excerpts, uncertainty, and the unreviewed 
   assert.equal(cards[0].source, "document_informed");
 });
 
+test("repeated copied phrases are collapsed in support-card summaries", () => {
+  const source = record({
+    interpretation: {
+      name: "Academic impairment",
+      description: [
+        "Family reports academic impairment as a primary concern",
+        "Family reports academic impairment as a primary concern",
+        "Primary concern of academic impairment reported during intake",
+        "Family reports academic impairment as a primary concern",
+        "Family reports academic impairment as a primary concern",
+        "Family reports academic impairment as a primary concern",
+        "Primary concern of academic impairment reported during intake",
+      ].join(" "),
+    },
+  });
+  const [card] = createDocumentInformedConcernCards({
+    childId: "child-1",
+    records: [source],
+    sourceTitles: [{ documentId: "document-1", title: "Intake", uploadedBy: "parent" }],
+  });
+
+  assert.equal(
+    card.description,
+    "Family reports academic impairment as a primary concern Primary concern of academic impairment reported during intake",
+  );
+});
+
+test("AI suggestion labels are removed from generated card text", () => {
+  const source = record({
+    interpretation: {
+      name: "Academic impairment",
+      description: "AI suggestion: Family reports academic impairment as a primary concern.",
+    },
+  });
+  const [card] = createDocumentInformedConcernCards({
+    childId: "child-1",
+    records: [source],
+    sourceTitles: [{ documentId: "document-1", title: "Intake", uploadedBy: "parent" }],
+  });
+
+  assert.equal(card.description, "");
+});
+
 test("parent-uploaded excerpts receive complete suggestions without a source-review block", () => {
   const source = record({
     sourceExcerptVerified: false,
@@ -287,6 +330,7 @@ test("candidate prompt exposes only bounded concern fields and treats excerpts a
   assert.match(prompt, /source_excerpt/);
   assert.match(prompt, /Do not return empty fields/);
   assert.match(prompt, /Do not return.*sentences saying that the document does not specify frequency, intensity, duration, or triggers/i);
+  assert.doesNotMatch(prompt, /AI[- ]generated|AI suggestions?/i);
   assert.doesNotMatch(prompt, /approvedBy/);
   assert.doesNotMatch(prompt, /source_uncertainty/);
   assert.doesNotMatch(prompt, /The source does not state why this occurs/);

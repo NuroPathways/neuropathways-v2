@@ -238,8 +238,8 @@ describe("support guidance", () => {
 
     expect(screen.getByRole("heading", { name: "Document support cards" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Difficulty With Verbal Instructions/ }));
-    expect(screen.getByTestId("label-document-informed-status").textContent).toBe("Self-uploaded document");
-    expect(screen.getByTestId("label-document-informed-status").textContent).toBe("Self-uploaded document");
+    expect(screen.getByText("Self-uploaded document")).toBeTruthy();
+    expect(screen.queryByTestId("label-document-informed-status")).toBeNull();
     expect(screen.queryByTestId("label-ai-generated-guidance")).toBeNull();
     expect(screen.queryByText(/not clinician-reviewed or approved treatment/i)).toBeNull();
     expect(screen.getByTestId("section-active-step")).toBeTruthy();
@@ -286,6 +286,77 @@ describe("support guidance", () => {
     ]) {
       expect(screen.getByText(expected)).toBeTruthy();
     }
+  });
+
+  it("collapses repeated document phrases and uses the uploader label from the card citation", () => {
+    const repeatedDescription = [
+      "Family reports academic impairment as a primary concern",
+      "Family reports academic impairment as a primary concern",
+      "Primary concern of academic impairment reported during intake",
+      "Family reports academic impairment as a primary concern",
+      "Family reports academic impairment as a primary concern",
+      "Family reports academic impairment as a primary concern",
+      "Primary concern of academic impairment reported during intake",
+    ].join(" ");
+    const card = {
+      ...documentConcern,
+      behaviorName: "Academic impairment",
+      displayName: "Academic impairment",
+      description: repeatedDescription,
+      safetySensitiveTopic: true,
+      sourceReferences: [{
+        ...documentConcern.sourceReferences[0],
+        uploadedBy: "parent",
+      }],
+    };
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Jane" }}
+        profile={{ documentSupportCards: [card] }}
+        parentDirect
+        onBack={() => {}}
+        onOpenSafety={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Academic impairment/ }));
+    expect(screen.getByTestId("document-support-try-one-step-empty").textContent).toBe(
+      "Family reports academic impairment as a primary concern Primary concern of academic impairment reported during intake",
+    );
+    expect(screen.queryByTestId("label-document-informed-status")).toBeNull();
+    expect(screen.getByText("Self-uploaded document")).toBeTruthy();
+    expect(screen.getByTestId("text-behavior-name").parentElement.textContent).toContain("Self-uploaded document");
+  });
+
+  it("never displays AI suggestion labels in document support cards", () => {
+    const card = {
+      ...documentConcern,
+      description: "AI suggestion: Family reports academic impairment as a primary concern.",
+      generalSupportSuggestions: ["AI-generated suggestion: Offer one short direction."],
+      supportSections: {
+        ...documentConcern.supportSections,
+        tryOneSteps: ["AI suggestion: Give one short direction."],
+      },
+    };
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Jane" }}
+        profile={{
+          documentSupportCards: [card],
+          sourceDocuments: [{ id: "document-1", uploadedBy: "parent" }],
+        }}
+        parentDirect
+        onBack={() => {}}
+        onOpenSafety={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Difficulty With Verbal Instructions/ }));
+    expect(document.body.textContent).not.toMatch(/AI[- ]generated|AI suggestion/i);
+    expect(screen.getByText("Self-uploaded document")).toBeTruthy();
+    expect(screen.queryByTestId("label-document-informed-status")).toBeNull();
   });
 
   it("shows document-derived facts without empty-section or generation-error messages", () => {
@@ -387,7 +458,7 @@ describe("support guidance", () => {
     expect(screen.queryByText(/excerpts still need review/i)).toBeNull();
     expect(screen.getByRole("heading", { name: "Things to Avoid" })).toBeTruthy();
     expect(screen.getByText("Avoid stacking several spoken directions at once.")).toBeTruthy();
-    expect(screen.getByTestId("label-document-informed-status").textContent).toBe("Self-uploaded document");
+    expect(screen.getByText("Self-uploaded document")).toBeTruthy();
   });
 
   it("lets a parent correct the suggestion label without changing its review status", async () => {
@@ -444,7 +515,7 @@ describe("support guidance", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Help With a Behavior/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Difficulty With Verbal Instructions/ }));
     expect(await screen.findByTestId("section-active-step")).toBeTruthy();
-    expect(screen.getByTestId("label-document-informed-status").textContent).toBe("Self-uploaded document");
+    expect(screen.queryByTestId("label-document-informed-status")).toBeNull();
     expect(screen.getByText("Give one short direction, then wait.")).toBeTruthy();
     expect(supportMocks.getParentDashboard).toHaveBeenCalledWith("child-1", expect.objectContaining({
       credentials: "include",
