@@ -329,6 +329,43 @@ describe("support guidance", () => {
     expect(screen.getByTestId("text-behavior-name").parentElement.textContent).toContain("Self-uploaded document");
   });
 
+  it("removes paraphrased duplicate sentences and truncated fragments from document facts", () => {
+    const card = {
+      ...documentConcern,
+      behaviorName: "Homework-related verbal aggression",
+      displayName: "Homework-related verbal aggression",
+      description: [
+        "Homework-related verbal aggression was observed, with a reduction reported by Session 5.",
+        "Verbal aggression related to homework was reported, with a reduction noted by session 5.",
+        "Homework-related verb",
+      ].join(" "),
+      supportSections: {
+        ...documentConcern.supportSections,
+        whatMayBeHappening: [],
+      },
+    };
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Jane" }}
+        profile={{ documentSupportCards: [card] }}
+        parentDirect
+        onBack={() => {}}
+        onOpenSafety={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Homework-related verbal aggression/ }));
+    fireEvent.click(screen.getByRole("button", { name: "What may be happening" }));
+    const extractedFacts = screen.getByLabelText("Facts extracted from the uploaded document").textContent;
+    expect(extractedFacts).toContain(
+      "Homework-related verbal aggression was observed, with a reduction reported by Session 5.",
+    );
+    expect(extractedFacts.match(/Homework-related/gi)).toHaveLength(1);
+    expect(extractedFacts.match(/verbal aggression/gi)).toHaveLength(1);
+    expect(extractedFacts).not.toContain("related to homework");
+  });
+
   it("never displays AI suggestion labels in document support cards", () => {
     const card = {
       ...documentConcern,

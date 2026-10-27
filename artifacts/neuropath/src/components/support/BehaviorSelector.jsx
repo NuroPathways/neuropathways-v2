@@ -40,16 +40,63 @@ function listItems(value) {
   return [];
 }
 
+const supportSentenceStopWords = new Set([
+  "a", "an", "and", "as", "at", "by", "for", "from", "in", "into", "is", "it",
+  "of", "on", "or", "the", "to", "was", "were", "with",
+]);
+
+function normalizeSupportSentence(value) {
+  const text = value.toLowerCase()
+    .replace(/\b([\p{L}\p{N}]+)-related\b/gu, "$1")
+    .replace(/\brelated to ([\p{L}\p{N}]+)\b/gu, "$1");
+  const tokens = text.match(/[\p{L}\p{N}]+/gu) ?? [];
+  return tokens.map((token) => {
+    if (["observed", "reported", "noted", "recorded", "documented", "described"].includes(token)) return "reported";
+    if (["reduction", "reduced", "decrease", "decreased", "decline", "declined"].includes(token)) return "reduction";
+    if (token === "aggressive") return "aggression";
+    return token;
+  }).filter((token) => !supportSentenceStopWords.has(token));
+}
+
+function isRepeatedSupportSentence(first, second) {
+  const compact = (value) => value.toLowerCase()
+    .replace(/\b([\p{L}\p{N}]+)-related\b/gu, "$1")
+    .replace(/\brelated to ([\p{L}\p{N}]+)\b/gu, "$1")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+  const firstCompact = compact(first);
+  const secondCompact = compact(second);
+  const shorter = firstCompact.length <= secondCompact.length ? firstCompact : secondCompact;
+  const longer = firstCompact.length <= secondCompact.length ? secondCompact : firstCompact;
+  if (shorter.length >= 10 && longer.startsWith(shorter)) return true;
+
+  const firstTokens = new Set(normalizeSupportSentence(first));
+  const secondTokens = new Set(normalizeSupportSentence(second));
+  if (firstTokens.size < 5 || secondTokens.size < 5) return false;
+  let shared = 0;
+  for (const token of firstTokens) {
+    if (secondTokens.has(token)) shared += 1;
+  }
+  const firstOnly = [...firstTokens].filter((token) => !secondTokens.has(token));
+  const secondOnly = [...secondTokens].filter((token) => !firstTokens.has(token));
+  if (firstOnly.length > 0 && secondOnly.length > 0) return false;
+  return shared / firstTokens.size >= 0.9 && shared / secondTokens.size >= 0.9;
+}
+
 function removeRepeatedSupportPhrases(value) {
-  const sentenceSeen = new Set();
-  let text = value.split(/(?<=[.!?])\s+/)
-    .filter((sentence) => {
-      const key = sentence.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-      if (!key || sentenceSeen.has(key)) return false;
-      sentenceSeen.add(key);
-      return true;
-    })
-    .join(" ");
+  const sentences = [];
+  for (const sentence of value.split(/(?<=[.!?])\s+/).map((item) => item.trim()).filter(Boolean)) {
+    const duplicateIndex = sentences.findIndex((existing) => isRepeatedSupportSentence(existing, sentence));
+    if (duplicateIndex === -1) {
+      sentences.push(sentence);
+      continue;
+    }
+    const candidateTokens = new Set(normalizeSupportSentence(sentence));
+    const existingTokens = new Set(normalizeSupportSentence(sentences[duplicateIndex]));
+    if (candidateTokens.size > existingTokens.size) {
+      sentences[duplicateIndex] = sentence;
+    }
+  }
+  let text = sentences.join(" ");
   const tokens = [...text.matchAll(/\S+/g)].map((match) => ({
     start: match.index ?? 0,
     end: (match.index ?? 0) + match[0].length,

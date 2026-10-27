@@ -161,6 +161,51 @@ test("repeated copied phrases are collapsed in support-card summaries", () => {
   );
 });
 
+test("near-duplicate document summaries and truncated repeated fragments are collapsed", () => {
+  const source = record({
+    interpretation: {
+      name: "Homework-related verbal aggression",
+      description: [
+        "Homework-related verbal aggression was observed, with a reduction reported by Session 5.",
+        "Verbal aggression related to homework was reported, with a reduction noted by session 5.",
+        "Homework-related verb",
+      ].join(" "),
+    },
+  });
+  const [card] = createDocumentInformedConcernCards({
+    childId: "child-1",
+    records: [source],
+    sourceTitles: [{ documentId: "document-1", title: "Session notes", uploadedBy: "parent" }],
+  });
+
+  assert.equal(
+    card.description,
+    "Homework-related verbal aggression was observed, with a reduction reported by Session 5.",
+  );
+});
+
+test("keeps distinct details when similar summaries add different facts", () => {
+  const source = record({
+    interpretation: {
+      name: "Homework-related verbal aggression",
+      description: [
+        "Homework-related verbal aggression was observed during math with teacher support.",
+        "Homework-related verbal aggression was reported after class with a peer.",
+      ].join(" "),
+    },
+  });
+  const [card] = createDocumentInformedConcernCards({
+    childId: "child-1",
+    records: [source],
+    sourceTitles: [{ documentId: "document-1", title: "Session notes", uploadedBy: "parent" }],
+  });
+
+  assert.equal(
+    card.description,
+    "Homework-related verbal aggression was observed during math with teacher support. Homework-related verbal aggression was reported after class with a peer.",
+  );
+});
+
 test("AI suggestion labels are removed from generated card text", () => {
   const source = record({
     interpretation: {
