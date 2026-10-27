@@ -44,9 +44,9 @@ export function supportUploadSourceLabel(documents, documentIds, clinicianId, fa
   );
 
   if (sources.size === 1) {
-    return sources.has("client") ? "Client-uploaded" : "Clinician-uploaded";
+    return sources.has("client") ? "Self-uploaded document" : "Clinician-uploaded";
   }
-  if (sources.size > 1) return "Client- and clinician-uploaded";
+  if (sources.size > 1) return "Self- and clinician-uploaded";
   return fallback;
 }
 

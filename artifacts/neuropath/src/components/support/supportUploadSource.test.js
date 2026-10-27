@@ -13,9 +13,9 @@ describe("support upload source labels", () => {
     { id: "clinician-doc", uploadedBy: "clinician-1" },
   ];
 
-  it("labels client and family uploads as client-uploaded", () => {
-    expect(supportUploadSourceLabel(documents, ["client-doc"], "clinician-1")).toBe("Client-uploaded");
-    expect(supportUploadSourceLabel(documents, ["parent-doc"], "clinician-1")).toBe("Client-uploaded");
+  it("labels client and family uploads as self-uploaded documents", () => {
+    expect(supportUploadSourceLabel(documents, ["client-doc"], "clinician-1")).toBe("Self-uploaded document");
+    expect(supportUploadSourceLabel(documents, ["parent-doc"], "clinician-1")).toBe("Self-uploaded document");
   });
 
   it("labels documents uploaded by the child's clinician as clinician-uploaded", () => {
@@ -24,7 +24,7 @@ describe("support upload source labels", () => {
 
   it("identifies mixed-source cards without attributing them to one uploader", () => {
     expect(supportUploadSourceLabel(documents, ["client-doc", "clinician-doc"], "clinician-1"))
-      .toBe("Client- and clinician-uploaded");
+      .toBe("Self- and clinician-uploaded");
   });
 
   it("uses an explicit fallback when uploader provenance is unavailable", () => {

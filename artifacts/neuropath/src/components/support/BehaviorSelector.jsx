@@ -216,7 +216,9 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
         supportSourceDocumentIds(row, sourceReferences.map((reference) => reference.documentId)),
         clinicianId,
       ),
-      reviewLabel: sourceReviewRequired ? "Needs source review" : "Not clinician-reviewed",
+      reviewLabel: allSourcesFamilyUploaded
+        ? "Self-uploaded document"
+        : sourceReviewRequired ? "Needs source review" : "Not clinician-reviewed",
     }];
   });
 }
@@ -530,11 +532,6 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
       </div>
       <div className="np-help-body" data-testid="document-informed-support-card">
         <p className="np-help-label" data-testid="label-document-informed-status">{behavior.reviewLabel}</p>
-        {!behavior.sourceReviewRequired && !behavior.safetySensitiveTopic && behavior.generationStatus === "generated" && (
-          <p className="np-help-muted" data-testid="label-ai-generated-guidance">
-            AI-generated, document-informed ideas. These are not clinician-reviewed or individualized treatment.
-          </p>
-        )}
         {behavior.sourceReviewRequired && (
           <div className="np-help-notice" data-tone="caution" role="note" data-testid="notice-source-review">
             <p className="np-help-text np-help-strong">Review the source before relying on this information.</p>
@@ -813,7 +810,6 @@ export default function BehaviorSelector({ child, profile, loadingProfile, profi
             {activeDocumentConcernCards.length > 0 && (
               <section className="np-help-group" aria-labelledby="document-informed-support-heading" data-testid="section-document-informed-support">
                 <h3 className="np-help-label" id="document-informed-support-heading">Document support cards</h3>
-                <p className="np-help-muted">These are source-linked suggestions, not clinician-reviewed or approved treatment.</p>
                 <div className="np-help-behavior-grid">
                   {activeDocumentConcernCards.map((behavior, index) => {
                     const appearance = getBehaviorAppearance({ name: behavior.name }, index);

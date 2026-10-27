@@ -238,8 +238,10 @@ describe("support guidance", () => {
 
     expect(screen.getByRole("heading", { name: "Document support cards" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Difficulty With Verbal Instructions/ }));
-    expect(screen.getByText("Client-uploaded")).toBeTruthy();
-    expect(screen.getByTestId("label-document-informed-status").textContent).toContain("Not clinician-reviewed");
+    expect(screen.getByTestId("label-document-informed-status").textContent).toBe("Self-uploaded document");
+    expect(screen.getByTestId("label-document-informed-status").textContent).toBe("Self-uploaded document");
+    expect(screen.queryByTestId("label-ai-generated-guidance")).toBeNull();
+    expect(screen.queryByText(/not clinician-reviewed or approved treatment/i)).toBeNull();
     expect(screen.getByTestId("section-active-step")).toBeTruthy();
     expect(screen.getByText(/Try one step/)).toBeTruthy();
     expect(screen.getByText("Give one short direction, then wait.")).toBeTruthy();
@@ -265,7 +267,6 @@ describe("support guidance", () => {
       expect(screen.getByRole("button", { name: title })).toBeTruthy();
     }
     expect(screen.getByText("Avoid stacking several spoken directions at once.")).toBeTruthy();
-    expect(screen.getByTestId("label-ai-generated-guidance")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "What may be happening" }));
     expect(screen.getByText("Several spoken directions may be harder to follow at once.")).toBeTruthy();
     expect(screen.getByText("Several spoken directions may be difficult to follow.")).toBeTruthy();
@@ -275,7 +276,6 @@ describe("support guidance", () => {
     expect(screen.getByText("Whether one direction at a time reduces frustration.")).toBeTruthy();
     expect(screen.getByText("Frustration during multi-step assignments")).toBeTruthy();
     expect(screen.getByText("Difficulty following several spoken instructions at once.")).toBeTruthy();
-    expect(screen.getByTestId("label-ai-generated-guidance").textContent).toContain("not clinician-reviewed");
     fireEvent.click(screen.getByRole("button", { name: "Prevention Ideas" }));
     fireEvent.click(screen.getByRole("button", { name: "Encouragement" }));
     fireEvent.click(screen.getByRole("button", { name: "Practice a helpful skill" }));
@@ -387,7 +387,7 @@ describe("support guidance", () => {
     expect(screen.queryByText(/excerpts still need review/i)).toBeNull();
     expect(screen.getByRole("heading", { name: "Things to Avoid" })).toBeTruthy();
     expect(screen.getByText("Avoid stacking several spoken directions at once.")).toBeTruthy();
-    expect(screen.getByTestId("label-document-informed-status").textContent).toBe("Not clinician-reviewed");
+    expect(screen.getByTestId("label-document-informed-status").textContent).toBe("Self-uploaded document");
   });
 
   it("lets a parent correct the suggestion label without changing its review status", async () => {
@@ -444,8 +444,7 @@ describe("support guidance", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Help With a Behavior/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Difficulty With Verbal Instructions/ }));
     expect(await screen.findByTestId("section-active-step")).toBeTruthy();
-    expect(screen.getByText("Client-uploaded")).toBeTruthy();
-    expect(screen.getByTestId("label-document-informed-status").textContent).toContain("Not clinician-reviewed");
+    expect(screen.getByTestId("label-document-informed-status").textContent).toBe("Self-uploaded document");
     expect(screen.getByText("Give one short direction, then wait.")).toBeTruthy();
     expect(supportMocks.getParentDashboard).toHaveBeenCalledWith("child-1", expect.objectContaining({
       credentials: "include",
