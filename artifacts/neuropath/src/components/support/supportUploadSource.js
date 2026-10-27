@@ -20,6 +20,20 @@ function uploaderType(document, clinicianId) {
   return null;
 }
 
+export function supportUploadIsFamilyOwned(document) {
+  return uploaderType(document, null) === "client";
+}
+
+export function supportUploadsAreFamilyOwned(documents, documentIds) {
+  const sources = Array.isArray(documents) ? documents : [];
+  const ids = Array.isArray(documentIds) ? [...new Set(documentIds.map(String))] : [];
+  if (!ids.length) return false;
+  return ids.every((id) => {
+    const source = sources.find((document) => String(document?.id ?? "") === id);
+    return Boolean(source && supportUploadIsFamilyOwned(source));
+  });
+}
+
 export function supportUploadSourceLabel(documents, documentIds, clinicianId, fallback = "Upload source unavailable") {
   const ids = new Set(Array.isArray(documentIds) ? documentIds.map(String) : []);
   const sources = new Set(

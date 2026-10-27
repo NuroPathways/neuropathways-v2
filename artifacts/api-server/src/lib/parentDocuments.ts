@@ -85,6 +85,7 @@ import {
   buildSupportConcernGenerationPrompt,
   buildSupportConcernCandidatePrompt,
   createDocumentInformedConcernCards,
+  isFamilyUploadedSupportSource,
   supportConcernSuggestionSourceRecords,
   eligibleSupportConcernRecords,
   mergeDocumentInformedConcernCards,
@@ -99,6 +100,7 @@ import {
   SUPPORT_CONCERN_GENERATION_BATCH_SIZE,
   SUPPORT_CONCERN_GENERATION_SYSTEM_GUIDANCE,
   storedSupportConcernSuggestionGroups,
+  supportDocumentUploaderKind,
   updateParentDocumentSupportCardOverride,
   type GeneratedConcernGroup,
   type ParentDocumentSupportCardOverride,
@@ -371,7 +373,7 @@ export async function listParentDocuments(parentId: string, childId: string): Pr
     fileName: d.fileName || "document", documentType: d.category || "other",
     documentClassificationStatus: "not_classified" as const,
     scanStatus: d.scanStatus || "pending", scanError: d.scanError || null,
-    uploadedBy: (permissions.has(d.id) || d.uploadedBy !== child.clinicianId ? "parent" : "clinician") as "parent" | "clinician", canShare: false, canScan: false,
+    uploadedBy: (isFamilyUploadedSupportSource(d.uploadedBy) ? "parent" : "clinician") as "parent" | "clinician", canShare: false, canScan: false,
     shared: true, reviewed: Boolean(permissions.get(d.id)?.reviewedAt),
     createdAt: (d.createdDate || new Date(0)).toISOString(),
   }));
@@ -823,7 +825,7 @@ async function readParentDocument(
   ]);
   const selectedBehaviors = parentBehaviorsFromSettings(settings);
   const fingerprint = parentScanFingerprint({
-    documentClassificationVersion: "clinical-document-purpose-support-concerns-complete-source-grounded-sections-v7",
+    documentClassificationVersion: "clinical-document-purpose-support-concerns-parent-upload-guidance-v8",
     documentId, hash: metadata.sha256, clinicianId: child.clinicianId,
     selectedBehaviors: selectedBehaviors.map((behavior) => ({
       behaviorKey: behavior.behaviorKey,
@@ -1065,8 +1067,15 @@ async function readParentDocument(
         id: documentsTable.id,
         title: documentsTable.title,
         fileName: documentsTable.fileName,
+        uploadedBy: documentsTable.uploadedBy,
       }).from(documentsTable).where(inArray(documentsTable.id, sourceDocumentsForConcerns))
       : [];
+    const familyUploadedDocumentIds = new Set([
+      ...siblingDocumentIds,
+      ...availableSourceDocuments
+        .filter((source) => isFamilyUploadedSupportSource(source.uploadedBy))
+        .map((source) => source.id),
+    ]);
     const availableSourceDocumentIds = new Set(availableSourceDocuments.map((source) => source.id));
     const supportConcernRecords = eligibleSupportConcernRecords(
       [
@@ -1080,6 +1089,7 @@ async function readParentDocument(
     const suggestionEligibleConcernRecords = supportConcernSuggestionSourceRecords(
       supportConcernRecords,
       childId,
+      familyUploadedDocumentIds,
     );
     let generatedConcernGroups: GeneratedConcernGroup[] | null = null;
     let concernGenerationFailed = false;
@@ -1103,6 +1113,7 @@ async function readParentDocument(
                   ...(normalizedExtractions.records as DocumentExtractionRecord[]),
                   ...supportConcernRecords,
                 ],
+                familyUploadedDocumentIds,
               ),
             }],
           }, requestOptions));
@@ -1124,15 +1135,27 @@ async function readParentDocument(
       sourceTitles: availableSourceDocuments.map((source) => ({
         documentId: source.id,
         title: source.title || source.fileName || "Uploaded document",
+        uploadedBy: familyUploadedDocumentIds.has(source.id)
+          ? "parent"
+          : supportDocumentUploaderKind(source.uploadedBy),
       })),
       generatedGroups: generatedConcernGroups,
     });
+    const uploaderBySourceId = new Map(availableSourceDocuments.map((source) => [
+      source.id,
+      familyUploadedDocumentIds.has(source.id)
+        ? "parent"
+        : supportDocumentUploaderKind(source.uploadedBy),
+    ]));
     const existingConcernCards = siblingMetadata.flatMap((row) =>
       savedDocumentInformedConcernCards(row.extractedSupport),
     ).map((card) => {
       const sourceReferences = card.sourceReferences.filter((reference) =>
         currentDocumentVersionById.get(reference.documentId) === reference.documentVersion,
-      );
+      ).map((reference) => ({
+        ...reference,
+        uploadedBy: uploaderBySourceId.get(reference.documentId) || reference.uploadedBy || "unknown",
+      }));
       const sourceDocumentIds = [...new Set(sourceReferences.map((reference) => reference.documentId))];
       return {
         ...card,
@@ -1851,6 +1874,7 @@ async function parentDocumentConcernContext(parentId: string, childId: string) {
       documentId: document.id,
       documentVersion: run.documentVersion,
       title: document.title || document.fileName || "Uploaded document",
+      uploadedBy: supportDocumentUploaderKind(document.uploadedBy),
     }];
   });
   const currentVersionById = new Map(currentSources.map((source) => [source.documentId, source.documentVersion]));
@@ -1890,7 +1914,14 @@ async function parentDocumentConcernContext(parentId: string, childId: string) {
   const cardGroups = rows.flatMap((row) => {
     const extractedSupport = row.extractedSupport;
     return savedDocumentInformedConcernCards(extractedSupport)
-      .filter((card) => card.childId === childId);
+      .filter((card) => card.childId === childId)
+      .map((card) => ({
+        ...card,
+        sourceReferences: card.sourceReferences.map((reference) => ({
+          ...reference,
+          uploadedBy: currentSourceById.get(reference.documentId)?.uploadedBy || reference.uploadedBy || "unknown",
+        })),
+      }));
   });
   const extractionOnlyCards = createDocumentInformedConcernCards({
     childId,
@@ -1898,8 +1929,14 @@ async function parentDocumentConcernContext(parentId: string, childId: string) {
     sourceTitles: currentSources.map((source) => ({
       documentId: source.documentId,
       title: source.title,
+      uploadedBy: source.uploadedBy,
     })),
-    generatedGroups: storedSupportConcernSuggestionGroups(currentExtractionRecords),
+    generatedGroups: storedSupportConcernSuggestionGroups(
+      currentExtractionRecords,
+      currentSources
+        .filter((source) => isFamilyUploadedSupportSource(source.uploadedBy))
+        .map((source) => source.documentId),
+    ),
   });
   cardGroups.push(...extractionOnlyCards);
   const overrideById: Record<string, ParentDocumentSupportCardOverride> = {};

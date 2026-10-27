@@ -354,6 +354,42 @@ describe("support guidance", () => {
     expect(screen.getByText("Source excerpt needs review")).toBeTruthy();
   });
 
+  it("shows parent-uploaded guidance without an unverified-source warning", () => {
+    const parentUploaded = {
+      ...documentConcern,
+      sourceReviewRequired: true,
+      reviewStatus: "needs_review",
+      sourceReferences: [{
+        ...documentConcern.sourceReferences[0],
+        excerptVerified: false,
+      }],
+      missingClinicalInformation: [
+        "One or more source excerpts still need review before the concern can be relied on.",
+      ],
+    };
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Sam" }}
+        profile={{
+          sourceDocuments: [{ id: "document-1", uploadedBy: "parent" }],
+          documentSupportCards: [parentUploaded],
+        }}
+        parentDirect
+        onBack={() => {}}
+        onOpenSafety={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Difficulty With Verbal Instructions/ }));
+    expect(screen.queryByTestId("notice-source-review")).toBeNull();
+    expect(screen.queryByText("Source excerpt needs review")).toBeNull();
+    expect(screen.queryByText(/excerpts still need review/i)).toBeNull();
+    expect(screen.getByRole("heading", { name: "Things to Avoid" })).toBeTruthy();
+    expect(screen.getByText("Avoid stacking several spoken directions at once.")).toBeTruthy();
+    expect(screen.getByTestId("label-document-informed-status").textContent).toBe("Not clinician-reviewed");
+  });
+
   it("lets a parent correct the suggestion label without changing its review status", async () => {
     supportMocks.updateParentDocumentSupportCard.mockResolvedValueOnce({
       ...documentConcern,

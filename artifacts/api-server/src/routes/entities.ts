@@ -9,6 +9,7 @@ import {
   aiConversationsTable, dailyCheckInsTable, winLogsTable, engagementEventsTable,
   clientProfilesTable, userProfilesTable, usersTable, auditLogsTable, invitationsTable,
   clientSessionsTable, mobileTokensTable, clientAccessCodeResetsTable, consentEventsTable, parentClinicConsentsTable,
+  parentDocumentsTable,
   documentExtractionRunsTable,
 } from "@workspace/db";
 import { eq, and, inArray, or, isNull, gt, ne, sql, desc } from "drizzle-orm";
@@ -31,6 +32,7 @@ import {
   attachGeneratedSupportConcernSuggestions,
   buildSupportConcernGenerationPrompt,
   buildSupportConcernCandidatePrompt,
+  isFamilyUploadedSupportSource,
   normalizeGeneratedSupportConcernCandidates,
   supportConcernSuggestionSourceRecords,
   supportConcernCardToolSchema,
@@ -49,7 +51,7 @@ import {
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
 const router = Router();
-const CLIENT_SUPPORT_CONTENT_VERSION = 1;
+const CLIENT_SUPPORT_CONTENT_VERSION = 2;
 
 const CURRENT_PRIVACY_POLICY_VERSION = "1.0";
 const CURRENT_HEALTH_CONSENT_VERSION = "1.0";
@@ -1177,6 +1179,18 @@ router.post("/build-client-profile", async (req: any, res) => {
     // uploaded document (id not yet in sourceDocIds) always forces a fresh scan so
     // the file is actually read — otherwise Scan would silently no-op on new docs.
     const allScannableDocs = [...docsWithFiles, ...docsWithNotes];
+    const parentUploadMetadata = allScannableDocs.length
+      ? await db.select({ documentId: parentDocumentsTable.documentId })
+        .from(parentDocumentsTable)
+        .where(inArray(parentDocumentsTable.documentId, allScannableDocs.map((doc) => doc.id)))
+      : [];
+    const parentUploadedIds = new Set(parentUploadMetadata.map((metadata) => metadata.documentId));
+    const familyUploadedDocumentIds = new Set(allScannableDocs
+      .filter((doc) =>
+        isFamilyUploadedSupportSource(doc.uploadedBy) ||
+        (parentUploadedIds.has(doc.id) && doc.uploadedBy !== child.clinicianId),
+      )
+      .map((doc) => doc.id));
     const existingSourceIds: string[] = Array.isArray((existingProfile as any)?.sourceDocIds) ? (existingProfile as any).sourceDocIds : [];
     const hasCurrentSupportContent = Array.isArray((existingProfile as any)?.behaviors)
       && (existingProfile as any).behaviors.length > 0
@@ -1613,6 +1627,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     const suggestionSourceRecords = supportConcernSuggestionSourceRecords(
       normalizedExtractions.records,
       child_id,
+      familyUploadedDocumentIds,
     );
     let supportSuggestionGenerationFailed = false;
     let generatedConcernGroups: any[] = [];
@@ -1629,7 +1644,11 @@ Example: do not write only "${childName} will complete a graduated exposure hier
             tool_choice: { type: "tool", name: "generate_document_informed_support_cards" },
             messages: [{
               role: "user",
-              content: buildSupportConcernGenerationPrompt(batch, normalizedExtractions.records),
+              content: buildSupportConcernGenerationPrompt(
+                batch,
+                normalizedExtractions.records,
+                familyUploadedDocumentIds,
+              ),
             }],
           }, requestOptions));
           requireCompleteDocumentAiResponse(suggestionResponse);

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { supportSourceDocumentIds, supportUploadSourceLabel } from "./supportUploadSource";
+import {
+  supportSourceDocumentIds,
+  supportUploadIsFamilyOwned,
+  supportUploadSourceLabel,
+  supportUploadsAreFamilyOwned,
+} from "./supportUploadSource";
 
 describe("support upload source labels", () => {
   const documents = [
@@ -25,6 +30,14 @@ describe("support upload source labels", () => {
   it("uses an explicit fallback when uploader provenance is unavailable", () => {
     expect(supportUploadSourceLabel([], ["missing-doc"], "clinician-1", "Clinician-uploaded"))
       .toBe("Clinician-uploaded");
+  });
+
+  it("recognizes parent and client uploads without treating clinician uploads as family-owned", () => {
+    expect(supportUploadIsFamilyOwned({ uploadedBy: "parent" })).toBe(true);
+    expect(supportUploadIsFamilyOwned({ uploadedBy: "client:child-1" })).toBe(true);
+    expect(supportUploadIsFamilyOwned({ uploadedBy: "clinician-1" })).toBe(false);
+    expect(supportUploadsAreFamilyOwned(documents, ["parent-doc", "client-doc"])).toBe(true);
+    expect(supportUploadsAreFamilyOwned(documents, ["parent-doc", "clinician-doc"])).toBe(false);
   });
 
   it("prefers behavior-level source document IDs over profile-level IDs", () => {

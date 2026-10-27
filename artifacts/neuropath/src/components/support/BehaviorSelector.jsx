@@ -6,7 +6,11 @@ import { Disclosure } from "@workspace/neuropathways-foundations/components/ui/d
 import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
 import { Input } from "@workspace/neuropathways-foundations/components/ui/input";
 import { getBehaviorAppearance } from "./behaviorVisuals";
-import { supportSourceDocumentIds, supportUploadSourceLabel } from "./supportUploadSource";
+import {
+  supportSourceDocumentIds,
+  supportUploadIsFamilyOwned,
+  supportUploadSourceLabel,
+} from "./supportUploadSource";
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -147,7 +151,22 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
       : [];
     if (!sourceReferences.length) return [];
     const safetySensitiveTopic = row.safetySensitiveTopic === true;
-    const sourceReviewRequired = row.sourceReviewRequired === true || row.reviewStatus === "needs_review";
+    const sourceReferencesWithOwner = sourceReferences.map((reference) => {
+      const sourceDocument = sourceDocuments.find((document) =>
+        String(document?.id ?? "") === String(reference.documentId ?? ""),
+      );
+      const uploadedBy = reference.uploadedBy ?? sourceDocument?.uploadedBy ?? sourceDocument?.uploaded_by;
+      return {
+        ...reference,
+        uploadedBy,
+        familyUploaded: supportUploadIsFamilyOwned({ uploadedBy }),
+        excerpt: supportFactText(reference.excerpt),
+      };
+    });
+    const allSourcesFamilyUploaded = sourceReferencesWithOwner.length > 0 &&
+      sourceReferencesWithOwner.every((reference) => reference.familyUploaded);
+    const sourceReviewRequired = !allSourcesFamilyUploaded &&
+      (row.sourceReviewRequired === true || row.reviewStatus === "needs_review");
     const generalSupportSuggestions = safetySensitiveTopic || sourceReviewRequired
       ? []
       : listItems(row.generalSupportSuggestions).map(supportFactText).filter(Boolean).slice(0, 5);
@@ -159,7 +178,7 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
       description: supportFactText(row.description),
       contexts: listItems(row.contexts).map(supportFactText).filter(Boolean),
       observations: listItems(row.observations).map(supportFactText).filter(Boolean),
-      uncertainty: listItems(row.uncertainty),
+      uncertainty: listItems(row.uncertainty).map(supportFactText).filter(Boolean),
       generalSupportSuggestions,
       supportSections: safetySensitiveTopic || sourceReviewRequired
         ? {
@@ -183,10 +202,14 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
           practiceSkill: listItems(row.supportSections?.practiceSkill).map(supportFactText).filter(Boolean).slice(0, 5),
           whatToNotice: listItems(row.supportSections?.whatToNotice).map(supportFactText).filter(Boolean).slice(0, 5),
         },
-      missingClinicalInformation: listItems(row.missingClinicalInformation),
       safetySensitiveTopic,
       sourceReviewRequired,
-      sourceReferences,
+      sourceReferences: sourceReferencesWithOwner,
+      missingClinicalInformation: listItems(row.missingClinicalInformation)
+        .map(supportFactText)
+        .filter(Boolean)
+        .filter((item) => !allSourcesFamilyUploaded ||
+          !/source excerpts? (?:still )?need review|excerpts have not been verified|suggestions are withheld until the source is reviewed|review the source before relying/i.test(item)),
       documentInformed: true,
       sourceLabel: supportUploadSourceLabel(
         sourceDocuments,
@@ -509,7 +532,7 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
         <p className="np-help-label" data-testid="label-document-informed-status">{behavior.reviewLabel}</p>
         {!behavior.sourceReviewRequired && !behavior.safetySensitiveTopic && behavior.generationStatus === "generated" && (
           <p className="np-help-muted" data-testid="label-ai-generated-guidance">
-            AI-generated general ideas based on verified information from the uploaded document. These are not clinician-reviewed or individualized treatment.
+            AI-generated, document-informed ideas. These are not clinician-reviewed or individualized treatment.
           </p>
         )}
         {behavior.sourceReviewRequired && (
@@ -596,10 +619,10 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
         <section className="np-help-group" aria-label="Sources from uploaded documents">
           <h3 className="np-help-label">From your documents</h3>
           {behavior.sourceReferences.map((reference, index) => (
-            <article className="np-help-notice" data-tone={reference.excerptVerified === false ? "caution" : "context"} key={`${reference.documentId}-${index}`} data-testid="document-concern-source">
+            <article className="np-help-notice" data-tone={reference.excerptVerified === false && !reference.familyUploaded ? "caution" : "context"} key={`${reference.documentId}-${index}`} data-testid="document-concern-source">
               <p className="np-help-text np-help-strong">{reference.title}</p>
               {reference.section && <p className="np-help-muted">{reference.section}{reference.page ? ` · Page ${reference.page}` : ""}</p>}
-              {reference.excerptVerified === false && <p className="np-help-text">Source excerpt needs review</p>}
+              {reference.excerptVerified === false && !reference.familyUploaded && <p className="np-help-text">Source excerpt needs review</p>}
               <blockquote className="np-help-text">{reference.excerpt}</blockquote>
             </article>
           ))}
