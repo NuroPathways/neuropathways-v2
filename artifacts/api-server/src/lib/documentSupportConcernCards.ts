@@ -144,6 +144,61 @@ function cleanText(value: unknown, maxLength = MAX_TEXT): string {
     : "";
 }
 
+function removeRepeatedSupportPhrases(value: string): string {
+  const sentenceSeen = new Set<string>();
+  let text = value.split(/(?<=[.!?])\s+/)
+    .filter((sentence) => {
+      const key = sentence.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+      if (!key || sentenceSeen.has(key)) return false;
+      sentenceSeen.add(key);
+      return true;
+    })
+    .join(" ");
+  const tokens = [...text.matchAll(/\S+/g)].map((match) => ({
+    value: match[0],
+    start: match.index ?? 0,
+    end: (match.index ?? 0) + match[0].length,
+    normalized: match[0].toLowerCase().replace(/[^\p{L}\p{N}]/gu, ""),
+  }));
+  const removed = new Set<number>();
+  const maxPhraseLength = Math.min(32, Math.floor(tokens.length / 2));
+
+  for (let phraseLength = maxPhraseLength; phraseLength >= 7; phraseLength -= 1) {
+    const seen = new Set<string>();
+    for (let start = 0; start + phraseLength <= tokens.length; start += 1) {
+      const end = start + phraseLength;
+      if (tokens.slice(start, end).some((_, offset) => removed.has(start + offset))) continue;
+      const words = tokens.slice(start, end).map((token) => token.normalized);
+      if (words.some((word) => !word)) continue;
+      const key = words.join(" ");
+      if (seen.has(key)) {
+        for (let index = start; index < end; index += 1) removed.add(index);
+      } else {
+        seen.add(key);
+      }
+    }
+  }
+
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (let index = 0; index < tokens.length;) {
+    if (!removed.has(index)) {
+      index += 1;
+      continue;
+    }
+    const start = index;
+    while (index + 1 < tokens.length && removed.has(index + 1)) index += 1;
+    ranges.push({ start: tokens[start].start, end: tokens[index].end });
+    index += 1;
+  }
+  for (const range of ranges.reverse()) {
+    text = `${text.slice(0, range.start)} ${text.slice(range.end)}`;
+  }
+  return text
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function supportDocumentUploaderKind(
   value: unknown,
 ): "parent" | "client" | "clinician" | "unknown" {
@@ -164,10 +219,11 @@ const MISSING_DETAIL_BOILERPLATE = /\b(?:the (?:document|source|notes|record|rep
 function cleanSupportText(value: unknown, maxLength = MAX_TEXT): string {
   const text = cleanText(value, maxLength);
   if (!text) return "";
-  return text.split(/(?<=[.!?])\s+/)
+  const filtered = text.split(/(?<=[.!?])\s+/)
     .filter((sentence) => !MISSING_DETAIL_BOILERPLATE.test(sentence))
     .join(" ")
     .trim();
+  return removeRepeatedSupportPhrases(filtered);
 }
 
 function cleanSupportStrings(value: unknown, maxItems = 8, maxLength = 320): string[] {
