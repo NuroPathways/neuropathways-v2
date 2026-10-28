@@ -5,6 +5,7 @@ import {
   buildParentChatSystemPrompt,
   isBareModelRefusal,
   isDirectPhysicalInterventionRequest,
+  relevantParentChatDocumentIds,
 } from "./parentChatPolicy";
 
 test("the prompt uses readable document content when present and still provides a general fallback", () => {
@@ -21,6 +22,58 @@ test("the prompt clearly permits behavior-specific generalized support without r
   assert.match(promptWithoutDocument, /based on the behavior the parent described/);
   assert.match(promptWithoutDocument, /Do not provide diagnoses, medication changes or doses/);
   assert.match(promptWithoutDocument, /immediate-danger guidance/);
+});
+
+test("document citations are matched to relevant answer content even when the answer omits the file title", () => {
+  const documents = [
+    {
+      documentId: "homework-plan",
+      title: "Family support plan",
+      content: "During homework, offer a blue break card to request a short break.",
+    },
+    {
+      documentId: "unrelated-plan",
+      title: "Appointment notes",
+      content: "The family will review transportation options at the next appointment.",
+    },
+  ];
+
+  assert.deepEqual(
+    relevantParentChatDocumentIds(
+      "What does my uploaded plan say I can offer when homework feels hard?",
+      "Offer the blue break card so your child can request a short break.",
+      documents,
+    ),
+    ["homework-plan"],
+  );
+  assert.deepEqual(
+    relevantParentChatDocumentIds("What does the plan say about homework?", "Try a calm pause.", documents),
+    [],
+  );
+});
+
+test("an explicit question about an uploaded document keeps its relevant source attached to a concise answer", () => {
+  const documents = [
+    {
+      documentId: "homework-plan",
+      title: "Family support plan",
+      content: "For homework, offer a blue break card and short break before returning to one small step.",
+    },
+    {
+      documentId: "unrelated-plan",
+      title: "Mealtime notes",
+      content: "Offer a choice between two snacks and keep the meal routine predictable.",
+    },
+  ];
+
+  assert.deepEqual(
+    relevantParentChatDocumentIds(
+      "What does my uploaded plan say I can offer when homework feels hard?",
+      "Offer a short break.",
+      documents,
+    ),
+    ["homework-plan"],
+  );
 });
 
 test("the prompt grounds daily activity answers in action sources without telling parents nothing can be done", () => {

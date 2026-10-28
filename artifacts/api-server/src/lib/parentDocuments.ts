@@ -26,6 +26,7 @@ import {
   isBareModelRefusal,
   isDirectPhysicalInterventionRequest,
   PARENT_CHAT_DISCLAIMER,
+  relevantParentChatDocumentIds,
 } from "./parentChatPolicy";
 import { ownedParentChild, parentBehaviorsFromSettings } from "./parentAuth";
 import { familyIdForOwner, familySupportCards, saveFamilySettings } from "./familyParentAuth";
@@ -2592,8 +2593,18 @@ ${JSON.stringify(serverContext)}`,
   }
 
   const normalizedAnswer = answer.toLocaleLowerCase();
+  const relevantDocumentIds = new Set(relevantParentChatDocumentIds(
+    message,
+    answer,
+    references.map((reference) => ({
+      documentId: reference.documentId,
+      title: reference.title,
+      content: reference.excerpt || "",
+    })),
+  ));
   const citedReferences = references.filter((reference) =>
-    reference.title.trim().length > 0 && normalizedAnswer.includes(reference.title.toLocaleLowerCase()),
+    (reference.title.trim().length > 0 && normalizedAnswer.includes(reference.title.toLocaleLowerCase())) ||
+    relevantDocumentIds.has(reference.documentId),
   );
   const usedUnreviewedDocument = citedReferences.some((reference) => !reviewedDocumentIds.has(reference.documentId));
   const generalized = citedReferences.length === 0;

@@ -24,6 +24,102 @@
 }
 .np-goals-v5 * { overflow-wrap: anywhere; }
 .np-goals-v5 .np-goals-intro { margin: 0; font-size: var(--np-text-support); color: var(--np-color-muted-foreground); }
+
+/* Screenshot-matched Goals header and selector panel. */
+.np-goals-v5 .np-goals-banner {
+  display: grid; gap: var(--np-space-list);
+  margin: 0 calc(-1 * clamp(16px, 3vw, 32px));
+  padding: var(--np-space-card) clamp(16px, 3vw, 32px) var(--np-space-card-lg);
+  background: var(--np-color-chart-2); color: var(--np-color-primary-foreground);
+}
+.np-goals-v5 .np-goals-back {
+  justify-self: start; min-height: var(--np-space-control); padding-inline: 0;
+  color: var(--np-color-primary-foreground);
+}
+.np-goals-v5 .np-goals-back:hover { color: var(--np-color-primary-foreground); background: color-mix(in srgb, var(--np-color-primary-foreground) 12%, transparent); }
+.np-goals-v5 .np-goals-banner-row {
+  display: flex; min-width: 0; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: var(--np-space-related-lg);
+}
+.np-goals-v5 .np-goals-banner-title { display: flex; min-width: 0; align-items: center; gap: var(--np-space-related); }
+.np-goals-v5 .np-goals-banner-icon {
+  display: grid; width: 2.75rem; height: 2.75rem; flex: 0 0 auto;
+  place-items: center; border-radius: var(--np-radius);
+  background: color-mix(in srgb, var(--np-color-primary-foreground) 16%, transparent);
+  color: var(--np-color-primary-foreground);
+}
+.np-goals-v5 .np-goals-banner-title h1 {
+  margin: 0; color: var(--np-color-primary-foreground);
+  font: 700 var(--np-text-page-title)/var(--np-leading-page-title) var(--np-font-display);
+  letter-spacing: -.025em;
+}
+.np-goals-v5 .np-goals-banner-title p {
+  margin: var(--np-space-list) 0 0; color: color-mix(in srgb, var(--np-color-primary-foreground) 84%, transparent);
+  font-size: var(--np-text-body-sm);
+}
+.np-goals-v5 .np-goals-banner-add {
+  min-height: var(--np-space-control); border-color: color-mix(in srgb, var(--np-color-primary-foreground) 40%, transparent);
+  border-radius: 999px; background: color-mix(in srgb, var(--np-color-primary-foreground) 13%, transparent);
+  color: var(--np-color-primary-foreground);
+}
+.np-goals-v5 .np-goals-banner-add:hover { background: color-mix(in srgb, var(--np-color-primary-foreground) 22%, transparent); color: var(--np-color-primary-foreground); }
+
+.np-goals-v5 .np-goals-child-panel {
+  display: grid; gap: var(--np-space-list); padding: var(--np-space-related-lg);
+  border: 1px solid var(--np-color-border); border-radius: var(--np-radius);
+  background: var(--np-color-muted);
+}
+.np-goals-v5 .np-goals-child-panel label {
+  color: var(--np-color-muted-foreground); font-size: var(--np-text-support); font-weight: 700;
+}
+.np-goals-v5 .np-goals-child-panel [data-slot="select-trigger"] {
+  min-height: var(--np-space-control); border-color: var(--np-color-border);
+  background: var(--np-color-card); color: var(--np-color-card-foreground);
+}
+
+.np-goals-v5 .np-goals-plan-list { display: grid; gap: var(--np-space-related-lg); min-width: 0; }
+.np-goals-v5 .np-goals-plan-card {
+  display: grid; gap: var(--np-space-list); min-width: 0; padding: var(--np-space-card);
+  border: 1px solid var(--np-color-border); border-radius: var(--np-radius);
+  background: var(--np-color-card); color: var(--np-color-card-foreground);
+  box-shadow: var(--np-shadow-raised);
+}
+.np-goals-v5 .np-goals-plan-source {
+  color: var(--np-color-muted-foreground); font-size: var(--np-text-support); font-weight: 650;
+}
+.np-goals-v5 .np-goals-plan-card-header {
+  display: flex; min-width: 0; align-items: center; justify-content: space-between;
+  gap: var(--np-space-related);
+}
+.np-goals-v5 .np-goals-plan-title { display: flex; min-width: 0; align-items: center; gap: var(--np-space-list); }
+.np-goals-v5 .np-goals-plan-title > svg { flex: 0 0 auto; color: var(--np-color-chart-2); }
+.np-goals-v5 .np-goals-plan-title h3 {
+  margin: 0; color: var(--np-color-card-foreground);
+  font: 700 var(--np-text-card-title)/var(--np-leading-card-title) var(--np-font-display);
+}
+.np-goals-v5 .np-goals-plan-add {
+  width: var(--np-space-control); height: var(--np-space-control); flex: 0 0 auto;
+  padding: 0; border: 0; border-radius: 50%;
+  background: var(--np-color-chart-2); color: var(--np-color-primary-foreground);
+}
+.np-goals-v5 .np-goals-plan-add:hover { background: var(--np-color-chart-3); color: var(--np-color-primary-foreground); }
+.np-goals-v5 .np-goals-plan-description-toggle {
+  justify-self: start; min-height: var(--np-space-control); padding: 0;
+  border: 0; background: transparent; color: var(--np-color-chart-2);
+  font: 600 var(--np-text-support)/var(--np-leading-support) var(--np-font-sans);
+  text-align: left; text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.np-goals-v5 .np-goals-plan-count { margin: 0; color: var(--np-color-muted-foreground); font-size: var(--np-text-support); }
+.np-goals-v5 .np-goals-plan-progress-meta { display: flex; justify-content: space-between; gap: var(--np-space-list); color: var(--np-color-muted-foreground); font-size: var(--np-text-support); }
+.np-goals-v5 .np-goals-plan-progress {
+  height: var(--np-space-list); overflow: hidden; border-radius: 999px; background: var(--np-color-border);
+}
+.np-goals-v5 .np-goals-plan-progress > div { height: 100%; border-radius: inherit; background: var(--np-color-chart-2); transition: width .2s ease; }
+.np-goals-v5 .np-goals-plan-details { display: grid; gap: var(--np-space-related); padding-top: var(--np-space-related); border-top: 1px solid var(--np-color-border); }
+.np-goals-v5 .np-goals-plan-details[hidden] { display: none; }
+.np-goals-v5 .np-goals-plan-details > p { margin: 0; font-size: var(--np-text-body-sm); line-height: var(--np-leading-body-sm); }
+.np-goals-v5 .np-goals-plan-reference { color: var(--np-color-muted-foreground); font-size: var(--np-text-support) !important; }
+
 .np-goals-v5 .np-goals-groups { display: grid; gap: var(--np-space-section); min-width: 0; }
 .np-goals-v5 .np-goal-group { display: grid; gap: var(--np-space-related); min-width: 0; }
 .np-goals-v5 .np-goal-group > h3, .np-goals-v5 .np-goal-add h3 {

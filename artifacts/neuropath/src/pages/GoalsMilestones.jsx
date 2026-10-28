@@ -55,17 +55,27 @@ export default function GoalsMilestones({ embedded = false }) {
   }, [user, childIdParam]);
 
   const loadGoals = async (cid) => {
-    // Direct read works for logged-in users; client sessions (username+code) are
-    // blocked by RLS, so fall back to the authorized backend.
-    let r = await base44.entities.RewardToken.filter({ child_id: cid }).catch(() => null);
-    if (!r || r.length === 0) {
-      r = await base44.functions.invoke("getClientPortalData", {
+    // Use the authorized portal projection even when a direct read returns some
+    // rows; direct reads can omit document goals because of row-level filtering.
+    const [directRows, portalResult] = await Promise.all([
+      base44.entities.RewardToken.filter({ child_id: cid }).catch(() => []),
+      base44.functions.invoke("getClientPortalData", {
         child_id: cid,
         account_id: user?.id,
         invite_token: user?.invite_token,
-      }).then(res => res?.data?.goals || []).catch(() => []);
-    }
-    return r;
+      }).catch(() => null),
+    ]);
+    const portalGoals = Array.isArray(portalResult?.data?.goals) ? portalResult.data.goals : null;
+    if (!portalGoals) return directRows;
+
+    const safeDirectManualGoals = directRows.filter((goal) =>
+      goal.source === "manual" && !(goal.createdByClinician ?? goal.created_by_clinician),
+    );
+    const merged = new Map();
+    [...portalGoals, ...safeDirectManualGoals].forEach((goal) => {
+      if (goal?.id) merged.set(String(goal.id), goal);
+    });
+    return [...merged.values()];
   };
 
   useEffect(() => {
@@ -123,7 +133,7 @@ export default function GoalsMilestones({ embedded = false }) {
   const changeChild = (childId) => {
     setSelectedChildId(childId);
     try { localStorage.setItem(`np-family-child:${user?.id}`, childId); } catch { /* Storage may be unavailable. */ }
-    const params = new URLSearchParams(embedded ? "tab=goals" : window.location.search);
+    const params = new URLSearchParams(embedded ? "tab=edit&section=goals" : window.location.search);
     params.set("child_id", childId);
     navigate(`${embedded ? "/ParentHome" : "/GoalsMilestones"}?${params.toString()}`, { replace: true });
   };

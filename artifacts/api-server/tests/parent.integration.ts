@@ -257,7 +257,8 @@ try {
   const matched = scanSecond.data.supportCards.filter((card: any) => card.source !== "starter" && card.behaviorKey === task.key);
   check(matched.length === 1, "matching uploaded behavior information merges instead of creating duplicate cards");
   const chat = await request(`/parent/children/${child.id}/chat`, "POST", { message: "What does my uploaded plan say I can offer when homework feels hard?" }, one.token);
-  check(chat.response.ok && chat.data.answer && /not.*reviewed/i.test(chat.data.disclaimer), "document-grounded parent chat discloses no clinician review");
+  check(chat.response.ok && chat.data.answer && /not.*reviewed/i.test(chat.data.disclaimer),
+    `document-grounded parent chat discloses no clinician review (disclaimer: ${String(chat.data?.disclaimer || "missing").slice(0, 180)}; source count: ${chat.data?.sourceReferences?.length ?? 0})`);
   check(chat.data.sourceReferences.some((reference: any) => reference.documentId === documentId || reference.documentId === second.data.id), "chat returns the parent's actual document references");
   const editedGoal = "Ask for a short break before homework";
   const changedGoal = await request(`/parent/children/${child.id}`, "PATCH", { goal: editedGoal }, one.token);

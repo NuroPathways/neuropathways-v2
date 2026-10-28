@@ -49,6 +49,8 @@ export type ParentPlanGoal = {
   description: string;
   milestones: string[];
   sourceType: "clinician_uploaded_plan" | "parent_uploaded_plan" | "selected_behavior";
+  progress?: number;
+  target?: number;
 };
 
 const UNSAFE_PLAN_PRACTICE =
@@ -302,6 +304,8 @@ export async function getParentPlanGoals(childId: string, ownerId?: string): Pro
         : row.goalDescription?.trim().slice(0, 3000) || "",
       milestones: parseGoalMilestones(row.milestoneNotes),
       sourceType: row.source === "document" ? "clinician_uploaded_plan" as const : "parent_uploaded_plan" as const,
+      progress: Math.max(0, Number(row.tokensEarned) || 0),
+      target: Math.max(1, Number(row.tokensGoal) || 10),
     }];
   });
 }

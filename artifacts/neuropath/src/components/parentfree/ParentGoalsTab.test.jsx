@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import ParentGoalsTab from "./ParentGoalsTab";
 
 const goalMocks = vi.hoisted(() => ({
   mutate: vi.fn(),
   refreshParent: vi.fn(),
   invalidateQueries: vi.fn(),
+  rewardUpdate: vi.fn(),
+  invoke: vi.fn(),
+  navigate: vi.fn(),
   careData: undefined,
 }));
 
@@ -32,8 +35,23 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: goalMocks.invalidateQueries }),
 }));
 
+vi.mock("react-router-dom", async (importOriginal) => ({
+  ...(await importOriginal()),
+  useNavigate: () => goalMocks.navigate,
+}));
+
+vi.mock("@/api/entities", () => ({
+  base44: {
+    entities: { RewardToken: { update: goalMocks.rewardUpdate } },
+    functions: { invoke: goalMocks.invoke },
+  },
+}));
+
 vi.mock("@/lib/AuthContext", () => ({
-  useAuth: () => ({ refreshParent: goalMocks.refreshParent }),
+  useAuth: () => ({
+    refreshParent: goalMocks.refreshParent,
+    user: { id: "parent-1", invite_token: "session-token" },
+  }),
 }));
 
 vi.mock("@/lib/parentSession", () => ({
@@ -61,7 +79,7 @@ describe("ParentGoalsTab", () => {
     expect(screen.queryByTestId("plan-goal-shared")).toBeNull();
     expect(screen.queryByTestId("goals-found-in-plan")).toBeNull();
     expect(screen.getByTestId("linked-plan-shared")).toBeTruthy();
-    expect(screen.getByText("Clinician-uploaded plan")).toBeTruthy();
+    expect(screen.getByText("Clinician-uploaded document")).toBeTruthy();
   });
   it("shows per-goal thumbs check-ins and records the selected caregiver rating", () => {
     render(
@@ -161,9 +179,52 @@ describe("ParentGoalsTab", () => {
 
     expect(screen.getByTestId("plan-goal-report-goal-1")).toBeTruthy();
     fireEvent.click(within(screen.getByTestId("plan-goal-report-goal-1")).getByRole("button", { name: /view goal/i }));
-    expect(screen.getByText("From a clinician-uploaded document")).toBeTruthy();
+    expect(screen.getByText("Clinician-uploaded document")).toBeTruthy();
     expect(screen.getByText("Use the break card before the first homework task.")).toBeTruthy();
     expect(screen.getByText("Return to the next task after the planned break.")).toBeTruthy();
     expect(screen.getByText("Practice: Use the break card")).toBeTruthy();
+  });
+
+  it("matches the reference layout and logs progress for goals extracted from a document", async () => {
+    goalMocks.rewardUpdate.mockResolvedValue({});
+    const onChildSelect = vi.fn();
+    render(
+      <ParentGoalsTab
+        child={{ id: "child-1", name: "Sam" }}
+        childrenOptions={[
+          { id: "child-1", name: "Sam" },
+          { id: "child-2", name: "Riley" },
+        ]}
+        onChildSelect={onChildSelect}
+        behaviors={[]}
+        cards={[]}
+        allCards={[]}
+        planGoals={[{
+          id: "document-goal-1",
+          title: "Use the break card during homework",
+          description: "Offer the break card when homework begins.",
+          milestones: ["Show the card before the first task."],
+          sourceType: "parent_uploaded_plan",
+          progress: 4,
+          target: 10,
+        }]}
+        dailyActions={[]}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Goals & Milestones" })).toBeTruthy();
+    expect(screen.getByText("Viewing progress for")).toBeTruthy();
+    expect(screen.getByTestId("select-parent-goals-child")).toBeTruthy();
+    expect(screen.getByText("Self-uploaded document")).toBeTruthy();
+    expect(screen.getByText("4 of 10 practice steps logged")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Log one practice step for Use the break card during homework" }));
+    await waitFor(() => {
+      expect(goalMocks.rewardUpdate).toHaveBeenCalledWith("document-goal-1", {
+        progress: 5,
+        tokens_earned: 5,
+      });
+      expect(screen.getByText("5 of 10 practice steps logged")).toBeTruthy();
+    });
   });
 });

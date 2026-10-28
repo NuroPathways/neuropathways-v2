@@ -84,6 +84,14 @@ const ParentLegacyDestination = ({ tab, section }) => {
   return <Navigate to={`/ParentHome?${params.toString()}`} replace />;
 };
 
+const ParentGoalsDestination = () => {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  params.set("tab", "edit");
+  params.set("section", "goals");
+  return <Navigate to={`/ParentHome?${params.toString()}`} replace />;
+};
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, user } = useAuth();
   const location = useLocation();
@@ -208,7 +216,7 @@ const AuthenticatedApp = () => {
         ["parent_free", "legacy_family"].includes(user?.account_type)
           ? <ParentLegacyDestination tab="edit" section="goals" />
           : isParentAccount
-            ? <Navigate to={`/ParentHome?tab=goals${location.search ? `&${location.search.slice(1)}` : ""}`} replace />
+            ? <ParentGoalsDestination />
             : <LayoutWrapper currentPageName="GoalsMilestones"><GoalsMilestones /></LayoutWrapper>
       } />
       <Route path="/DataImport" element={<DataImport />} />

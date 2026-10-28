@@ -1,6 +1,41 @@
 export const PARENT_CHAT_DISCLAIMER =
   "This is information only—not medical advice, not professional advice, and not a substitute for your child’s clinician. General suggestions are ABA-informed. If someone is in immediate danger, contact emergency services.";
 
+const CHAT_SOURCE_STOP_WORDS = new Set([
+  "about", "after", "also", "based", "because", "before", "being", "could", "does",
+  "document", "during", "from", "have", "help", "here", "into", "more", "offer", "plan",
+  "please", "response", "should", "source", "that", "their", "there", "these",
+  "they", "this", "uploaded", "when", "where", "which", "with", "would", "your",
+]);
+
+function meaningfulChatTerms(value: string): Set<string> {
+  return new Set(
+    value.toLocaleLowerCase().normalize("NFKC").match(/[\p{L}\p{N}]{4,}/gu)
+      ?.filter((term) => !CHAT_SOURCE_STOP_WORDS.has(term)) || [],
+  );
+}
+
+export function relevantParentChatDocumentIds(
+  question: string,
+  answer: string,
+  documents: Array<{ documentId: string; title: string; content: string }>,
+): string[] {
+  const questionTerms = meaningfulChatTerms(question);
+  const answerTerms = meaningfulChatTerms(answer);
+  const normalizedAnswer = answer.trim().toLocaleLowerCase();
+  const asksAboutUploadedSource = /\b(?:uploaded|document|file|scan|source)\b/i.test(question);
+
+  return documents.filter((document) => {
+    const title = document.title.trim().toLocaleLowerCase();
+    if (title.length > 3 && normalizedAnswer.includes(title)) return true;
+
+    const documentTerms = meaningfulChatTerms(`${document.title}\n${document.content}`);
+    const questionMatches = [...questionTerms].filter((term) => documentTerms.has(term)).length;
+    const answerMatches = [...answerTerms].filter((term) => documentTerms.has(term)).length;
+    return questionMatches > 0 && (answerMatches >= 2 || asksAboutUploadedSource);
+  }).map((document) => document.documentId);
+}
+
 export function buildParentChatSystemPrompt(hasReadableDocumentContext: boolean): string {
   const documentGuidance = hasReadableDocumentContext
     ? "Use the readable uploaded-document text and support findings below directly when they answer the question. If you rely on an uploaded document, name its exact title in a short Sources line. Do not cite a document you did not use."

@@ -50,7 +50,7 @@ function currentLocalDay() {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 }
 
-function Body({ child }) {
+function Body({ child, childrenOptions = [], onChildSelect }) {
   const { user } = useAuth();
   const isLegacy = (user?.accountType || user?.account_type) === "legacy_family";
   const navigate = useNavigate();
@@ -258,6 +258,8 @@ function Body({ child }) {
       {tab === "edit" && section === "goals" && (
         <ParentGoalsTab
           child={d?.child || child}
+          childrenOptions={childrenOptions}
+          onChildSelect={onChildSelect}
           behaviors={mine}
           cards={cards}
           allCards={allCards}
@@ -294,6 +296,12 @@ export default function ParentHome() {
   const activeTab = legacyPracticeRoute ? "practice" : TABS.some(([key]) => key === searchParams.get("tab")) ? searchParams.get("tab") : "today";
   const activeSection = legacyPracticeRoute ? "" : searchParams.get("section") || "";
   const goalsRoute = activeTab === "edit" && (activeSection === "goals" || activeSection === "goal-editor");
+  const handleChildSelect = (childId) => {
+    select(childId);
+    const next = new URLSearchParams(searchParams);
+    next.set("child_id", childId);
+    setSearchParams(next, { replace: true });
+  };
   useEffect(() => {
     if (user?.id && activeTab === "steps") markSupportPopupShown(user.id);
   }, [user?.id, activeTab]);
@@ -372,12 +380,7 @@ export default function ParentHome() {
       selectedChild={activeChild}
       childrenOptions={children}
       contextLabel="Viewing support for"
-      onChildSelect={(childId) => {
-        select(childId);
-        const next = new URLSearchParams(searchParams);
-        next.set("child_id", childId);
-        setSearchParams(next, { replace: true });
-      }}
+      onChildSelect={handleChildSelect}
       onLogout={() => { clearFocus(user?.id); clearSupportPopupSession(user?.id); logout(); }}
     >
       <div className={`pf${activeTab === "today" && !activeSection ? " np-foundations np-home" : activeTab === "practice" ? " np-foundations np-practice-host" : goalsRoute ? ` np-foundations np-goals-host${activeSection === "goal-editor" ? " np-goal-editor-host" : ""}` : ""}`}>
@@ -397,15 +400,8 @@ export default function ParentHome() {
             description={<span data-testid="text-practice-subtitle">Simple activities and routines you can try together.</span>}
             actions={<Link to="/DataRequests" className="np-practice-privacy">Privacy &amp; data requests</Link>}
           />
-        ) : goalsRoute && activeChild ? (
-          <PageHeader
-            className="np-goals-heading"
-            context={activeChild.name}
-            title={activeSection === "goal-editor" ? "Edit Goals" : "Goals & Milestones"}
-            description="Family goals, care team goals and goals from plans, each in one place."
-            actions={<Link to="/DataRequests" className="np-goals-privacy">Privacy &amp; data requests</Link>}
-          />
-        ) : <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
+        ) : goalsRoute && activeSection === "goals" ? null
+        : <div className="pf-hero"><p className="pf-eyebrow">Hi {user.first_name}</p>
         <h1 style={{ fontSize: "clamp(1.8rem,5vw,2.6rem)", margin: "4px 0 10px" }}>
           {activeChild
             ? activeTab === "practice" ? <>Practice With {activeChild.name}</>
@@ -415,7 +411,7 @@ export default function ParentHome() {
         {activeChild && activeTab === "practice" && <p className="pf-hero-sub" style={{ margin: "0 0 8px" }} data-testid="text-practice-subtitle">Simple activities and routines you can try together.</p>}
         <Link to="/DataRequests" className="text-sm underline underline-offset-4" style={{ color: "hsl(var(--primary))" }}>Privacy &amp; data requests</Link></div>}
         {activeTab === "today" && !activeSection && <button type="button" className="pf-help-cta" disabled={!activeChild} onClick={() => setSupportRequest((request) => request + 1)} data-testid="button-dashboard-help-now"><span className="ico"><AlertTriangle size={20} /></span><span><strong>I Need Help Right Now</strong><small>{activeChild ? "Open support steps for a stressful moment" : "Choose which child needs support first"}</small></span></button>}
-        {activeChild ? <Body key={activeChild.id} child={activeChild} /> : (
+        {activeChild ? <Body key={activeChild.id} child={activeChild} childrenOptions={children} onChildSelect={handleChildSelect} /> : (
           <section className="pf-card" data-testid="choose-child-before-support">
             <h2>Which child needs support?</h2>
             <p className="pf-hint">Choose a child from the selector above to load the right activities, goals, documents, and support steps.</p>
