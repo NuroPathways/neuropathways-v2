@@ -15,12 +15,13 @@ function displayValue(value) {
   return String(value);
 }
 
-export default function DocumentExtractionDisclosure({ records = [] }) {
+export default function DocumentExtractionDisclosure({ records = [], defaultOpen = false }) {
   if (!records.length) return null;
 
   return (
     <div className="np-foundations" style={{ marginInlineStart: "var(--np-space-card)" }}>
       <details
+        open={defaultOpen || undefined}
         className="np-surface-separated"
         data-testid="document-extraction-disclosure"
         style={{ padding: "var(--np-space-related-lg)" }}

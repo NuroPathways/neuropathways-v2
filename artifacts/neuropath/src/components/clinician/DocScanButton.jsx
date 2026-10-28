@@ -13,26 +13,24 @@ const scanError = (doc) => doc?.scan_error ?? doc?.scanError ?? "";
 // JSON. Pull the human-readable reason out so the UI can show why a scan failed.
 function parseErrorMessage(err) {
   const raw = err?.message || "Scan failed";
-  const jsonStart = raw.indexOf("{");
-  if (jsonStart !== -1) {
-    try {
-      const body = JSON.parse(raw.slice(jsonStart));
-      if (body?.error?.message) return body.error.message;
-      if (typeof body?.error === "string") return body.error;
-    } catch {
-      /* not JSON — fall through */
-    }
-  }
+  const body = parseErrorBody(err);
+  if (body?.error?.message) return body.error.message;
+  if (typeof body?.error === "string") return body.error;
   if (/\b401\b/.test(raw)) return "Your session expired. Please sign in again.";
   return raw.replace(/^API error \d+:\s*/, "").trim() || "Scan failed";
 }
 
-function failedDocuments(err) {
+function parseErrorBody(err) {
   const raw = err?.message || "";
-  try {
-    const body = JSON.parse(raw.slice(raw.indexOf("{")));
-    return Array.isArray(body.failed) ? body.failed : [];
-  } catch { return []; }
+  const jsonStart = raw.indexOf("{");
+  if (jsonStart < 0) return null;
+  try { return JSON.parse(raw.slice(jsonStart)); }
+  catch { return null; }
+}
+
+function failedDocuments(err) {
+  const body = parseErrorBody(err);
+  return Array.isArray(body?.failed) ? body.failed : [];
 }
 
 // Maps raw scanner errors to a plain-language reason. `retryable` is false for
@@ -51,7 +49,7 @@ export function describeScanError(message) {
   return { reason: "Document could not be read.", retryable: true, detail: raw && raw.toLowerCase() !== "failed" ? raw : "" };
 }
 
-export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned }) {
+export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedExtractions = false, onScanned }) {
   const initialScanStatus = scanStatus(doc);
   const initial = initialScanStatus === "done" || initialScanStatus === "scanned" || initialScanStatus === "complete" || initialScanStatus === "completed" || initialScanStatus === "ready"
     ? "done"
@@ -102,6 +100,7 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned
       }
       onScanned?.(doc.id, data);
     } catch (e) {
+      const body = parseErrorBody(e);
       const failed = failedDocuments(e);
       const ownFailure = failed.find(f => f.id === doc.id);
       const reason = ownFailure?.reason || parseErrorMessage(e);
@@ -110,7 +109,13 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned
       setShowError(true);
       // Refresh the list so the actual failed document gets its own persisted
       // reason; never label the selected healthy file as corrupt by association.
-      onScanned?.(doc.id, { error: true, message: reason });
+      onScanned?.(doc.id, {
+        error: true,
+        message: reason,
+        failed,
+        documentExtractions: body?.documentExtractions ?? body?.document_extractions ?? [],
+        retainedExtractionFallback: body?.retainedExtractionFallback ?? body?.retained_extraction_fallback ?? false,
+      });
     }
   };
 
@@ -170,8 +175,11 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned
         <div role="alert" className="max-w-[18rem] text-right text-xs text-foreground" data-testid={`text-scan-error-${doc.id}`}>
           <p className="font-semibold">{failure.reason}</p>
           {failure.detail && failure.detail !== failure.reason && <p className="text-muted-foreground break-words">{failure.detail}</p>}
-          {!failure.retryable && <p className="text-muted-foreground">Upload the document again as a PDF, Word file, or image to scan it.</p>}
-          <p className="text-muted-foreground">Previously extracted information is kept.</p>
+          {!failure.retryable && hasSavedExtractions
+            ? <p className="text-muted-foreground">Saved extracted information is shown below. Upload a fresh copy only if you need another scan.</p>
+            : !failure.retryable
+              ? <p className="text-muted-foreground">No saved extraction is available yet. Upload a fresh copy if you want to scan this document.</p>
+              : null}
         </div>
       )}
     </div>

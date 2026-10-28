@@ -40,3 +40,9 @@ Clinician "Rescan" controls must process only the selected document; they must n
 **Why:** A missing or unsupported sibling document should not block a valid rescan, and a one-document action must not replace aggregate clinical data with partial results.
 
 **How to apply:** Pass the selected document ID through the authenticated scan request, validate it against the clinician-child relationship and visible-document policy, and persist the extraction without rewriting the profile or goal assignments.
+
+When a clinician source file is missing or unreadable, keep its latest nonempty source-linked extraction visible and clearly identify it as previously saved; do not replace the user's only result with an empty error state.
+
+**Why:** The user expects useful extracted information to remain accessible when a later rescan cannot read the original bytes.
+
+**How to apply:** Load the newest saved nonempty run for visible document IDs, include it in a failed-rescan response when appropriate, and show it alongside an accurate source-unavailable message. Recommend re-upload only for a fresh scan.

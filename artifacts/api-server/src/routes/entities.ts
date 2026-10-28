@@ -1138,7 +1138,7 @@ router.post("/create-client-account", requireAuth, async (req: any, res) => {
 // ──────────────────────────────────────────────
 
 router.post("/build-client-profile", async (req: any, res) => {
-  const { child_id, force_rebuild, invite_token, source_document_id } = req.body;
+  const { child_id, force_rebuild, invite_token, source_document_id, include_cached_extractions } = req.body;
   let clinicianId: string | null = null;
   let parentScanParentId: string | null = null;
   let clinicianScopedDocumentScan = false;
@@ -1262,11 +1262,35 @@ router.post("/build-client-profile", async (req: any, res) => {
         (behavior: any) => Number(behavior?.support_content_version) === CLIENT_SUPPORT_CONTENT_VERSION,
       );
     const hasUnscannedDoc = allScannableDocs.some(d => !existingSourceIds.includes(d.id));
-    const priorExtractionRuns = allScannableDocs.length
+    const priorExtractionRuns = docs.length
       ? await db.select().from(documentExtractionRunsTable)
-        .where(inArray(documentExtractionRunsTable.documentId, allScannableDocs.map((doc) => doc.id)))
+        .where(inArray(documentExtractionRunsTable.documentId, docs.map((doc) => doc.id)))
         .orderBy(desc(documentExtractionRunsTable.updatedAt))
       : [];
+    const previousExtractionForDocument = (documentId: string) => {
+      if (!clinicianId) return [];
+      return priorExtractionRuns.find((run) =>
+        run.documentId === documentId &&
+        ["completed", "partial", "no_relevant_content"].includes(run.scanStatus) &&
+        Array.isArray(run.records) &&
+        run.records.length > 0,
+      )?.records || [];
+    };
+    if (include_cached_extractions === true) {
+      if (!req.isAuthenticated?.()) {
+        return fail(403, "forbidden", "Only the authenticated clinician can view saved document extractions.");
+      }
+      const latestRecordsByDocument = new Map<string, typeof priorExtractionRuns[number]["records"]>();
+      for (const run of priorExtractionRuns) {
+        if (Array.isArray(run.records) && run.records.length > 0 && !latestRecordsByDocument.has(run.documentId)) {
+          latestRecordsByDocument.set(run.documentId, run.records);
+        }
+      }
+      return res.json(serialize({
+        ok: true,
+        documentExtractions: [...latestRecordsByDocument.values()].flat(),
+      }));
+    }
     if (parentScanParentId && !force_rebuild && allScannableDocs.length === 1) {
       const document = allScannableDocs[0];
       const currentVersion = crypto.createHash("sha256").update(JSON.stringify({
@@ -1325,7 +1349,15 @@ router.post("/build-client-profile", async (req: any, res) => {
     // If no documents, save a placeholder profile so the UI can show a clear message
     if (allScannableDocs.length === 0) {
       if (scopedDocumentScan) {
-        return fail(422, "no_readable_content", "This document has no readable content.");
+        const retainedExtractions = clinicianScopedDocumentScan
+          ? previousExtractionForDocument(source_document_id)
+          : [];
+        return res.status(422).json(serialize({
+          error: { code: "no_readable_content", message: "This document has no available file content to scan." },
+          failed: [{ id: source_document_id, reason: "The file content is unavailable." }],
+          documentExtractions: retainedExtractions,
+          retainedExtractionFallback: retainedExtractions.length > 0,
+        }));
       }
       if (existingProfile) return res.json(serialize({
         profile: existingProfile, scanned: [], failed: [],
@@ -1522,7 +1554,15 @@ router.post("/build-client-profile", async (req: any, res) => {
         scannedBy: parentScanParentId ? null : clinicianId,
         errorMessage: detail,
       }).catch(() => undefined);
-      return res.status(422).json({ error: { code: "no_readable_content", message: `Couldn't read any of the client's documents. ${detail}` }, failed: failedDocs });
+      const retainedExtractions = clinicianScopedDocumentScan
+        ? previousExtractionForDocument(source_document_id)
+        : [];
+      return res.status(422).json(serialize({
+        error: { code: "no_readable_content", message: `Couldn't read this document. ${detail}` },
+        failed: failedDocs,
+        documentExtractions: retainedExtractions,
+        retainedExtractionFallback: retainedExtractions.length > 0,
+      }));
     }
     if (failedDocs.length > 0 && existingProfile && !scopedDocumentScan) {
       const sources = [...extractionSourceById.values()];

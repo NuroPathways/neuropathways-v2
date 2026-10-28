@@ -22,6 +22,31 @@ describe("DocScanButton", () => {
     expect(screen.getByTestId("text-scan-error-d1").textContent).toContain("Processing service temporarily unavailable.");
     expect(screen.getByTestId("button-scan-doc-d1").textContent).toContain("Retry Scan");
   });
+  it("returns saved extractions when a rescan cannot read the original", async () => {
+    const savedRecords = [{
+      id: "record-1",
+      document_id: "missing",
+      category: "behavior",
+      source_excerpt: "Previously extracted source detail.",
+      interpretation: { name: "Transition difficulty" },
+    }];
+    base44.functions.invoke.mockRejectedValueOnce(new Error(`API error 422: ${JSON.stringify({
+      error: { message: "Couldn't read this document. The file could not be found on the server." },
+      failed: [{ id: "missing", reason: "The file could not be found on the server." }],
+      document_extractions: savedRecords,
+      retained_extraction_fallback: true,
+    })}`));
+    const onScanned = vi.fn();
+    render(<DocScanButton doc={{ id: "missing", child_id: "c1" }} clinicianId="u1" hasSavedExtractions onScanned={onScanned} />);
+    fireEvent.click(screen.getByTestId("button-scan-doc-missing"));
+
+    await waitFor(() => expect(screen.getByTestId("text-scan-error-missing")).toBeTruthy());
+    expect(screen.getByText("Saved extracted information is shown below. Upload a fresh copy only if you need another scan.")).toBeTruthy();
+    expect(onScanned).toHaveBeenCalledWith("missing", expect.objectContaining({
+      documentExtractions: savedRecords,
+      retainedExtractionFallback: true,
+    }));
+  });
   it("does not offer retry for unsupported formats", () => {
     render(<DocScanButton doc={{ id: "d2", child_id: "c1", scan_status: "failed", scan_error: "unsupported format" }} clinicianId="u1" />);
     expect(screen.queryByTestId("button-scan-doc-d2")).toBeNull();

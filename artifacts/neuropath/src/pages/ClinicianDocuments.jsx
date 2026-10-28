@@ -57,6 +57,7 @@ export default function ClinicianDocuments() {
   const [scanStatus, setScanStatus] = useState({});
   const [scanErrors, setScanErrors] = useState({});
   const [extractionsByDocument, setExtractionsByDocument] = useState({});
+  const [retainedExtractionDocs, setRetainedExtractionDocs] = useState({});
 
   const storeDocumentExtractions = (result) => {
     const records = result?.document_extractions ?? result?.documentExtractions;
@@ -78,9 +79,17 @@ export default function ClinicianDocuments() {
       setChildren(kids);
       if (kids.length > 0) {
         const results = await Promise.all(
-          kids.map(k => base44.entities.Document.filter({ child_id: k.id }).catch(() => []))
+          kids.map((kid) => base44.entities.Document.filter({ child_id: kid.id }).catch(() => [])),
         );
         setDocuments(results.flat());
+        Promise.all(kids.map((kid) => base44.functions.invoke("buildClientProfile", {
+          child_id: kid.id,
+          include_cached_extractions: true,
+        }).catch(() => null))).then((savedResults) => {
+          savedResults.forEach((result) => {
+            if (result?.data) storeDocumentExtractions(result.data);
+          });
+        });
       }
       setLoading(false);
     };
@@ -332,8 +341,12 @@ export default function ClinicianDocuments() {
                                </div>
                                <div className="flex items-center gap-2 flex-shrink-0">
                                  <DocScanButton doc={{ ...doc, scan_status: docStatus === "error" ? "error" : docStatus === "scanning" ? "scanning" : doc.scan_status, scan_error: scanErrors[doc.id] || doc.scan_error }} clinicianId={clinicianId}
+                                    hasSavedExtractions={Boolean(extractionsByDocument[doc.id]?.length)}
                                    onScanned={(id, result) => {
                                      storeDocumentExtractions(result);
+                                      if (result?.retainedExtractionFallback || result?.retained_extraction_fallback) {
+                                        setRetainedExtractionDocs((current) => ({ ...current, [id]: true }));
+                                      }
                                      const failedEntry = result?.failed?.find((failure) => failure.id === id);
                                      const scanError = failedEntry?.reason || (result?.error ? result.message : "");
                                      const nextStatus = scanError ? "error" : "done";
@@ -348,7 +361,10 @@ export default function ClinicianDocuments() {
                                  </button>
                                </div>
                             </div>
-                             <DocumentExtractionDisclosure records={extractionsByDocument[doc.id] || []} />
+                              <DocumentExtractionDisclosure
+                                records={extractionsByDocument[doc.id] || []}
+                                defaultOpen={Boolean(retainedExtractionDocs[doc.id])}
+                              />
                           </div>
                         );
                       })}
