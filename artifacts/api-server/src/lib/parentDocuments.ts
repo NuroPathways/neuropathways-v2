@@ -374,7 +374,7 @@ export async function listParentDocuments(parentId: string, childId: string): Pr
     fileName: d.fileName || "document", documentType: d.category || "other",
     documentClassificationStatus: "not_classified" as const,
     scanStatus: d.scanStatus || "pending", scanError: d.scanError || null,
-    uploadedBy: (isFamilyUploadedSupportSource(d.uploadedBy) ? "parent" : "clinician") as "parent" | "clinician", canShare: false, canScan: false,
+    uploadedBy: (isFamilyUploadedSupportSource(d.uploadedBy) ? "parent" : "clinician") as "parent" | "clinician", canShare: false, canScan: true,
     shared: true, reviewed: Boolean(permissions.get(d.id)?.reviewedAt),
     createdAt: (d.createdDate || new Date(0)).toISOString(),
   }));

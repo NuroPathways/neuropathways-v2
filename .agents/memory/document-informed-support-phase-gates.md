@@ -28,3 +28,9 @@ Document-derived support cards should use the same step-by-step layout as other 
 **Why:** The user wants identical card presentation and useful steps for document-derived concerns such as homework-related verbal aggression, without mislabeling source material as clinician-approved.
 
 **How to apply:** Reuse the shared parent guidance flow and controls, keep citations and card-management actions secondary, label only genuinely approved plans "Clinician-approved," and distinguish verbal-only concerns from explicit physical or immediate safety risks.
+
+Parents may scan a clinician-uploaded document only when it is already visible in the selected child's Document Center. Process that one document in a parent-scoped extraction flow; preserve clinician review status and do not rewrite the clinician's aggregate profile or goals.
+
+**Why:** Families need document-derived support from documents their clinician has shared, without widening document access or treating a parent scan as clinical review.
+
+**How to apply:** Verify the parent-child relationship, visible-document permission, and clinician ownership for the exact document ID. Keep processing state separate from approval, and store source-linked extraction without changing clinical assignments.

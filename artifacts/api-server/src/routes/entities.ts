@@ -18,10 +18,16 @@ import { requestDocumentAi, requireCompleteDocumentAiResponse } from "../lib/doc
 import { decryptBuffer } from "./upload";
 import { splitDocumentTextForAi } from "../lib/documentTextChunks";
 import { legacyVisibleDocuments, isParentOwnedChild, isParentOwnedDocument, familyHasParentOwnedChildren } from "../lib/documentVisibility";
-import { isParentDocument, readParentDocumentBytes, extractParentDocumentText } from "../lib/parentDocuments";
+import {
+  isParentDocument,
+  listParentDocuments,
+  readParentDocumentBytes,
+  extractParentDocumentText,
+} from "../lib/parentDocuments";
 import { clinicalScanServiceError } from "../lib/clinicalPdf";
 import { prepareSupportPdf } from "../lib/supportPdf";
 import { fillExplicitlyLabeledSupportFields } from "../lib/documentSupportFallback";
+import { resolveParentActor } from "../lib/parentAuth";
 import {
   DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE,
   documentExtractionsToolProperty,
@@ -1131,17 +1137,29 @@ router.post("/create-client-account", requireAuth, async (req: any, res) => {
 // ──────────────────────────────────────────────
 
 router.post("/build-client-profile", async (req: any, res) => {
-  const { child_id, force_rebuild, invite_token } = req.body;
+  const { child_id, force_rebuild, invite_token, source_document_id } = req.body;
   let clinicianId: string | null = null;
+  let parentScanParentId: string | null = null;
 
-  // Dual auth: accept either clinician cookie OR parent invite_token
+  // Clinicians retain their existing flow. Parent sessions may request a
+  // parent-scoped scan of one clinician document already visible in the
+  // selected child's Document Center.
   if (req.isAuthenticated?.()) {
     clinicianId = req.user.id;
   } else {
-    const csession = await validateClientSession(invite_token);
-    if (!csession) return res.status(401).json({ error: "Authentication required" });
-    if (!(await sessionMayAccessChild(csession.childId, child_id))) {
-      return res.status(403).json({ error: "Access denied" });
+    if (typeof source_document_id === "string" && source_document_id.trim()) {
+      try {
+        parentScanParentId = (await resolveParentActor(req))?.id ?? null;
+      } catch {
+        parentScanParentId = null;
+      }
+    }
+    if (!parentScanParentId) {
+      const csession = await validateClientSession(invite_token);
+      if (!csession) return res.status(401).json({ error: "Authentication required" });
+      if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+        return res.status(403).json({ error: "Access denied" });
+      }
     }
   }
   const fail = (status: number, code: string, message: string) => {
@@ -1157,7 +1175,7 @@ router.post("/build-client-profile", async (req: any, res) => {
     clinicianId = child.clinicianId ?? null;
   }
   let isIndividualClientAccount = false;
-  if (!req.isAuthenticated?.()) {
+  if (!req.isAuthenticated?.() && !parentScanParentId) {
     const [family] = child.familyId
       ? await db.select({ accountType: familiesTable.accountType }).from(familiesTable)
         .where(eq(familiesTable.id, child.familyId))
@@ -1172,12 +1190,40 @@ router.post("/build-client-profile", async (req: any, res) => {
     if (req.isAuthenticated?.() && child.clinicianId !== clinicianId) {
       return fail(403, "forbidden", "You don't have permission to scan this client's documents.");
     }
+    let parentScannableDocumentIds: Set<string> | null = null;
+    if (parentScanParentId) {
+      if (!source_document_id || !child.clinicianId) {
+        return fail(403, "forbidden", "This clinician document is not available to the parent account.");
+      }
+      try {
+        const visibleDocuments = await listParentDocuments(parentScanParentId, child_id);
+        parentScannableDocumentIds = new Set(visibleDocuments
+          .filter((document) => document.uploadedBy === "clinician" && document.canScan === true)
+          .map((document) => document.id));
+      } catch {
+        return fail(404, "document_not_found", "This document is not available in the selected child's Document Center.");
+      }
+      if (!parentScannableDocumentIds.has(source_document_id)) {
+        return fail(403, "forbidden", "This clinician document is not available to the parent account.");
+      }
+    }
 
     const [existingProfile] = await db.select().from(clientProfilesTable)
       .where(eq(clientProfilesTable.childId, child_id));
 
     const allDocuments = await db.select().from(documentsTable).where(eq(documentsTable.childId, child_id));
-    const docs = await legacyVisibleDocuments(allDocuments, clinicianId);
+    const docs = parentScanParentId
+      ? allDocuments.filter((document) =>
+          document.id === source_document_id &&
+          parentScannableDocumentIds?.has(document.id) &&
+          document.clinicianId === child.clinicianId &&
+          document.tenantId === child.clinicianId &&
+          document.uploadedBy === child.clinicianId,
+        )
+      : await legacyVisibleDocuments(allDocuments, clinicianId);
+    if (parentScanParentId && docs.length !== 1) {
+      return fail(404, "document_not_found", "This clinician document is no longer available.");
+    }
     const docsWithFiles = docs.filter(d => d.fileUrl);
     const docsWithNotes = docs.filter(d => !d.fileUrl && d.notes?.trim());
     const childName = child.childName ?? "the client";
@@ -1212,6 +1258,30 @@ router.post("/build-client-profile", async (req: any, res) => {
         .where(inArray(documentExtractionRunsTable.documentId, allScannableDocs.map((doc) => doc.id)))
         .orderBy(desc(documentExtractionRunsTable.updatedAt))
       : [];
+    if (parentScanParentId && !force_rebuild && allScannableDocs.length === 1) {
+      const document = allScannableDocs[0];
+      const currentVersion = crypto.createHash("sha256").update(JSON.stringify({
+        id: document.id,
+        fileUrl: document.fileUrl,
+        fileName: document.fileName,
+        createdDate: document.createdDate,
+      })).digest("hex");
+      const parentScanRun = priorExtractionRuns.find((run) =>
+        run.documentId === document.id &&
+        run.documentVersion === currentVersion &&
+        run.scannedBy === null &&
+        ["completed", "partial", "no_relevant_content"].includes(run.scanStatus),
+      );
+      if (document.scanStatus === "done" && parentScanRun) {
+        return res.json(serialize({
+          ok: true,
+          scanned: [document.id],
+          failed: [],
+          warnings: [],
+          alreadyProcessed: true,
+        }));
+      }
+    }
     const processedExtractionDocIds = new Set(
       priorExtractionRuns
         .filter((run) => ["completed", "partial", "no_relevant_content"].includes(run.scanStatus))
@@ -1221,6 +1291,7 @@ router.post("/build-client-profile", async (req: any, res) => {
       !processedExtractionDocIds.has(doc.id) || doc.scanStatus !== "done",
     );
     if (
+      !parentScanParentId &&
       existingProfile &&
       Array.isArray((existingProfile as any).behaviors) &&
       (existingProfile as any).behaviors.length > 0 &&
@@ -1244,6 +1315,9 @@ router.post("/build-client-profile", async (req: any, res) => {
 
     // If no documents, save a placeholder profile so the UI can show a clear message
     if (allScannableDocs.length === 0) {
+      if (parentScanParentId) {
+        return fail(422, "no_readable_content", "This clinician document has no readable content.");
+      }
       if (existingProfile) return res.json(serialize({
         profile: existingProfile, scanned: [], failed: [],
         warnings: ["No readable documents are available. Previously extracted information has been preserved."],
@@ -1400,7 +1474,9 @@ router.post("/build-client-profile", async (req: any, res) => {
     // Persist per-document failures so the UI can show a specific reason.
     const now = new Date();
     for (const fd of failedDocs) {
-      await db.update(documentsTable).set({ scanStatus: "error", scanError: fd.reason, scannedAt: now }).where(eq(documentsTable.id, fd.id)).catch(() => {});
+      if (!parentScanParentId) {
+        await db.update(documentsTable).set({ scanStatus: "error", scanError: fd.reason, scannedAt: now }).where(eq(documentsTable.id, fd.id)).catch(() => {});
+      }
     }
 
     // Nothing usable to scan → return a clear, specific error.
@@ -1410,7 +1486,7 @@ router.post("/build-client-profile", async (req: any, res) => {
       await persistDocumentExtractionBatch({
         sources,
         normalized: normalizeDocumentExtractions([], sources),
-        scannedBy: clinicianId,
+        scannedBy: parentScanParentId ? null : clinicianId,
         errorMessage: detail,
       }).catch(() => undefined);
       return res.status(422).json({ error: { code: "no_readable_content", message: `Couldn't read any of the client's documents. ${detail}` }, failed: failedDocs });
@@ -1420,7 +1496,7 @@ router.post("/build-client-profile", async (req: any, res) => {
       await persistDocumentExtractionBatch({
         sources,
         normalized: normalizeDocumentExtractions([], sources),
-        scannedBy: clinicianId,
+        scannedBy: parentScanParentId ? null : clinicianId,
         errorMessage: failedDocs[0].reason,
       }).catch(() => undefined);
       return res.status(422).json({
@@ -1554,7 +1630,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       await persistDocumentExtractionBatch({
         sources,
         normalized: normalizeDocumentExtractions([], sources),
-        scannedBy: clinicianId,
+        scannedBy: parentScanParentId ? null : clinicianId,
         errorMessage: failure.message,
       }).catch(() => undefined);
       req.log.error({ status: ex?.status, code: failure.code }, "Clinical document reader rejected the scan");
@@ -1570,11 +1646,13 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       await persistDocumentExtractionBatch({
         sources,
         normalized: normalizeDocumentExtractions(undefined, sources),
-        scannedBy: clinicianId,
+        scannedBy: parentScanParentId ? null : clinicianId,
         errorMessage: "The document classification was unreadable. Please retry the scan.",
       }).catch(() => undefined);
       for (const id of includedDocIds) {
-        await db.update(documentsTable).set({ scanStatus: "error", scanError: "The AI returned an unreadable result. Please try again.", scannedAt: now }).where(eq(documentsTable.id, id)).catch(() => {});
+        if (!parentScanParentId) {
+          await db.update(documentsTable).set({ scanStatus: "error", scanError: "The AI returned an unreadable result. Please try again.", scannedAt: now }).where(eq(documentsTable.id, id)).catch(() => {});
+        }
       }
       console.error(`[NeuroPath] buildClientProfile: no tool_use output child=${child_id} stop_reason=${message.stop_reason}`);
       return fail(502, "ai_invalid_response", "The AI returned an unexpected result. Please try scanning again.");
@@ -1586,15 +1664,17 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       await persistDocumentExtractionBatch({
         sources,
         normalized: normalizeDocumentExtractions(undefined, sources),
-        scannedBy: clinicianId,
+        scannedBy: parentScanParentId ? null : clinicianId,
         errorMessage: "The document classification was incomplete. Please retry the scan.",
       }).catch(() => undefined);
       for (const id of includedDocIds) {
-        await db.update(documentsTable).set({
-          scanStatus: "error",
-          scanError: "The document classification was incomplete. Please try again.",
-          scannedAt: now,
-        }).where(eq(documentsTable.id, id)).catch(() => {});
+        if (!parentScanParentId) {
+          await db.update(documentsTable).set({
+            scanStatus: "error",
+            scanError: "The document classification was incomplete. Please try again.",
+            scannedAt: now,
+          }).where(eq(documentsTable.id, id)).catch(() => {});
+        }
       }
       return fail(502, "classification_incomplete", "The document classification was incomplete. Please try scanning again.");
     }
@@ -1713,7 +1793,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     const extractionRuns = await persistDocumentExtractionBatch({
       sources: extractionSources,
       normalized: normalizedExtractions,
-      scannedBy: clinicianId,
+      scannedBy: parentScanParentId ? null : clinicianId,
       forcePartial: message.stop_reason === "max_tokens",
     });
     const failedExtractionSources = failedDocs
@@ -1724,7 +1804,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       await persistDocumentExtractionBatch({
         sources: failedExtractionSources,
         normalized: normalizeDocumentExtractions([], failedExtractionSources),
-        scannedBy: clinicianId,
+        scannedBy: parentScanParentId ? null : clinicianId,
         errorMessage: firstError || "The document could not be read. Please retry the scan.",
       }).catch(() => undefined);
     }
@@ -1753,16 +1833,27 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       sourceDocIds: includedDocIds,
     };
 
-    let profile;
-    if (existingProfile) {
-      [profile] = await db.update(clientProfilesTable).set(profileData).where(eq(clientProfilesTable.id, existingProfile.id)).returning();
-    } else {
-      [profile] = await db.insert(clientProfilesTable).values(profileData).returning();
+    let profile = existingProfile;
+    if (!parentScanParentId) {
+      if (existingProfile) {
+        [profile] = await db.update(clientProfilesTable).set(profileData).where(eq(clientProfilesTable.id, existingProfile.id)).returning();
+      } else {
+        [profile] = await db.insert(clientProfilesTable).values(profileData).returning();
+      }
     }
 
     // Mark the successfully scanned documents.
     for (const id of includedDocIds) {
       await db.update(documentsTable).set({ scanStatus: "done", scanError: null, scannedAt: now }).where(eq(documentsTable.id, id)).catch(() => {});
+    }
+    if (parentScanParentId) {
+      req.log.info({ child_id, document_id: source_document_id }, "Parent-scoped clinician document scan complete");
+      return res.json(serialize({
+        ok: true,
+        scanned: includedDocIds,
+        failed: failedDocs,
+        warnings,
+      }));
     }
 
     // Sync AI-extracted treatment goals into reward_tokens so they appear

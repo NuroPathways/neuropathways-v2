@@ -15,7 +15,11 @@ vi.mock("@tanstack/react-query", async (original) => ({
   ...await original(), useQueryClient: () => ({ invalidateQueries: api.invalidate }),
 }));
 vi.mock("@/lib/parentSession", () => ({
-  parentRequest: () => ({ headers: { "X-Test-Context": "fixture" } }),
+  parentRequest: (extra = {}) => ({
+    credentials: "include",
+    ...extra,
+    headers: { "X-Test-Context": "fixture", ...(extra.headers || {}) },
+  }),
 }));
 vi.mock("./UploadBox", () => ({
   default: ({ childId }) => <div data-testid="upload-child">{childId}</div>,
@@ -191,7 +195,11 @@ describe("Parent Document Center presentation and existing contracts", () => {
     fireEvent.click(screen.getByTestId("button-view-doc-a"));
 
     expect(window.open).toHaveBeenCalledWith("about:blank", "_blank");
-    expect(api.content).toHaveBeenCalledWith("doc-a", { headers: { "X-Test-Context": "fixture" }, responseType: "blob" });
+    expect(api.content).toHaveBeenCalledWith("doc-a", {
+      credentials: "include",
+      headers: { "X-Test-Context": "fixture" },
+      responseType: "blob",
+    });
     expect(window.open.mock.invocationCallOrder[0]).toBeLessThan(api.content.mock.invocationCallOrder[0]);
     expect(openedPopup.opener).toBeNull();
     expect(openedPopup.location.replace).not.toHaveBeenCalled();
@@ -264,6 +272,25 @@ describe("Parent Document Center presentation and existing contracts", () => {
     expect(api.scan.mock.calls.map(([value]) => value)).toEqual([
       { childId: "child-a", documentId: "doc-b" },
     ]);
+    expect(screen.getByTestId("text-read-batch-status").textContent).toContain("1 of 1 documents processed");
+  });
+
+  it("scans a visible clinician upload through the parent-authorized extraction route", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, scanned: ["clinic-plan"] }),
+    });
+    mount([doc({ id: "clinic-plan", uploadedBy: "clinician", canScan: true })]);
+
+    await clickAsync("button-retry-scan-clinic-plan");
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/build-client-profile", expect.objectContaining({
+      method: "POST",
+      credentials: "include",
+      headers: { "X-Test-Context": "fixture", "Content-Type": "application/json" },
+      body: JSON.stringify({ child_id: "child-a", source_document_id: "clinic-plan" }),
+    }));
+    expect(api.scan).not.toHaveBeenCalled();
     expect(screen.getByTestId("text-read-batch-status").textContent).toContain("1 of 1 documents processed");
   });
 

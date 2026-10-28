@@ -84,6 +84,22 @@ function formatDate(v) {
   return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
+async function scanVisibleClinicianDocument(childId, documentId) {
+  const request = parentRequest({
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ child_id: childId, source_document_id: documentId }),
+  });
+  const response = await fetch("/api/build-client-profile", request);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = body?.error;
+    const message = typeof error === "string" ? error : error?.message;
+    throw new Error(message || "The clinician document could not be read.");
+  }
+  return body;
+}
+
 export default function DocsPanel({ child, documents }) {
   const qc = useQueryClient();
   const childId = child.id;
@@ -119,7 +135,9 @@ export default function DocsPanel({ child, documents }) {
     try {
       const result = await runParentDocumentScanBatch(targetDocuments, {
         isActive: () => active.current && currentChildId.current === targetChildId,
-        scan: (document) => scan.mutateAsync({ childId: targetChildId, documentId: document.id }),
+        scan: (document) => document.uploadedBy === "clinician"
+          ? scanVisibleClinicianDocument(targetChildId, document.id)
+          : scan.mutateAsync({ childId: targetChildId, documentId: document.id }),
         onProgress: (document, index, total) => {
           if (!active.current) return;
           setBusyId(document.id);
