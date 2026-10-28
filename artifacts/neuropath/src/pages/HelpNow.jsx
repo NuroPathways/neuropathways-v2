@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getBehaviorAppearance } from "@/components/support/behaviorVisuals";
 import { supportSourceDocumentIds, supportUploadSourceLabel } from "@/components/support/supportUploadSource";
 
-const CLIENT_SUPPORT_CONTENT_VERSION = 1;
+const CLIENT_SUPPORT_CONTENT_VERSION = 3;
 
 function Section({ title, items, colorClass, emptyText }) {
   const visibleItems = Array.isArray(items)

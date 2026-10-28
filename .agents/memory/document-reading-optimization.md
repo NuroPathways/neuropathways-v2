@@ -32,3 +32,9 @@ Do not make host PDF conversion a mandatory prerequisite when an independent pac
 **Why:** A converter missing from a serving instance can fail before any model request; a broad catch previously mislabeled that local preparation failure as an AI-service failure.
 
 **How to apply:** Exercise the built reader with host commands unavailable as well as available. Retain complete original pages, preserve file/password/size errors, and distinguish local-reader, provider, and persistence failures without logging document contents.
+
+Never silently truncate extracted text before document AI. For PDFs, provide searchable text alongside the complete visual source; for long text documents, preserve the entire source with explicit segment boundaries and keep citation verification against the full extracted text.
+
+**Why:** Silent prefix-only extraction caused later details in Word, text, and searchable PDF documents to be absent from the model input or fail citation verification.
+
+**How to apply:** Track the reader/content version in the scan cache so an intentional fix can rebuild stale derived profiles. Keep full source text transient and bounded; never store an extra unencrypted plaintext copy in the database.

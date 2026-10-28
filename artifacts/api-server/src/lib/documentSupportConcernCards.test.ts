@@ -4,6 +4,7 @@ import type { DocumentExtractionRecord } from "@workspace/db";
 import {
   attachGeneratedSupportConcernSuggestions,
   buildSupportConcernCandidatePrompt,
+  buildSupportConcernGenerationContent,
   buildSupportConcernGenerationPrompt,
   createDocumentInformedConcernCards,
   eligibleSupportConcernRecords,
@@ -50,6 +51,30 @@ function record(overrides: Partial<DocumentExtractionRecord> = {}): DocumentExtr
     ...overrides,
   };
 }
+
+test("support-card generation receives only the original source documents for its batch", () => {
+  const content = buildSupportConcernGenerationContent(
+    ["source-1", "missing-source"],
+    [
+      {
+        id: "source-1",
+        title: "School plan",
+        content: [
+          { type: "text", text: "Late-page detail: use a visual checklist before homework." },
+          { type: "document", source: { type: "base64", media_type: "application/pdf", data: "synthetic" } },
+        ],
+      },
+      { id: "unrelated-source", content: [{ type: "text", text: "Unrelated child record." }] },
+    ],
+    "support-card prompt",
+  );
+
+  assert.ok(content.some((part) => part.type === "text" && part.text.includes("Late-page detail")));
+  assert.ok(content.some((part) => part.type === "document"));
+  assert.ok(!content.some((part) => part.type === "text" && part.text.includes("Unrelated child record")));
+  assert.match(content.at(-1)?.text || "", /complete evidence/);
+  assert.match(content.at(-1)?.text || "", /support-card prompt/);
+});
 
 test("same-child concern candidates retain unverified citations for review but only verified records receive suggestions", () => {
   const valid = record();

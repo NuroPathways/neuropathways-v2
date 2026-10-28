@@ -83,6 +83,7 @@ import { prepareSupportPdf } from "./supportPdf";
 import { DocumentProcessingError, requestDocumentAi, requireCompleteDocumentAiResponse } from "./documentAi";
 import {
   buildSupportConcernGenerationPrompt,
+  buildSupportConcernGenerationContent,
   buildSupportConcernCandidatePrompt,
   createDocumentInformedConcernCards,
   isFamilyUploadedSupportSource,
@@ -825,7 +826,7 @@ async function readParentDocument(
   ]);
   const selectedBehaviors = parentBehaviorsFromSettings(settings);
   const fingerprint = parentScanFingerprint({
-    documentClassificationVersion: "clinical-document-purpose-support-concerns-parent-upload-guidance-v8",
+    documentClassificationVersion: "clinical-document-purpose-support-concerns-parent-upload-guidance-v9",
     documentId, hash: metadata.sha256, clinicianId: child.clinicianId,
     selectedBehaviors: selectedBehaviors.map((behavior) => ({
       behaviorKey: behavior.behaviorKey,
@@ -1099,6 +1100,22 @@ async function readParentDocument(
         const batch = suggestionEligibleConcernRecords.slice(offset, offset + SUPPORT_CONCERN_GENERATION_BATCH_SIZE);
         try {
           scanStage = "generate_support_concern_cards";
+          const batchSourceDocumentIds = [...new Set(batch.map((record) => record.documentId))];
+          const prompt = buildSupportConcernGenerationPrompt(
+            batch,
+            [
+              ...(normalizedExtractions.records as DocumentExtractionRecord[]),
+              ...supportConcernRecords,
+            ],
+            familyUploadedDocumentIds,
+          );
+          const sourceDocuments = generationDocuments.map((source) => ({
+            id: source.id,
+            title: source.title,
+            content: searchableSourceTextById.get(source.id)
+              ? source.content.filter((part) => part.type !== "document")
+              : source.content,
+          }));
           const concernResponse = await requestDocumentAi((requestOptions) => anthropic.messages.create({
             model: CLAUDE_MODEL,
             max_tokens: 4096,
@@ -1107,14 +1124,7 @@ async function readParentDocument(
             tool_choice: { type: "tool", name: "generate_document_informed_support_cards" },
             messages: [{
               role: "user",
-              content: buildSupportConcernGenerationPrompt(
-                batch,
-                [
-                  ...(normalizedExtractions.records as DocumentExtractionRecord[]),
-                  ...supportConcernRecords,
-                ],
-                familyUploadedDocumentIds,
-              ),
+              content: buildSupportConcernGenerationContent(batchSourceDocumentIds, sourceDocuments, prompt),
             }],
           }, requestOptions));
           requireCompleteDocumentAiResponse(concernResponse);

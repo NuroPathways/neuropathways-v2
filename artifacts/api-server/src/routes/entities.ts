@@ -16,6 +16,7 @@ import { eq, and, inArray, or, isNull, gt, ne, sql, desc } from "drizzle-orm";
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
 import { requestDocumentAi, requireCompleteDocumentAiResponse } from "../lib/documentAi";
 import { decryptBuffer } from "./upload";
+import { splitDocumentTextForAi } from "../lib/documentTextChunks";
 import { legacyVisibleDocuments, isParentOwnedChild, isParentOwnedDocument, familyHasParentOwnedChildren } from "../lib/documentVisibility";
 import { isParentDocument, readParentDocumentBytes, extractParentDocumentText } from "../lib/parentDocuments";
 import { clinicalScanServiceError } from "../lib/clinicalPdf";
@@ -31,6 +32,7 @@ import {
 import {
   attachGeneratedSupportConcernSuggestions,
   buildSupportConcernGenerationPrompt,
+  buildSupportConcernGenerationContent,
   buildSupportConcernCandidatePrompt,
   isFamilyUploadedSupportSource,
   normalizeGeneratedSupportConcernCandidates,
@@ -51,7 +53,14 @@ import {
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
 const router = Router();
-const CLIENT_SUPPORT_CONTENT_VERSION = 2;
+const CLIENT_SUPPORT_CONTENT_VERSION = 3;
+function documentTextSegmentsForAi(label: string, documentId: string, text: string, sourceKind = "Document") {
+  return splitDocumentTextForAi(text)
+    .map((chunk, index, chunks) =>
+      `[${sourceKind}: ${label}; id=${documentId}; segment ${index + 1} of ${chunks.length}; preserve details from every segment]\n${chunk}`,
+    )
+    .join("\n\n");
+}
 
 const CURRENT_PRIVACY_POLICY_VERSION = "1.0";
 const CURRENT_HEALTH_CONSENT_VERSION = "1.0";
@@ -1247,6 +1256,7 @@ router.post("/build-client-profile", async (req: any, res) => {
 
     // Build document content for Claude — read each file according to its type.
     const contentParts: any[] = [];
+    const documentContentById = new Map<string, any[]>();
     const includedDocIds: string[] = [];
     const failedDocs: { id: string; reason: string }[] = [];
     const warnings: string[] = [];
@@ -1300,8 +1310,12 @@ router.post("/build-client-profile", async (req: any, res) => {
       const ext = extension;
       try {
         if (IMAGE_MIME[ext]) {
-          contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]` });
-          contentParts.push({ type: "image", source: { type: "base64", media_type: IMAGE_MIME[ext], data: fileContent.toString("base64") } });
+          const imageParts = [
+            { type: "text", text: `[Document: ${label}; id=${doc.id}]` },
+            { type: "image", source: { type: "base64", media_type: IMAGE_MIME[ext], data: fileContent.toString("base64") } },
+          ];
+          contentParts.push(...imageParts);
+          documentContentById.set(doc.id, imageParts);
           includedDocIds.push(doc.id);
         } else if (ext === ".pdf") {
           let prepared: Buffer;
@@ -1310,13 +1324,24 @@ router.post("/build-client-profile", async (req: any, res) => {
               enforceTextLimits: false,
             });
             prepared = result.pdf;
-            extractionSource.searchableText = result.searchableText.slice(0, 200_000);
+            extractionSource.searchableText = result.searchableText;
           } catch (error) {
             failedDocs.push({ id: doc.id, reason: error instanceof Error ? error.message : "This PDF could not be read." });
             continue;
           }
-          contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]` });
-          contentParts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: prepared.toString("base64") } });
+          const searchableTextPart = {
+            type: "text",
+            text: extractionSource.searchableText
+              ? documentTextSegmentsForAi(label, doc.id, extractionSource.searchableText, "PDF searchable text")
+              : `[Document: ${label}; id=${doc.id}; no searchable text; read all pages in the attached PDF]`,
+          };
+          const visualPdfPart = {
+            type: "document",
+            source: { type: "base64", media_type: "application/pdf", data: prepared.toString("base64") },
+          };
+          const pdfParts = [searchableTextPart, visualPdfPart];
+          contentParts.push(...pdfParts);
+          documentContentById.set(doc.id, extractionSource.searchableText ? [searchableTextPart] : pdfParts);
           includedDocIds.push(doc.id);
         } else if (ext === ".docx") {
           const mammoth: any = await import("mammoth");
@@ -1324,20 +1349,26 @@ router.post("/build-client-profile", async (req: any, res) => {
           const result = await extractRawText({ buffer: fileContent });
           const text = String(result?.value || "").trim();
           if (!text) { failedDocs.push({ id: doc.id, reason: "No readable text was found in this Word document." }); continue; }
-          extractionSource.searchableText = text.substring(0, 20_000);
-          contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]\n${text.substring(0, 20000)}` });
+          extractionSource.searchableText = text;
+          const textPart = { type: "text", text: documentTextSegmentsForAi(label, doc.id, text) };
+          contentParts.push(textPart);
+          documentContentById.set(doc.id, [textPart]);
           includedDocIds.push(doc.id);
         } else if (ext === ".doc" && parentMetadata) {
            const text = await extractParentDocumentText(filename, fileContent);
           if (!text.trim()) { failedDocs.push({ id: doc.id, reason: "No readable text was found in this Word document." }); continue; }
-           extractionSource.searchableText = text.substring(0, 20_000);
-           contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]\n${text.substring(0, 20000)}` });
+            extractionSource.searchableText = text;
+            const textPart = { type: "text", text: documentTextSegmentsForAi(label, doc.id, text) };
+            contentParts.push(textPart);
+            documentContentById.set(doc.id, [textPart]);
           includedDocIds.push(doc.id);
         } else if (TEXT_EXT.includes(ext)) {
           const text = fileContent.toString("utf-8").trim();
           if (!text) { failedDocs.push({ id: doc.id, reason: "The file is empty." }); continue; }
-          extractionSource.searchableText = text.substring(0, 20_000);
-          contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]\n${text.substring(0, 20000)}` });
+          extractionSource.searchableText = text;
+          const textPart = { type: "text", text: documentTextSegmentsForAi(label, doc.id, text) };
+          contentParts.push(textPart);
+          documentContentById.set(doc.id, [textPart]);
           includedDocIds.push(doc.id);
         } else {
           failedDocs.push({ id: doc.id, reason: `Unsupported file type (${ext || "unknown"}). Upload a PDF, image, Word (.docx), or text file.` });
@@ -1349,7 +1380,7 @@ router.post("/build-client-profile", async (req: any, res) => {
 
     for (const doc of docsWithNotes) {
       const label = doc.title || doc.category || "Clinical Notes";
-      const text = String(doc.notes).trim().substring(0, 20000);
+      const text = String(doc.notes).trim();
       const version = crypto.createHash("sha256").update(text).digest("hex");
       extractionSourceById.set(doc.id, {
         childId: child_id,
@@ -1358,7 +1389,9 @@ router.post("/build-client-profile", async (req: any, res) => {
         documentType: "text/clinical-notes",
         searchableText: text,
       });
-      contentParts.push({ type: "text", text: `[Document: ${label}; id=${doc.id}]\n${text}` });
+      const textPart = { type: "text", text: documentTextSegmentsForAi(label, doc.id, text) };
+      contentParts.push(textPart);
+      documentContentById.set(doc.id, [textPart]);
       includedDocIds.push(doc.id);
     }
 
@@ -1401,7 +1434,7 @@ router.post("/build-client-profile", async (req: any, res) => {
       type: "text",
       text: `${DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE}
 
-You are a clinical assistant. Analyze the clinical documents above for ${childName}${diagnosis ? ` (diagnosis: ${diagnosis})` : ""} and record a structured behavioral profile by calling the save_behavioral_profile tool. Also populate document_extractions with separate source-cited records for each explicit profile fact, behavior, support_concern candidate, clinical observation, goal, support strategy, safety instruction, and potential home activity. A support_concern candidate may come from an observable difficulty or support need even when the source has no formal target-behavior heading; it is a suggestion, not clinician approval or a diagnosis. Use the exact document id shown with each source heading, and an exact excerpt from that source. Do not classify an activity from a goal alone. Keep the legacy profile fields and the document_extractions classifications consistent.
+You are a clinical assistant. Analyze the clinical documents above for ${childName}${diagnosis ? ` (diagnosis: ${diagnosis})` : ""} and record a structured behavioral profile by calling the save_behavioral_profile tool. Also populate document_extractions with separate source-cited records for each explicit profile fact, behavior, support_concern candidate, clinical observation, goal, support strategy, safety instruction, and potential home activity. Read every supplied text segment and every page of each attached PDF; segment labels are continuations of the same source, not separate documents. Relevant facts may appear anywhere in a file, so do not stop at the first pages or replace details from later segments with a repeated summary. A support_concern candidate may come from an observable difficulty or support need even when the source has no formal target-behavior heading; it is a suggestion, not clinician approval or a diagnosis. Use the exact document id shown with each source heading, and an exact excerpt from that source. Do not classify an activity from a goal alone. Keep the legacy profile fields and the document_extractions classifications consistent.
 
 Client-uploaded documents must not be treated as clinician-approved merely because they were scanned. For every behavior, return every support field in the tool schema; use an empty string or empty array when the documents do not support that field. Do not invent a behavior function, diagnosis, risk level, treatment, de-escalation instruction, avoidance rule, reward, or practice skill. Use cautious wording for possible explanations and distinguish source statements from uncertainty. Only use safety steps that are explicitly stated in the source; never generate restraint, blocking, seclusion, or crisis procedures.
 
@@ -1635,6 +1668,16 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       for (let offset = 0; offset < suggestionSourceRecords.length; offset += SUPPORT_CONCERN_GENERATION_BATCH_SIZE) {
         const batch = suggestionSourceRecords.slice(offset, offset + SUPPORT_CONCERN_GENERATION_BATCH_SIZE);
         try {
+          const batchSourceDocumentIds = [...new Set(batch.map((record) => record.documentId))];
+          const prompt = buildSupportConcernGenerationPrompt(
+            batch,
+            normalizedExtractions.records,
+            familyUploadedDocumentIds,
+          );
+          const sourceDocuments = batchSourceDocumentIds.flatMap((id) => {
+            const parts = documentContentById.get(id);
+            return parts?.length ? [{ id, content: parts }] : [];
+          });
           const suggestionAnthropic = await getAnthropicClient();
           const suggestionResponse = await requestDocumentAi((requestOptions) => suggestionAnthropic.messages.create({
             model: CLAUDE_MODEL,
@@ -1644,11 +1687,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
             tool_choice: { type: "tool", name: "generate_document_informed_support_cards" },
             messages: [{
               role: "user",
-              content: buildSupportConcernGenerationPrompt(
-                batch,
-                normalizedExtractions.records,
-                familyUploadedDocumentIds,
-              ),
+              content: buildSupportConcernGenerationContent(batchSourceDocumentIds, sourceDocuments, prompt),
             }],
           }, requestOptions));
           requireCompleteDocumentAiResponse(suggestionResponse);
