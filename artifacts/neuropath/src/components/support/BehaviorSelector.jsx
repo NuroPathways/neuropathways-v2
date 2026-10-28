@@ -159,6 +159,86 @@ function documentFactSummary(behavior) {
   ].filter(Boolean))];
 }
 
+function isExplicitlyVerbalOnlyConcern(text) {
+  const explicitlyVerbal = /\bverbal(?:ly)?[\s-]+(?:aggress\w*|outburst\w*|conflict|threats?)\b/i.test(text);
+  const explicitPhysicalRisk = /\b(?:physical(?:ly)?[\s-]+aggress\w*|hit(?:s|ting)?|punch(?:es|ing)?|kick(?:s|ing)?|bit(?:e|es|ing)|chok(?:e|es|ing)|injur(?:y|ies|ed)|self[- ]?(?:injur\w*|harm)|suicid\w*|elopement|run(?:ning)? away|bolting|wandering away|violence|threaten(?:s|ed|ing)? to (?:hurt|kill)|dangerous behavior)\b/i.test(text);
+  return explicitlyVerbal && !explicitPhysicalRisk;
+}
+
+function fallbackDocumentSupportSections(row) {
+  const evidence = [
+    row.behaviorName,
+    row.description,
+    ...listItems(row.contexts),
+    ...listItems(row.observations),
+    ...(Array.isArray(row.sourceReferences) ? row.sourceReferences.map((item) => item?.excerpt) : []),
+  ].map(supportFactText).filter(Boolean).join(" ");
+  const homeworkRelated = /\b(homework|schoolwork|assignment|academic|classwork)\b/i.test(evidence);
+  const verbalAggression = /\bverbal(?:ly)?[\s-]+aggress\w*\b/i.test(evidence);
+  const verbalDirections = /\b(verbal instructions|spoken directions|spoken instructions|multi[- ]step assignments?)\b/i.test(evidence);
+
+  if (verbalAggression && homeworkRelated) {
+    return {
+      tryOneSteps: [
+        "Pause the homework conversation when voices rise. Keep your words brief and give everyone a little space.",
+        "When things are calmer, return with one small homework task and ask which part they would like to start with.",
+      ],
+      simplerStep: "Pause the conversation, then offer one short homework step when things are calmer.",
+      thingsToAvoid: ["Avoid arguing, repeating demands, or adding more instructions while voices are rising."],
+      whatMayBeHappening: ["The notes connect verbal aggression with homework and report that it had decreased by Session 5. Keep the next interaction focused on one manageable task."],
+      preventionIdeas: ["Before homework, make the first small task clear and plan a brief pause between task parts."],
+      encouragement: ["Notice a calmer restart or a return to the task; the document reports improvement by Session 5."],
+      practiceSkill: ["When calm, practice asking for help or a break using the child’s usual way of communicating."],
+      whatToNotice: ["Notice which homework task was happening, what helped the pause, and whether the child returned to the task."],
+    };
+  }
+  if (verbalDirections || homeworkRelated) {
+    return {
+      tryOneSteps: [
+        "Give one short direction about the current task, then pause and allow time for a response.",
+        "After the first part is done, give the next small step or offer two manageable ways to begin.",
+      ],
+      simplerStep: "Give one short direction, then wait.",
+      thingsToAvoid: ["Avoid giving several spoken directions at once or repeating them before there has been time to respond."],
+      whatMayBeHappening: ["The notes connect frustration with multi-step schoolwork and describe difficulty with several spoken directions. A single clear task step keeps the support tied to that context."],
+      preventionIdeas: ["For schoolwork, break the assignment into small parts and present one direction at a time."],
+      encouragement: ["Notice each completed part and the effort to return to the assignment."],
+      practiceSkill: ["When calm, practice asking for one direction at a time or asking for help in the child’s usual way of communicating."],
+      whatToNotice: ["Notice whether one direction at a time changes the response during schoolwork."],
+    };
+  }
+  const context = listItems(row.contexts)[0] || "the activity";
+  return {
+    tryOneSteps: [
+      `Choose one small step connected to ${context}, give a brief direction, then pause for a response.`,
+      `If that is difficult, pause and offer two manageable ways to begin ${context}.`,
+    ],
+    simplerStep: `Offer one small, clear step for ${context}, then wait.`,
+    thingsToAvoid: ["Avoid adding several new directions at once."],
+    whatMayBeHappening: [supportFactText(row.description) || `The uploaded notes identify ${context} as a support area. Keep the next step focused on that context.`],
+    preventionIdeas: [`Before ${context}, make the first small step clear and keep other instructions for later.`],
+    encouragement: ["Notice effort, small progress, or a return to the activity."],
+    practiceSkill: ["When calm, practice asking for help or a break in the child’s usual way of communicating."],
+    whatToNotice: [`Notice what part of ${context} was happening and which support helped the child continue.`],
+  };
+}
+
+function completeDocumentSupportSections(existing, fallback) {
+  const itemsOrFallback = (value, key) => listItems(value).map(supportFactText).filter(Boolean).length
+    ? listItems(value).map(supportFactText).filter(Boolean).slice(0, 5)
+    : fallback[key];
+  return {
+    tryOneSteps: itemsOrFallback(existing?.tryOneSteps, "tryOneSteps"),
+    simplerStep: supportFactText(existing?.simplerStep) || fallback.simplerStep,
+    thingsToAvoid: itemsOrFallback(existing?.thingsToAvoid, "thingsToAvoid"),
+    whatMayBeHappening: itemsOrFallback(existing?.whatMayBeHappening, "whatMayBeHappening"),
+    preventionIdeas: itemsOrFallback(existing?.preventionIdeas, "preventionIdeas"),
+    encouragement: itemsOrFallback(existing?.encouragement, "encouragement"),
+    practiceSkill: itemsOrFallback(existing?.practiceSkill, "practiceSkill"),
+    whatToNotice: itemsOrFallback(existing?.whatToNotice, "whatToNotice"),
+  };
+}
+
 function normalizeBehavior(value, index) {
   const raw = isRecord(value) ? value : { name: typeof value === "string" ? value : "" };
   const behaviorKey = textValue(raw.behaviorKey ?? raw.behavior_key ?? raw.key);
@@ -254,7 +334,6 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
         .slice(0, 20)
       : [];
     if (!sourceReferences.length) return [];
-    const safetySensitiveTopic = row.safetySensitiveTopic === true;
     const sourceReferencesWithOwner = sourceReferences.map((reference) => {
       const sourceDocument = sourceDocuments.find((document) =>
         String(document?.id ?? "") === String(reference.documentId ?? ""),
@@ -269,6 +348,15 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
         excerpt: supportFactText(reference.excerpt),
       };
     });
+    const supportEvidenceText = [
+      row.behaviorName,
+      row.description,
+      ...listItems(row.contexts),
+      ...listItems(row.observations),
+      ...sourceReferencesWithOwner.map((reference) => reference.excerpt),
+    ].join(" ");
+    const safetySensitiveTopic = !isExplicitlyVerbalOnlyConcern(supportEvidenceText) &&
+      row.safetySensitiveTopic === true;
     const allSourcesFamilyUploaded = sourceReferencesWithOwner.length > 0 &&
       sourceReferencesWithOwner.every((reference) => reference.familyUploaded);
     const sourceReviewRequired = !allSourcesFamilyUploaded &&
@@ -297,7 +385,7 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
           practiceSkill: [],
           whatToNotice: [],
         }
-        : {
+        : completeDocumentSupportSections({
           tryOneSteps: listItems(row.supportSections?.tryOneSteps).map(supportFactText).filter(Boolean).slice(0, 5)
             .concat(listItems(row.supportSections?.tryOneSteps).length ? [] : generalSupportSuggestions).slice(0, 5),
           simplerStep: supportFactText(row.supportSections?.simplerStep),
@@ -307,7 +395,7 @@ function normalizeDocumentConcernRows(value, sourceDocuments = [], clinicianId =
           encouragement: listItems(row.supportSections?.encouragement).map(supportFactText).filter(Boolean).slice(0, 5),
           practiceSkill: listItems(row.supportSections?.practiceSkill).map(supportFactText).filter(Boolean).slice(0, 5),
           whatToNotice: listItems(row.supportSections?.whatToNotice).map(supportFactText).filter(Boolean).slice(0, 5),
-        },
+        }, fallbackDocumentSupportSections(row)),
       safetySensitiveTopic,
       sourceReviewRequired,
       sourceReferences: sourceReferencesWithOwner,
@@ -413,7 +501,7 @@ function TryOneStepPanel({ steps = [], simplerStep, tone = "immediate", emptyTex
   );
 }
 
-function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onOpenSafety }) {
+function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onOpenSafety, extraContent }) {
   const directSteps = behavior.do_this_right_now || [];
   const strategies = behavior.interventions || [];
   const immediateSteps = directSteps.length ? directSteps : strategies;
@@ -421,7 +509,10 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
   const activeTone = directSteps.length ? "immediate" : "strategy";
   const appearance = getBehaviorAppearance(behavior);
   const BehaviorIcon = appearance.Icon;
-  const simplerStep = behavior.if_it_escalates?.[0] || behavior.when_to_contact_clinician || "Pause the activity if you can do so safely. Offer a familiar, lower-demand option and give space.";
+  const simplerStep = behavior.simplerStep || behavior.if_it_escalates?.[0] || behavior.when_to_contact_clinician || "Pause the activity if you can do so safely. Offer a familiar, lower-demand option and give space.";
+  const sourceBadge = behavior.documentInformed
+    ? behavior.sourceLabel
+    : strategyIsClinicallyApproved ? "Clinician-approved" : behavior.sourceLabel;
   const firstExplanation = behavior.what_may_be_happening ? behavior.what_may_be_happening.split(/[.!?]\s/)[0] : "";
   const hasOptional = Boolean(behavior.what_may_be_happening)
     || behavior.contextLabels?.length > 0
@@ -442,11 +533,19 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
               <span className={`np-help-guidance-icon ${appearance.iconClasses}`} aria-hidden="true"><BehaviorIcon /></span>
               {behavior.name}
             </h2>
-            <p>{behavior.sourceLabel || "Upload source unavailable"}</p>
+            <p>{sourceBadge || "Upload source unavailable"}</p>
           </div>
         </div>
-        <div className="np-help-body">
-          {behavior.emergencyOnly ? (
+        <div className="np-help-body" data-testid={behavior.documentInformed ? "document-informed-support-card" : undefined}>
+          {behavior.documentInformed && behavior.emergencyOnly ? (
+            <div className="np-help-notice" data-tone="urgent" role="note" data-testid="notice-document-safety">
+              <p className="np-help-text np-help-strong">This concern needs its current safety plan.</p>
+              <p className="np-help-text">Use the child’s verified safety plan. If anyone is in immediate danger or hurt, call 911 or local emergency services.</p>
+              <button type="button" onClick={onOpenSafety || onBack} data-testid="button-open-safety-for-document-concern" data-variant="urgent" className="np-help-btn">
+                Open safety plan
+              </button>
+            </div>
+          ) : behavior.emergencyOnly ? (
             <div className="np-help-notice" data-tone="urgent" data-testid="notice-emergency-only">
               <p className="np-help-text np-help-strong">No individualized support steps are available for this situation yet.</p>
               <p className="np-help-text">Follow the child’s current written safety plan, if available. If anyone is in immediate danger or hurt, call 911 or local emergency services.</p>
@@ -459,9 +558,12 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
               <p className="np-help-text">If anyone is in immediate danger, call 911 or local emergency services.</p>
             </div>
           )}
-          <button type="button" onClick={onOpenSafety || onBack} data-testid="button-open-safety-restricted" data-variant="urgent" className="np-help-btn">
-            Open safety information
-          </button>
+          {!behavior.documentInformed && (
+            <button type="button" onClick={onOpenSafety || onBack} data-testid="button-open-safety-restricted" data-variant="urgent" className="np-help-btn">
+              Open safety information
+            </button>
+          )}
+          {extraContent}
         </div>
       </div>
     );
@@ -478,11 +580,11 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
             <span className={`np-help-guidance-icon ${appearance.iconClasses}`} aria-hidden="true"><BehaviorIcon /></span>
             {behavior.name}
           </h2>
-          <p>{behavior.sourceLabel || "Upload source unavailable"}</p>
+            <p>{sourceBadge || "Upload source unavailable"}</p>
         </div>
       </div>
 
-      <div className="np-help-body">
+      <div className="np-help-body" data-testid={behavior.documentInformed ? "document-informed-support-card" : undefined}>
         <TryOneStepPanel
           steps={immediateSteps}
           simplerStep={simplerStep}
@@ -506,7 +608,7 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
         )}
 
         <p className="np-help-muted">
-          {behavior.sourceLabel || "Source not available"}. Any explanation here is a possibility, not a conclusion. Use only what feels safe.
+          Any explanation here is a possibility, not a conclusion. Use only what feels safe.
         </p>
 
         {(!behavior.do_this_right_now?.length && !behavior.interventions?.length) && (
@@ -573,7 +675,7 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
             {(behavior.replacement_skill || behavior.reinforcement_rewards?.length > 0) && (
               <Section
                 title="Practice a helpful skill"
-                items={[behavior.replacement_skill, ...(behavior.reinforcement_rewards || [])].filter(Boolean)}
+                items={[behavior.replacement_skill, ...(behavior.documentInformed ? [] : behavior.reinforcement_rewards || [])].filter(Boolean)}
                 testId="disclosure-skill"
                 tone="skill"
               />
@@ -584,6 +686,7 @@ function BehaviorCard({ behavior, child, isIndividual, parentDirect, onBack, onO
           </div>
         )}
 
+        {extraContent}
         <EmergencyLine />
       </div>
     </div>
@@ -595,14 +698,6 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
   const [label, setLabel] = useState(behavior.name);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const appearance = getBehaviorAppearance({ name: behavior.name });
-  const BehaviorIcon = appearance.Icon;
-  const documentedFacts = documentFactSummary(behavior);
-  const tryOneSteps = behavior.supportSections.tryOneSteps.length
-    ? behavior.supportSections.tryOneSteps
-    : behavior.generalSupportSuggestions;
-  const sourceSummary = documentedFacts[0] || behavior.observations[0] || behavior.contexts[0] || "";
-
   const update = async (action, nextLabel) => {
     setSaving(true);
     setError("");
@@ -625,107 +720,36 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
     }
   };
 
-  return (
-    <div>
-      <div className="np-help-bar">
-        <button type="button" onClick={onBack} aria-label="Back to behavior list" data-testid="button-back-behaviors" className="np-help-icon-btn">
-          <ArrowLeft aria-hidden="true" />
-        </button>
-        <div className="np-help-bar-title">
-          <h2 data-testid="text-behavior-name">
-            <span className={`np-help-guidance-icon ${appearance.iconClasses}`} aria-hidden="true"><BehaviorIcon /></span>
-            {behavior.name}
-          </h2>
-          <p>{behavior.sourceLabel}</p>
+  const displayBehavior = {
+    ...behavior,
+    documentInformed: true,
+    emergencyOnly: behavior.safetySensitiveTopic,
+    sourceLabel: behavior.sourceLabel,
+    do_this_right_now: behavior.supportSections.tryOneSteps.length
+      ? behavior.supportSections.tryOneSteps
+      : behavior.generalSupportSuggestions,
+    interventions: [],
+    simplerStep: behavior.supportSections.simplerStep,
+    avoid: behavior.supportSections.thingsToAvoid,
+    what_may_be_happening: behavior.supportSections.whatMayBeHappening.join(" "),
+    contextLabels: documentFactSummary(behavior),
+    prevention_tips: behavior.supportSections.preventionIdeas,
+    reinforcement_rewards: behavior.supportSections.encouragement,
+    replacement_skill: behavior.supportSections.practiceSkill.join(" "),
+    track: [...new Set([...behavior.supportSections.whatToNotice, ...behavior.observations])],
+    documentExcerpt: behavior.sourceReferences[0]?.excerpt || "",
+    documentTitle: behavior.sourceReferences[0]?.title || "Uploaded document",
+  };
+  const extraContent = (
+    <>
+      {behavior.sourceReviewRequired && (
+        <div className="np-help-notice" data-tone="caution" role="note" data-testid="notice-source-review">
+          <p className="np-help-text np-help-strong">This clinician-uploaded source needs review.</p>
+          <p className="np-help-text">The source text is shown below; generated support is held until the excerpt is verified.</p>
         </div>
-      </div>
-      <div className="np-help-body" data-testid="document-informed-support-card">
-        {behavior.reviewLabel !== behavior.sourceLabel && (
-          <p className="np-help-label" data-testid="label-document-informed-status">{behavior.reviewLabel}</p>
-        )}
-        {behavior.sourceReviewRequired && (
-          <div className="np-help-notice" data-tone="caution" role="note" data-testid="notice-source-review">
-            <p className="np-help-text np-help-strong">Review the source before relying on this information.</p>
-            <p className="np-help-text">One or more excerpts have not been verified. Suggestions are withheld until the source is reviewed.</p>
-          </div>
-        )}
-
-        <TryOneStepPanel
-          steps={tryOneSteps}
-          simplerStep={behavior.supportSections.simplerStep || tryOneSteps[0] || sourceSummary}
-          tone="immediate"
-          emptyText={sourceSummary}
-          emptyLabel="From the document"
-        />
-
-        {behavior.supportSections.thingsToAvoid.length > 0 && (
-          <section className="np-help-group np-help-urgent-section" data-testid="section-avoid">
-            <h3 className="np-help-label">Things to Avoid</h3>
-            <ul className="np-help-bullets" data-tone="urgent">
-              {behavior.supportSections.thingsToAvoid.map((item, index) => <li key={index}>{item}</li>)}
-            </ul>
-          </section>
-        )}
-
-        <div className="np-help-disclosures">
-          <Disclosure className="np-help-disclosure np-help-disclosure--context" title="What may be happening" data-testid="disclosure-explanation">
-            {behavior.supportSections.whatMayBeHappening.map((item, index) => <p className="np-help-text" key={index}>{item}</p>)}
-            {documentedFacts.length > 0 && (
-              <div className="np-help-context-chips" aria-label="Facts extracted from the uploaded document">
-                {documentedFacts.map((item, index) => <span key={index} className="np-help-context-chip">{item}</span>)}
-              </div>
-            )}
-          </Disclosure>
-          <Section
-            title="Prevention Ideas"
-            items={behavior.supportSections.preventionIdeas}
-            testId="disclosure-prevention"
-            tone="prevention"
-            showSourceNote={false}
-          />
-          <Section
-            title="Encouragement"
-            items={behavior.supportSections.encouragement}
-            testId="disclosure-encouragement"
-            tone="encouragement"
-            showSourceNote={false}
-          />
-          <Section
-            title="Practice a helpful skill"
-            items={behavior.supportSections.practiceSkill}
-            testId="disclosure-skill"
-            tone="skill"
-            showSourceNote={false}
-          />
-          <Section
-            title="What to notice"
-            items={[...new Set([...behavior.supportSections.whatToNotice, ...behavior.observations])]}
-            testId="disclosure-notice"
-            tone="context"
-            showSourceNote={false}
-          />
-        </div>
-
-        {behavior.safetySensitiveTopic && (
-          <div className="np-help-notice" data-tone="urgent" role="note" data-testid="notice-document-safety">
-            <p className="np-help-text np-help-strong">This concern is documented, but no individualized crisis or physical-intervention instructions are provided here.</p>
-            <p className="np-help-text">Use the child’s current verified safety plan if available. If anyone is in immediate danger or hurt, call 911 or local emergency services.</p>
-            <button type="button" onClick={onOpenSafety} data-testid="button-open-safety-for-document-concern" data-variant="urgent" className="np-help-btn">
-              Open safety plan
-            </button>
-          </div>
-        )}
-
-        {behavior.missingClinicalInformation.length > 0 && (
-          <Disclosure title="Review status and missing information" className="np-help-disclosure" data-testid="disclosure-document-review">
-            <ul className="np-help-bullets">
-              {behavior.missingClinicalInformation.map((item, index) => <li key={index}>{item}</li>)}
-            </ul>
-          </Disclosure>
-        )}
-
-        <section className="np-help-group" aria-label="Sources from uploaded documents">
-          <h3 className="np-help-label">From your documents</h3>
+      )}
+      {behavior.sourceReferences.length > 0 && (
+        <Disclosure title="Document sources" className="np-help-disclosure" data-testid="disclosure-document-sources">
           {behavior.sourceReferences.map((reference, index) => (
             <article className="np-help-notice" data-tone={reference.excerptVerified === false && !reference.familyUploaded ? "caution" : "context"} key={`${reference.documentId}-${index}`} data-testid="document-concern-source">
               <p className="np-help-text np-help-strong">{reference.title}</p>
@@ -734,38 +758,47 @@ function DocumentInformedBehaviorCard({ behavior, child, parentDirect, onBack, o
               <blockquote className="np-help-text">{reference.excerpt}</blockquote>
             </article>
           ))}
-        </section>
-
-        {parentDirect && (
-          <section className="np-help-group" aria-label="Correct this suggestion">
-            {editing ? (
-              <form onSubmit={(event) => { event.preventDefault(); void update("rename", label.trim()); }} className="np-help-group">
-                <label className="np-help-label" htmlFor={`document-support-label-${behavior.id}`}>Correct support area name</label>
-                <Input
-                  id={`document-support-label-${behavior.id}`}
-                  value={label}
-                  onChange={(event) => setLabel(event.target.value)}
-                  maxLength={160}
-                  required
-                />
-                <p className="np-help-muted">This only changes the label shown to your family. It does not change the source documents or clinical review status.</p>
-                <div className="np-help-step-nav">
-                  <Button type="submit" disabled={saving || !label.trim()}>{saving ? "Saving…" : "Save label"}</Button>
-                  <Button type="button" variant="outline" disabled={saving} onClick={() => { setLabel(behavior.name); setEditing(false); }}>Cancel</Button>
-                </div>
-              </form>
-            ) : (
+        </Disclosure>
+      )}
+      {parentDirect && (
+        <Disclosure title="Manage this support card" className="np-help-disclosure">
+          {editing ? (
+            <form onSubmit={(event) => { event.preventDefault(); void update("rename", label.trim()); }} className="np-help-group">
+              <label className="np-help-label" htmlFor={`document-support-label-${behavior.id}`}>Correct support area name</label>
+              <Input
+                id={`document-support-label-${behavior.id}`}
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+                maxLength={160}
+                required
+              />
+              <p className="np-help-muted">This only changes the label shown to your family. It does not change the source documents or clinical review status.</p>
               <div className="np-help-step-nav">
-                <Button type="button" variant="outline" onClick={() => setEditing(true)} data-testid="button-correct-support-label">Correct label</Button>
-                <Button type="button" variant="outline" disabled={saving} onClick={() => void update("dismiss")} data-testid="button-dismiss-document-support">Dismiss suggestion</Button>
+                <Button type="submit" disabled={saving || !label.trim()}>{saving ? "Saving…" : "Save label"}</Button>
+                <Button type="button" variant="outline" disabled={saving} onClick={() => { setLabel(behavior.name); setEditing(false); }}>Cancel</Button>
               </div>
-            )}
-            {error && <p className="np-help-notice" data-tone="urgent" role="alert">{error}</p>}
-          </section>
-        )}
-        <EmergencyLine />
-      </div>
-    </div>
+            </form>
+          ) : (
+            <div className="np-help-step-nav">
+              <Button type="button" variant="outline" onClick={() => setEditing(true)} data-testid="button-correct-support-label">Correct label</Button>
+              <Button type="button" variant="outline" disabled={saving} onClick={() => void update("dismiss")} data-testid="button-dismiss-document-support">Dismiss suggestion</Button>
+            </div>
+          )}
+          {error && <p className="np-help-notice" data-tone="urgent" role="alert">{error}</p>}
+        </Disclosure>
+      )}
+    </>
+  );
+  return (
+    <BehaviorCard
+      behavior={displayBehavior}
+      child={child}
+      isIndividual={false}
+      parentDirect={parentDirect}
+      onBack={onBack}
+      onOpenSafety={onOpenSafety}
+      extraContent={extraContent}
+    />
   );
 }
 

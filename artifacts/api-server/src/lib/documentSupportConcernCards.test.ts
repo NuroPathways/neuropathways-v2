@@ -301,6 +301,79 @@ test("high-risk concerns retain source facts but never keep generated interventi
   assert.match(card.missingClinicalInformation[1], /verified safety plan/);
 });
 
+test("verbal-only homework aggression gets actionable support while stale safety flags are recalculated", () => {
+  const source = record({
+    sourceExcerpt: "Homework-related verbal aggression was observed, with a reduction reported by Session 5.",
+    interpretation: {
+      name: "Homework-related verbal aggression",
+      description: "Verbal aggression was linked to homework and had reduced by Session 5.",
+      contexts: ["homework"],
+      observations: ["Verbal aggression related to homework was reported, with a reduction noted by Session 5."],
+      evidence_level: "documented_concern",
+      uncertainty: "The notes do not establish why it occurs.",
+    },
+  });
+  const eligible = supportConcernSuggestionSourceRecords([source], "child-1", ["document-1"]);
+  assert.deepEqual(eligible.map((item) => item.id), [source.id]);
+
+  const generated = attachGeneratedSupportConcernSuggestions(
+    [source],
+    eligible,
+    [{
+      source_extraction_ids: [source.id],
+      try_one_steps: [
+        "Pause the homework conversation when voices rise and keep your words brief.",
+        "When things are calmer, return with one small homework task.",
+      ],
+      simpler_step: "Pause, then offer one short homework step when things are calmer.",
+      things_to_avoid: ["Avoid arguing or repeating demands while voices are rising."],
+      what_may_be_happening: ["The notes connect verbal aggression with homework and report a reduction by Session 5."],
+      prevention_ideas: ["Make the first homework task small and clear."],
+      encouragement: ["Notice a calmer restart or a return to the task."],
+      practice_a_helpful_skill: ["When calm, practice asking for help or a break using the child's usual communication."],
+      what_to_notice: ["Notice which task was happening and whether the child returned after a pause."],
+    }],
+  );
+  const freshCard = createDocumentInformedConcernCards({
+    childId: "child-1",
+    records: generated,
+    sourceTitles: [{ documentId: "document-1", title: "Session note", uploadedBy: "parent" }],
+    generatedGroups: storedSupportConcernSuggestionGroups(generated, ["document-1"]),
+  })[0];
+  assert.equal(freshCard.safetySensitiveTopic, false);
+  assert.equal(freshCard.supportSections.tryOneSteps.length, 2);
+
+  const blankSections = {
+    tryOneSteps: [],
+    simplerStep: "",
+    thingsToAvoid: [],
+    whatMayBeHappening: [],
+    preventionIdeas: [],
+    encouragement: [],
+    practiceSkill: [],
+    whatToNotice: [],
+  };
+  const previouslyFlagged = {
+    ...freshCard,
+    safetySensitiveTopic: true,
+    generalSupportSuggestions: [],
+    supportSections: blankSections,
+  };
+  const merged = mergeDocumentInformedConcernCards([previouslyFlagged], [freshCard]);
+  assert.equal(merged[0].safetySensitiveTopic, false);
+  assert.equal(merged[0].supportSections.tryOneSteps.length, 2);
+
+  const [projected] = projectParentDocumentSupportCards(
+    [previouslyFlagged],
+    [{ documentId: "document-1", documentVersion: "version-1", title: "Session note", uploadedBy: "parent" }],
+    {},
+    "child-1",
+  );
+  assert.equal(projected.safetySensitiveTopic, false);
+  assert.equal(projected.supportSections.tryOneSteps.length, 0);
+  assert.equal(projected.generationStatus, "extraction_only");
+});
+
 test("missing or invalid model grouping falls back to the verified extracted concern without inventing suggestions", () => {
   const source = record();
   const [card] = createDocumentInformedConcernCards({

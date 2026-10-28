@@ -275,6 +275,7 @@ describe("support guidance", () => {
     fireEvent.click(screen.getByRole("button", { name: "What to notice" }));
     expect(screen.getByText("Whether one direction at a time reduces frustration.")).toBeTruthy();
     expect(screen.getByText("Frustration during multi-step assignments")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Document sources" }));
     expect(screen.getByText("Difficulty following several spoken instructions at once.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Prevention Ideas" }));
     fireEvent.click(screen.getByRole("button", { name: "Encouragement" }));
@@ -284,7 +285,7 @@ describe("support guidance", () => {
       "Notice the effort when Sam responds.",
       "Practice asking for one direction at a time during a calm moment.",
     ]) {
-      expect(screen.getByText(expected)).toBeTruthy();
+      expect(screen.getAllByText(expected).length).toBeGreaterThan(0);
     }
   });
 
@@ -303,7 +304,7 @@ describe("support guidance", () => {
       behaviorName: "Academic impairment",
       displayName: "Academic impairment",
       description: repeatedDescription,
-      safetySensitiveTopic: true,
+      safetySensitiveTopic: false,
       sourceReferences: [{
         ...documentConcern.sourceReferences[0],
         uploadedBy: "parent",
@@ -321,9 +322,9 @@ describe("support guidance", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Academic impairment/ }));
-    expect(screen.getByTestId("document-support-try-one-step-empty").textContent).toBe(
-      "Family reports academic impairment as a primary concern Primary concern of academic impairment reported during intake",
-    );
+    expect(screen.getByTestId("section-active-step")).toBeTruthy();
+    expect(screen.getByTestId("text-active-step").textContent).toBe("Give one short direction, then wait.");
+    expect(screen.getByRole("button", { name: "Next" }).disabled).toBe(false);
     expect(screen.queryByTestId("label-document-informed-status")).toBeNull();
     expect(screen.getByText("Self-uploaded document")).toBeTruthy();
     expect(screen.getByTestId("text-behavior-name").parentElement.textContent).toContain("Self-uploaded document");
@@ -357,7 +358,7 @@ describe("support guidance", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Homework-related verbal aggression/ }));
     fireEvent.click(screen.getByRole("button", { name: "What may be happening" }));
-    const extractedFacts = screen.getByLabelText("Facts extracted from the uploaded document").textContent;
+    const extractedFacts = screen.getByLabelText("Context labels from the saved support information").textContent;
     expect(extractedFacts).toContain(
       "Homework-related verbal aggression was observed, with a reduction reported by Session 5.",
     );
@@ -425,11 +426,70 @@ describe("support guidance", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Difficulty With Verbal Instructions/ }));
-    expect(screen.getByText("From the document")).toBeTruthy();
-    expect(screen.getByText("Several spoken directions may be difficult to follow.")).toBeTruthy();
+    expect(screen.getByText(/Try one step · Step 1/)).toBeTruthy();
+    expect(screen.getByText("Give one short direction about the current task, then pause and allow time for a response.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Next" }).disabled).toBe(false);
     expect(screen.queryByText(/No safe general step could be generated/)).toBeNull();
     expect(screen.queryByText(/No safe, document-informed avoid suggestion/)).toBeNull();
     expect(screen.queryByTestId("notice-generation-unavailable")).toBeNull();
+  });
+
+  it("builds the same actionable step flow for an older verbal-aggression card", () => {
+    const oldCard = {
+      ...documentConcern,
+      behaviorName: "Homework-related verbal aggression",
+      displayName: "Homework-related verbal aggression",
+      description: "Homework-related verbal aggression was observed, with a reduction reported by Session 5.",
+      contexts: ["homework"],
+      observations: ["A reduction was reported by Session 5."],
+      safetySensitiveTopic: true,
+      generationStatus: "extraction_only",
+      generalSupportSuggestions: [],
+      supportSections: {
+        tryOneSteps: [],
+        simplerStep: "",
+        thingsToAvoid: [],
+        whatMayBeHappening: [],
+        preventionIdeas: [],
+        encouragement: [],
+        practiceSkill: [],
+        whatToNotice: [],
+      },
+      sourceReferences: [{
+        ...documentConcern.sourceReferences[0],
+        uploadedBy: "parent",
+        excerpt: "Homework-related verbal aggression was observed, with a reduction reported by Session 5.",
+      }],
+    };
+    render(
+      <BehaviorSelector
+        child={{ id: "child-1", child_name: "Jane" }}
+        profile={{ documentSupportCards: [oldCard] }}
+        parentDirect
+        onBack={() => {}}
+        onOpenSafety={() => {}}
+        onDismiss={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Homework-related verbal aggression/ }));
+    expect(screen.getByText("Self-uploaded document")).toBeTruthy();
+    expect(screen.getByText(/Try one step · Step 1/)).toBeTruthy();
+    expect(screen.getByTestId("text-active-step").textContent).toContain("Pause the homework conversation");
+    expect(screen.getByRole("button", { name: "Next" }).disabled).toBe(false);
+    expect(screen.getByRole("button", { name: "This isn't working" })).toBeTruthy();
+    for (const title of [
+      "What may be happening",
+      "Prevention Ideas",
+      "Encouragement",
+      "Practice a helpful skill",
+      "What to notice",
+    ]) {
+      expect(screen.getByRole("button", { name: title })).toBeTruthy();
+    }
+    expect(screen.getByRole("heading", { name: "Things to Avoid" })).toBeTruthy();
+    expect(screen.queryByText(/From the document/)).toBeNull();
+    expect(screen.queryByText(/No safe general step could be generated|No safe, document-informed avoid suggestion/)).toBeNull();
   });
 
   it("withholds suggestions for safety-sensitive or source-review-required draft cards", () => {
@@ -459,6 +519,7 @@ describe("support guidance", () => {
     expect(screen.getByTestId("notice-source-review")).toBeTruthy();
     expect(screen.getByTestId("notice-document-safety")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Open safety plan" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Document sources" }));
     expect(screen.getByText("Source excerpt needs review")).toBeTruthy();
   });
 
@@ -517,6 +578,7 @@ describe("support guidance", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Difficulty With Verbal Instructions/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage this support card" }));
     fireEvent.click(screen.getByRole("button", { name: "Correct label" }));
     fireEvent.change(screen.getByLabelText("Correct support area name"), { target: { value: "Instructions feel overwhelming" } });
     fireEvent.click(screen.getByRole("button", { name: "Save label" }));
@@ -525,7 +587,7 @@ describe("support guidance", () => {
       documentConcern.id,
       { action: "rename", label: "Instructions feel overwhelming" },
     );
-    expect(screen.getByTestId("label-document-informed-status").textContent).toContain("Not clinician-reviewed");
+    expect(screen.queryByTestId("label-document-informed-status")).toBeNull();
   });
 
   it("loads parent-owned document suggestions through the authorized parent dashboard", async () => {

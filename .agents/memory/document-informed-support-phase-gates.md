@@ -22,3 +22,9 @@ For document-informed support cards, use all relevant verified facts from the sa
 **Why:** The user wants document-supported cards to contain concrete extracted summaries rather than generic absence messages, and wants family-uploaded cards identified simply as "Self-uploaded document" without AI-generated or clinician-review disclaimer text.
 
 **How to apply:** Rank and include relevant source details, prioritize documented supports and successful approaches, summarize rather than copy excerpts, and suppress boilerplate about missing frequency or triggers. Deduplicate exact repeats, high-confidence paraphrases, and clipped trailing fragments within each section while preserving distinct facts. Keep the source citation and uploader provenance visible. Do not infer diagnosis, function, intent, risk, preferences, or missing clinical facts, and do not create crisis, physical-intervention, or individualized treatment instructions. Family-uploaded content is still not clinician-reviewed; retain safety-plan gates for safety-sensitive content and source-review gates for clinician or unknown origins.
+
+Document-derived support cards should use the same step-by-step layout as other parent behavior cards; their visible distinction is accurate source/approval provenance at the top. Explicitly verbal-only conflict without physical-risk indicators may use ordinary low-risk task supports, while physical risk, self-injury, elopement, and threats remain safety-gated.
+
+**Why:** The user wants identical card presentation and useful steps for document-derived concerns such as homework-related verbal aggression, without mislabeling source material as clinician-approved.
+
+**How to apply:** Reuse the shared parent guidance flow and controls, keep citations and card-management actions secondary, label only genuinely approved plans "Clinician-approved," and distinguish verbal-only concerns from explicit physical or immediate safety risks.
