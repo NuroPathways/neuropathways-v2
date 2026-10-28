@@ -1920,6 +1920,64 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       await db.update(documentsTable).set({ scanStatus: "done", scanError: null, scannedAt: now }).where(eq(documentsTable.id, id)).catch(() => {});
     }
     if (scopedDocumentScan) {
+      const scopedGoalRecords = extractionRuns
+        .flatMap((run) => run.records || [])
+        .filter((record) =>
+          record.documentId === source_document_id &&
+          record.category === "goal" &&
+          record.sourceExcerptVerified &&
+          record.reviewStatus === "unreviewed" &&
+          typeof record.interpretation.title === "string" &&
+          record.interpretation.title.trim(),
+        );
+      if (scopedGoalRecords.length) {
+        try {
+          const normalizeGoalTitle = (title: string) =>
+            title.normalize("NFKC").toLowerCase().trim().replace(/\s+/g, " ");
+          const familyUploaded = familyUploadedDocumentIds.has(source_document_id);
+          const goalSource = familyUploaded ? "parent_document" : "document";
+          const existingGoals = await db.select().from(rewardTokensTable)
+            .where(eq(rewardTokensTable.childId, child_id));
+          const seenTitles = new Set<string>();
+
+          for (const record of scopedGoalRecords) {
+            const title = String(record.interpretation.title).trim().slice(0, 500);
+            const key = normalizeGoalTitle(title);
+            if (!key || seenTitles.has(key) || existingGoals.some((goal) =>
+              normalizeGoalTitle(goal.goalTitle || "") === key,
+            )) continue;
+            seenTitles.add(key);
+
+            const description = typeof record.interpretation.description === "string"
+              ? record.interpretation.description.trim().slice(0, 4000)
+              : "";
+            const milestones = Array.isArray(record.interpretation.milestones)
+              ? record.interpretation.milestones
+                .filter((item: unknown): item is string => typeof item === "string")
+                .map((item: string) => item.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 400))
+                .filter(Boolean)
+                .slice(0, 8)
+              : [];
+            await db.insert(rewardTokensTable).values({
+              childId: child_id,
+              parentId: (child as any).parentId ?? parentScanParentId ?? null,
+              clinicianId: clinicianId ?? child.clinicianId ?? null,
+              tenantId: child.tenantId ?? existingProfile?.tenantId ?? null,
+              goalTitle: title,
+              goalDescription: description,
+              progress: 0,
+              target: Math.max(1, milestones.length),
+              source: goalSource,
+              milestoneNotes: milestones.length
+                ? `Plan milestones:\n${milestones.map((milestone) => `• ${milestone}`).join("\n")}`
+                : "",
+              createdByClinician: !familyUploaded,
+            });
+          }
+        } catch (syncErr: any) {
+          req.log.warn({ child_id, document_id: source_document_id, error: syncErr?.message }, "Scoped document goal sync failed");
+        }
+      }
       req.log.info({
         child_id,
         document_id: source_document_id,
@@ -1943,63 +2001,82 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       return res.json(serialize(scopedResponse));
     }
 
-    // Sync AI-extracted treatment goals into reward_tokens so they appear
-    // automatically in the Goals & Milestones UI, which reads reward_tokens
-    // (not the profile JSON). Idempotent by title: keep existing document-sourced
-    // goals whose title still appears (preserving any progress), add newly found
-    // ones, and remove document-sourced goals no longer present in the documents.
+    // Sync source-verified extracted goals into reward_tokens so they appear
+    // automatically in Goals & Milestones. Keep each document's upload origin;
+    // rescans are additive and never delete goals or reset recorded progress.
     try {
-      const extractedGoals: { title: string; description: string; milestones: string[] }[] = (Array.isArray(extracted.goals) ? extracted.goals : [])
-        .filter((g: any) => g && typeof g.title === "string" && g.title.trim())
-        .map((g: any) => ({
-          title: g.title.trim(),
-          description: typeof g.description === "string" ? g.description.trim() : "",
-          milestones: Array.isArray(g.milestones)
-            ? g.milestones.filter((item: unknown): item is string => typeof item === "string")
+      const goalKey = (title: string) => title.normalize("NFKC").toLowerCase().trim().replace(/\s+/g, " ");
+      const profileGoals = (Array.isArray(extracted.goals) ? extracted.goals : [])
+        .filter((goal: any) => goal && typeof goal.title === "string" && goal.title.trim());
+      const includedDocumentIds = new Set(includedDocIds);
+      const extractedGoals = extractionRuns
+        .flatMap((run) => run.records || [])
+        .filter((record) =>
+          includedDocumentIds.has(record.documentId) &&
+          record.category === "goal" &&
+          record.sourceExcerptVerified &&
+          record.reviewStatus === "unreviewed" &&
+          typeof record.interpretation.title === "string" &&
+          record.interpretation.title.trim(),
+        )
+        .map((record) => {
+          const title = String(record.interpretation.title).trim().slice(0, 500);
+          const matchingProfileGoal = profileGoals.find((goal: any) =>
+            goalKey(goal.title) === goalKey(title),
+          );
+          const profileMilestones = Array.isArray(matchingProfileGoal?.milestones) && matchingProfileGoal.milestones.length
+            ? matchingProfileGoal.milestones
+            : record.interpretation.milestones;
+          const milestones = Array.isArray(profileMilestones)
+            ? profileMilestones.filter((item: unknown): item is string => typeof item === "string")
               .map((item: string) => item.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 400))
               .filter(Boolean).slice(0, 8)
-            : [],
-        }));
-
-      const existingDocGoals = await db.select().from(rewardTokensTable)
-        .where(and(eq(rewardTokensTable.childId, child_id), eq(rewardTokensTable.source, "document")));
-
-      const goalKey = (title: string) => title.normalize("NFKC").toLowerCase().trim().replace(/\s+/g, " ");
-      const extractedTitles = new Set(extractedGoals.map(g => goalKey(g.title)));
-
-      // A retry is not authority to delete a child's goals or their history.
-      // Keep previously extracted goals even if a newer reading omits them.
-
-      const toInsert = extractedGoals
-        .filter(g => !existingDocGoals.some(existing => goalKey(existing.goalTitle || "") === goalKey(g.title)))
-        .map(g => ({
+            : [];
+          const profileDescription = typeof matchingProfileGoal?.description === "string" && matchingProfileGoal.description.trim()
+            ? matchingProfileGoal.description
+            : record.interpretation.description;
+          return {
+            title,
+            description: typeof profileDescription === "string"
+              ? profileDescription.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 4000)
+              : "",
+            milestones,
+            source: familyUploadedDocumentIds.has(record.documentId) ? "parent_document" : "document",
+          };
+        });
+      const existingGoals = await db.select().from(rewardTokensTable)
+        .where(eq(rewardTokensTable.childId, child_id));
+      const seenTitles = new Set<string>();
+      for (const goal of extractedGoals) {
+        const key = goalKey(goal.title);
+        if (!key || seenTitles.has(key)) continue;
+        seenTitles.add(key);
+        const existing = existingGoals.find((row) => goalKey(row.goalTitle || "") === key);
+        const milestoneNotes = goal.milestones.length
+          ? `Plan milestones:\n${goal.milestones.map((milestone) => `• ${milestone}`).join("\n")}`
+          : "";
+        if (existing) {
+          if (existing.source !== goal.source) continue;
+          await db.update(rewardTokensTable).set({
+            goalDescription: goal.description,
+            target: Math.max(1, goal.milestones.length),
+            milestoneNotes,
+          }).where(eq(rewardTokensTable.id, existing.id));
+          continue;
+        }
+        await db.insert(rewardTokensTable).values({
           childId: child_id,
           parentId: (child as any).parentId ?? null,
           clinicianId: clinicianId ?? child.clinicianId ?? null,
-          tenantId: clinicianId ?? existingProfile?.tenantId ?? null,
-          goalTitle: g.title,
-          goalDescription: g.description,
+          tenantId: child.tenantId ?? existingProfile?.tenantId ?? null,
+          goalTitle: goal.title,
+          goalDescription: goal.description,
           progress: 0,
-          target: Math.max(1, g.milestones.length),
-          source: "document",
-          milestoneNotes: g.milestones.length
-            ? `Plan milestones:\n${g.milestones.map((milestone) => `• ${milestone}`).join("\n")}`
-            : "No explicit milestones were listed in the scanned documents.",
-          createdByClinician: true,
-        }));
-      if (toInsert.length > 0) {
-        await db.insert(rewardTokensTable).values(toInsert);
-      }
-      for (const g of extractedGoals) {
-        const existing = existingDocGoals.find((row) => goalKey(row.goalTitle || "") === goalKey(g.title));
-        if (!existing) continue;
-        await db.update(rewardTokensTable).set({
-          goalDescription: g.description,
-          target: Math.max(1, g.milestones.length),
-          milestoneNotes: g.milestones.length
-            ? `Plan milestones:\n${g.milestones.map((milestone) => `• ${milestone}`).join("\n")}`
-            : "No explicit milestones were listed in the scanned documents.",
-        }).where(eq(rewardTokensTable.id, existing.id));
+          target: Math.max(1, goal.milestones.length),
+          source: goal.source,
+          milestoneNotes,
+          createdByClinician: goal.source === "document",
+        });
       }
     } catch (syncErr: any) {
       console.error(`[NeuroPath] buildClientProfile: goal sync failed child=${child_id}:`, syncErr?.message);
@@ -2174,7 +2251,11 @@ router.post("/manage-client-goal", async (req: any, res) => {
     if (clinicianId) {
       return row.clinicianId === clinicianId && await clinicianMayAccessChild(row.childId);
     }
-    return !row.createdByClinician && row.source === "manual" && row.parentId === authChildId && clientMayAccessChild(row.childId);
+    if (row.parentId !== authChildId || !(await clientMayAccessChild(row.childId))) return false;
+    if (!row.createdByClinician && ["manual", "parent_document"].includes(row.source)) return true;
+    if (row.source !== "document" || !row.createdByClinician || row.publicationStatus !== "published") return false;
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, row.childId));
+    return Boolean(child?.clinicianId && row.clinicianId === child.clinicianId);
   };
 
   try {
@@ -2218,6 +2299,19 @@ router.post("/manage-client-goal", async (req: any, res) => {
         // Never allow ownership/identity fields to be reassigned via the request body.
         delete patch.id; delete patch.childId; delete patch.clinicianId; delete patch.tenantId; delete patch.parentId;
         for (const key of ["publicationStatus", "goalDetails", "goalVersion", "goalVersions", "source", "createdByClinician"]) delete patch[key];
+        if (!clinicianId && (existing.source === "document" || existing.source === "parent_document")) {
+          for (const key of Object.keys(patch)) {
+            if (!["progress", "tokensEarned"].includes(key)) delete patch[key];
+          }
+          if (typeof patch.progress === "number") {
+            const max = Math.max(1, Number(existing.target ?? existing.tokensGoal ?? 10));
+            patch.progress = Math.max(0, Math.min(max, Math.floor(patch.progress)));
+            if ("tokensEarned" in patch) patch.tokensEarned = patch.progress;
+          }
+          if (Object.keys(patch).length === 0) {
+            return res.status(400).json({ error: "Only goal progress can be updated for document-based goals." });
+          }
+        }
         const [goal] = await db.update(rewardTokensTable)
           .set(patch)
           .where(eq(rewardTokensTable.id, entityId))

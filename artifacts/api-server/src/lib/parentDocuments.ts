@@ -1201,6 +1201,20 @@ async function readParentDocument(
         record.sourceExcerptVerified && record.reviewStatus === "unreviewed")
       .map((record) => normalizedParentText(String(record.interpretation.title || "")))
       .filter(Boolean);
+    const verifiedGoalRecords = normalizedExtractions.records
+      .filter((record) => record.category === "goal" &&
+        record.sourceExcerptVerified && record.reviewStatus === "unreviewed")
+      .map((record) => ({
+        title: normalizedParentText(String(record.interpretation.title || "")),
+        description: normalizedParentText(String(record.interpretation.description || "")),
+        milestones: Array.isArray(record.interpretation.milestones)
+          ? record.interpretation.milestones
+            .map((milestone) => normalizedParentText(String(milestone)))
+            .filter(Boolean)
+            .slice(0, 8)
+          : [],
+      }))
+      .filter((record) => Boolean(record.title));
     const discoveredTargets = normalizeDiscoveredParentTargets(
       (discoveryResult.input as Record<string, unknown>).targets,
     ).filter((target) => verifiedBehaviors.includes(normalizedParentText(target.behaviorName)))
@@ -1508,6 +1522,32 @@ async function readParentDocument(
           goalDescription: `Explicit plan goal for ${target.behaviorName}.`,
           progress: 0,
           target: Math.max(1, milestones.length),
+          source: "parent_document",
+          milestoneNotes,
+          createdByClinician: false,
+        });
+        insertedGoalTitles.add(key);
+      }
+
+      // Also save explicitly stated goals that are not attached to a behavior
+      // target. They still need a source-verified goal record in Goals & Milestones.
+      for (const extractedGoal of verifiedGoalRecords) {
+        const key = normalizeGoalTitle(extractedGoal.title);
+        if (insertedGoalTitles.has(key) || existingGoals.some((row) =>
+          normalizeGoalTitle(row.goalTitle || "") === key,
+        )) continue;
+        const milestoneNotes = extractedGoal.milestones.length
+          ? `Plan milestones:\n${extractedGoal.milestones.map((item) => `• ${item}`).join("\n")}`
+          : "";
+        await tx.insert(rewardTokensTable).values({
+          childId,
+          parentId: child.parentId ?? parentId,
+          clinicianId: child.clinicianId ?? null,
+          tenantId: child.tenantId ?? null,
+          goalTitle: extractedGoal.title,
+          goalDescription: extractedGoal.description,
+          progress: 0,
+          target: Math.max(1, extractedGoal.milestones.length),
           source: "parent_document",
           milestoneNotes,
           createdByClinician: false,

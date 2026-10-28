@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { ArrowLeft, Plus, Trophy, Target, CheckCircle2, Circle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
+import { Input } from "@workspace/neuropathways-foundations/components/ui/input";
+import { Textarea } from "@workspace/neuropathways-foundations/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@workspace/neuropathways-foundations/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
 import { readableGoalTitle } from "@/lib/goalTitle";
@@ -123,9 +123,9 @@ export default function GoalsMilestones({ embedded = false }) {
   const changeChild = (childId) => {
     setSelectedChildId(childId);
     try { localStorage.setItem(`np-family-child:${user?.id}`, childId); } catch { /* Storage may be unavailable. */ }
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(embedded ? "tab=goals" : window.location.search);
     params.set("child_id", childId);
-    navigate(`/GoalsMilestones?${params.toString()}`, { replace: true });
+    navigate(`${embedded ? "/ParentHome" : "/GoalsMilestones"}?${params.toString()}`, { replace: true });
   };
 
   // Normalize old vs new field names
@@ -141,7 +141,7 @@ export default function GoalsMilestones({ embedded = false }) {
     <div className="legacy-goals min-h-[100dvh] bg-background font-inter text-foreground">
       <div className="bg-primary text-primary-foreground">
         <div className="px-5 pt-5 pb-6 max-w-3xl mx-auto">
-          {!embedded && <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-primary-foreground/75 hover:text-primary-foreground text-sm mb-4 transition-colors">
+          {!embedded && <button onClick={() => navigate(-1)} data-testid="button-goals-back" className="flex items-center gap-2 text-primary-foreground/75 hover:text-primary-foreground text-sm mb-4 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>}
           <div className="flex items-center justify-between">
@@ -158,6 +158,7 @@ export default function GoalsMilestones({ embedded = false }) {
               size="sm"
               className="bg-primary-foreground/15 hover:bg-primary-foreground/25 text-primary-foreground border border-primary-foreground/20 rounded-lg gap-1.5"
               onClick={() => setShowForm(true)}
+              data-testid="button-add-goal"
             >
               <Plus className="w-3.5 h-3.5" /> Add Goal
             </Button>
@@ -166,12 +167,14 @@ export default function GoalsMilestones({ embedded = false }) {
       </div>
 
       <div className="px-4 py-4 sm:px-5 sm:py-5 max-w-3xl mx-auto space-y-3">
-        {!embedded && children.length > 1 && (
-          <div className="legacy-goals-child-select">
-            <span className="text-xs font-semibold text-muted-foreground">Viewing progress for</span>
-            <Select value={selectedChildId} onValueChange={changeChild}>
-              <SelectTrigger className="rounded-lg bg-card"><SelectValue placeholder="Select profile" /></SelectTrigger>
-              <SelectContent>{children.map(c => <SelectItem key={c.id} value={c.id}>{c.child_name}</SelectItem>)}</SelectContent>
+        {selectedChild && (
+          <div className="legacy-goals-child-select rounded-xl border border-border bg-card p-3" data-testid="panel-goals-child-selector">
+            <label className="text-xs font-semibold text-muted-foreground" htmlFor="goals-child-select">Viewing progress for</label>
+            <Select value={selectedChildId} onValueChange={changeChild} disabled={children.length <= 1}>
+              <SelectTrigger id="goals-child-select" className="mt-1 rounded-lg bg-card" data-testid="select-goals-child">
+                <SelectValue placeholder="Select profile" />
+              </SelectTrigger>
+              <SelectContent>{children.map(c => <SelectItem key={c.id} value={c.id}>{c.child_name || c.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
         )}
@@ -186,29 +189,29 @@ export default function GoalsMilestones({ embedded = false }) {
               </h3>
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Goal Title</p>
-                <Input value={form.goal_title} onChange={e => setForm(f => ({ ...f, goal_title: e.target.value }))} placeholder="e.g. Morning routine independence" className="rounded-xl" />
+                <Input value={form.goal_title} onChange={e => setForm(f => ({ ...f, goal_title: e.target.value }))} placeholder="e.g. Morning routine independence" className="rounded-xl" data-testid="input-goal-title" />
               </div>
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Description (optional)</p>
-                <Textarea value={form.goal_description} onChange={e => setForm(f => ({ ...f, goal_description: e.target.value }))} placeholder="Details about this goal..." className="rounded-xl" rows={2} />
+                <Textarea value={form.goal_description} onChange={e => setForm(f => ({ ...f, goal_description: e.target.value }))} placeholder="Details about this goal..." className="rounded-xl" rows={2} data-testid="input-goal-description" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Starting Progress</p>
-                  <Input type="number" value={form.progress} onChange={e => setForm(f => ({ ...f, progress: e.target.value }))} className="rounded-xl" />
+                <Input type="number" value={form.progress} onChange={e => setForm(f => ({ ...f, progress: e.target.value }))} className="rounded-xl" data-testid="input-goal-starting-progress" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Target</p>
-                  <Input type="number" value={form.target} onChange={e => setForm(f => ({ ...f, target: e.target.value }))} className="rounded-xl" />
+                <Input type="number" value={form.target} onChange={e => setForm(f => ({ ...f, target: e.target.value }))} className="rounded-xl" data-testid="input-goal-target" />
                 </div>
               </div>
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Notes (optional)</p>
-                <Input value={form.milestone_notes} onChange={e => setForm(f => ({ ...f, milestone_notes: e.target.value }))} placeholder="Any additional notes" className="rounded-xl" />
+                <Input value={form.milestone_notes} onChange={e => setForm(f => ({ ...f, milestone_notes: e.target.value }))} placeholder="Any additional notes" className="rounded-xl" data-testid="input-goal-notes" />
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setShowForm(false)}>Cancel</Button>
-                <Button className="flex-1 rounded-xl" onClick={handleAdd} disabled={saving || !form.goal_title.trim()}>{saving ? "Saving..." : "Create Goal"}</Button>
+                <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setShowForm(false)} data-testid="button-cancel-goal">Cancel</Button>
+                <Button className="flex-1 rounded-xl" onClick={handleAdd} disabled={saving || !form.goal_title.trim()} data-testid="button-create-goal">{saving ? "Saving..." : "Create Goal"}</Button>
               </div>
             </motion.div>
           )}
@@ -229,8 +232,12 @@ export default function GoalsMilestones({ embedded = false }) {
               const g = normalizeGoal(rawGoal);
               const documentGoal = isDocumentGoal(rawGoal);
               const milestones = milestoneLines(rawGoal.milestone_notes);
-              const pct = documentGoal ? 0 : Math.min(100, Math.round((g.progress / (g.target || 1)) * 100));
-              const achieved = !documentGoal && g.progress >= g.target;
+              const createdByClinician = Boolean(rawGoal.created_by_clinician ?? rawGoal.createdByClinician);
+              const canLogProgress = rawGoal.source === "manual"
+                ? !createdByClinician
+                : ["document", "parent_document"].includes(rawGoal.source);
+              const pct = Math.min(100, Math.round((g.progress / (g.target || 1)) * 100));
+              const achieved = g.progress >= g.target;
               return (
                 <motion.div key={g.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                  className={`legacy-goal-card bg-card border rounded-xl p-4 transition-colors ${achieved ? "border-accent bg-accent/10" : "border-border"}`}>
@@ -246,29 +253,37 @@ export default function GoalsMilestones({ embedded = false }) {
                           <p className="text-xs text-muted-foreground mt-1">{g.goal_description}</p>
                         </details>
                       )}
-                      {!documentGoal && <p className="text-xs text-muted-foreground ml-7 mt-0.5">{g.progress} of {g.target} steps completed</p>}
+                       <p className="text-xs text-muted-foreground ml-7 mt-0.5" data-testid={`text-goal-progress-${g.id}`}>
+                         {documentGoal
+                           ? `${g.progress} of ${g.target} practice steps logged`
+                           : `${g.progress} of ${g.target} steps completed`}
+                       </p>
                       {documentGoal && (
                         <span className="ml-7 mt-1 inline-block text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                           {rawGoal.source === "parent_document" ? "Uploaded plan · not clinician-reviewed" : "Clinician-uploaded plan"}
+                            {rawGoal.source === "parent_document" ? "Self-uploaded document" : "Clinician-uploaded document"}
                         </span>
                       )}
-                      {rawGoal.created_by_clinician && (
+                       {createdByClinician && !documentGoal && (
                         <span className="ml-1 mt-1 inline-block text-xs bg-accent/20 text-accent-foreground px-2 py-0.5 rounded-full">Clinician goal</span>
                       )}
                     </div>
-                    {!documentGoal && !rawGoal.created_by_clinician && !achieved && (
-                      <button onClick={() => incrementProgress(rawGoal)}
-                        className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors shadow-md shadow-primary/20 flex-shrink-0">
+                     {canLogProgress && !achieved && (
+                       <button
+                         type="button"
+                         aria-label={`Log progress for ${g.goal_title}`}
+                         data-testid={`button-goal-progress-${g.id}`}
+                         onClick={() => incrementProgress(rawGoal)}
+                         className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors shadow-md shadow-primary/20 flex-shrink-0"
+                       >
                         <Plus className="w-4 h-4" />
                       </button>
                     )}
                   </div>
 
-                  {!documentGoal && (
-                    <div className="mb-2">
+                   <div className="mb-2">
                       <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                        <span>{pct}% complete</span>
-                          <span>{achieved ? "Milestone reached" : `${g.target - g.progress} to go`}</span>
+                         <span>{pct}% complete</span>
+                         <span>{achieved ? "Milestone reached" : `${g.target - g.progress} to go`}</span>
                       </div>
                       <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                         <div
@@ -276,8 +291,7 @@ export default function GoalsMilestones({ embedded = false }) {
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                    </div>
-                  )}
+                   </div>
 
                   {documentGoal ? (
                     <div className="mt-3 ml-7">
@@ -289,7 +303,7 @@ export default function GoalsMilestones({ embedded = false }) {
                               {milestones.map((milestone, index) => <li key={`${g.id}-milestone-${index}`}>{milestone}</li>)}
                             </ul>
                           ) : <p>{g.milestone_notes || "No explicit milestones were listed in the source document."}</p>}
-                          <p className="mt-2">Report practice outcomes in Today; these are caregiver reports, not a measure of treatment progress.</p>
+                           <p className="mt-2">Progress here is caregiver-reported practice, not a measure of treatment progress.</p>
                         </div>
                       </details>
                     </div>

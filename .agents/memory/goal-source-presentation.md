@@ -21,6 +21,12 @@ A clinical goal or milestone is not automatically a parent-child activity. Creat
 
 **How to apply:** Keep goals and activities in their existing separate models. Require source evidence for plan-derived activities, retain the source and approval state, and label any explicitly chosen starter activity as general support.
 
+Explicit goals may be saved even when the document does not attach them to a behavior target, but only from a source-verified goal extraction. Document-goal progress controls record caregiver-reported practice only; they must not edit the extracted goal definition or imply a clinical outcome.
+
+**Why:** Requiring a behavior link would silently drop goals stated elsewhere in a document, while unrestricted caregiver edits could change clinician-authored source content.
+
+**How to apply:** Save verified standalone goals additively, preserve their uploader/source label, and limit family updates to progress fields. Keep clinician activity recommendations in the existing review and rejection flow.
+
 Collapsing goal details must not discard an in-progress edit.
 
 **Why:** A presentation-only disclosure can otherwise unmount a stateful form and silently erase its draft.
