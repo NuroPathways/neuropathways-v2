@@ -6,8 +6,8 @@ const scanStatus = (doc) => String(doc?.scan_status ?? doc?.scanStatus ?? "pendi
 const scanError = (doc) => doc?.scan_error ?? doc?.scanError ?? "";
 
 // Reusable AI scan / re-scan control for a single document.
-// Rebuilds the child's full ClientProfile from their documents — the same reliable
-// source of truth used by Help Now.
+// Re-scans only this document so unrelated missing or unsupported files cannot
+// block its extraction.
 
 // apiFetch throws Error(`API error <status>: <body>`) where <body> is the server's
 // JSON. Pull the human-readable reason out so the UI can show why a scan failed.
@@ -43,6 +43,8 @@ export function describeScanError(message) {
   if (/unsupported|not supported|mime|file type|format/.test(text)) return { reason: "Unsupported file format.", retryable: false, detail: raw };
   if (/password.protected|unlocked pdf/.test(text)) return { reason: "An unlocked PDF copy is needed.", retryable: false, detail: raw };
   if (/corrupt|damaged|malformed|invalid pdf|pdf is invalid|truncated|re-export/.test(text)) return { reason: "The file needs to be re-exported.", retryable: false, detail: raw };
+  if (/file could not be found|document content not found|file link is invalid|file not found/.test(text)) return { reason: "The stored file is missing.", retryable: false, detail: raw };
+  if (/could not be decrypted|decryption failed|unreadable encrypted/.test(text)) return { reason: "The stored file could not be opened.", retryable: false, detail: raw };
   if (/no (readable )?text|empty|no content|blank/.test(text)) return { reason: "No readable text found.", retryable: true, detail: raw };
   if (/timeout|timed out|unavailable|503|502|429|rate limit|network|fetch failed|econn/.test(text)) return { reason: "Processing service temporarily unavailable.", retryable: true, detail: raw };
   if (/session expired|sign in/.test(text)) return { reason: raw, retryable: true, detail: raw };
@@ -87,10 +89,10 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, onScanned
         child_id: doc.child_id || doc.childId,
         force_rebuild: true,
         invite_token: inviteToken,
+        source_document_id: doc.id,
       });
       const data = res?.data || {};
-      // The endpoint scans all of the child's docs together — reflect this
-      // specific document's real outcome rather than the overall call succeeding.
+      // Reflect this document's own outcome rather than a child-wide batch.
       const failedEntry = Array.isArray(data.failed) ? data.failed.find(f => f.id === doc.id) : null;
       if (failedEntry) {
         setErrorMsg(failedEntry.reason || "This document could not be read.");

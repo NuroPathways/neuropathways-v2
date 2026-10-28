@@ -28,6 +28,7 @@ import { clinicalScanServiceError } from "../lib/clinicalPdf";
 import { prepareSupportPdf } from "../lib/supportPdf";
 import { fillExplicitlyLabeledSupportFields } from "../lib/documentSupportFallback";
 import { resolveParentActor } from "../lib/parentAuth";
+import { resolveLocalUploadReference } from "../lib/localUploadReference";
 import {
   DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE,
   documentExtractionsToolProperty,
@@ -1140,12 +1141,14 @@ router.post("/build-client-profile", async (req: any, res) => {
   const { child_id, force_rebuild, invite_token, source_document_id } = req.body;
   let clinicianId: string | null = null;
   let parentScanParentId: string | null = null;
+  let clinicianScopedDocumentScan = false;
 
   // Clinicians retain their existing flow. Parent sessions may request a
   // parent-scoped scan of one clinician document already visible in the
   // selected child's Document Center.
   if (req.isAuthenticated?.()) {
     clinicianId = req.user.id;
+    clinicianScopedDocumentScan = typeof source_document_id === "string" && Boolean(source_document_id.trim());
   } else {
     if (typeof source_document_id === "string" && source_document_id.trim()) {
       try {
@@ -1162,6 +1165,7 @@ router.post("/build-client-profile", async (req: any, res) => {
       }
     }
   }
+  const scopedDocumentScan = Boolean(parentScanParentId || clinicianScopedDocumentScan);
   const fail = (status: number, code: string, message: string) => {
     console.error(`[NeuroPath] buildClientProfile ${code}: child=${child_id} clinician=${clinicianId} — ${message}`);
     return res.status(status).json({ error: { code, message } });
@@ -1212,6 +1216,9 @@ router.post("/build-client-profile", async (req: any, res) => {
       .where(eq(clientProfilesTable.childId, child_id));
 
     const allDocuments = await db.select().from(documentsTable).where(eq(documentsTable.childId, child_id));
+    const clinicianVisibleDocuments = parentScanParentId
+      ? []
+      : await legacyVisibleDocuments(allDocuments, clinicianId);
     const docs = parentScanParentId
       ? allDocuments.filter((document) =>
           document.id === source_document_id &&
@@ -1220,9 +1227,11 @@ router.post("/build-client-profile", async (req: any, res) => {
           document.tenantId === child.clinicianId &&
           document.uploadedBy === child.clinicianId,
         )
-      : await legacyVisibleDocuments(allDocuments, clinicianId);
-    if (parentScanParentId && docs.length !== 1) {
-      return fail(404, "document_not_found", "This clinician document is no longer available.");
+      : clinicianScopedDocumentScan
+        ? clinicianVisibleDocuments.filter((document) => document.id === source_document_id)
+        : clinicianVisibleDocuments;
+    if (scopedDocumentScan && docs.length !== 1) {
+      return fail(404, "document_not_found", "This document is no longer available to scan.");
     }
     const docsWithFiles = docs.filter(d => d.fileUrl);
     const docsWithNotes = docs.filter(d => !d.fileUrl && d.notes?.trim());
@@ -1291,7 +1300,7 @@ router.post("/build-client-profile", async (req: any, res) => {
       !processedExtractionDocIds.has(doc.id) || doc.scanStatus !== "done",
     );
     if (
-      !parentScanParentId &&
+      !scopedDocumentScan &&
       existingProfile &&
       Array.isArray((existingProfile as any).behaviors) &&
       (existingProfile as any).behaviors.length > 0 &&
@@ -1315,8 +1324,8 @@ router.post("/build-client-profile", async (req: any, res) => {
 
     // If no documents, save a placeholder profile so the UI can show a clear message
     if (allScannableDocs.length === 0) {
-      if (parentScanParentId) {
-        return fail(422, "no_readable_content", "This clinician document has no readable content.");
+      if (scopedDocumentScan) {
+        return fail(422, "no_readable_content", "This document has no readable content.");
       }
       if (existingProfile) return res.json(serialize({
         profile: existingProfile, scanned: [], failed: [],
@@ -1342,9 +1351,21 @@ router.post("/build-client-profile", async (req: any, res) => {
     for (const doc of docsWithFiles) {
       const label = doc.title || doc.category || doc.fileName || "Clinical Document";
       const parentMetadata = await isParentDocument(doc.id);
-      const urlMatch = String(doc.fileUrl).match(/\/api\/uploads\/(.+)$/);
-      const documentFilename = parentMetadata ? (doc.fileName || "") : path.basename(urlMatch?.[1] || doc.fileName || "");
-      const extension = path.extname(documentFilename).toLowerCase();
+      const uploadReference = parentMetadata
+        ? null
+        : resolveLocalUploadReference(doc.fileUrl, doc.fileName);
+      const documentFilename = parentMetadata
+        ? (doc.fileName || "")
+        : (uploadReference?.filename || doc.fileName || "");
+      const extension = parentMetadata
+        ? path.extname(documentFilename).toLowerCase()
+        : (uploadReference?.extension || path.extname(documentFilename).toLowerCase());
+      const originalDisplayName = path.basename(String(doc.fileName || "").replace(/\\/g, "/"));
+      const contentFilename = parentMetadata
+        ? documentFilename
+        : path.extname(originalDisplayName).toLowerCase() === extension
+          ? originalDisplayName
+          : (uploadReference?.filename || documentFilename);
       const fallbackVersion = parentMetadata?.sha256 ||
         crypto.createHash("sha256").update(JSON.stringify({
           id: doc.id,
@@ -1358,25 +1379,37 @@ router.post("/build-client-profile", async (req: any, res) => {
         documentVersion: fallbackVersion,
         documentType: parentMetadata?.mimeType || IMAGE_MIME[extension] ||
           (extension === ".pdf" ? "application/pdf" :
+            extension === ".doc" ? "application/msword" :
             extension === ".docx" ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" :
               TEXT_EXT.includes(extension) ? "text/plain" : "application/octet-stream"),
         searchableText: "",
       });
-      if (!parentMetadata && !urlMatch) { failedDocs.push({ id: doc.id, reason: "The file link is invalid." }); continue; }
-      const filename = parentMetadata ? (doc.fileName || "") : path.basename(urlMatch![1]);
-      const safePath = path.normalize(path.join(UPLOAD_DIR, filename));
+      if (!parentMetadata && !uploadReference) { failedDocs.push({ id: doc.id, reason: "The file link is invalid." }); continue; }
+      const filename = parentMetadata ? (doc.fileName || "") : uploadReference!.filename;
+      const safePath = path.resolve(UPLOAD_DIR, filename);
       if (!parentMetadata && !safePath.startsWith(`${UPLOAD_DIR}${path.sep}`)) { failedDocs.push({ id: doc.id, reason: "The file path is not allowed." }); continue; }
       let fileContent: Buffer;
-      try {
-        if (parentMetadata) {
+      if (parentMetadata) {
+        try {
           fileContent = await readParentDocumentBytes(doc.id);
-        } else {
-          const raw = await fs.readFile(safePath);
-          fileContent = decryptBuffer(raw);
+        } catch {
+          failedDocs.push({ id: doc.id, reason: "The file could not be found in secure document storage." });
+          continue;
         }
-      } catch {
-        failedDocs.push({ id: doc.id, reason: "The file could not be found on the server." });
-        continue;
+      } else {
+        let raw: Buffer;
+        try {
+          raw = await fs.readFile(safePath);
+        } catch {
+          failedDocs.push({ id: doc.id, reason: "The file could not be found on the server." });
+          continue;
+        }
+        try {
+          fileContent = decryptBuffer(raw);
+        } catch {
+          failedDocs.push({ id: doc.id, reason: "The stored file could not be decrypted. Upload the document again." });
+          continue;
+        }
       }
       const extractionSource = extractionSourceById.get(doc.id)!;
       extractionSource.documentVersion = crypto.createHash("sha256").update(fileContent).digest("hex");
@@ -1394,7 +1427,7 @@ router.post("/build-client-profile", async (req: any, res) => {
         } else if (ext === ".pdf") {
           let prepared: Buffer;
           try {
-            const result = await prepareSupportPdf(fileContent, () => extractParentDocumentText(filename, fileContent), {
+            const result = await prepareSupportPdf(fileContent, () => extractParentDocumentText(contentFilename, fileContent), {
               enforceTextLimits: false,
             });
             prepared = result.pdf;
@@ -1428,13 +1461,13 @@ router.post("/build-client-profile", async (req: any, res) => {
           contentParts.push(textPart);
           documentContentById.set(doc.id, [textPart]);
           includedDocIds.push(doc.id);
-        } else if (ext === ".doc" && parentMetadata) {
-           const text = await extractParentDocumentText(filename, fileContent);
+        } else if (ext === ".doc") {
+          const text = await extractParentDocumentText(contentFilename, fileContent);
           if (!text.trim()) { failedDocs.push({ id: doc.id, reason: "No readable text was found in this Word document." }); continue; }
-            extractionSource.searchableText = text;
-            const textPart = { type: "text", text: documentTextSegmentsForAi(label, doc.id, text) };
-            contentParts.push(textPart);
-            documentContentById.set(doc.id, [textPart]);
+          extractionSource.searchableText = text;
+          const textPart = { type: "text", text: documentTextSegmentsForAi(label, doc.id, text) };
+          contentParts.push(textPart);
+          documentContentById.set(doc.id, [textPart]);
           includedDocIds.push(doc.id);
         } else if (TEXT_EXT.includes(ext)) {
           const text = fileContent.toString("utf-8").trim();
@@ -1491,7 +1524,7 @@ router.post("/build-client-profile", async (req: any, res) => {
       }).catch(() => undefined);
       return res.status(422).json({ error: { code: "no_readable_content", message: `Couldn't read any of the client's documents. ${detail}` }, failed: failedDocs });
     }
-    if (failedDocs.length > 0 && existingProfile) {
+    if (failedDocs.length > 0 && existingProfile && !scopedDocumentScan) {
       const sources = [...extractionSourceById.values()];
       await persistDocumentExtractionBatch({
         sources,
@@ -1834,7 +1867,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     };
 
     let profile = existingProfile;
-    if (!parentScanParentId) {
+    if (!scopedDocumentScan) {
       if (existingProfile) {
         [profile] = await db.update(clientProfilesTable).set(profileData).where(eq(clientProfilesTable.id, existingProfile.id)).returning();
       } else {
@@ -1846,14 +1879,28 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     for (const id of includedDocIds) {
       await db.update(documentsTable).set({ scanStatus: "done", scanError: null, scannedAt: now }).where(eq(documentsTable.id, id)).catch(() => {});
     }
-    if (parentScanParentId) {
-      req.log.info({ child_id, document_id: source_document_id }, "Parent-scoped clinician document scan complete");
-      return res.json(serialize({
+    if (scopedDocumentScan) {
+      req.log.info({
+        child_id,
+        document_id: source_document_id,
+        actor: parentScanParentId ? "parent" : "clinician",
+      }, "Scoped document scan complete");
+      const scopedResponse: Record<string, unknown> = {
         ok: true,
         scanned: includedDocIds,
         failed: failedDocs,
         warnings,
-      }));
+      };
+      if (!parentScanParentId) {
+        scopedResponse.documentExtractions = extractionRuns.flatMap((run) => run.records || []);
+        scopedResponse.documentExtractionStatuses = extractionRuns.map((run) => ({
+          documentId: run.documentId,
+          documentVersion: run.documentVersion,
+          status: run.scanStatus,
+          errorMessage: run.errorMessage,
+        }));
+      }
+      return res.json(serialize(scopedResponse));
     }
 
     // Sync AI-extracted treatment goals into reward_tokens so they appear

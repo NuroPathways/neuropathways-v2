@@ -9,6 +9,7 @@ afterEach(cleanup);
 describe("DocScanButton", () => {
   it("classifies scanner errors into plain reasons", () => {
     expect(describeScanError("Unsupported file type: application/zip")).toMatchObject({ reason: "Unsupported file format.", retryable: false });
+    expect(describeScanError("The file could not be found on the server.")).toMatchObject({ reason: "The stored file is missing.", retryable: false });
     expect(describeScanError("No readable text in document")).toMatchObject({ reason: "No readable text found.", retryable: true });
     expect(describeScanError("API error 503: upstream unavailable").reason).toBe("Processing service temporarily unavailable.");
     expect(describeScanError("Failed").reason).toBe("Document could not be read.");
@@ -34,17 +35,20 @@ describe("DocScanButton", () => {
     render(<DocScanButton doc={{ id: "d4", child_id: "c1", scan_status: "error", scan_error: "This PDF is damaged or incomplete. Re-export it as a PDF and upload it again." }} clinicianId="u1" />);
     expect(screen.queryByTestId("button-scan-doc-d4")).toBeNull();
   });
-  it("does not mark a healthy document Failed when another document blocks the scan", async () => {
-    base44.functions.invoke.mockRejectedValueOnce(new Error(`API error 422: ${JSON.stringify({
-      error: { message: "A different file could not be read. Previous information has been preserved." },
-      failed: [{ id: "bad", reason: "This PDF is damaged or incomplete." }],
-    })}`));
+  it("scans only the selected document so unrelated files cannot block it", async () => {
+    const result = { scanned: ["good"], failed: [] };
+    base44.functions.invoke.mockResolvedValueOnce({ data: result });
     const refresh = vi.fn();
     render(<DocScanButton doc={{ id: "good", child_id: "c1", scan_status: "done" }} clinicianId="u1" onScanned={refresh} />);
     fireEvent.click(screen.getByTestId("button-scan-doc-good"));
-    await waitFor(() => expect(screen.getByTestId("status-doc-scan-good").textContent).toBe("Scan blocked"));
-    expect(screen.getByTestId("text-scan-error-good").textContent).toContain("Another document is blocking");
-    expect(refresh).toHaveBeenCalledOnce();
+    await waitFor(() => expect(screen.getByTestId("status-doc-scan-good").textContent).toContain("Ready"));
+    expect(base44.functions.invoke).toHaveBeenCalledWith("buildClientProfile", {
+      child_id: "c1",
+      force_rebuild: true,
+      invite_token: undefined,
+      source_document_id: "good",
+    });
+    expect(refresh).toHaveBeenCalledWith("good", result);
   });
   it("shows the selected file's specific persisted error after a mixed scan failure", async () => {
     base44.functions.invoke.mockRejectedValueOnce(new Error(`API error 422: ${JSON.stringify({

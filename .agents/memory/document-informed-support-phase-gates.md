@@ -34,3 +34,9 @@ Parents may scan a clinician-uploaded document only when it is already visible i
 **Why:** Families need document-derived support from documents their clinician has shared, without widening document access or treating a parent scan as clinical review.
 
 **How to apply:** Verify the parent-child relationship, visible-document permission, and clinician ownership for the exact document ID. Keep processing state separate from approval, and store source-linked extraction without changing clinical assignments.
+
+Clinician "Rescan" controls must process only the selected document; they must not rebuild the whole child's profile as a side effect. Keep aggregate profile and goal updates in an explicit full-profile flow.
+
+**Why:** A missing or unsupported sibling document should not block a valid rescan, and a one-document action must not replace aggregate clinical data with partial results.
+
+**How to apply:** Pass the selected document ID through the authenticated scan request, validate it against the clinician-child relationship and visible-document policy, and persist the extraction without rewriting the profile or goal assignments.

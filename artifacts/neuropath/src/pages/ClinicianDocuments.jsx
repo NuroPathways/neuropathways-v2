@@ -9,10 +9,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import DocScanButton from "@/components/clinician/DocScanButton";
 import DocumentExtractionDisclosure from "@/components/clinician/DocumentExtractionDisclosure";
 
-// Rebuilds the child's full ClientProfile from their documents (the reliable, single source of truth
-// used by Help Now). Returns the backend result or throws on failure.
-async function rebuildProfile(childId) {
-  const res = await base44.functions.invoke('buildClientProfile', { child_id: childId });
+// Scans one source document without changing the clinician's aggregate profile.
+async function scanUploadedDocument(childId, sourceDocumentId) {
+  const res = await base44.functions.invoke('buildClientProfile', {
+    child_id: childId,
+    force_rebuild: true,
+    source_document_id: sourceDocumentId,
+  });
   if (res.data?.error) throw new Error(res.data.error);
   return res.data;
 }
@@ -56,9 +59,10 @@ export default function ClinicianDocuments() {
   const [extractionsByDocument, setExtractionsByDocument] = useState({});
 
   const storeDocumentExtractions = (result) => {
-    if (!Array.isArray(result?.document_extractions)) return;
+    const records = result?.document_extractions ?? result?.documentExtractions;
+    if (!Array.isArray(records)) return;
     const grouped = {};
-    for (const record of result.document_extractions) {
+    for (const record of records) {
       if (!record?.document_id) continue;
       (grouped[record.document_id] ||= []).push(record);
     }
@@ -129,7 +133,7 @@ export default function ClinicianDocuments() {
 
         if (AUTO_SYNC.includes(item.category)) {
           setScanStatus(s => ({ ...s, [doc.id]: "scanning" }));
-          rebuildProfile(childId).then((result) => {
+           scanUploadedDocument(childId, doc.id).then((result) => {
             storeDocumentExtractions(result);
             setScanStatus(s => ({ ...s, [doc.id]: "done" }));
             setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, scan_status: "done" } : d));
