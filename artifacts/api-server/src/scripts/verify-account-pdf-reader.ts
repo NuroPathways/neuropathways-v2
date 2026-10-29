@@ -78,7 +78,7 @@ try {
     { label: "legacy family bridge", childId: f.legacy.childId, headers: { "X-Family-Token": familyToken } },
   ];
   // Resume the remaining client checks without repeating already passed scans.
-  for (const parent of process.argv.includes("--clients-only") ? [] : parents) {
+  for (const parent of process.argv.some(value => value === "--clients-only" || value === "--clinician-only") ? [] : parents) {
     const route = `/parent/children/${parent.childId}/documents`;
     const document = await upload(route, parent.headers, { authorizedUploader: "true", title: "Synthetic PDF account verification" });
     // Reproduce a previously failed document and ensure Retry clears its error.
@@ -94,6 +94,7 @@ try {
     console.log(`PASS ${parent.label}: real PDF scan, failed-reader retry, authorized original download`);
   }
 
+  if (!process.argv.includes("--clinician-only")) {
   const file = await upload("/client-upload", {}, {
     invite_token: individualToken, child_id: f.individual.childId, authorized_uploader: "true",
   });
@@ -105,6 +106,7 @@ try {
   assert.equal(saved.status, 201, "individual client document registration");
   const individualScan = await request("/build-client-profile", {}, {
     child_id: f.individual.childId, invite_token: individualToken, force_rebuild: true,
+    source_document_id: saved.data.id,
   });
   assert.equal(individualScan.status, 200, `individual client scan HTTP ${individualScan.status}`);
   await assertScanned(saved.data.id);
@@ -115,7 +117,7 @@ try {
     /transition/i.test(String(behavior?.name || "")),
   );
   assert.ok(transitionSupport, "client-uploaded document produces a transition support card");
-  assert.equal(transitionSupport.support_content_version, 1, "support-card fields are current");
+  assert.ok(Number(transitionSupport.support_content_version) >= 3, "support-card fields use the current or newer content policy");
   for (const field of [
     "do_this_right_now",
     "if_it_escalates",
@@ -135,10 +137,11 @@ try {
   });
   assert.equal(clientPortal.status, 200, "individual client can load its own generated support card");
   assert.ok(
-    clientPortal.data.profile?.behaviors?.some((behavior: any) => behavior.support_content_version === 1),
+    clientPortal.data.profile?.behaviors?.some((behavior: any) => Number(behavior.support_content_version) >= 3),
     "client portal exposes the same expanded support card",
   );
   console.log("PASS individual client: authorized upload, document registration and real source-labeled PDF scan");
+  }
 
   const clinicianToken = await createSession({ user: { id: f.clinician.id }, access_token: "synthetic" } as any);
   const clinicianHeaders = { Authorization: `Bearer ${clinicianToken}` };
@@ -152,7 +155,9 @@ try {
     fileName: "synthetic-labeled-support.pdf", fileUrl: clinicianFile.file_url,
     title: "Synthetic clinician PDF verification",
   }).returning();
-  const clinicianScan = await request("/build-client-profile", clinicianHeaders, { child_id: child.id, force_rebuild: true });
+  const clinicianScan = await request("/build-client-profile", clinicianHeaders, {
+    child_id: child.id, source_document_id: document.id, force_rebuild: true,
+  });
   assert.equal(clinicianScan.status, 200, `clinician PDF scan HTTP ${clinicianScan.status}`);
   await assertScanned(document.id);
   console.log("PASS clinician: authorized upload and real PDF scan");

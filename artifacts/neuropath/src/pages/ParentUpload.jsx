@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { Camera, Image, FileText, CheckCircle2, Loader2, ArrowLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { fetchWithServiceRecovery } from "@workspace/api-client-react";
 
 const CATEGORIES = [
   { key: "treatment_plan", label: "Treatment Plan / IEP" },
@@ -102,7 +103,7 @@ export default function ParentUpload() {
       formData.append("child_id", targetChildId);
       formData.append("authorized_uploader", "true");
 
-      const uploadRes = await fetch("/api/client-upload", {
+      const uploadRes = await fetchWithServiceRecovery("/api/client-upload", {
         method: "POST",
         body: formData,
       });
@@ -119,7 +120,7 @@ export default function ParentUpload() {
         .replace(/\b\w/g, l => l.toUpperCase())
         .trim();
 
-      const docRes = await fetch("/api/client-upload-document", {
+      const docRes = await fetchWithServiceRecovery("/api/client-upload-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

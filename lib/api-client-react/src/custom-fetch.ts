@@ -1,3 +1,5 @@
+import { fetchWithServiceRecovery } from "./service-recovery";
+
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
 };
@@ -360,7 +362,7 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  const response = await fetchWithServiceRecovery(input, { ...init, method, headers }, responseType !== "blob" && responseType !== "text");
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

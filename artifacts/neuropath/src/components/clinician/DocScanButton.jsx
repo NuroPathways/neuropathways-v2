@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, CheckCircle2, RefreshCw, Sparkles, AlertCircle } from "lucide-react";
 import { base44 } from '@/api/entities';
+import { serviceResponseMessage } from "@workspace/api-client-react";
 
 const scanStatus = (doc) => String(doc?.scan_status ?? doc?.scanStatus ?? "pending").toLowerCase();
 const scanError = (doc) => doc?.scan_error ?? doc?.scanError ?? "";
@@ -13,6 +14,8 @@ const scanError = (doc) => doc?.scan_error ?? doc?.scanError ?? "";
 // JSON. Pull the human-readable reason out so the UI can show why a scan failed.
 function parseErrorMessage(err) {
   const raw = err?.message || "Scan failed";
+  const serviceMessage = serviceResponseMessage(raw);
+  if (serviceMessage) return serviceMessage;
   const body = parseErrorBody(err);
   if (body?.error?.message) return body.error.message;
   if (typeof body?.error === "string") return body.error;
@@ -38,13 +41,15 @@ function failedDocuments(err) {
 export function describeScanError(message) {
   const raw = String(message || "").trim();
   const text = raw.toLowerCase();
+  const serviceMessage = serviceResponseMessage(raw);
+  if (serviceMessage) return { reason: "Processing service temporarily unavailable.", retryable: true, detail: serviceMessage };
   if (/unsupported|not supported|mime|file type|format/.test(text)) return { reason: "Unsupported file format.", retryable: false, detail: raw };
   if (/password.protected|unlocked pdf/.test(text)) return { reason: "An unlocked PDF copy is needed.", retryable: false, detail: raw };
   if (/corrupt|damaged|malformed|invalid pdf|pdf is invalid|truncated|re-export/.test(text)) return { reason: "The file needs to be re-exported.", retryable: false, detail: raw };
   if (/file could not be found|document content not found|file link is invalid|file not found/.test(text)) return { reason: "The stored file is missing.", retryable: false, detail: raw };
   if (/could not be decrypted|decryption failed|unreadable encrypted/.test(text)) return { reason: "The stored file could not be opened.", retryable: false, detail: raw };
   if (/no (readable )?text|empty|no content|blank/.test(text)) return { reason: "No readable text found.", retryable: true, detail: raw };
-  if (/timeout|timed out|unavailable|503|502|429|rate limit|network|fetch failed|econn/.test(text)) return { reason: "Processing service temporarily unavailable.", retryable: true, detail: raw };
+  if (/timeout|timed out|unavailable|service is starting|503|502|429|rate limit|network|fetch failed|econn/.test(text)) return { reason: "Processing service temporarily unavailable.", retryable: true, detail: raw };
   if (/session expired|sign in/.test(text)) return { reason: raw, retryable: true, detail: raw };
   return { reason: "Document could not be read.", retryable: true, detail: raw && raw.toLowerCase() !== "failed" ? raw : "" };
 }

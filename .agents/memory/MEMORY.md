@@ -3,7 +3,7 @@
 - [Workspace-scoped dependency installs](workspace-scoped-dependency-installs.md) — target the intended pnpm workspace when the generic package installer defaults to the monorepo root.
 - [Expo preview readiness](expo-preview-readiness.md) — short browser timeouts can show a blank preview before hydration; check visible DOM before changing layout.
 - [Expo file-picker cancellation](expo-file-picker-cancellation.md) — web dismissal may leave selection pending; lock controls during uploads, not while picking files.
-- [Shared document compatibility](shared-document-compatibility.md) — document references are shared contracts; new native access must preserve web viewing and scanning.
+- [Shared document compatibility](shared-document-compatibility.md) — preserve web/native document contracts; distinguish startup service pages from file-reading failures.
 - [Guidance consent provenance](guidance-consent-provenance.md) — clinical priority never removes private contributing sources; clinician previews and action responses need consent-filtered projections.
 - [Parent UI and behavior scope](parent-multi-behavior-scope.md) — daily-first home must preserve multi-goal selections, clear sources, and parent-controlled plan discoveries.
 - [Clinician review of legacy family support](parent-multi-behavior-scope.md) — resolve verified family-scoped links as well as direct parent links, while retaining explicit document-sharing checks.

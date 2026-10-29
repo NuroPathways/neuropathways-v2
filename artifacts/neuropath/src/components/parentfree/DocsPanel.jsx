@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useScanParentDocument, useSetParentDocumentSharing, getParentDocumentContent, getGetParentDashboardQueryKey, runParentDocumentScanBatch } from "@workspace/api-client-react";
+import { useScanParentDocument, useSetParentDocumentSharing, getParentDocumentContent, getGetParentDashboardQueryKey, runParentDocumentScanBatch, fetchWithServiceRecovery } from "@workspace/api-client-react";
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, errMsg } from "./common";
 import UploadBox from "./UploadBox";
@@ -90,7 +90,7 @@ async function scanVisibleClinicianDocument(childId, documentId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ child_id: childId, source_document_id: documentId }),
   });
-  const response = await fetch("/api/build-client-profile", request);
+  const response = await fetchWithServiceRecovery("/api/build-client-profile", request);
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = body?.error;

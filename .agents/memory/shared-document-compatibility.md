@@ -20,3 +20,11 @@ Verify text-preview decoding separately from download-byte integrity.
 **Why:** A plain-text blob preview misrendered UTF-8 punctuation even though authenticated downloads matched the uploaded bytes exactly. Correct bytes alone do not prove that a browser chose the intended character encoding.
 
 **How to apply:** Include non-ASCII text in preview checks and check actual visible content alongside download bytes. Investigate MIME/charset handling before changing shared content responses; do not silently assume every legacy text file uses one encoding.
+
+## Document errors versus service startup pages
+
+Treat a recognizable upstream startup HTML page as a temporary service interruption, never as evidence that an uploaded document is unsupported or damaged. Preserve a way to retry saved documents.
+
+**Why:** The preview proxy returned an HTML startup page during a scan. Generic file-format matching found CSS text in that page, incorrectly labeled a valid PDF unsupported, exposed the whole page to the user, and removed the retry action. Startup pages can arrive with success or failure status codes and non-HTML content types.
+
+**How to apply:** Distinguish transport responses before classifying file-reading errors across all account clients. Bounded automatic replay is appropriate only for a known startup rejection before the app accepted the request; never blindly replay an upload or AI scan after an ambiguous network error or gateway timeout, since it may already have run.

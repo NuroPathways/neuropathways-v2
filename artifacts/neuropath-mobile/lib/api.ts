@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { fetchWithServiceRecovery } from "@workspace/api-client-react";
 
 const TOKEN_KEY = "np_mobile_token";
 const CLINICIAN_TOKEN_KEY = "np_clinician_token";
@@ -35,7 +36,7 @@ export async function apiRequest(path: string, options: RequestInit = {}): Promi
   const headers = new Headers(options.headers);
   if (!(options.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   for (const [name, value] of Object.entries(await getAuthHeaders())) headers.set(name, value);
-  const res = await fetch(`${getApiBase()}/api${path}`, { ...options, headers });
+  const res = await fetchWithServiceRecovery(`${getApiBase()}/api${path}`, { ...options, headers }, false);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || `API ${res.status}`);

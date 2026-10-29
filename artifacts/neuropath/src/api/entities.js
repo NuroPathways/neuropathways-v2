@@ -1,5 +1,6 @@
 // REST API shim replacing base44.entities.*
 // Translates the same .filter/.create/.update/.delete interface to fetch calls
+import { fetchWithServiceRecovery } from "@workspace/api-client-react";
 
 const ENTITY_PATHS = {
   Child: "children",
@@ -43,7 +44,7 @@ function bodyToCamel(obj) {
 }
 
 async function apiFetch(path, options = {}, { redirectOnUnauthorized = true } = {}) {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetchWithServiceRecovery(`/api${path}`, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     ...options,
@@ -150,7 +151,7 @@ export const integrations = {
     UploadFile: async ({ file }) => {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", credentials: "include", body: formData });
+      const res = await fetchWithServiceRecovery("/api/upload", { method: "POST", credentials: "include", body: formData });
       if (!res.ok) throw new Error(`Upload failed ${res.status}`);
       return res.json();
     },

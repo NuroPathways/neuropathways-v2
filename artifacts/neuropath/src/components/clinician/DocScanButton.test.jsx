@@ -51,6 +51,15 @@ describe("DocScanButton", () => {
     render(<DocScanButton doc={{ id: "d2", child_id: "c1", scan_status: "failed", scan_error: "unsupported format" }} clinicianId="u1" />);
     expect(screen.queryByTestId("button-scan-doc-d2")).toBeNull();
   });
+  it("restores Retry Scan for old gateway HTML errors and never shows their page markup", () => {
+    const error = 'API error 503: <!DOCTYPE html><html><head><title>Your app is starting…</title><style>format: swap</style></head></html>';
+    expect(describeScanError(error)).toMatchObject({ retryable: true, reason: "Processing service temporarily unavailable." });
+    render(<DocScanButton doc={{ id: "startup", child_id: "c1", scan_status: "failed", scan_error: error }} clinicianId="u1" />);
+    expect(screen.getByTestId("button-scan-doc-startup")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("button-view-scan-error-startup"));
+    expect(screen.getByTestId("text-scan-error-startup").textContent).not.toContain("<!DOCTYPE");
+    expect(screen.getByTestId("text-scan-error-startup").textContent).not.toContain("Upload a fresh copy");
+  });
   it("labels successful scans Ready", () => {
     render(<DocScanButton doc={{ id: "d3", child_id: "c1", scan_status: "done" }} clinicianId="u1" />);
     expect(screen.getByTestId("status-doc-scan-d3").textContent).toContain("Ready");
