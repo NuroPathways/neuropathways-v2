@@ -181,6 +181,7 @@ async function createFamily(auth: Auth, name: string, email: string): Promise<st
     email,
     firstName: name,
     primaryContact: name,
+    accountType: "parent_family",
   });
   assert.equal(response.status, 201, `Family fixture creation failed: ${JSON.stringify(response.body)}`);
   const familyId = required(response.body?.id ?? response.body?.family_id, "family id");
@@ -589,7 +590,13 @@ async function run(): Promise<void> {
     legacyFamilyProjection.body?.accountLink === "family" &&
       legacyFamilyProjection.body?.supportCards?.some((card: any) => card.id === legacyFamilyCard.id) &&
       legacyFamilyProjection.body?.documents?.some((document: any) => document.id === legacyFamilyDocumentId),
+    JSON.stringify(legacyFamilyProjection.body),
   );
+  const otherClinicianFamilyProjection = await api(
+    `/parent/children/${legacyFamilyChild.id}/shared-support`,
+    clinicianB.auth,
+  );
+  expectStatus(otherClinicianFamilyProjection, 403, "Family-scoped support remains inaccessible to another clinician");
   const reviewedLegacyFamily = await post(
     `/parent/children/${legacyFamilyChild.id}/support-review`,
     clinicianA.auth,
@@ -601,6 +608,26 @@ async function run(): Promise<void> {
     reviewedLegacyFamily.body?.supportCards?.some((card: any) =>
       card.id === legacyFamilyCard.id && card.source === "clinician_reviewed",
     ),
+  );
+  const unlinkedClinicChildResult = await post("/children", clinicianA.auth, {
+    childName: `No family link child ${runKey}`,
+    firstName: `No family link child ${runKey}`,
+    accountType: "individual",
+    status: "active",
+  });
+  expectStatus(unlinkedClinicChildResult, 201, "Create a clinician-owned client with no parent or family account");
+  const unlinkedClinicChild = unlinkedClinicChildResult.body;
+  fixture.childIds.push(required(unlinkedClinicChild?.id, "unlinked clinician child id"));
+  const unlinkedSupport = await api(
+    `/parent/children/${unlinkedClinicChild.id}/shared-support`,
+    clinicianA.auth,
+  );
+  expectStatus(unlinkedSupport, 200, "Optional shared-support review does not fail for clients without a parent/family account");
+  check(
+    "Unlinked client receives an explicit empty shared-support state",
+    unlinkedSupport.body?.accountLink === "none" &&
+      unlinkedSupport.body?.supportCards?.length === 0 &&
+      unlinkedSupport.body?.documents?.length === 0,
   );
   const privateReviewCard = {
     ...sharedReviewCard,

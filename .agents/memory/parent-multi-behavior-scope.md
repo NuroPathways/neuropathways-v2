@@ -25,6 +25,12 @@ Legacy username/access-code family and caregiver logins must enter the same pare
 
 **How to apply:** Establish family access from verified server sessions and recheck child, family, clinician, tenant, and active clinic-link boundaries on reads and writes. Preserve original clinical IDs and consent. Expired family credentials must not silently restore an unrelated stored parent or clinician session.
 
+Clinician-side shared-support review must resolve both direct parent links and verified legacy family-scoped links. Family-scoped review may read only family-owned support and documents explicitly shared with that same clinician; clients without either relationship should receive an empty, non-error review state.
+
+**Why:** A clinician-assigned child can belong to a verified legacy family without a direct parent-account ID. Treating `parent_id` as the only valid link produced a false authorization error.
+
+**How to apply:** Resolve the child under the authenticated clinician first, then validate the family’s clinician and family account type before using the family-scoped owner. Keep document sharing consent and source visibility checks unchanged.
+
 **Why:** The user explicitly asked to remove that action from the library while restoring the older dashboard presentation.
 
 **How to apply:** Urgent support may remain in navigation or a separate dashboard action, but do not put its CTA inside the library.
