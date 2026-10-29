@@ -76,7 +76,12 @@ export default function SupportReview({ childId }) {
           {loadError} <button className="underline" onClick={load} data-testid="button-retry-shared">Retry</button>
         </div>
       )}
-      {shared && !canReview && <p className="text-xs text-muted-foreground" data-testid="text-nothing-shared">The parent has not shared a plan that produced support guidance, so there is nothing to review.</p>}
+      {shared?.accountLink === "none" && (
+        <p className="text-xs text-muted-foreground" data-testid="text-no-shared-support-link">
+          Shared support review is unavailable because this client does not have a connected parent or family account.
+        </p>
+      )}
+      {shared && shared.accountLink !== "none" && !canReview && <p className="text-xs text-muted-foreground" data-testid="text-nothing-shared">The parent or family has not shared a plan that produced support guidance, so there is nothing to review.</p>}
       {docs.length > 0 && (
         <div className="text-xs" data-testid="list-shared-documents">
           <p className="font-semibold text-muted-foreground uppercase tracking-wide mb-1">Shared documents</p>

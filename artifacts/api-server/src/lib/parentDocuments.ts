@@ -10,6 +10,8 @@ import {
   consentEventsTable,
   documentsTable,
   documentExtractionRunsTable,
+  familiesTable,
+  parentFamilyToolsTable,
   parentChildSettingsTable,
   parentLogsTable,
   parentDocumentsTable,
@@ -18,7 +20,7 @@ import {
   type ParentDocumentMetadata,
   type DocumentExtractionRecord,
 } from "@workspace/db";
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { CLAUDE_MODEL, getAnthropicClient } from "./anthropic";
 import {
   buildParentChatSafeFallback,
@@ -29,7 +31,14 @@ import {
   relevantParentChatDocumentIds,
 } from "./parentChatPolicy";
 import { ownedParentChild, parentBehaviorsFromSettings } from "./parentAuth";
-import { familyIdForOwner, familySupportCards, saveFamilySettings } from "./familyParentAuth";
+import {
+  classifyFamilyAccount,
+  familyIdForOwner,
+  familyOwnerId,
+  familySupportCards,
+  readFamilySettings,
+  saveFamilySettings,
+} from "./familyParentAuth";
 import {
   getStarterTemplate,
   makeStarterCard,
@@ -1630,28 +1639,98 @@ export type ParentSharedSupportDocument = {
   createdAt: string;
 };
 
-export async function getParentSharedSupport(
+type ClinicianParentSupportScope = {
+  child: typeof childrenTable.$inferSelect;
+  ownerId: string | null;
+  accountLink: "parent" | "family" | "none";
+  familyId: string | null;
+  workspaceId: string | null;
+};
+
+async function clinicianParentSupportScope(
   clinicianId: string,
   childId: string,
-): Promise<{ childName: string; supportCards: SupportCard[]; documents: ParentSharedSupportDocument[] }> {
-  const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, clinicianId));
-  if (profile?.appRole !== "clinician") throw new Error("Clinician authentication required");
+): Promise<ClinicianParentSupportScope> {
   const [child] = await db.select().from(childrenTable).where(and(
     eq(childrenTable.id, childId),
     eq(childrenTable.clinicianId, clinicianId),
-    isNotNull(childrenTable.parentId),
   ));
-  if (!child?.parentId) throw new Error("This child is not linked to your clinical account");
+  if (!child) throw new Error("This child is not linked to your clinical account");
+  if (child.parentId) {
+    return {
+      child,
+      ownerId: child.parentId,
+      accountLink: "parent",
+      familyId: null,
+      workspaceId: clinicianId,
+    };
+  }
+  if (child.familyId && child.accountType !== "individual") {
+    const [family] = await db.select().from(familiesTable).where(and(
+      eq(familiesTable.id, child.familyId),
+      eq(familiesTable.clinicianId, clinicianId),
+    ));
+    if (family && classifyFamilyAccount(family.accountType) === "family") {
+      return {
+        child,
+        ownerId: familyOwnerId(family.id),
+        accountLink: "family",
+        familyId: family.id,
+        workspaceId: family.tenantId || family.clinicianId || family.id,
+      };
+    }
+  }
+  return { child, ownerId: null, accountLink: "none", familyId: null, workspaceId: null };
+}
 
-  const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
-  const rawCards = Array.isArray(settings?.supportCards)
+async function supportCardsForClinicianScope(scope: ClinicianParentSupportScope): Promise<SupportCard[]> {
+  if (!scope.ownerId) return [];
+  if (scope.accountLink === "family") {
+    const settings = await readFamilySettings(scope.ownerId, scope.child.id, scope.workspaceId || "");
+    return Array.isArray(settings.supportCards)
+      ? settings.supportCards.filter(validCard).filter(isSafeParentGuidance)
+      : [];
+  }
+  const [settings] = await db.select().from(parentChildSettingsTable)
+    .where(eq(parentChildSettingsTable.childId, scope.child.id));
+  return Array.isArray(settings?.supportCards)
     ? settings.supportCards.filter(validCard).filter(isSafeParentGuidance)
     : [];
+}
+
+async function saveClinicianScopeSupportCards(
+  scope: ClinicianParentSupportScope,
+  cards: SupportCard[],
+  updatedAt: Date,
+): Promise<void> {
+  if (!scope.ownerId) throw new Error("No parent or family account is linked to this child");
+  if (scope.accountLink === "family") {
+    await saveFamilySettings(scope.ownerId, scope.child.id, { supportCards: cards });
+    return;
+  }
+  await db.update(parentChildSettingsTable)
+    .set({ supportCards: cards as any, updatedAt })
+    .where(eq(parentChildSettingsTable.childId, scope.child.id));
+}
+
+export async function getParentSharedSupport(
+  clinicianId: string,
+  childId: string,
+): Promise<{ childName: string; supportCards: SupportCard[]; documents: ParentSharedSupportDocument[]; accountLink: "parent" | "family" | "none" }> {
+  const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, clinicianId));
+  if (profile?.appRole !== "clinician") throw new Error("Clinician authentication required");
+  const scope = await clinicianParentSupportScope(clinicianId, childId);
+  const { child } = scope;
+  const childName = child.childName || [child.firstName, child.lastName].filter(Boolean).join(" ") || "Child";
+  if (!scope.ownerId) return { childName, supportCards: [], documents: [], accountLink: "none" };
+
+  const rawCards = await supportCardsForClinicianScope(scope);
   const [documents, metadataRows] = await Promise.all([
     db.select().from(documentsTable).where(eq(documentsTable.childId, childId)),
     db.select().from(parentDocumentsTable).where(and(
       eq(parentDocumentsTable.childId, childId),
       eq(parentDocumentsTable.sharedClinicianId, clinicianId),
+      eq(parentDocumentsTable.parentId, scope.ownerId),
     )),
   ]);
   const metadataById = new Map(metadataRows.map((metadata) => [metadata.documentId, metadata]));
@@ -1660,10 +1739,10 @@ export async function getParentSharedSupport(
     const metadata = metadataById.get(document.id) || null;
     const parentShared = Boolean(
       metadata &&
-      metadata.parentId === child.parentId &&
+      metadata.parentId === scope.ownerId &&
       metadata.childId === childId &&
-      document.parentId === child.parentId &&
-      document.tenantId === clinicianId,
+      document.parentId === scope.ownerId &&
+      document.tenantId === scope.workspaceId,
     );
     const clinicianCreated = !metadata &&
       document.clinicianId === clinicianId &&
@@ -1757,8 +1836,7 @@ export async function getParentSharedSupport(
       createdAt: createdAt.toISOString(),
     }];
   });
-  const childName = child.childName || [child.firstName, child.lastName].filter(Boolean).join(" ") || "Child";
-  return { childName, supportCards, documents: visibleDocWires };
+  return { childName, supportCards, documents: visibleDocWires, accountLink: scope.accountLink };
 }
 
 export async function getParentSupportCards(parentId: string, childId: string): Promise<SupportCard[]> {
@@ -2194,16 +2272,9 @@ export async function reviewParentSupport(
   if (!visibleCardKeys.size) {
     throw new Error("Only support based on documents explicitly shared with you or created by you can be reviewed");
   }
-  const [child] = await db.select().from(childrenTable).where(and(
-    eq(childrenTable.id, childId),
-    eq(childrenTable.clinicianId, clinicianId),
-    isNotNull(childrenTable.parentId),
-  ));
-  if (!child?.parentId) throw new Error("This child is not linked to your clinical account");
-  const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
-  const cards = Array.isArray(settings?.supportCards)
-    ? settings.supportCards.filter(validCard).filter(isSafeParentGuidance)
-    : [];
+  const scope = await clinicianParentSupportScope(clinicianId, childId);
+  if (!scope.ownerId) throw new Error("No parent or family support account is linked to this child");
+  const cards = await supportCardsForClinicianScope(scope);
   const reviewedDocumentIds = new Set(visible.documents.map((document) => document.id));
   const sharedDocumentIds = new Set(visible.documents.filter((document) => document.shared).map((document) => document.id));
   const now = new Date();
@@ -2233,8 +2304,37 @@ export async function reviewParentSupport(
     };
   });
   await db.transaction(async (tx) => {
-    await tx.update(parentChildSettingsTable).set({ supportCards: updatedCards as any, updatedAt: now })
-      .where(eq(parentChildSettingsTable.childId, childId));
+    if (scope.accountLink === "family" && scope.ownerId) {
+      await tx.insert(parentFamilyToolsTable).values({
+        parentId: scope.ownerId,
+        childId,
+        state: {
+          routines: [],
+          routineRuns: [],
+          preferences: {},
+          reminders: [],
+          legacyParentSettings: { supportCards: updatedCards },
+        },
+      }).onConflictDoNothing();
+      const [tools] = await tx.select().from(parentFamilyToolsTable).where(and(
+        eq(parentFamilyToolsTable.parentId, scope.ownerId),
+        eq(parentFamilyToolsTable.childId, childId),
+      )).for("update");
+      const state = tools?.state && typeof tools.state === "object" ? tools.state : {};
+      const legacySettings = (state.legacyParentSettings && typeof state.legacyParentSettings === "object")
+        ? state.legacyParentSettings as Record<string, unknown>
+        : {};
+      await tx.update(parentFamilyToolsTable).set({
+        state: { ...state, legacyParentSettings: { ...legacySettings, supportCards: updatedCards } },
+        updatedAt: now,
+      }).where(and(
+        eq(parentFamilyToolsTable.parentId, scope.ownerId),
+        eq(parentFamilyToolsTable.childId, childId),
+      ));
+    } else {
+      await tx.update(parentChildSettingsTable).set({ supportCards: updatedCards as any, updatedAt: now })
+        .where(eq(parentChildSettingsTable.childId, childId));
+    }
     if (approved && sharedDocumentIds.size) {
       await tx.update(parentDocumentsTable).set({ reviewedBy: clinicianId, reviewedAt: now, updatedAt: now })
         .where(and(inArray(parentDocumentsTable.documentId, [...sharedDocumentIds]), eq(parentDocumentsTable.sharedClinicianId, clinicianId)));
@@ -2251,7 +2351,7 @@ export async function reviewParentSupport(
       targetId: childId,
       success: true,
       reason: "Clinician reviewed support derived only from visible clinician documents and explicitly shared parent documents",
-      metadata: { documentIds: [...reviewedDocumentIds], parentId: child.parentId },
+      metadata: { documentIds: [...reviewedDocumentIds], parentId: scope.ownerId },
     });
   });
   const clinicianProjection = await getParentSharedSupport(clinicianId, childId);
@@ -2297,8 +2397,9 @@ export async function reviewOrAssignParentActivity(
   const currentVersion = parentActivityContentVersion(visibleActivity);
   if (currentVersion !== contentVersion) throw new Error("Activity changed. Reload it before reviewing or assigning.");
 
-  const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
-  const cards = Array.isArray(settings?.supportCards) ? settings.supportCards.filter(validCard) : [];
+  const scope = await clinicianParentSupportScope(clinicianId, childId);
+  if (!scope.ownerId) throw new Error("No parent or family support account is linked to this child");
+  const cards = await supportCardsForClinicianScope(scope);
   const cardIndex = cards.findIndex((card) => card.id === cardId);
   const activity = cards[cardIndex]?.dailyActivities?.[activityIndex];
   if (!activity || parentActivityContentVersion(activity) !== currentVersion) {
@@ -2323,9 +2424,7 @@ export async function reviewOrAssignParentActivity(
       index === activityIndex ? updatedActivity : item,
     ),
   };
-  await db.update(parentChildSettingsTable)
-    .set({ supportCards: cards as any, updatedAt: new Date() })
-    .where(eq(parentChildSettingsTable.childId, childId));
+  await saveClinicianScopeSupportCards(scope, cards, new Date());
   await db.insert(auditLogsTable).values({
     tenantId: clinicianId,
     userId: clinicianId,

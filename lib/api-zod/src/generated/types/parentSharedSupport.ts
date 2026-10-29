@@ -12,4 +12,5 @@ export interface ParentSharedSupport {
   childName: string;
   supportCards: SupportCard[];
   documents: ParentDocument[];
+  accountLink: 'parent' | 'family' | 'none';
 }

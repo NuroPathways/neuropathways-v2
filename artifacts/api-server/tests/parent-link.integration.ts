@@ -23,6 +23,7 @@ import {
   parentChildSettingsTable,
   parentClinicInvitesTable,
   parentDocumentsTable,
+  parentFamilyToolsTable,
   parentLogsTable,
   parentSessionsTable,
   pool,
@@ -343,6 +344,7 @@ async function cleanup(): Promise<void> {
         await tx.delete(clientAccessCodeResetsTable).where(inArray(clientAccessCodeResetsTable.childId, childIds));
         await tx.delete(invitationsTable).where(inArray(invitationsTable.clientId, childIds));
         await tx.delete(parentChildSettingsTable).where(inArray(parentChildSettingsTable.childId, childIds));
+        await tx.delete(parentFamilyToolsTable).where(inArray(parentFamilyToolsTable.childId, childIds));
         await tx.delete(parentDocumentsTable).where(inArray(parentDocumentsTable.childId, childIds));
         await tx.delete(documentsTable).where(inArray(documentsTable.childId, childIds));
         await tx.delete(childrenTable).where(inArray(childrenTable.id, childIds));
@@ -541,6 +543,65 @@ async function run(): Promise<void> {
     sourceReferences: [{ documentId: selectedDocs[0], title: "Selected shared source", excerpt: null }],
     rightNow: ["Offer one calm, clear choice."],
   };
+  const legacyFamilyChild = await createClinicChild(clinicianA.auth, familyA, `Family-only child ${runKey}`);
+  const legacyFamilyOwnerId = `legacy-family:${familyA}`;
+  const legacyFamilyDocumentId = crypto.randomUUID();
+  const legacyFamilyCard = {
+    ...sharedReviewCard,
+    id: "fixture-legacy-family-support-card",
+    sourceDocumentIds: [legacyFamilyDocumentId],
+    sourceReferences: [{ documentId: legacyFamilyDocumentId, title: "Family-shared source", excerpt: null }],
+  };
+  await db.insert(documentsTable).values({
+    id: legacyFamilyDocumentId,
+    tenantId: clinicianA.id,
+    childId: legacyFamilyChild.id,
+    parentId: legacyFamilyOwnerId,
+    title: "Family-shared source fixture",
+    category: "support_plan",
+    fileName: "family-shared-source.txt",
+    fileUrl: `fixture-only://${legacyFamilyDocumentId}`,
+    scanStatus: "done",
+    uploadedBy: "parent",
+  });
+  await db.insert(parentDocumentsTable).values({
+    documentId: legacyFamilyDocumentId,
+    parentId: legacyFamilyOwnerId,
+    childId: legacyFamilyChild.id,
+    workspaceId: clinicianA.id,
+    storagePath: `fixture-only/${legacyFamilyDocumentId}`,
+    mimeType: "text/plain",
+    sha256: crypto.createHash("sha256").update(`${runKey}:legacy-family-document`).digest("hex"),
+    sharedClinicianId: clinicianA.id,
+  });
+  await db.insert(parentFamilyToolsTable).values({
+    parentId: legacyFamilyOwnerId,
+    childId: legacyFamilyChild.id,
+    state: { legacyParentSettings: { supportCards: [legacyFamilyCard] } },
+  });
+  const legacyFamilyProjection = await api(
+    `/parent/children/${legacyFamilyChild.id}/shared-support`,
+    clinicianA.auth,
+  );
+  expectStatus(legacyFamilyProjection, 200, "Clinician preview supports a verified family-scoped child without a direct parent account");
+  check(
+    "Family-scoped preview exposes only explicitly shared family documents",
+    legacyFamilyProjection.body?.accountLink === "family" &&
+      legacyFamilyProjection.body?.supportCards?.some((card: any) => card.id === legacyFamilyCard.id) &&
+      legacyFamilyProjection.body?.documents?.some((document: any) => document.id === legacyFamilyDocumentId),
+  );
+  const reviewedLegacyFamily = await post(
+    `/parent/children/${legacyFamilyChild.id}/support-review`,
+    clinicianA.auth,
+    { approved: true },
+  );
+  expectStatus(reviewedLegacyFamily, 200, "Clinician review writes back to family-scoped support settings");
+  check(
+    "Family-scoped review is retained in the legacy family tools record",
+    reviewedLegacyFamily.body?.supportCards?.some((card: any) =>
+      card.id === legacyFamilyCard.id && card.source === "clinician_reviewed",
+    ),
+  );
   const privateReviewCard = {
     ...sharedReviewCard,
     id: "fixture-private-review-card",

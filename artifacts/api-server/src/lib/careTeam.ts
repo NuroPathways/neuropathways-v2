@@ -303,7 +303,7 @@ export async function careWorkspace(childId: string, clinicianId: string | null,
     readiness: string;
     sourceExcerptVerified: boolean;
   }> = [];
-  if (child.parentId) {
+  if (child.parentId || child.familyId) {
     const sharedSupport = await getParentSharedSupport(clinicianId, childId);
     const sharedTitles = new Map(sharedSupport.documents.map((document) => [document.id, document.title]));
     approvedDocumentActivities = sharedSupport.supportCards.flatMap((card) =>

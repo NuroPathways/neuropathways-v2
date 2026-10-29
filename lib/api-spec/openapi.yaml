@@ -2481,7 +2481,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ParentDocument"
-      required: [childName, supportCards, documents]
+        accountLink:
+          type: string
+          enum: [parent, family, none]
+          description: The verified parent or family relationship available to the clinician.
+      required: [childName, supportCards, documents, accountLink]
     ClinicianActivityActionInput:
       type: object
       properties:
