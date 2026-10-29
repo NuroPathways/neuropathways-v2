@@ -16,6 +16,10 @@ import StreakBadge from "@/components/parent/StreakBadge";
 import MomentumCard from "@/components/parent/MomentumCard";
 import SupportNowOverlay from "@/components/support/SupportNowOverlay";
 import ParentFamilyHome from "@/pages/ParentFamilyHome";
+import RoleAwareShell from "@/components/navigation/RoleAwareShell";
+import { createRoleNavigation, mobilePrimaryKeysForRole } from "@/components/navigation/navigationModels";
+import { PageHeader } from "@workspace/neuropathways-foundations/components/ui/page-header";
+import "@workspace/neuropathways-foundations/scoped.css";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -27,6 +31,7 @@ function getGreeting() {
 // ─── Individual / Self-managed client dashboard ───────────────────────────────
 function SelfClientDashboard({ user, profile, unreadMessages, documents, loading }) {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const firstName =
     (user?.display_name || user?.full_name)?.split(" ")[0] ||
     (user?.child_name || profile?.child_name)?.split(" ")[0] ||
@@ -35,205 +40,128 @@ function SelfClientDashboard({ user, profile, unreadMessages, documents, loading
   const childIds = profile ? [profile.id] : [];
 
   const tools = [
-    { label: "NeuroPath AI", sub: "Get support right now", icon: Brain, color: "bg-primary/10", iconColor: "text-primary", path: "/AIChat" },
-    { label: "My Documents", sub: "Plans and materials", icon: FileText, color: "bg-blue-50", iconColor: "text-blue-600", path: "/DocumentCenter" },
-    { label: "Messages", sub: "Chat with your clinician", icon: MessageSquare, color: "bg-green-50", iconColor: "text-green-600", path: "/Messages" },
-    { label: "My Progress", sub: "Trends over time", icon: TrendingUp, color: "bg-purple-50", iconColor: "text-purple-600", path: "/ProgressReports" },
+    { label: "NeuroPath AI", sub: "Get support right now", icon: Brain, path: "/AIChat" },
+    { label: "My Documents", sub: "Plans and materials", icon: FileText, path: "/DocumentCenter" },
+    { label: "Messages", sub: "Chat with your clinician", icon: MessageSquare, path: "/Messages" },
+    { label: "My Progress", sub: "Trends over time", icon: TrendingUp, path: "/ProgressReports" },
   ];
+  const navigation = createRoleNavigation("individual", "/ClientHome");
 
   return (
-    <div className="min-h-screen bg-background font-inter">
-      <WinTodayButton userId={user?.id} inviteToken={user?.invite_token} children={profile ? [profile] : []} />
+    <RoleAwareShell
+      role="individual"
+      roleLabel="Client Portal"
+      currentLabel="Home"
+      activeKey="home"
+      navGroups={navigation}
+      mobilePrimaryKeys={mobilePrimaryKeysForRole("individual")}
+      accountName={firstName}
+      accountMeta="Individual account"
+      onLogout={logout}
+    >
+      <main className="np-foundations np-self-client-home">
+        <style>{`
+          .np-self-client-home{min-height:100dvh;padding:var(--np-space-section) var(--np-space-gutter);background:var(--np-color-background);color:var(--np-color-foreground)}
+          .np-self-client-home .self-client-content{width:min(100%,960px);margin-inline:auto;display:grid;gap:var(--np-space-section)}
+          .np-self-client-home .self-client-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--np-space-related)}
+          .np-self-client-home .self-client-heading>div:last-child{display:flex;align-items:center;gap:var(--np-space-list)}
+          .np-self-client-home h1{margin:0;font:700 var(--np-text-page-title)/var(--np-leading-page-title) var(--np-font-display)}
+          .np-self-client-home .self-client-greeting{margin:0 0 4px;color:var(--np-color-muted-foreground);font-size:var(--np-text-support)}
+          .np-self-client-home .self-client-heading p:last-child{margin:4px 0 0;color:var(--np-color-muted-foreground)}
+          .np-self-client-home .self-client-stats,.np-self-client-home .self-client-actions,.np-self-client-home .self-client-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--np-space-related)}
+          .np-self-client-home .self-client-stat,.np-self-client-home .self-client-card,.np-self-client-home .self-client-action,.np-self-client-home .self-client-tool{min-width:0;padding:var(--np-space-card);border:1px solid var(--np-color-border);border-radius:var(--np-radius);background:var(--np-color-card);color:var(--np-color-foreground)}
+          .np-self-client-home .self-client-stat{display:grid;gap:4px}
+          .np-self-client-home .self-client-stat strong{font:700 var(--np-text-section-title)/1.25 var(--np-font-display)}
+          .np-self-client-home .self-client-stat span,.np-self-client-home .self-client-section-heading p,.np-self-client-home .self-client-profile-meta,.np-self-client-home .self-client-tool small{color:var(--np-color-muted-foreground);font-size:var(--np-text-support-sm)}
+          .np-self-client-home .self-client-action,.np-self-client-home .self-client-tool{display:flex;align-items:center;gap:var(--np-space-related);min-height:var(--np-space-control);text-align:left;text-decoration:none;cursor:pointer}
+          .np-self-client-home .self-client-action{background:var(--np-color-primary);color:var(--np-color-primary-foreground);font:inherit;font-weight:700}
+          .np-self-client-home .self-client-action.is-urgent{background:var(--np-color-destructive);color:var(--np-color-destructive-foreground)}
+          .np-self-client-home .self-client-action span,.np-self-client-home .self-client-tool span{display:grid;gap:2px}
+          .np-self-client-home .self-client-section-heading{display:flex;align-items:center;gap:8px;margin:0 0 var(--np-space-related)}
+          .np-self-client-home .self-client-section-heading h2{margin:0;font:600 var(--np-text-section-title)/var(--np-leading-section-title) var(--np-font-display)}
+          .np-self-client-home .self-client-profile-top{display:flex;align-items:center;gap:var(--np-space-related);margin-bottom:var(--np-space-related)}
+          .np-self-client-home .self-client-profile-avatar,.np-self-client-home .self-client-tool-icon{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:var(--np-radius);background:var(--np-color-accent);color:var(--np-color-primary);font-weight:700}
+          .np-self-client-home .self-client-profile-copy{min-width:0;flex:1}
+          .np-self-client-home .self-client-profile-copy strong{display:block;overflow-wrap:anywhere}
+          .np-self-client-home .self-client-profile-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--np-space-list)}
+          .np-self-client-home .self-client-profile-actions button{display:grid;justify-items:center;gap:4px;min-height:var(--np-space-control);border:1px solid var(--np-color-border);border-radius:var(--np-radius);background:var(--np-color-background);color:var(--np-color-foreground);font:600 var(--np-text-support-sm)/1.25 var(--np-font-sans);cursor:pointer}
+          .np-self-client-home .self-client-empty{text-align:center;border-style:dashed}
+          .np-self-client-home .self-client-tip{display:flex;align-items:flex-start;gap:var(--np-space-related);padding:var(--np-space-card);border-radius:var(--np-radius);background:var(--np-color-accent);color:var(--np-color-accent-foreground)}
+          .np-self-client-home .self-client-tip p{margin:0}
+          .np-self-client-home .self-client-message-action{display:flex;align-items:center;gap:6px;min-height:var(--np-space-control);padding:var(--np-space-list) var(--np-space-related);border:1px solid var(--np-color-border);border-radius:var(--np-radius);background:var(--np-color-card);color:var(--np-color-foreground);font:600 var(--np-text-support)/1.4 var(--np-font-sans);cursor:pointer}
+          .np-self-client-home .self-client-tool{justify-content:space-between}
+          .np-self-client-home .self-client-tools{grid-template-columns:repeat(2,minmax(0,1fr))}
+          .np-self-client-home button:focus-visible,.np-self-client-home a:focus-visible{outline:2px solid var(--np-color-ring);outline-offset:3px}
+          @media(max-width:767px){.np-self-client-home{padding:var(--np-space-related-lg) 16px}.np-self-client-home .self-client-heading{align-items:flex-start;flex-direction:column}.np-self-client-home .self-client-actions,.np-self-client-home .self-client-stats{grid-template-columns:1fr}.np-self-client-home .self-client-tools{grid-template-columns:1fr}}
+        `}</style>
+        <div className="self-client-content">
+          <PageHeader
+            className="self-client-heading"
+            context={`${getGreeting()},`}
+            title={firstName}
+            description="Your personal support hub"
+            actions={<div className="flex flex-wrap items-center gap-2"><StreakBadge userId={user?.id} />{unreadMessages > 0 && <button type="button" className="self-client-message-action" onClick={() => navigate("/Messages")}><Bell aria-hidden="true" size={15} />{unreadMessages} new</button>}</div>}
+          />
 
-      {/* Hero */}
-      <div className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(248,32%,45%) 0%, hsl(280,28%,52%) 100%)" }}>
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-4 right-10 w-40 h-40 rounded-full bg-white" />
-          <div className="absolute -bottom-8 left-20 w-56 h-56 rounded-full bg-white" />
-        </div>
-        <div className="relative px-6 md:px-10 py-10 max-w-5xl mx-auto">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                  <BrandMark size={25} />
-                </div>
-                <span className="text-white/80 text-sm font-medium">NeuroPathways</span>
-                <StreakBadge userId={user?.id} />
-              </div>
-              <p className="text-white/90 text-sm">{getGreeting()},</p>
-              <h1 className="text-2xl md:text-3xl font-bold text-white mt-0.5 mb-1">
-                {firstName}
-              </h1>
-              <p className="text-white/90 text-sm">Your personal support hub</p>
-            </div>
-            {unreadMessages > 0 && (
-              <button
-                onClick={() => navigate("/Messages")}
-                className="flex items-center gap-2 bg-white/20 hover:bg-white/30 transition-colors rounded-xl px-3 py-2 text-white text-xs font-medium"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                {unreadMessages} new
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mt-8">
+          <div className="self-client-stats" aria-label="Dashboard summary">
             {[
               { label: "My Plans", value: profile ? "Active" : "—", icon: BookOpen },
               { label: "Documents", value: loading ? "—" : (documents?.length || 0), icon: FileText },
               { label: "Messages", value: loading ? "—" : unreadMessages, icon: MessageSquare },
-            ].map((s, i) => (
-              <motion.div
-                key={s.label}
-                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
-                className="bg-white/15 backdrop-blur-sm rounded-2xl p-3 border border-white/20 text-center"
-              >
-                <s.icon className="w-4 h-4 text-white/90 mx-auto mb-1" />
-                <p className="text-xl font-bold text-white">{s.value}</p>
-                <p className="text-xs text-white/90">{s.label}</p>
-              </motion.div>
-            ))}
+            ].map((stat) => <div className="self-client-stat" key={stat.label}><stat.icon aria-hidden="true" size={18} /><strong>{stat.value}</strong><span>{stat.label}</span></div>)}
           </div>
+
+          <section aria-label="Quick actions" className="self-client-actions">
+            <button type="button" className="self-client-action" onClick={() => navigate(profile ? `/LogBehavior?child_id=${profile.id}` : "/LogBehavior")}><ClipboardList aria-hidden="true" /><span><strong>Quick Log</strong><small>Record a behavior</small></span></button>
+            <button type="button" className="self-client-action is-urgent" onClick={() => navigate(profile ? `/HelpNow?child_id=${profile.id}` : "/HelpNow")}><AlertCircle aria-hidden="true" /><span><strong>Help Now</strong><small>Get instant guidance</small></span></button>
+          </section>
+
+          <GoalWidget childIds={childIds} />
+          <MomentumCard childIds={childIds} />
+
+          {profile ? (
+            <section>
+              <div className="self-client-section-heading"><User aria-hidden="true" size={18} /><h2>My Treatment Profile</h2></div>
+              <article className="self-client-card">
+                <button type="button" className="self-client-profile-top" onClick={() => navigate(`/ChildProfile?child_id=${profile.id}`)} aria-label={`Open profile for ${profile.child_name || firstName}`}>
+                  <span className="self-client-profile-avatar">{profile.child_name?.[0]?.toUpperCase() || "?"}</span>
+                  <span className="self-client-profile-copy"><strong>{profile.child_name}</strong><span className="self-client-profile-meta">{[profile.age ? `Age ${profile.age}` : null, profile.diagnosis].filter(Boolean).join(" · ")}</span></span>
+                  <ChevronRight aria-hidden="true" size={18} />
+                </button>
+                <div className="self-client-profile-actions">
+                  <button type="button" onClick={() => navigate(`/HelpNow?child_id=${profile.id}`)}><Zap size={15} />Help Now</button>
+                  <button type="button" onClick={() => navigate(`/LogBehavior?child_id=${profile.id}`)}><ClipboardList size={15} />Log</button>
+                  <button type="button" onClick={() => navigate(`/ChildProfile?child_id=${profile.id}`)}><BookOpen size={15} />My Plans</button>
+                </div>
+              </article>
+            </section>
+          ) : !loading && (
+            <section className="self-client-card self-client-empty">
+              <User aria-hidden="true" size={28} />
+              <h2 className="np-section-title">No profile linked yet</h2>
+              <p>You can use the support tools now. A clinic invite can link a child profile whenever you are ready.</p>
+            </section>
+          )}
+
+          <section>
+            <div className="self-client-section-heading"><h2>My Tools &amp; Resources</h2></div>
+            <div className="self-client-tools">
+              {tools.map((item) => <button className="self-client-tool" key={item.label} type="button" onClick={() => navigate(item.path)}>
+                <span className="self-client-tool-icon"><item.icon aria-hidden="true" size={19} /></span>
+                <span><strong>{item.label}</strong><small>{item.sub}</small></span>
+                <ArrowUpRight aria-hidden="true" size={16} />
+              </button>)}
+            </div>
+          </section>
+
+          <aside className="self-client-tip">
+            <Heart aria-hidden="true" size={20} />
+            <div><strong>You're doing great</strong><p>Your progress matters. Use NeuroPath AI anytime you need support, and reach out to your clinician through Messages whenever you need to talk.</p></div>
+          </aside>
+          <WinTodayButton userId={user?.id} inviteToken={user?.invite_token} children={profile ? [profile] : []} />
         </div>
-      </div>
-
-      <div className="px-5 md:px-10 py-7 max-w-5xl mx-auto space-y-7">
-
-        {/* Quick actions — Log and Help are the two most frequent needs */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => navigate(profile ? `/LogBehavior?child_id=${profile.id}` : "/LogBehavior")}
-            className="bg-primary hover:bg-primary/90 rounded-2xl p-5 flex items-center gap-4 text-left transition-colors shadow-md"
-          >
-            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-              <ClipboardList className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-white font-bold text-base">Quick Log</p>
-              <p className="text-white/90 text-xs">Record a behavior</p>
-            </div>
-          </button>
-          <button
-            onClick={() => navigate(profile ? `/HelpNow?child_id=${profile.id}` : "/HelpNow")}
-            className="bg-red-600 hover:bg-red-700 rounded-2xl p-5 flex items-center gap-4 text-left transition-colors shadow-md"
-          >
-            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-              <AlertCircle className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-white font-bold text-base">Help Now</p>
-              <p className="text-white/90 text-xs">Get instant guidance</p>
-            </div>
-          </button>
-        </motion.div>
-
-        {/* Goal Widget */}
-        <GoalWidget childIds={childIds} />
-
-        {/* Momentum Card */}
-        <MomentumCard childIds={childIds} />
-
-        {/* My Profile / Treatment */}
-        {profile && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-            <h2 className="font-semibold text-foreground flex items-center gap-2 mb-4">
-              <User className="w-4 h-4 text-primary" /> My Treatment Profile
-            </h2>
-            <div
-              onClick={() => navigate(`/ChildProfile?child_id=${profile.id}`)}
-              className="bg-card border border-border rounded-2xl p-5 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all group"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-primary text-lg font-bold">{profile.child_name?.[0]?.toUpperCase() || "?"}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-foreground truncate">{profile.child_name}</p>
-                  <div className="flex gap-2 mt-0.5 flex-wrap">
-                    {profile.age && <span className="text-xs text-muted-foreground">Age {profile.age}</span>}
-                    {profile.diagnosis && <span className="text-xs text-muted-foreground truncate">{profile.diagnosis}</span>}
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={e => { e.stopPropagation(); navigate(profile ? `/HelpNow?child_id=${profile.id}` : "/HelpNow"); }}
-                  className="py-2 rounded-xl bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors flex flex-col items-center gap-1"
-                >
-                  <Zap className="w-3.5 h-3.5" /> Help Now
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); navigate(`/LogBehavior?child_id=${profile.id}`); }}
-                  className="py-2 rounded-xl bg-purple-50 text-purple-600 text-xs font-semibold hover:bg-purple-100 transition-colors flex flex-col items-center gap-1"
-                >
-                  <ClipboardList className="w-3.5 h-3.5" /> Log
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); navigate(`/ChildProfile?child_id=${profile.id}`); }}
-                  className="py-2 rounded-xl bg-primary/5 text-primary text-xs font-semibold hover:bg-primary/10 transition-colors flex flex-col items-center gap-1"
-                >
-                  <BookOpen className="w-3.5 h-3.5" /> My Plans
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {!profile && !loading && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-            <div className="bg-card rounded-2xl border-2 border-dashed border-border p-10 text-center">
-              <User className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm font-medium text-foreground mb-1">No profile linked yet</p>
-              <p className="text-xs text-muted-foreground">
-                You can use the support tools now. A clinic invite can link a child profile whenever you are ready.
-              </p>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Tools */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">My Tools & Resources</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {tools.map((item, i) => (
-              <motion.div
-                key={item.label}
-                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.22 + i * 0.05 }}
-                onClick={() => navigate(item.path)}
-                className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-primary/30 hover:shadow-sm transition-all group"
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${item.color}`}>
-                  <item.icon className={`w-5 h-5 ${item.iconColor}`} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground truncate">{item.label}</p>
-                  <p className="text-xs text-muted-foreground truncate">{item.sub}</p>
-                </div>
-                <ArrowUpRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Wellbeing tip */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-          className="bg-gradient-to-br from-accent/10 to-primary/5 border border-accent/20 rounded-2xl p-5 flex items-start gap-4"
-        >
-          <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
-            <Heart className="w-5 h-5 text-accent-foreground" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground mb-1">You're doing great</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Your progress matters. Use NeuroPath AI anytime you need support, and reach out to your clinician through Messages whenever you need to talk.
-            </p>
-          </div>
-        </motion.div>
-      </div>
-    </div>
+      </main>
+    </RoleAwareShell>
   );
 }
 

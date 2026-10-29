@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Activity, AlertCircle, ArrowDownRight, ArrowRight, ArrowUpRight, Baby, BookOpen, CalendarDays, Check, ChevronRight, ClipboardList, FileText, Heart, MessageCircle, ShieldCheck, Sparkles, Star, UserRound, Wind, Zap } from "lucide-react";
 import { base44 } from "@/api/entities";
-import BrandMark from "@/components/brand/BrandMark";
 import { useAuth } from "@/lib/AuthContext";
 import RoleAwareShell from "@/components/navigation/RoleAwareShell";
 import { createClientHomeNavigation, mobilePrimaryKeysForRole } from "@/components/navigation/navigationModels";
+import { PageHeader } from "@workspace/neuropathways-foundations/components/ui/page-header";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
+import "@workspace/neuropathways-foundations/scoped.css";
 
 const ROUTES = [
   { label: "Help right now", route: "/HelpNow", icon: ShieldCheck, note: "Plan-guided support" },
@@ -37,7 +39,7 @@ const greeting = () => {
 };
 
 function Stat({ label, count, foot, icon: Icon }) {
-  return <div className="ch-stat"><span className="ch-stat-icon"><Icon size={17} strokeWidth={1.8} /></span><strong>{count}</strong><span className="ch-stat-label">{label}</span><small>{foot}</small></div>;
+  return <div className="ch-stat np-surface-separated"><span className="ch-stat-icon"><Icon size={17} strokeWidth={1.8} /></span><strong>{count}</strong><span className="ch-stat-label">{label}</span>{foot && <small>{foot}</small>}</div>;
 }
 
 function EmptyMessage({ title, children }) {
@@ -45,7 +47,7 @@ function EmptyMessage({ title, children }) {
 }
 
 function LoadingState() {
-  return <div className="ch-loading" aria-label="Loading your home"><div className="ch-skeleton ch-skel-wide" /><div className="ch-skel-row"><div className="ch-skeleton" /><div className="ch-skeleton" /><div className="ch-skeleton" /></div><div className="ch-skel-columns"><div className="ch-skeleton" /><div className="ch-skeleton" /></div></div>;
+  return <div className="ch-loading" aria-label="Loading your home" role="status"><div className="ch-skeleton ch-skel-wide" /><div className="ch-skel-row"><div className="ch-skeleton" /><div className="ch-skeleton" /><div className="ch-skeleton" /></div><div className="ch-skel-columns"><div className="ch-skeleton" /><div className="ch-skeleton" /></div></div>;
 }
 
 export default function ClientHome({ onSupportNow }) {
@@ -171,9 +173,7 @@ export default function ClientHome({ onSupportNow }) {
     <RoleAwareShell
       role={isIndividualClient ? "individual" : "caregiver"}
       roleLabel="Client Portal"
-      legacyAppearance
       showChildLinks={!isIndividualClient}
-      hideTopbar
       currentLabel={practiceView ? "Practice" : "Dashboard"}
       activeKey={practiceView ? "practice" : "home"}
       navGroups={navigationGroups}
@@ -186,60 +186,88 @@ export default function ClientHome({ onSupportNow }) {
       onChildSelect={isIndividualClient ? undefined : setSelectedId}
       onLogout={logout}
     >
-    <div className="client-home">
+    <div className="client-home np-foundations">
       <style>{`
-        .client-home{--ch-ink:#17343f;--ch-muted:#476069;--ch-teal:#2b6f93;--ch-teal-deep:#1f5675;--ch-paper:#fff;--ch-canvas:#eaf3f9;--ch-line:#cfe0e6;--ch-peach:#fbe9df;--ch-soft:#dcecf5;--ch-lemon:#dff0e4;min-height:100dvh;background:var(--ch-canvas);color:var(--ch-ink);font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;position:relative;overflow:hidden}
-        .client-home .ch-title,.client-home .ch-welcome-card h2,.client-home .ch-stat strong,.client-home .ch-panel h3,.client-home .ch-plan-card h3,.client-home .ch-error strong{font-family:Georgia,"Times New Roman",serif}
-        .client-home:before{background:radial-gradient(ellipse at 78% 15%,rgba(207,224,230,.76),transparent 48%),linear-gradient(120deg,#f0f7ff,#e8f5f0 65%)}
-        .client-home .ch-welcome-card{background:var(--ch-teal);box-shadow:0 12px 24px rgba(23,52,63,.1)}
-        .client-home .ch-welcome-card:after{border-color:rgba(234,243,249,.2);box-shadow:0 0 0 26px rgba(234,243,249,.045),0 0 0 54px rgba(234,243,249,.03)}
-        .client-home .ch-welcome-kicker{color:#d3e8f3}.client-home .ch-welcome-card p{color:#e2eff6}
-        .client-home .ch-welcome-action{background:#dff0e4;color:#17343f}.client-home .ch-welcome-action:hover{background:#edf7f0}
-        .client-home .ch-plan-card{background:#dcecf5;border-color:#bcd6e6}.client-home .ch-plan-head,.client-home .ch-plan-foot{color:#1f5675}.client-home .ch-plan-card p{color:#476069}.client-home .ch-plan-foot{border-color:#bcd6e6}
-        .client-home .ch-activity-icon{background:#fbe9df;color:#8b4f35}.client-home .ch-activity:nth-child(2n) .ch-activity-icon{background:#dcecf5;color:#1f5675}
-        .client-home .ch-avatar{background:#dcecf5;color:#1f5675}
-        .client-home .ch-skeleton{background:linear-gradient(100deg,#d9e8ef 20%,#e8f1f6 45%,#d9e8ef 70%)}
-        .client-home *{box-sizing:border-box}.client-home:before{content:"";position:absolute;inset:0 0 auto;height:340px;background:radial-gradient(ellipse at 78% 15%,rgba(207,224,230,.76),transparent 48%),linear-gradient(120deg,#f0f7ff,#e8f5f0 65%);pointer-events:none}.client-home>div,.client-home>header{position:relative}
-        .ch-shell{width:min(1220px,100% - 48px);margin:auto}.ch-header{height:78px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(24,60,67,.12)}
-        .ch-brand{display:flex;align-items:center;gap:10px;color:var(--ch-ink);font-weight:800;font-size:15px;letter-spacing:-.04em}.ch-brand-mark{width:29px;height:29px;border-radius:10px 10px 10px 3px;background:var(--ch-teal);color:#eff6eb;display:grid;place-items:center;font-family:Georgia,serif;font-size:18px}
-        .ch-header-actions{display:flex;align-items:center;gap:10px}.ch-quiet-btn{border:0;background:transparent;color:var(--ch-muted);font:inherit;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:11px;cursor:pointer}.ch-quiet-btn:hover{background:rgba(255,255,255,.7);color:var(--ch-ink)}
-         .ch-tabs{display:flex;gap:5px;align-items:center;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid rgba(24,60,67,.12);padding:8px 0 0}.ch-tabs::-webkit-scrollbar{display:none}.ch-tab{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 14px;border:0;border-bottom:2px solid transparent;border-radius:10px 10px 0 0;background:transparent;color:var(--ch-muted);font:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}.ch-tab:hover{background:rgba(255,255,255,.65);color:var(--ch-ink)}.ch-tab[aria-current="page"]{color:var(--ch-teal-deep);border-bottom-color:var(--ch-teal);background:rgba(255,255,255,.55)}
-        .ch-main{padding:44px 0 72px}.ch-topline{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:24px}.ch-eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ch-teal);font-weight:800;margin:0 0 11px}.ch-title{font-family:"Fraunces",Georgia,serif;font-size:clamp(35px,5vw,56px);font-weight:500;letter-spacing:-.045em;line-height:1.02;margin:0}.ch-title em{color:var(--ch-teal);font-weight:400}.ch-subtitle{color:var(--ch-muted);margin:12px 0 0;max-width:540px;font-size:14px;line-height:1.6}
-        .ch-select-wrap{position:relative;min-width:210px}.ch-select-label{display:block;color:var(--ch-muted);font-size:10px;text-transform:uppercase;letter-spacing:.13em;font-weight:800;margin:0 0 7px 2px}.ch-select{appearance:none;width:100%;border:1px solid #cad9d0;background:rgba(255,253,248,.88);padding:12px 40px 12px 14px;border-radius:13px;color:var(--ch-ink);font:inherit;font-size:14px;font-weight:600;outline:none}.ch-select:focus{border-color:var(--ch-teal);box-shadow:0 0 0 3px rgba(23,108,104,.12)}.ch-select-chevron{position:absolute;right:14px;bottom:13px;color:var(--ch-muted);pointer-events:none}
-        .ch-layout{display:grid;grid-template-columns:minmax(0,1fr) 286px;gap:20px;align-items:start}.ch-primary{min-width:0;display:grid;gap:18px}.ch-side{display:grid;gap:16px;position:sticky;top:18px}
-        .ch-welcome-card{min-height:214px;border-radius:25px;background:var(--ch-teal-deep);color:#f8f5e9;position:relative;overflow:hidden;padding:30px 34px;display:flex;align-items:center;justify-content:space-between;gap:22px;box-shadow:0 12px 24px rgba(20,73,68,.1)}.ch-welcome-card:after{content:"";position:absolute;width:270px;height:270px;border:1px solid rgba(236,241,220,.18);border-radius:50%;right:34px;top:-78px;box-shadow:0 0 0 26px rgba(236,241,220,.035),0 0 0 54px rgba(236,241,220,.025)}.ch-welcome-copy{position:relative;z-index:1;max-width:520px}.ch-welcome-kicker{font-size:10px;letter-spacing:.17em;text-transform:uppercase;color:#bdd9c9;font-weight:800;margin:0 0 15px}.ch-welcome-card h2{font-family:"Fraunces",Georgia,serif;font-size:clamp(27px,3vw,38px);font-weight:500;letter-spacing:-.035em;line-height:1.08;margin:0}.ch-welcome-card p{color:#d1e2d4;font-size:13px;line-height:1.6;margin:11px 0 0;max-width:400px}.ch-welcome-action{position:relative;z-index:1;white-space:nowrap;background:#f3e8d8;border:0;color:#194f4d;padding:14px 17px;border-radius:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:12px;transition:transform .18s,background .18s}.ch-welcome-action:hover{transform:translateY(-2px);background:#fff4df}
-        .ch-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.ch-stat{background:rgba(255,253,248,.84);border:1px solid var(--ch-line);border-radius:17px;padding:17px 19px;display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:8px}.ch-stat-icon{grid-column:2;grid-row:1 / span 2;color:var(--ch-teal);width:33px;height:33px;border-radius:11px;background:var(--ch-soft);display:grid;place-items:center}.ch-stat strong{font-family:"Fraunces",Georgia,serif;font-size:28px;line-height:1.1;font-weight:500}.ch-stat-label{font-size:12px;color:var(--ch-muted);font-weight:700}.ch-stat small{grid-column:1 / -1;color:#839598;font-size:10px;margin-top:9px}
-        .ch-panel{background:var(--ch-paper);border:1px solid var(--ch-line);border-radius:20px;padding:22px 23px}.ch-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.ch-panel h3{font-family:"Fraunces",Georgia,serif;font-size:21px;letter-spacing:-.02em;font-weight:500;margin:0}.ch-panel-sub{color:var(--ch-muted);font-size:12px;margin:5px 0 0}.ch-text-link{background:transparent;border:0;color:var(--ch-teal);font:inherit;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:8px 0}.ch-text-link:hover{color:var(--ch-teal-deep)}
-        .ch-activity-list{display:grid;gap:0}.ch-activity{display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #edf0e9}.ch-activity:first-child{border-top:0;padding-top:0}.ch-activity-icon{width:36px;height:36px;border-radius:12px;background:#f6eadf;color:#ad684a;display:grid;place-items:center}.ch-activity:nth-child(2n) .ch-activity-icon{background:#e6efea;color:#32756e}.ch-activity-name{font-size:13px;font-weight:700;line-height:1.35}.ch-activity-context{color:var(--ch-muted);font-size:11px;margin-top:4px;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ch-activity-date{color:#829294;font-size:10px;white-space:nowrap}
-        .ch-side-panel{padding:20px}.ch-side-panel .ch-panel-head{margin-bottom:12px}.ch-resource{width:100%;border:0;border-top:1px solid #edf0e9;background:transparent;text-align:left;padding:13px 1px;display:grid;grid-template-columns:31px 1fr auto;align-items:center;gap:10px;cursor:pointer;color:var(--ch-ink)}.ch-resource:first-of-type{border-top:0}.ch-resource-icon{width:30px;height:30px;display:grid;place-items:center;color:var(--ch-teal);background:var(--ch-soft);border-radius:10px}.ch-resource strong{display:block;font-size:12px;font-weight:700}.ch-resource small{display:block;color:#839598;font-size:10px;margin-top:3px}.ch-resource:hover strong{color:var(--ch-teal)}.ch-resource-arrow{color:#a4b1ae}
-        .ch-plan-card{background:#f5f0dd;border:1px solid #e9dfb8;border-radius:19px;padding:20px}.ch-plan-head{display:flex;gap:10px;align-items:center;color:#736641;font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}.ch-plan-card h3{font-family:"Fraunces",Georgia,serif;font-size:20px;line-height:1.18;font-weight:500;margin:13px 0 7px}.ch-plan-card p{font-size:12px;line-height:1.6;color:#6d6b55;margin:0}.ch-plan-foot{margin-top:15px;padding-top:12px;border-top:1px solid #e4d9b3;display:flex;justify-content:space-between;align-items:center;color:#817957;font-size:10px}.ch-empty{display:flex;gap:12px;align-items:flex-start;padding:17px 0;color:var(--ch-ink)}.ch-empty-mark{width:36px;height:36px;display:grid;place-items:center;border-radius:12px;background:var(--ch-soft);color:var(--ch-teal);flex:0 0 auto}.ch-empty strong{display:block;font-size:13px}.ch-empty p{font-size:11px;line-height:1.55;color:var(--ch-muted);margin:4px 0 0}
-        .ch-error{border:1px solid #e4b9a7;background:#fbefe7;border-radius:18px;padding:23px;display:flex;align-items:center;justify-content:space-between;gap:16px}.ch-error strong{font-family:"Fraunces",Georgia,serif;font-size:21px;font-weight:500}.ch-error p{font-size:12px;color:#765a4c;margin:6px 0 0}.ch-retry{border:1px solid #c9886d;color:#7e4d3a;background:#fff9f5;border-radius:10px;padding:10px 14px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}.ch-retry:hover{background:#f7e2d5}
-        .ch-skeleton{background:linear-gradient(100deg,#e4eae2 20%,#eff2ea 45%,#e4eae2 70%);background-size:240% 100%;animation:ch-shimmer 1.6s ease-in-out infinite;border-radius:18px;min-height:112px}.ch-skel-wide{height:214px}.ch-skel-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.ch-skel-columns{display:grid;grid-template-columns:1.4fr 1fr;gap:16px}.ch-skel-columns .ch-skeleton{height:260px}@keyframes ch-shimmer{to{background-position:-240% 0}}.ch-footer{padding:18px 0 32px;border-top:1px solid rgba(24,60,67,.12);font-size:11px;color:#728586;display:flex;justify-content:space-between;gap:12px}.ch-footer-note{display:flex;align-items:center;gap:7px}.ch-profile{display:flex;align-items:center;gap:8px;border:1px solid rgba(24,60,67,.12);padding:6px 10px 6px 6px;border-radius:30px;color:var(--ch-muted);font-size:11px;font-weight:700}.ch-avatar{height:27px;width:27px;border-radius:50%;background:#d8e9df;color:#256a63;display:grid;place-items:center}
-        @media(max-width:900px){.ch-layout{grid-template-columns:minmax(0,1fr) 250px;gap:14px}.ch-shell{width:min(100% - 36px,760px)}.ch-welcome-card{padding:25px}.ch-stat{padding:14px}.ch-panel{padding:19px}}
-         @media(max-width:700px){.ch-shell{width:calc(100% - 32px)}.ch-header{height:68px}.ch-tabs{width:100%;padding:7px 12px 0;gap:2px}.ch-tab{flex:1;gap:5px;padding:8px 6px;font-size:10px}.ch-main{padding:32px 0 48px}.ch-topline{align-items:stretch;flex-direction:column;margin-bottom:18px;gap:17px}.ch-select-wrap{max-width:none}.ch-layout{grid-template-columns:1fr}.ch-side{position:static;grid-template-columns:1fr}.ch-welcome-card{min-height:250px;padding:24px;align-items:flex-start;flex-direction:column;justify-content:center}.ch-welcome-card:after{right:-92px;top:-10px}.ch-welcome-action{padding:12px 15px}.ch-stats{gap:8px}.ch-stat{padding:13px 12px;border-radius:14px}.ch-stat strong{font-size:24px}.ch-stat-label{font-size:10px}.ch-stat small{font-size:9px}.ch-skel-columns{grid-template-columns:1fr}.ch-skel-columns .ch-skeleton:last-child{display:none}.ch-footer{flex-direction:column}.ch-header-actions .ch-quiet-btn span{display:none}}
-        @media(prefers-reduced-motion:reduce){.client-home *{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+        .client-home{min-height:100dvh;background:var(--np-color-background);color:var(--np-color-foreground);font-family:var(--np-font-sans)}
+        .client-home .ch-shell{width:min(1100px,100%);margin-inline:auto;padding-inline:var(--np-space-gutter)}
+        .client-home .ch-main{display:grid;gap:var(--np-space-section);padding-block:var(--np-space-section)}
+        .client-home .ch-hero-inner{display:grid;gap:var(--np-space-related-lg);padding-top:var(--np-space-section)}
+        .client-home .ch-hero-inner>header{display:grid;gap:4px}
+        .client-home .ch-hero-inner>header h1{margin:0;font:700 var(--np-text-page-title)/var(--np-leading-page-title) var(--np-font-display);overflow-wrap:anywhere}
+        .client-home .ch-hero-inner>header p{margin:0;color:var(--np-color-muted-foreground)}
+        .client-home .ch-urgent-banner{display:flex;align-items:center;gap:var(--np-space-related);width:100%;min-height:var(--np-space-control);padding:var(--np-space-related-lg);border-radius:var(--np-radius);text-align:left;white-space:normal}
+        .client-home .ch-urgent-icon{display:grid;place-items:center;width:36px;height:36px;flex:none}
+        .client-home .ch-urgent-banner>span:nth-child(2){display:grid;flex:1}
+        .client-home .ch-urgent-banner small{font-weight:400}
+        .client-home .ch-topline{margin-bottom:var(--np-space-related-lg)}
+        .client-home .ch-hero-stats,.client-home .ch-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--np-space-related)}
+        .client-home .ch-stat{display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 8px;padding:var(--np-space-card);border-radius:var(--np-radius);background:var(--np-color-card);box-shadow:none}
+        .client-home .ch-stat strong{font:700 var(--np-text-section-title)/1.2 var(--np-font-display)}
+        .client-home .ch-stat-label{color:var(--np-color-muted-foreground);font-size:var(--np-text-support-sm);font-weight:600}
+        .client-home .ch-stat small{grid-column:1/-1;color:var(--np-color-muted-foreground);font-size:var(--np-text-support-sm)}
+        .client-home .ch-stat-icon,.client-home .ch-resource-icon,.client-home .ch-empty-mark,.client-home .ch-child-avatar{display:grid;place-items:center;border-radius:10px;background:var(--np-color-accent);color:var(--np-color-primary)}
+        .client-home .ch-stat-icon{grid-column:2;grid-row:1/3;width:34px;height:34px}
+        .client-home .ch-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,290px);gap:var(--np-space-related-lg);align-items:start}
+        .client-home .ch-primary,.client-home .ch-side{display:grid;gap:var(--np-space-related-lg);min-width:0}
+        .client-home .ch-side{position:sticky;top:16px}
+        .client-home .ch-panel,.client-home .ch-plan-card,.client-home .ch-child-card,.client-home .ch-error{min-width:0;padding:var(--np-space-card);border:1px solid var(--np-color-border);border-radius:var(--np-radius);background:var(--np-color-card);color:var(--np-color-foreground)}
+        .np-legacy .client-home .ch-panel,.np-legacy .client-home .ch-plan-card,.np-legacy .client-home .ch-child-card,.np-legacy .client-home .ch-error,.np-legacy .client-home .ch-stat{background:var(--np-color-card);border-color:var(--np-color-border);color:var(--np-color-foreground)}
+        .client-home .ch-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--np-space-related);margin-bottom:var(--np-space-related-lg)}
+        .client-home .ch-panel h3,.client-home .ch-plan-card h3{margin:0;font:600 var(--np-text-card-title)/var(--np-leading-card-title) var(--np-font-display)}
+        .client-home .ch-panel-sub,.client-home .ch-plan-card p,.client-home .ch-empty p{margin:4px 0 0;color:var(--np-color-muted-foreground);font-size:var(--np-text-support)}
+        .client-home .ch-empty{display:flex;align-items:flex-start;gap:var(--np-space-related);padding-block:var(--np-space-related-lg)}
+        .client-home .ch-empty strong{display:block}
+        .client-home .ch-text-link{display:inline-flex;align-items:center;gap:6px;min-height:var(--np-space-control);padding:6px 0;border:0;background:transparent;color:var(--np-color-primary);font:600 var(--np-text-support)/1.4 var(--np-font-sans);cursor:pointer}
+        .client-home .ch-activity{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:var(--np-space-related);padding:var(--np-space-related) 0;border-top:1px solid var(--np-color-border)}
+        .client-home .ch-activity:first-child{border-top:0;padding-top:0}
+        .client-home .ch-activity-icon,.client-home .ch-empty-mark{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--np-color-muted);color:var(--np-color-primary)}
+        .client-home .ch-activity-name,.client-home .ch-resource strong{font-weight:650;overflow-wrap:anywhere}
+        .client-home .ch-activity-context,.client-home .ch-activity-date,.client-home .ch-resource small{color:var(--np-color-muted-foreground);font-size:var(--np-text-support-sm);overflow-wrap:anywhere}
+        .client-home .ch-plan-head,.client-home .ch-plan-foot{display:flex;align-items:center;justify-content:space-between;gap:var(--np-space-list);color:var(--np-color-muted-foreground);font-size:var(--np-text-support-sm)}
+        .client-home .ch-plan-foot{margin-top:var(--np-space-related);padding-top:var(--np-space-related);border-top:1px solid var(--np-color-border)}
+        .client-home .ch-resource{display:grid;grid-template-columns:32px minmax(0,1fr) auto;align-items:center;gap:var(--np-space-related);width:100%;min-height:var(--np-space-control);padding:var(--np-space-list) 0;border:0;border-top:1px solid var(--np-color-border);background:transparent;color:var(--np-color-foreground);text-align:left;cursor:pointer}
+        .client-home .ch-resource-icon{width:30px;height:30px}
+        .client-home .ch-resource strong,.client-home .ch-resource small{display:block}
+        .client-home .ch-children-section{display:grid;gap:var(--np-space-related);margin:0}
+        .client-home .ch-children-section>h2{display:flex;align-items:center;gap:8px;margin:0;font-size:var(--np-text-section-title)}
+        .client-home .ch-children-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:var(--np-space-related)}
+        .client-home .ch-child-overview,.client-home .ch-child-actions{display:flex;align-items:center;gap:var(--np-space-related)}
+        .client-home .ch-child-overview{width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
+        .client-home .ch-child-avatar{width:44px;height:44px;flex:none;font-weight:700}
+        .client-home .ch-child-copy{display:grid;min-width:0;flex:1}
+        .client-home .ch-child-copy small{color:var(--np-color-muted-foreground);overflow-wrap:anywhere}
+        .client-home .ch-child-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:var(--np-space-related)}
+        .client-home .ch-child-actions button{display:grid;justify-items:center;gap:4px;min-height:var(--np-space-control);padding:6px;border:1px solid var(--np-color-border);border-radius:var(--np-radius);background:var(--np-color-background);color:var(--np-color-foreground);font:600 var(--np-text-support-sm)/1.25 var(--np-font-sans);cursor:pointer}
+        .client-home .ch-child-actions button:first-child{color:var(--np-color-destructive)}
+        .client-home .ch-error{display:flex;align-items:center;justify-content:space-between;gap:var(--np-space-related)}
+        .client-home .ch-error p{color:var(--np-color-muted-foreground)}
+        .client-home .ch-error button{min-height:var(--np-space-control);white-space:normal}
+        .client-home .ch-skeleton{min-height:112px;border-radius:var(--np-radius);background:var(--np-color-muted);animation:client-skeleton 1.4s ease-in-out infinite alternate}
+        .client-home .ch-skel-wide{height:120px}.client-home .ch-skel-row,.client-home .ch-skel-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--np-space-related)}
+        .client-home .ch-skel-columns{grid-template-columns:1.4fr 1fr}.client-home .ch-skel-columns .ch-skeleton{height:220px}
+        .client-home .ch-footer{display:flex;justify-content:space-between;gap:var(--np-space-related);padding-block:var(--np-space-related) calc(var(--np-space-section) + 66px);border-top:1px solid var(--np-color-border);color:var(--np-color-muted-foreground);font-size:var(--np-text-support-sm)}
+        .client-home .ch-footer-note{display:flex;align-items:center;gap:7px}
+        @keyframes client-skeleton{to{opacity:.55}}
+        @media(max-width:900px){.client-home .ch-layout{grid-template-columns:minmax(0,1fr)}.client-home .ch-side{position:static}}
+        @media(max-width:767px){.client-home .ch-shell{padding-inline:16px}.client-home .ch-hero-stats,.client-home .ch-stats,.client-home .ch-skel-row{grid-template-columns:1fr}.client-home .ch-stat{padding:10px}.client-home .ch-stat-label{font-size:11px}.client-home .ch-stat small{font-size:10px}.client-home .ch-skel-columns{grid-template-columns:1fr}.client-home .ch-skel-columns .ch-skeleton:last-child{display:none}.client-home .ch-footer{flex-direction:column;padding-bottom:calc(var(--np-space-section) + 66px + env(safe-area-inset-bottom))}}
+        @media(prefers-reduced-motion:reduce){.client-home .ch-skeleton{animation:none}}
       `}</style>
-      <header className="ch-hero">
+      <section className="ch-hero">
         <div className="ch-shell ch-hero-inner">
-          <div>
-            <div className="ch-hero-brand"><span><BrandMark size={25} /></span>NeuroPathways</div>
-            <p className="ch-hero-greeting">{greeting()},</p>
-            <h1>{greetingName}</h1>
-            <p className="ch-hero-subtitle">{isIndividualClient ? "Your personal support hub" : "Your family's behavioral support hub"}</p>
-          </div>
+          <PageHeader context={`${greeting()},`} title={greetingName} description={isIndividualClient ? "Your personal support hub" : "Your family's behavioral support hub"} />
           <div className="ch-hero-stats" aria-label="Dashboard summary">
             <Stat label={isIndividualClient ? "My Plans" : "Children"} count={loading ? "—" : isIndividualClient ? overviewCount(plans) : overviewCount(homeChildren)} icon={isIndividualClient ? BookOpen : Baby} />
             <Stat label="Logs This Week" count={loading ? "—" : overviewCount(weeklyLogs)} foot={homeChildren.length > 1 ? `For ${childName}` : undefined} icon={Activity} />
             <Stat label="Messages" count={loading ? "—" : unread} icon={MessageCircle} />
           </div>
         </div>
-      </header>
+      </section>
       <main className="ch-shell ch-main">
-        <button type="button" className="ch-urgent-banner" data-testid="button-client-help-now" onClick={() => onSupportNow ? onSupportNow() : go("/HelpNow")}>
+        <Button type="button" variant="destructive" className="ch-urgent-banner" data-testid="button-client-help-now" onClick={() => onSupportNow ? onSupportNow() : go("/HelpNow")}>
           <span className="ch-urgent-icon"><AlertCircle size={23} /></span>
           <span><strong>I Need Help Right Now</strong><small>Get guidance from your support plans</small></span>
           <ChevronRight size={20} />
-        </button>
+        </Button>
         {!practiceView && !loading && !error && (
           <section className="ch-children-section" aria-label={isIndividualClient ? "My profile" : "My Children"}>
             <h2><Baby size={16} />{isIndividualClient ? "My Profile" : "My Children"}</h2>
@@ -266,7 +294,7 @@ export default function ClientHome({ onSupportNow }) {
 
         {practiceView ? (
           loading ? <LoadingState /> : error ? (
-            <div className="ch-error" role="alert"><div><strong>Practice could not load.</strong><p>{error?.message || "Your saved information is safe. Try again in a moment."}</p></div><button className="ch-retry" type="button" onClick={() => loadPortal(selectedId)}>Try again</button></div>
+            <div className="ch-error" role="alert"><div><strong>Practice could not load.</strong><p>{error?.message || "Your saved information is safe. Try again in a moment."}</p></div><Button variant="outline" type="button" onClick={() => loadPortal(selectedId)}>Try again</Button></div>
           ) : (
             <section className="ch-panel" data-testid="panel-practice">
               <div className="ch-panel-head">
@@ -294,7 +322,7 @@ export default function ClientHome({ onSupportNow }) {
             </section>
           )
         ) : loading ? <LoadingState /> : error ? (
-          <div className="ch-error" role="alert"><div><strong>We couldn’t open your home just now.</strong><p>{error?.message || "Your saved information is safe. Try again in a moment."}</p></div><button className="ch-retry" type="button" onClick={() => loadPortal(selectedId)}>Try again</button></div>
+          <div className="ch-error" role="alert"><div><strong>We couldn’t open your home just now.</strong><p>{error?.message || "Your saved information is safe. Try again in a moment."}</p></div><Button variant="outline" type="button" onClick={() => loadPortal(selectedId)}>Try again</Button></div>
         ) : (
           <div className="ch-layout">
             <section className="ch-primary">

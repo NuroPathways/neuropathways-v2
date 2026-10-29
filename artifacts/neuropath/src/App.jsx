@@ -44,6 +44,7 @@ import PublicLegalRoutes from '@/components/legal/PublicLegalRoutes';
 import DataRequests from '@/pages/DataRequests';
 import ParentMenu from '@/pages/ParentMenu';
 import ParentHistory from '@/pages/ParentHistory';
+import { getAccountHomeRedirect } from '@/lib/accountHomeRouting';
 
 // Free email parents only ever use the parent-owned screens, never legacy CRUD pages.
 const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/DataRequests', '/Settings', '/privacy', '/Practice', '/Menu', '/History', '/GoalsMilestones', '/DocumentCenter', '/Messages'];
@@ -100,6 +101,7 @@ const AuthenticatedApp = () => {
   const isParentAccount = user?.app_role === "parent" || user?.role === "parent"
     || user?.app_role === "caregiver" || user?.role === "caregiver"
     || ["parent", "parent_family", "family", "caregiver"].includes(user?.account_type);
+  const accountHomeRedirect = getAccountHomeRedirect(user, location.pathname, location.search);
 
   useEffect(() => {
     const identity = user?.id;
@@ -131,13 +133,12 @@ const AuthenticatedApp = () => {
     return <main className="min-h-screen flex items-center justify-center bg-slate-50 p-6"><section role="alert" className="max-w-md rounded-2xl bg-white border p-6 space-y-4"><h1 className="text-xl font-semibold">Family sign-in needs attention</h1><p>{authError.message}</p><a className="inline-flex rounded-xl bg-teal-700 px-4 py-3 text-white" href="/UsernameLogin">Sign in again</a></section></main>;
   }
 
-  if (['parent_free', 'legacy_family'].includes(user?.account_type) && !PARENT_FREE_PATHS.includes(location.pathname.replace(/\/+$/, ''))) {
-    return <Navigate to="/ParentHome" replace />;
+  if (accountHomeRedirect) {
+    return <Navigate to={accountHomeRedirect} replace />;
   }
 
-  // Existing username/access-code client sessions retain their client portal.
-  if (user?.invite_token && ['/ParentDashboard', '/ClientDashboard'].includes(location.pathname.replace(/\/+$/, ''))) {
-    return <Navigate to="/ClientHome" replace />;
+  if (['parent_free', 'legacy_family'].includes(user?.account_type) && !PARENT_FREE_PATHS.includes(location.pathname.replace(/\/+$/, ''))) {
+    return <Navigate to="/ParentHome" replace />;
   }
 
   // Clinician-created parent accounts use the same parent home as independent

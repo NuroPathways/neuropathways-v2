@@ -370,7 +370,6 @@ export default function ParentHome() {
     <RoleAwareShell
       role="caregiver"
       roleLabel="Client Portal"
-      legacyAppearance
       currentLabel={currentLabel}
       activeKey={activeItem?.key}
       navGroups={navGroups}
