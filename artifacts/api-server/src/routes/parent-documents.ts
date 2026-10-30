@@ -5,6 +5,7 @@ import { db, documentsTable, parentDocumentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireParent, resolveParentActor } from "../lib/parentAuth";
 import { FamilyAccessError } from "../lib/familyParentAuth";
+import { documentScanJobs } from "../lib/documentScanJobs";
 import { requireMobileAuth } from "./mobile";
 import { starterLibrary } from "../lib/parentStarterLibrary";
 import {
@@ -166,6 +167,16 @@ router.post(
   requireParent,
   async (req: any, res: Response) => {
     try {
+      if (req.body?.async_scan === true) {
+        const visible = await listParentDocuments(parentId(req), req.params.childId);
+        if (!visible.some(document => document.id === req.params.documentId && document.canScan === true)) {
+          return res.status(404).json({ error: "Parent document not found" });
+        }
+        const scope = JSON.stringify(["parent", parentId(req), req.params.childId, req.params.documentId]);
+        const collector = documentScanJobs.attach(req.body, scope, res);
+        if (!collector) return;
+        res = collector;
+      }
       return res.json(await scanParentDocument(parentId(req), req.params.childId, req.params.documentId));
     } catch (error) {
       const message = error instanceof Error ? error.message : "The document scan failed. Please try again.";

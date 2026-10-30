@@ -1,4 +1,5 @@
 import { fetchWithServiceRecovery } from "./service-recovery";
+import { fetchDocumentScan } from "./document-scan";
 
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
@@ -362,7 +363,11 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetchWithServiceRecovery(input, { ...init, method, headers }, responseType !== "blob" && responseType !== "text");
+  const requestPath = String(isRequest(input) ? input.url : input).split("?")[0];
+  const isDocumentScan = method === "POST" && /\/parent\/children\/[^/]+\/documents\/[^/]+\/scan$/.test(requestPath);
+  const response = isDocumentScan
+    ? await fetchDocumentScan(input, { ...init, method, headers })
+    : await fetchWithServiceRecovery(input, { ...init, method, headers }, responseType !== "blob" && responseType !== "text");
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

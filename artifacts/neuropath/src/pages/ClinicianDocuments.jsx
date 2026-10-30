@@ -16,7 +16,11 @@ async function scanUploadedDocument(childId, sourceDocumentId) {
     force_rebuild: true,
     source_document_id: sourceDocumentId,
   });
-  if (res.data?.error) throw new Error(res.data.error);
+  const failure = res.data?.failed?.find(document => document.id === sourceDocumentId);
+  if (failure) throw new Error(failure.reason || "This document could not be read.");
+  if (res.data?.error) {
+    throw new Error(typeof res.data.error === "string" ? res.data.error : res.data.error.message || "The document scan failed.");
+  }
   return res.data;
 }
 
@@ -142,14 +146,16 @@ export default function ClinicianDocuments() {
 
         if (AUTO_SYNC.includes(item.category)) {
           setScanStatus(s => ({ ...s, [doc.id]: "scanning" }));
-           scanUploadedDocument(childId, doc.id).then((result) => {
+          scanUploadedDocument(childId, doc.id).then((result) => {
             storeDocumentExtractions(result);
             setScanStatus(s => ({ ...s, [doc.id]: "done" }));
-            setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, scan_status: "done" } : d));
-            base44.entities.Document.update(doc.id, { scan_status: "done" }).catch(() => {});
+            setScanErrors(s => ({ ...s, [doc.id]: "" }));
+            setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, scan_status: "done", scan_error: null } : d));
           }).catch((e) => {
-            setScanErrors(s => ({ ...s, [doc.id]: e?.message || "" }));
+            const message = e?.message || "The document scan failed. Use Retry Scan to try again.";
+            setScanErrors(s => ({ ...s, [doc.id]: message }));
             setScanStatus(s => ({ ...s, [doc.id]: "error" }));
+            setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, scan_status: "error", scan_error: message } : d));
           });
         }
       } catch {

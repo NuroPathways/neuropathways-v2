@@ -4,6 +4,7 @@
 - [Expo preview readiness](expo-preview-readiness.md) — short browser timeouts can show a blank preview before hydration; check visible DOM before changing layout.
 - [Expo file-picker cancellation](expo-file-picker-cancellation.md) — web dismissal may leave selection pending; lock controls during uploads, not while picking files.
 - [Shared document compatibility](shared-document-compatibility.md) — preserve web/native document contracts; distinguish startup service pages from file-reading failures.
+- [Document scan lifecycles](document-scan-lifecycles.md) — long AI reads can outlast web connections; missing classification is not evidence of an invalid source.
 - [Guidance consent provenance](guidance-consent-provenance.md) — clinical priority never removes private contributing sources; clinician previews and action responses need consent-filtered projections.
 - [Parent UI and behavior scope](parent-multi-behavior-scope.md) — daily-first home must preserve multi-goal selections, clear sources, and parent-controlled plan discoveries.
 - [Clinician review of legacy family support](parent-multi-behavior-scope.md) — resolve verified family-scoped links as well as direct parent links, while retaining explicit document-sharing checks.

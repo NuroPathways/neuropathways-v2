@@ -1,6 +1,6 @@
 // REST API shim replacing base44.entities.*
 // Translates the same .filter/.create/.update/.delete interface to fetch calls
-import { fetchWithServiceRecovery } from "@workspace/api-client-react";
+import { fetchWithServiceRecovery, fetchDocumentScan } from "@workspace/api-client-react";
 
 const ENTITY_PATHS = {
   Child: "children",
@@ -44,7 +44,9 @@ function bodyToCamel(obj) {
 }
 
 async function apiFetch(path, options = {}, { redirectOnUnauthorized = true } = {}) {
-  const res = await fetchWithServiceRecovery(`/api${path}`, {
+  const request = path === "/build-client-profile" && !JSON.parse(options.body || "{}").include_cached_extractions
+    ? fetchDocumentScan : fetchWithServiceRecovery;
+  const res = await request(`/api${path}`, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     ...options,

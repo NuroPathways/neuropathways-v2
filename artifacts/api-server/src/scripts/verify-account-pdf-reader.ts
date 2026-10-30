@@ -38,12 +38,34 @@ const pdf = makePdfFixture([
   "timer or card helped.",
 ]);
 async function request(route: string, headers: Record<string, string>, body?: unknown) {
+  const jobScan = Boolean(body && (route === "/build-client-profile" || /\/documents\/[^/]+\/scan$/.test(route)));
+  const payload = jobScan ? { ...(body as object), async_scan: true } : body;
+  const startedAt = Date.now();
   const response = await fetch(`${base}${route}`, {
     method: body ? "POST" : "GET",
     headers: { ...headers, ...(body ? { "Content-Type": "application/json" } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
+    body: payload ? JSON.stringify(payload) : undefined,
   });
-  return { status: response.status, data: await response.json() as any };
+  let data = await response.json() as any;
+  if (!jobScan || !data.scan_job_id) return { status: response.status, data };
+  assert.ok(Date.now() - startedAt < 15_000, "The scan must acknowledge promptly instead of holding a long HTTP connection");
+  const jobId = data.scan_job_id;
+  let polls = 0;
+  while (data.status === "processing") {
+    assert.ok(Date.now() - startedAt < 20 * 60_000, "Scan job must finish within its budget");
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    const progress = await fetch(`${base}${route}`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ ...(payload as object), scan_job_id: jobId }),
+    });
+    assert.equal(progress.status, 200, "An authorized progress poll must succeed");
+    data = await progress.json();
+    assert.equal(data.scan_job_id, jobId, "Polling must stay on the original scan");
+    polls++;
+  }
+  console.log(`PASS scan transport: immediate acknowledgement and ${polls} authorized progress checks`);
+  return { status: data.result_status, data: data.result };
 }
 async function upload(route: string, headers: Record<string, string>, fields: Record<string, string>) {
   const form = new FormData();

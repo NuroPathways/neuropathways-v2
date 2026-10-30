@@ -14,6 +14,8 @@ import {
 } from "@workspace/db";
 import { eq, and, inArray, or, isNull, gt, ne, sql, desc } from "drizzle-orm";
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
+import { documentScanJobs } from "../lib/documentScanJobs";
+import { recoverDocumentClassifications } from "../lib/documentClassificationRecovery";
 import { requestDocumentAi, requireCompleteDocumentAiResponse } from "../lib/documentAi";
 import { decryptBuffer } from "./upload";
 import { splitDocumentTextForAi } from "../lib/documentTextChunks";
@@ -1233,6 +1235,19 @@ router.post("/build-client-profile", async (req: any, res) => {
     if (scopedDocumentScan && docs.length !== 1) {
       return fail(404, "document_not_found", "This document is no longer available to scan.");
     }
+    if (req.body.async_scan === true && !include_cached_extractions) {
+      // Re-run the existing child/document authorization before every poll.
+      // Never use a caller-supplied clinician ID as the job owner.
+      const actor = parentScanParentId
+        ? `parent:${parentScanParentId}`
+        : req.isAuthenticated?.()
+          ? `clinician:${req.user.id}`
+          : `client:${crypto.createHash("sha256").update(String(invite_token)).digest("hex")}`;
+      const scope = JSON.stringify([actor, child_id, source_document_id || "all"]);
+      const collector = documentScanJobs.attach(req.body, scope, res);
+      if (!collector) return;
+      res = collector;
+    }
     const docsWithFiles = docs.filter(d => d.fileUrl);
     const docsWithNotes = docs.filter(d => !d.fileUrl && d.notes?.trim());
     const childName = child.childName ?? "the client";
@@ -1686,13 +1701,14 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     try {
       const anthropic = await getAnthropicClient();
       console.info(`[NeuroPath] buildClientProfile: calling Claude child=${child_id} parts=${contentParts.length}`);
-      message = await anthropic.messages.create({
+      message = await requestDocumentAi((requestOptions) => anthropic.messages.create({
         model: CLAUDE_MODEL,
-        max_tokens: 8192,
+        max_tokens: 16_384,
         tools: [profileTool],
         tool_choice: { type: "tool", name: "save_behavioral_profile" },
         messages: [{ role: "user", content: contentParts }],
-      });
+      }, requestOptions));
+      requireCompleteDocumentAiResponse(message);
     } catch (ex: any) {
       // A batch rejection is not evidence that every included file is bad.
       // Preserve each file's existing status and the last successful profile.
@@ -1729,6 +1745,17 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       }
       console.error(`[NeuroPath] buildClientProfile: no tool_use output child=${child_id} stop_reason=${message.stop_reason}`);
       return fail(502, "ai_invalid_response", "The AI returned an unexpected result. Please try scanning again.");
+    }
+    if (!Array.isArray(extracted.document_extractions)) {
+      // A valid profile may omit this large nested field. Recover classification
+      // independently from the same source bytes before failing the whole scan.
+      try {
+        extracted.document_extractions = await recoverDocumentClassifications(
+          includedDocIds.flatMap(id => documentContentById.get(id) || []),
+        );
+      } catch {
+        req.log.warn("Focused document classification recovery did not complete");
+      }
     }
     if (!Array.isArray(extracted.document_extractions)) {
       const sources = includedDocIds

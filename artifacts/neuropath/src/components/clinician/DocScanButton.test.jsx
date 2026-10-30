@@ -64,6 +64,21 @@ describe("DocScanButton", () => {
     render(<DocScanButton doc={{ id: "d3", child_id: "c1", scan_status: "done" }} clinicianId="u1" />);
     expect(screen.getByTestId("status-doc-scan-d3").textContent).toContain("Ready");
   });
+  it("updates an upload-driven clinician scan from Processing to Ready", () => {
+    const { rerender } = render(<DocScanButton doc={{ id: "auto", child_id: "c1", scan_status: "scanning" }} clinicianId="u1" />);
+    expect(screen.getByTestId("status-doc-scan-auto").textContent).toContain("Processing");
+    rerender(<DocScanButton doc={{ id: "auto", child_id: "c1", scan_status: "done" }} clinicianId="u1" />);
+    expect(screen.getByTestId("status-doc-scan-auto").textContent).toContain("Ready");
+    expect(base44.functions.invoke).not.toHaveBeenCalled();
+  });
+  it("shows the failure and Retry Scan when a clinician automatic scan fails", () => {
+    const { rerender } = render(<DocScanButton doc={{ id: "auto-fail", child_id: "c1", scan_status: "scanning" }} clinicianId="u1" />);
+    rerender(<DocScanButton doc={{ id: "auto-fail", child_id: "c1", scan_status: "error", scan_error: "The AI service is temporarily unavailable." }} clinicianId="u1" />);
+    expect(screen.getByTestId("status-doc-scan-auto-fail").textContent).toContain("Failed");
+    expect(screen.getByTestId("button-scan-doc-auto-fail").textContent).toContain("Retry Scan");
+    fireEvent.click(screen.getByTestId("button-view-scan-error-auto-fail"));
+    expect(screen.getByTestId("text-scan-error-auto-fail").textContent).toContain("The AI service is temporarily unavailable.");
+  });
   it("asks for an unlocked or re-exported PDF instead of an endless retry", () => {
     expect(describeScanError("This PDF is password-protected. Upload an unlocked PDF copy.").retryable).toBe(false);
     render(<DocScanButton doc={{ id: "d4", child_id: "c1", scan_status: "error", scan_error: "This PDF is damaged or incomplete. Re-export it as a PDF and upload it again." }} clinicianId="u1" />);

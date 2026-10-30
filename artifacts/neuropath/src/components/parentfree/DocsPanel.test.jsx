@@ -287,9 +287,9 @@ describe("Parent Document Center presentation and existing contracts", () => {
     expect(fetchSpy).toHaveBeenCalledWith("/api/build-client-profile", expect.objectContaining({
       method: "POST",
       credentials: "include",
-      headers: { "X-Test-Context": "fixture", "Content-Type": "application/json" },
-      body: JSON.stringify({ child_id: "child-a", source_document_id: "clinic-plan" }),
+      body: JSON.stringify({ child_id: "child-a", source_document_id: "clinic-plan", async_scan: true }),
     }));
+    expect(new Headers(fetchSpy.mock.calls[0][1].headers).get("X-Test-Context")).toBe("fixture");
     expect(api.scan).not.toHaveBeenCalled();
     expect(screen.getByTestId("text-read-batch-status").textContent).toContain("1 of 1 documents processed");
   });

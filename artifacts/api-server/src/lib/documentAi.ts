@@ -61,7 +61,7 @@ export async function requestDocumentAi<T>(
     // Let the SDK retry connection errors, 408/409/429 and 5xx responses.
     // One deadline includes all retries/backoff, so requests cannot run forever.
     return await request({
-      timeout: 120_000,
+      timeout: 240_000,
       maxRetries: 2,
       signal: AbortSignal.timeout(300_000),
     });

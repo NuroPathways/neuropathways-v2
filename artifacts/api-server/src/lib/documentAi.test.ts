@@ -43,7 +43,7 @@ test("actual SDK retries two temporary provider failures and succeeds on the thi
 test("document AI requests have bounded retry count, per-attempt timeout and total deadline", async () => {
   await requestDocumentAi(async (options) => {
     assert.equal(options.maxRetries, 2);
-    assert.equal(options.timeout, 120_000);
+    assert.equal(options.timeout, 240_000);
     assert.equal(options.signal.aborted, false);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, CheckCircle2, RefreshCw, Sparkles, AlertCircle } from "lucide-react";
 import { base44 } from '@/api/entities';
 import { serviceResponseMessage } from "@workspace/api-client-react";
@@ -66,9 +66,12 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
   const [status, setStatus] = useState(initial);
   const [errorMsg, setErrorMsg] = useState(initial === "error" ? (scanError(doc) || "Failed") : "");
   const [showError, setShowError] = useState(false);
+  const runningScan = useRef(false);
 
   useEffect(() => {
-    if (status === "scanning") return;
+    // Ignore stale list data only while this control owns an active request.
+    // Upload-driven scans update their result through props instead.
+    if (runningScan.current) return;
     const nextStatus = scanStatus(doc);
     const next = nextStatus === "done" || nextStatus === "scanned" || nextStatus === "complete" || nextStatus === "completed" || nextStatus === "ready"
       ? "done"
@@ -82,7 +85,8 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
   }, [doc.id, doc.scan_status, doc.scanStatus, doc.scan_error, doc.scanError]);
 
   const runScan = async () => {
-    if ((!clinicianId && !inviteToken) || status === "scanning") return;
+    if ((!clinicianId && !inviteToken) || status === "scanning" || runningScan.current) return;
+    runningScan.current = true;
     setStatus("scanning");
     setErrorMsg("");
     try {
@@ -121,6 +125,8 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
         documentExtractions: body?.documentExtractions ?? body?.document_extractions ?? [],
         retainedExtractionFallback: body?.retainedExtractionFallback ?? body?.retained_extraction_fallback ?? false,
       });
+    } finally {
+      runningScan.current = false;
     }
   };
 
