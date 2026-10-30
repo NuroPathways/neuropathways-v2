@@ -2,20 +2,25 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { ArrowLeft, Upload, FileText, Trash2, Loader2, CheckCircle2, X, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
+import { Input } from "@workspace/neuropathways-foundations/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@workspace/neuropathways-foundations/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 import DocScanButton from "@/components/clinician/DocScanButton";
 import DocumentExtractionDisclosure from "@/components/clinician/DocumentExtractionDisclosure";
+import { documentFailureMessage } from "@/components/clinician/DocumentStatusInfo";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
+} from "@workspace/neuropathways-foundations/components/ui/alert-dialog";
 
 // Scans one source document without changing the clinician's aggregate profile.
-async function scanUploadedDocument(childId, sourceDocumentId) {
+async function scanUploadedDocument(childId, sourceDocumentId, onProgress) {
   const res = await base44.functions.invoke('buildClientProfile', {
     child_id: childId,
     force_rebuild: true,
     source_document_id: sourceDocumentId,
-  });
+  }, { onProgress });
   const failure = res.data?.failed?.find(document => document.id === sourceDocumentId);
   if (failure) throw new Error(failure.reason || "This document could not be read.");
   if (res.data?.error) {
@@ -62,6 +67,9 @@ export default function ClinicianDocuments() {
   const [scanErrors, setScanErrors] = useState({});
   const [extractionsByDocument, setExtractionsByDocument] = useState({});
   const [retainedExtractionDocs, setRetainedExtractionDocs] = useState({});
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const storeDocumentExtractions = (result) => {
     const records = result?.document_extractions ?? result?.documentExtractions;
@@ -136,7 +144,7 @@ export default function ClinicianDocuments() {
             category: item.category,
             file_url,
             file_name: item.file.name,
-            scan_status: AUTO_SYNC.includes(item.category) ? "pending" : "done",
+            scan_status: "pending",
           },
         });
         if (res.data?.error) throw new Error(res.data.error);
@@ -146,7 +154,9 @@ export default function ClinicianDocuments() {
 
         if (AUTO_SYNC.includes(item.category)) {
           setScanStatus(s => ({ ...s, [doc.id]: "scanning" }));
-          scanUploadedDocument(childId, doc.id).then((result) => {
+          scanUploadedDocument(childId, doc.id, (progress) => {
+            setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, scan_progress: progress } : d));
+          }).then((result) => {
             storeDocumentExtractions(result);
             setScanStatus(s => ({ ...s, [doc.id]: "done" }));
             setScanErrors(s => ({ ...s, [doc.id]: "" }));
@@ -172,8 +182,18 @@ export default function ClinicianDocuments() {
   };
 
   const handleDelete = async (docId) => {
-    await base44.entities.Document.delete(docId).catch(() => {});
-    setDocuments(prev => prev.filter(d => d.id !== docId));
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await base44.entities.Document.delete(docId);
+      setDocuments(prev => prev.filter(d => d.id !== docId));
+      setDeleteTarget(null);
+    } catch (error) {
+      setDeleteError(documentFailureMessage(error?.message) || "The document could not be deleted. It is still in your account.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const childMap = Object.fromEntries(children.map(c => [c.id, c.child_name]));
@@ -345,7 +365,7 @@ export default function ClinicianDocuments() {
                                  </a>
                                  <p className="text-xs text-muted-foreground">{doc.category && doc.category.replace(/_/g, " ")}</p>
                                </div>
-                               <div className="flex items-center gap-2 flex-shrink-0">
+                               <div className="flex items-center justify-end gap-2 flex-wrap min-w-0">
                                  <DocScanButton doc={{ ...doc, scan_status: docStatus === "error" ? "error" : docStatus === "scanning" ? "scanning" : doc.scan_status, scan_error: scanErrors[doc.id] || doc.scan_error }} clinicianId={clinicianId}
                                     hasSavedExtractions={Boolean(extractionsByDocument[doc.id]?.length)}
                                    onScanned={(id, result) => {
@@ -362,9 +382,10 @@ export default function ClinicianDocuments() {
                                      setScanStatus(st => ({ ...st, [id]: nextStatus }));
                                      if (scanError) setScanErrors(st => ({ ...st, [id]: scanError }));
                                    }} />
-                                 <button onClick={() => handleDelete(doc.id)} className="text-muted-foreground hover:text-destructive">
-                                   <Trash2 className="w-4 h-4" />
-                                 </button>
+                                 <Button variant="outline" size="sm" onClick={() => { setDeleteError(""); setDeleteTarget(doc); }}
+                                   aria-label={`Delete document ${doc.title || doc.file_name || ""}`} data-testid={`button-delete-document-${doc.id}`}>
+                                   <Trash2 className="w-4 h-4" /> Delete document
+                                 </Button>
                                </div>
                             </div>
                               <DocumentExtractionDisclosure
@@ -382,6 +403,23 @@ export default function ClinicianDocuments() {
           </div>
         )}
       </div>
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove {deleteTarget?.title || "this document"} from the clinician portal. An active scan for this document will be stopped. Existing goals, clinical notes, and other documents are not deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && <p role="alert" className="text-sm text-destructive">{deleteError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Keep document</AlertDialogCancel>
+            <Button variant="destructive" disabled={deleting} onClick={() => handleDelete(deleteTarget.id)}>
+              {deleting ? "Deleting…" : "Delete document"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

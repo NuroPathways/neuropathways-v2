@@ -5,7 +5,7 @@ import { DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE, documentExtractionsToolProperty } 
 /** Recover an omitted classification field from the real source, not fabricated
  * placeholders. Keep the already-read support profile separate from this pass.
  */
-export async function recoverDocumentClassifications(content: any[]): Promise<unknown[]> {
+export async function readDocumentClassificationResponse(content: any[], signal?: AbortSignal) {
   const anthropic = await getAnthropicClient();
   const response = await requestDocumentAi(options => anthropic.messages.create({
     model: CLAUDE_MODEL,
@@ -22,8 +22,15 @@ export async function recoverDocumentClassifications(content: any[]): Promise<un
     }],
     tool_choice: { type: "tool", name: "save_document_classification" },
     messages: [{ role: "user", content }],
-  }, options));
+  }, { ...options, timeout: 120_000, maxRetries: 1, signal: AbortSignal.any([
+    options.signal, AbortSignal.timeout(180_000), ...(signal ? [signal] : []),
+  ]) }));
   requireCompleteDocumentAiResponse(response);
+  return response;
+}
+
+export async function recoverDocumentClassifications(content: any[], signal?: AbortSignal): Promise<unknown[]> {
+  const response = await readDocumentClassificationResponse(content, signal);
   const tool = response.content.find(block => block.type === "tool_use");
   const records = tool?.type === "tool_use"
     ? (tool.input as { document_extractions?: unknown }).document_extractions

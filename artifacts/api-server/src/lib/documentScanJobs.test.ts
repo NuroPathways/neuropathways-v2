@@ -54,3 +54,32 @@ test("failed jobs retain their actual error status and permit a fresh retry", ()
   assert.ok(jobs.attach({}, "scope", retry.response));
   assert.notEqual(retry.state.body.scan_job_id, initial.state.body.scan_job_id);
 });
+
+test("a stalled scan has a real terminal deadline and late results cannot resurrect it", async () => {
+  const jobs = new DocumentScanJobs(10);
+  const initial = reply();
+  const collector = jobs.attach({}, "scope", initial.response)!;
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(collector.locals.documentScanSignal.aborted, true);
+  collector.json({ scanned: ["late-result"] });
+  const poll = reply();
+  jobs.attach({ scan_job_id: initial.state.body.scan_job_id }, "scope", poll.response);
+  assert.equal(poll.state.body.status, "complete");
+  assert.equal(poll.state.body.result_status, 503);
+  assert.equal(poll.state.body.result.error.code, "scan_timeout");
+});
+
+test("deleting a source aborts its active scan without touching another source", () => {
+  const jobs = new DocumentScanJobs();
+  const initial = reply();
+  const scope = JSON.stringify(["clinician:one", "child", "document"]);
+  const collector = jobs.attach({}, scope, initial.response)!;
+  const other = reply();
+  const otherCollector = jobs.attach({}, JSON.stringify(["clinician:one", "child", "other-document"]), other.response)!;
+  jobs.cancelDocument("document");
+  assert.equal(collector.locals.documentScanSignal.aborted, true);
+  assert.equal(otherCollector.locals.documentScanSignal.aborted, false);
+  const poll = reply();
+  jobs.attach({ scan_job_id: initial.state.body.scan_job_id }, scope, poll.response);
+  assert.equal(poll.state.body.result_status, 409);
+});

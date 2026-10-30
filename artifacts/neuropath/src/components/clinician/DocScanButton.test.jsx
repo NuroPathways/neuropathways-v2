@@ -96,7 +96,7 @@ describe("DocScanButton", () => {
       force_rebuild: true,
       invite_token: undefined,
       source_document_id: "good",
-    });
+    }, { onProgress: expect.any(Function) });
     expect(refresh).toHaveBeenCalledWith("good", result);
   });
   it("shows the selected file's specific persisted error after a mixed scan failure", async () => {

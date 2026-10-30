@@ -197,6 +197,18 @@ try {
   });
   assert.equal(deniedClinician.status, 403);
   console.log("PASS access isolation: individual sibling, unrelated parent and other clinician documents denied");
+  const otherDelete = await fetch(`${base}/documents/${clinicianDoc.data.record.id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${await createSession({ user: { id: f.otherClinician.id }, access_token: "synthetic" } as any)}` },
+  });
+  assert.equal(otherDelete.status, 403, "Another clinician cannot delete this source");
+  const remove = await fetch(`${base}/documents/${clinicianDoc.data.record.id}`, {
+    method: "DELETE", headers: clinicianHeaders,
+  });
+  assert.equal(remove.status, 200, "Owning clinician can delete the scanned synthetic document");
+  const remaining = await db.select().from(documentsTable).where(eq(documentsTable.id, clinicianDoc.data.record.id));
+  assert.equal(remaining.length, 0, "Deleted source is removed from the clinician document list");
+  console.log("PASS clinician deletion: scanned source removed; cross-clinician deletion denied");
 } finally {
   await pool.end();
 }

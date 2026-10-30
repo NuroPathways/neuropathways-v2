@@ -44,12 +44,13 @@ function bodyToCamel(obj) {
 }
 
 async function apiFetch(path, options = {}, { redirectOnUnauthorized = true } = {}) {
+  const { onScanProgress, ...requestOptions } = options;
   const request = path === "/build-client-profile" && !JSON.parse(options.body || "{}").include_cached_extractions
-    ? fetchDocumentScan : fetchWithServiceRecovery;
+    ? (url, init) => fetchDocumentScan(url, init, onScanProgress) : fetchWithServiceRecovery;
   const res = await request(`/api${path}`, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    ...options,
+    ...requestOptions,
   });
   if (res.status === 401) {
     // Client sessions (username+code) handle their own session expiry.
@@ -161,7 +162,7 @@ export const integrations = {
 };
 
 export const functions = {
-  invoke: async (name, args = {}) => {
+  invoke: async (name, args = {}, options = {}) => {
     switch (name) {
       case "getClinicianData": {
         const data = await apiFetch("/clinician-data");
@@ -193,7 +194,7 @@ export const functions = {
         return { data: { sent: true } };
       }
       case "buildClientProfile": {
-        const data = await apiFetch("/build-client-profile", { method: "POST", body: JSON.stringify(args) });
+        const data = await apiFetch("/build-client-profile", { method: "POST", body: JSON.stringify(args), onScanProgress: options.onProgress });
         return { data };
       }
       case "manageClientRecord": {

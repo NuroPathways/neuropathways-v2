@@ -15,7 +15,7 @@ import {
 import { eq, and, inArray, or, isNull, gt, ne, sql, desc } from "drizzle-orm";
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
 import { documentScanJobs } from "../lib/documentScanJobs";
-import { recoverDocumentClassifications } from "../lib/documentClassificationRecovery";
+import { recoverDocumentClassifications, readDocumentClassificationResponse } from "../lib/documentClassificationRecovery";
 import { requestDocumentAi, requireCompleteDocumentAiResponse } from "../lib/documentAi";
 import { decryptBuffer } from "./upload";
 import { splitDocumentTextForAi } from "../lib/documentTextChunks";
@@ -510,6 +510,7 @@ function makeCrud(path: string, table: any) {
         return res.status(409).json({ error: "This record contains parent-owned data and cannot be deleted by the clinic." });
       }
       await db.delete(table).where(eq(table.id, req.params.id));
+      if (table === documentsTable) documentScanJobs.cancelDocument(req.params.id);
       return res.json({ ok: true });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
@@ -1699,15 +1700,24 @@ Example: do not write only "${childName} will complete a graduated exposure hier
 
     let message;
     try {
-      const anthropic = await getAnthropicClient();
-      console.info(`[NeuroPath] buildClientProfile: calling Claude child=${child_id} parts=${contentParts.length}`);
-      message = await requestDocumentAi((requestOptions) => anthropic.messages.create({
-        model: CLAUDE_MODEL,
-        max_tokens: 16_384,
-        tools: [profileTool],
-        tool_choice: { type: "tool", name: "save_behavioral_profile" },
-        messages: [{ role: "user", content: contentParts }],
-      }, requestOptions));
+      res.locals?.setScanStage?.("Reading and classifying document");
+      if (scopedDocumentScan) {
+        // A single-document scan never saves the aggregate profile. Do not
+        // generate and discard a full behavior/profile response first.
+        message = await readDocumentClassificationResponse(
+          includedDocIds.flatMap(id => documentContentById.get(id) || []),
+          res.locals?.documentScanSignal,
+        );
+      } else {
+        const anthropic = await getAnthropicClient();
+        message = await requestDocumentAi((requestOptions) => anthropic.messages.create({
+          model: CLAUDE_MODEL,
+          max_tokens: 16_384,
+          tools: [profileTool],
+          tool_choice: { type: "tool", name: "save_behavioral_profile" },
+          messages: [{ role: "user", content: contentParts }],
+        }, requestOptions));
+      }
       requireCompleteDocumentAiResponse(message);
     } catch (ex: any) {
       // A batch rejection is not evidence that every included file is bad.
@@ -1752,6 +1762,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       try {
         extracted.document_extractions = await recoverDocumentClassifications(
           includedDocIds.flatMap(id => documentContentById.get(id) || []),
+          res.locals?.documentScanSignal,
         );
       } catch {
         req.log.warn("Focused document classification recovery did not complete");
@@ -1795,6 +1806,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     );
     let supportCandidateDiscoveryFailed = false;
     if (candidateSourceRecords.length) {
+      res.locals?.setScanStage?.("Identifying document-supported needs");
       const derivedCandidates: typeof normalizedExtractions.records = [];
       for (let offset = 0; offset < candidateSourceRecords.length; offset += SUPPORT_CANDIDATE_BATCH_SIZE) {
         const batch = candidateSourceRecords.slice(offset, offset + SUPPORT_CANDIDATE_BATCH_SIZE);
@@ -1815,7 +1827,9 @@ Example: do not write only "${childName} will complete a graduated exposure hier
               role: "user",
               content: buildSupportConcernCandidatePrompt(batch),
             }],
-          }, requestOptions));
+          }, { ...requestOptions, timeout: 60_000, maxRetries: 0, signal: AbortSignal.any([
+            requestOptions.signal, AbortSignal.timeout(60_000), ...(res.locals?.documentScanSignal ? [res.locals.documentScanSignal] : []),
+          ]) }));
           requireCompleteDocumentAiResponse(candidateResponse);
           const candidateResult = candidateResponse.content.find((block: any) => block.type === "tool_use") as any;
           if (!Array.isArray(candidateResult?.input?.cards)) {
@@ -1845,6 +1859,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     let supportSuggestionGenerationFailed = false;
     let generatedConcernGroups: any[] = [];
     if (suggestionSourceRecords.length) {
+      res.locals?.setScanStage?.("Preparing document-supported guidance");
       for (let offset = 0; offset < suggestionSourceRecords.length; offset += SUPPORT_CONCERN_GENERATION_BATCH_SIZE) {
         const batch = suggestionSourceRecords.slice(offset, offset + SUPPORT_CONCERN_GENERATION_BATCH_SIZE);
         try {
@@ -1869,7 +1884,9 @@ Example: do not write only "${childName} will complete a graduated exposure hier
               role: "user",
               content: buildSupportConcernGenerationContent(batchSourceDocumentIds, sourceDocuments, prompt),
             }],
-          }, requestOptions));
+          }, { ...requestOptions, timeout: 60_000, maxRetries: 0, signal: AbortSignal.any([
+            requestOptions.signal, AbortSignal.timeout(60_000), ...(res.locals?.documentScanSignal ? [res.locals.documentScanSignal] : []),
+          ]) }));
           requireCompleteDocumentAiResponse(suggestionResponse);
           const suggestionResult = suggestionResponse.content.find((block: any) => block.type === "tool_use") as any;
           if (!Array.isArray(suggestionResult?.input?.cards)) {
@@ -1890,6 +1907,8 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     if (supportSuggestionGenerationFailed) {
       warnings.push("Source-linked support cards were saved, but some optional support sections could not be generated.");
     }
+    res.locals?.documentScanSignal?.throwIfAborted();
+    res.locals?.setScanStage?.("Saving document results");
     const extractionRuns = await persistDocumentExtractionBatch({
       sources: extractionSources,
       normalized: normalizedExtractions,

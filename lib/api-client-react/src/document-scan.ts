@@ -4,7 +4,7 @@ import { fetchWithServiceRecovery } from "./service-recovery";
  * Keep AI processing off a single long-lived HTTP connection. Every poll uses
  * the original auth and document identifiers, and cannot start another scan.
  */
-export async function fetchDocumentScan(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+export async function fetchDocumentScan(input: RequestInfo | URL, init: RequestInit = {}, onProgress?: (progress: any) => void): Promise<Response> {
   const body = typeof init.body === "string" ? JSON.parse(init.body) : {};
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
@@ -21,6 +21,7 @@ export async function fetchDocumentScan(input: RequestInfo | URL, init: RequestI
     status: response.status || 200, headers: { "Content-Type": "application/json" },
   });
   const jobId = snapshot.scan_job_id;
+  onProgress?.(snapshot);
   const deadline = Date.now() + 20 * 60_000;
   while (snapshot.status === "processing") {
     if (Date.now() >= deadline) {
@@ -51,6 +52,7 @@ export async function fetchDocumentScan(input: RequestInfo | URL, init: RequestI
     }
     if (!response.ok) return response;
     snapshot = await response.json();
+    onProgress?.(snapshot);
     if (snapshot.scan_job_id !== jobId) throw new Error("The scan progress response was invalid. Your document remains saved.");
   }
   if (snapshot.status !== "complete" || !Number.isInteger(snapshot.result_status)) {

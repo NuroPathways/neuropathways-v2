@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, CheckCircle2, RefreshCw, Sparkles, AlertCircle } from "lucide-react";
 import { base44 } from '@/api/entities';
 import { serviceResponseMessage } from "@workspace/api-client-react";
+import DocumentStatusInfo from "./DocumentStatusInfo";
 
 const scanStatus = (doc) => String(doc?.scan_status ?? doc?.scanStatus ?? "pending").toLowerCase();
 const scanError = (doc) => doc?.scan_error ?? doc?.scanError ?? "";
@@ -67,6 +68,7 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
   const [errorMsg, setErrorMsg] = useState(initial === "error" ? (scanError(doc) || "Failed") : "");
   const [showError, setShowError] = useState(false);
   const runningScan = useRef(false);
+  const [progress, setProgress] = useState(null);
 
   useEffect(() => {
     // Ignore stale list data only while this control owns an active request.
@@ -97,7 +99,7 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
         force_rebuild: true,
         invite_token: inviteToken,
         source_document_id: doc.id,
-      });
+      }, { onProgress: setProgress });
       const data = res?.data || {};
       // Reflect this document's own outcome rather than a child-wide batch.
       const failedEntry = Array.isArray(data.failed) ? data.failed.find(f => f.id === doc.id) : null;
@@ -132,9 +134,12 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
 
   if (status === "scanning") {
     return (
+      <div className="flex flex-wrap items-center justify-end gap-2">
       <span className="flex items-center gap-1 text-xs text-primary font-medium" role="status" data-testid={`status-doc-scan-${doc.id}`}>
         <Loader2 className="w-3.5 h-3.5 animate-spin" /> Processing
       </span>
+      <DocumentStatusInfo doc={doc} status={status} progress={progress || doc.scan_progress} />
+      </div>
     );
   }
 
@@ -182,6 +187,7 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
           </button>
         )}
       </div>
+      <DocumentStatusInfo doc={doc} status={status} reason={errorMsg} progress={progress || doc.scan_progress} />
       {(status === "error" || status === "blocked") && showError && (
         <div role="alert" className="max-w-[18rem] text-right text-xs text-foreground" data-testid={`text-scan-error-${doc.id}`}>
           <p className="font-semibold">{failure.reason}</p>
