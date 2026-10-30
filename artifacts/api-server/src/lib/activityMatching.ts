@@ -146,14 +146,14 @@ type ParentSupportAreaForActivityMatch = {
 };
 
 const SUPPORT_AREA_ACTIVITY_SIGNALS: Record<string, RegExp> = {
-  "what-happens-next": /\b(direction|instruction|transition|routine|sequence|next step)\b/i,
+  "what-happens-next": /\b(direction|instruction|transitions?|routines?|sequences?|next step)\b/i,
   "familiar-aac-choice": /\b(communication|speech|express|request|help|break)\b/i,
   "familiar-help-signal": /\b(help|break|communication|request|signal)\b/i,
-  "choose-between-familiar-activities": /\b(transition|choice|routine|preferred|interest)\b/i,
+  "choose-between-familiar-activities": /\b(transitions?|choices?|routines?|preferred|interests?)\b/i,
   "build-together": /\b(shared play|turn|building|play)\b/i,
-  "one-small-routine-step": /\b(routine|task|daily living|hygiene|self-care)\b/i,
+  "one-small-routine-step": /\b(routines?|tasks?|homework|academic|schoolwork|assignments?|daily living|hygiene|self-care)\b/i,
   "request-more-during-play": /\b(play|request|communication|more|continue)\b/i,
-  "take-turns-with-familiar-toy": /\b(play|turn|social|toy)\b/i,
+  "take-turns-with-familiar-toy": /\b(play|turns?|social|toys?)\b/i,
   "pause-and-notice-communication": /\b(communication|express|request|signal|language)\b/i,
 };
 
@@ -257,6 +257,7 @@ type ExplicitTemplateMatch = {
   evidence: EvidenceRecord[];
   reasons: string[];
   matchedPreferences: string[];
+  requiresClinicianReview?: boolean;
 };
 type ExplicitTemplateRuleResult = Omit<ExplicitTemplateMatch, "matchedPreferences"> & {
   matchedPreferences?: string[];
@@ -532,13 +533,34 @@ function explicitTemplateSignals(
         : null;
     },
   };
-  const matched = rules[activityId]?.() || null;
+  const matched = rules[activityId]?.() || documentSupportAreaSignal(activityId, records);
   if (!matched) return null;
   const matchedPreferences = uniqueTexts(matched.matchedPreferences || []);
   return {
     evidence: matched.evidence,
     reasons: matched.reasons,
     matchedPreferences,
+    requiresClinicianReview: matched.requiresClinicianReview,
+  };
+}
+
+function documentSupportAreaSignal(activityId: string, records: EvidenceRecord[]): ExplicitTemplateMatch | null {
+  const signal = SUPPORT_AREA_ACTIVITY_SIGNALS[activityId];
+  if (!signal) return null;
+  const evidence = records.filter((record) => {
+    if (!["behavior", "support_concern", "support_strategy"].includes(record.category)) return false;
+    const item = record.interpretation;
+    return signal.test([
+      item.name, item.description, item.contexts, item.observations,
+      item.strategy, item.applies_to, item.observable_description, item.antecedents,
+    ].map(value => Array.isArray(value) ? value.join(" ") : text(value)).join(" "));
+  });
+  if (!evidence.length) return null;
+  return {
+    evidence,
+    reasons: ["Matches a documented support area; clinician review is required before assignment."],
+    matchedPreferences: [],
+    requiresClinicianReview: true,
   };
 }
 
@@ -742,7 +764,13 @@ export function buildChildActivityRecommendations(input: {
     const matchSource = evidence.length
       ? matched.matchedPreferences.length ? "documents_and_preferences" as const : "documents" as const
       : "family_preferences" as const;
-    const relatedGoalRecord = matched.evidence.find((record) => record.category === "goal");
+    const relatedGoalRecord = [
+      ...matched.evidence,
+      ...records.filter((record) =>
+        record.category === "goal" &&
+        matched.evidence.some((item) => item.documentId === record.documentId),
+      ),
+    ].find((record) => record.category === "goal");
     const relatedGoal = relatedGoalRecord
       ? text(relatedGoalRecord.interpretation.title) ||
         text(relatedGoalRecord.interpretation.goal_title) ||
@@ -767,7 +795,7 @@ export function buildChildActivityRecommendations(input: {
     recommendations.push({
       id: key,
       priorityTier: "document_grounded_library",
-      status: safetyEvidence.length ? "needs_clinician_review" : "suggestion_only",
+      status: safetyEvidence.length || matched.requiresClinicianReview ? "needs_clinician_review" : "suggestion_only",
       title: activity.title,
       description: activity.description,
       skill: activity.skill,
@@ -783,13 +811,13 @@ export function buildChildActivityRecommendations(input: {
       relatedGoal,
       matchSource,
       matchedPreferences: matched.matchedPreferences,
-      riskClassification: safetyEvidence.length
-        ? "Low-risk starter; child-specific safety review required"
+      riskClassification: safetyEvidence.length || matched.requiresClinicianReview
+        ? "Document-related candidate; clinician review is required before assignment"
         : "General starter; confirm current fit, familiarity, and safety",
       evidence,
       sourceClassification: "research_informed_general_starter",
       researchReferences: Array.isArray(activity.evidenceReferences) ? activity.evidenceReferences : [],
-      safetyReviewRequired: Boolean(safetyText),
+      safetyReviewRequired: Boolean(safetyText) || Boolean(matched.requiresClinicianReview),
     });
   }
 

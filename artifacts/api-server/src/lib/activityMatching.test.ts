@@ -108,6 +108,29 @@ test("a goal alone never creates a personalized starter activity", () => {
   assert.deepEqual(result.recommendations, []);
 });
 
+test("a homework-related document concern produces a clinician-review practice activity", () => {
+  const concern = record({
+    category: "support_concern",
+    sourceExcerpt: "Homework routines are difficult and can use one small step at a time.",
+    interpretation: {
+      name: "Homework-related frustration",
+      description: "Schoolwork and assignments can feel difficult to complete.",
+      evidence_level: "documented_concern",
+      observations: ["Homework and school assignments."],
+    },
+  });
+  const result = buildChildActivityRecommendations({
+    childId,
+    clinicianId,
+    records: [concern],
+    library: [libraryItem("one-small-routine-step")],
+  });
+  assert.equal(result.recommendations.length, 1, JSON.stringify(result));
+  assert.equal(result.recommendations[0].status, "needs_clinician_review");
+  assert.equal(result.recommendations[0].safetyReviewRequired, true);
+  assert.equal(result.recommendations[0].evidence[0].documentId, "doc-1");
+});
+
 test("matches explicit family interests and communication preferences without inventing document evidence", () => {
   const result = match([], [libraryItem("puzzle-together"), libraryItem("familiar-aac-choice")], {
     familyPreferences: {

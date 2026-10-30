@@ -7,6 +7,7 @@ export function documentFailureMessage(raw) {
   const message = String(raw || "");
   const service = serviceResponseMessage(message);
   if (service) return service;
+  if (/<!doctype html|<html[\s>]/i.test(message)) return "The document service could not be reached. Refresh the page and retry.";
   try {
     const body = JSON.parse(message.slice(message.indexOf("{")));
     return typeof body.error === "string" ? body.error : body.error?.message || message;
