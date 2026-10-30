@@ -16,7 +16,7 @@ vi.mock("@/api/entities", () => ({
 beforeEach(() => {
   api.me.mockResolvedValue({ id: "clinician" });
   api.children.mockResolvedValue([{ id: "child", child_name: "Synthetic child" }]);
-  api.documents.mockResolvedValue([{ id: "doc", child_id: "child", title: "Synthetic plan", scan_status: "done" }]);
+  api.documents.mockResolvedValue([{ id: "doc", child_id: "child", title: "Synthetic plan", scan_status: "done", uploaded_by: "clinician" }]);
   api.invoke.mockResolvedValue({ data: { documentExtractions: [] } });
   api.remove.mockResolvedValue({ ok: true });
 });
@@ -46,5 +46,14 @@ describe("clinician document deletion", () => {
     fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete document" }));
     expect((await screen.findByRole("alert")).textContent).toContain("Only the parent can delete this document.");
     expect(screen.getByTestId("button-delete-document-doc")).toBeTruthy();
+  });
+
+  it("does not offer clinician deletion for a parent-uploaded document", async () => {
+    api.documents.mockResolvedValueOnce([{
+      id: "parent-doc", child_id: "child", title: "Family plan", scan_status: "done", uploaded_by: "parent",
+    }]);
+    mount();
+    expect(await screen.findByText("Family plan")).toBeTruthy();
+    expect(screen.queryByTestId("button-delete-document-parent-doc")).toBeNull();
   });
 });

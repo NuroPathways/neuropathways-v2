@@ -2,7 +2,7 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import multer from "multer";
 import path from "node:path";
 import { db, documentsTable, parentDocumentsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireParent, resolveParentActor } from "../lib/parentAuth";
 import { FamilyAccessError } from "../lib/familyParentAuth";
 import { documentScanJobs } from "../lib/documentScanJobs";
@@ -28,6 +28,9 @@ import {
 } from "../lib/parentDocuments";
 import { parentPdfReaderMessages } from "../lib/parentPdfText";
 import { DocumentProcessingError } from "../lib/documentAi";
+import { deleteDocumentScanOutputsForDocuments } from "../lib/documentExtractions";
+import { deleteEncryptedParentDocument } from "../lib/parentFileStorage";
+import { deleteUploadedDocumentFile } from "../lib/uploadedDocumentFile";
 
 const router = Router();
 const upload = multer({
@@ -101,6 +104,81 @@ router.post(
       if (message.includes("Encrypted parent document storage")) return res.status(503).json({ error: message });
       if (message.includes("Private document storage")) return res.status(503).json({ error: message });
       return res.status(500).json({ error: "The document could not be saved. Please try again." });
+    }
+  },
+);
+
+router.delete(
+  "/parent/children/:childId/documents/:documentId",
+  requireParent,
+  async (req: any, res: Response) => {
+    const ownerId = parentId(req);
+    const { childId, documentId } = req.params;
+    try {
+      const visibleDocuments = await listParentDocuments(ownerId, childId);
+      const target = visibleDocuments.find((document) => document.id === documentId);
+      if (!target || target.uploadedBy !== "parent") {
+        return res.status(404).json({ error: "Parent-uploaded document not found" });
+      }
+
+      const [metadata] = await db.select().from(parentDocumentsTable).where(and(
+        eq(parentDocumentsTable.documentId, documentId),
+        eq(parentDocumentsTable.parentId, ownerId),
+        eq(parentDocumentsTable.childId, childId),
+      ));
+      const [document] = await db.select().from(documentsTable).where(and(
+        eq(documentsTable.id, documentId),
+        eq(documentsTable.childId, childId),
+      ));
+      if (!document || (!metadata && document.uploadedBy !== `client:${childId}`)) {
+        return res.status(404).json({ error: "Parent-uploaded document not found" });
+      }
+
+      await deleteDocumentScanOutputsForDocuments([documentId]);
+      documentScanJobs.cancelDocument(documentId);
+      if (metadata) {
+        await db.transaction(async (tx) => {
+          await tx.delete(parentDocumentsTable).where(and(
+            eq(parentDocumentsTable.documentId, documentId),
+            eq(parentDocumentsTable.parentId, ownerId),
+            eq(parentDocumentsTable.childId, childId),
+          ));
+          await tx.delete(documentsTable).where(and(
+            eq(documentsTable.id, documentId),
+            eq(documentsTable.parentId, ownerId),
+            eq(documentsTable.childId, childId),
+          ));
+        });
+        try {
+          await deleteEncryptedParentDocument(metadata.storagePath);
+        } catch (error) {
+          req.log.error({
+            document_id: documentId,
+            error_name: error instanceof Error ? error.name : "UnknownError",
+          }, "Parent document record deleted but encrypted source cleanup failed");
+        }
+      } else {
+        await db.delete(documentsTable).where(and(
+          eq(documentsTable.id, documentId),
+          eq(documentsTable.childId, childId),
+          eq(documentsTable.uploadedBy, `client:${childId}`),
+        ));
+        try {
+          await deleteUploadedDocumentFile(document.fileUrl);
+        } catch (error) {
+          req.log.error({
+            document_id: documentId,
+            error_name: error instanceof Error ? error.name : "UnknownError",
+          }, "Legacy parent document record deleted but local source cleanup failed");
+        }
+      }
+      return res.json({ ok: true });
+    } catch (error) {
+      req.log.error({
+        document_id: documentId,
+        error_name: error instanceof Error ? error.name : "UnknownError",
+      }, "Parent document deletion failed");
+      return res.status(500).json({ error: "The document could not be deleted. Please try again." });
     }
   },
 );

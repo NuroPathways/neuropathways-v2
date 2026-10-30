@@ -31,6 +31,7 @@ import { prepareSupportPdf } from "../lib/supportPdf";
 import { fillExplicitlyLabeledSupportFields } from "../lib/documentSupportFallback";
 import { resolveParentActor } from "../lib/parentAuth";
 import { resolveLocalUploadReference } from "../lib/localUploadReference";
+import { deleteUploadedDocumentFile } from "../lib/uploadedDocumentFile";
 import {
   DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE,
   documentExtractionsToolProperty,
@@ -505,7 +506,10 @@ function makeCrud(path: string, table: any) {
         return res.status(403).json({ error: "Access denied" });
       }
       if (
-        (table === documentsTable && await isParentOwnedDocument(req.params.id)) ||
+        (table === documentsTable && (
+          await isParentOwnedDocument(req.params.id) ||
+          isFamilyUploadedSupportSource((existing as any).uploadedBy)
+        )) ||
         (table === childrenTable && await isParentOwnedChild(req.params.id)) ||
         (table === familiesTable && await familyHasParentOwnedChildren(req.params.id))
       ) {
@@ -513,7 +517,17 @@ function makeCrud(path: string, table: any) {
       }
       if (table === documentsTable) await deleteDocumentScanOutputsForDocuments([req.params.id]);
       await db.delete(table).where(eq(table.id, req.params.id));
-      if (table === documentsTable) documentScanJobs.cancelDocument(req.params.id);
+      if (table === documentsTable) {
+        documentScanJobs.cancelDocument(req.params.id);
+        try {
+          await deleteUploadedDocumentFile((existing as any).fileUrl);
+        } catch (error) {
+          req.log.error({
+            document_id: req.params.id,
+            error_name: error instanceof Error ? error.name : "UnknownError",
+          }, "Document record deleted but local source-file cleanup failed");
+        }
+      }
       return res.json({ ok: true });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
@@ -2334,9 +2348,23 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         const [existing] = await db.select().from(documentsTable).where(eq(documentsTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
         if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
-        if (await isParentOwnedDocument(entity_id)) return res.status(403).json({ error: "Only the parent can delete a parent-owned document." });
+        if (
+          await isParentOwnedDocument(entity_id) ||
+          isFamilyUploadedSupportSource(existing.uploadedBy)
+        ) {
+          return res.status(403).json({ error: "Only the client or parent account that uploaded this document can delete it." });
+        }
         await deleteDocumentScanOutputsForDocuments([entity_id]);
         await db.delete(documentsTable).where(eq(documentsTable.id, entity_id));
+        documentScanJobs.cancelDocument(entity_id);
+        try {
+          await deleteUploadedDocumentFile(existing.fileUrl);
+        } catch (error) {
+          req.log.error({
+            document_id: entity_id,
+            error_name: error instanceof Error ? error.name : "UnknownError",
+          }, "Document record deleted but local source-file cleanup failed");
+        }
         await auditLog({ userId: req.user.id, userRole: "clinician", action: "document_deleted", targetType: "document", targetId: entity_id });
         return res.json({ ok: true });
       }
@@ -2703,6 +2731,59 @@ router.post("/client-upload-document", async (req: any, res) => {
     return res.status(201).json(serialize(doc));
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
+  }
+});
+
+router.post("/client-delete-document", async (req: any, res) => {
+  const inviteToken = req.body?.invite_token ?? req.body?.inviteToken;
+  const documentId = req.body?.document_id ?? req.body?.documentId;
+  if (!inviteToken) return res.status(401).json({ error: "Authentication required" });
+  if (typeof documentId !== "string" || !documentId.trim()) {
+    return res.status(400).json({ error: "document_id required" });
+  }
+
+  try {
+    const csession = await validateClientSession(inviteToken);
+    if (!csession) return res.status(401).json({ error: "Invalid or expired session" });
+
+    const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, documentId));
+    if (!document) return res.status(404).json({ error: "Document not found" });
+    if (
+      document.childId !== csession.childId ||
+      document.uploadedBy !== `client:${csession.childId}`
+    ) {
+      return res.status(403).json({ error: "You can delete only documents uploaded by this client account." });
+    }
+
+    await deleteDocumentScanOutputsForDocuments([documentId]);
+    documentScanJobs.cancelDocument(documentId);
+    await db.delete(documentsTable).where(and(
+      eq(documentsTable.id, documentId),
+      eq(documentsTable.childId, csession.childId),
+      eq(documentsTable.uploadedBy, `client:${csession.childId}`),
+    ));
+    try {
+      await deleteUploadedDocumentFile(document.fileUrl);
+    } catch (error) {
+      req.log.error({
+        document_id: documentId,
+        error_name: error instanceof Error ? error.name : "UnknownError",
+      }, "Client document record deleted but local source-file cleanup failed");
+    }
+    await auditLog({
+      userId: csession.childId,
+      userRole: "client",
+      action: "client_document_deleted",
+      targetType: "document",
+      targetId: documentId,
+      tenantId: document.tenantId ?? undefined,
+    });
+    return res.json({ ok: true });
+  } catch (error) {
+    req.log.error({
+      error_name: error instanceof Error ? error.name : "UnknownError",
+    }, "Client document deletion failed");
+    return res.status(500).json({ error: "The document could not be deleted. Please try again." });
   }
 });
 

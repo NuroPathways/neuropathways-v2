@@ -51,6 +51,11 @@ function cleanTitle(fileName) {
     .trim();
 }
 
+export function canClinicianDeleteDocument(document, clinicianId) {
+  const uploadedBy = document?.uploaded_by ?? document?.uploadedBy;
+  return Boolean(clinicianId && uploadedBy === clinicianId);
+}
+
 export default function ClinicianDocuments() {
   const navigate = useNavigate();
   const [clinicianId, setClinicianId] = useState("");
@@ -382,10 +387,12 @@ export default function ClinicianDocuments() {
                                      setScanStatus(st => ({ ...st, [id]: nextStatus }));
                                      if (scanError) setScanErrors(st => ({ ...st, [id]: scanError }));
                                    }} />
-                                 <Button variant="outline" size="sm" onClick={() => { setDeleteError(""); setDeleteTarget(doc); }}
-                                   aria-label={`Delete document ${doc.title || doc.file_name || ""}`} data-testid={`button-delete-document-${doc.id}`}>
-                                   <Trash2 className="w-4 h-4" /> Delete document
-                                 </Button>
+                                  {canClinicianDeleteDocument(doc, clinicianId) && (
+                                    <Button variant="outline" size="sm" onClick={() => { setDeleteError(""); setDeleteTarget(doc); }}
+                                      aria-label={`Delete document ${doc.title || doc.file_name || ""}`} data-testid={`button-delete-document-${doc.id}`}>
+                                      <Trash2 className="w-4 h-4" /> Delete document
+                                    </Button>
+                                  )}
                                </div>
                             </div>
                               <DocumentExtractionDisclosure

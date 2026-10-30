@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
-import { ArrowLeft, Search, FileText, Download, FolderOpen, Upload } from "lucide-react";
+import { ArrowLeft, Search, FileText, Download, FolderOpen, Upload, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import DocScanButton from "@/components/clinician/DocScanButton";
 import { openAuthenticatedFile } from "@/lib/authenticatedFile";
+import ClientDocumentDeleteButton from "@/components/clinician/ClientDocumentDeleteButton";
 
 const CATEGORY_LABELS = {
   treatment_plan: "Treatment Plan",
@@ -135,6 +136,18 @@ export default function DocumentCenter({ embedded = false }) {
   }, [user]);
 
   useEffect(() => { void loadDocuments(); }, [loadDocuments]);
+
+  const deleteClientDocument = async (document) => {
+    const result = await base44.functions.invoke("deleteClientDocument", {
+        document_id: document.id,
+        child_id: document.child_id ?? document.childId,
+        invite_token: user?.invite_token,
+      });
+      if (result?.data?.error || result?.data?.ok === false) {
+        throw new Error(result.data.error || "The document could not be deleted.");
+      }
+    setDocuments((current) => current.filter((item) => item.id !== document.id));
+  };
 
   const childMap = Object.fromEntries(children.map(c => [c.id, c.child_name]));
   const visibleDocuments = requestedChildId
@@ -279,6 +292,7 @@ export default function DocumentCenter({ embedded = false }) {
                     onScanned={loadDocuments}
                   />
                 )}
+                <ClientDocumentDeleteButton doc={doc} user={user} onDelete={deleteClientDocument} />
               </motion.div>
             ))}
           </div>

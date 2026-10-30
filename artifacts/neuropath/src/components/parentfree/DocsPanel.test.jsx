@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DocsPanel, { processingStatus } from "./DocsPanel";
 
@@ -60,7 +60,7 @@ beforeEach(() => {
   };
   vi.spyOn(window, "open").mockImplementation(() => openedPopup);
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("Parent Document Center presentation and existing contracts", () => {
   it("preserves the empty state and scopes uploads to the selected child", () => {
@@ -68,6 +68,31 @@ describe("Parent Document Center presentation and existing contracts", () => {
     expect(screen.getByTestId("text-no-documents").textContent).toContain("Your steps already work without one");
     expect(screen.getByTestId("upload-child").textContent).toBe("child-a");
     expect(screen.queryByTestId("input-doc-search")).toBeNull();
+  });
+
+  it("offers delete only for parent-owned files and requires confirmation", async () => {
+    mount([doc(), doc({ id: "clinic-doc", title: "Clinic plan", uploadedBy: "clinician" })]);
+    expect(screen.getByTestId("button-delete-document-doc-a")).toBeTruthy();
+    expect(screen.queryByTestId("button-delete-document-clinic-doc")).toBeNull();
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await clickAsync("button-delete-document-doc-a");
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Keep document" }));
+    expect(screen.getByTestId("row-document-doc-a")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await clickAsync("button-delete-document-doc-a");
+    await clickAsync("button-confirm-delete-document");
+    await waitFor(() => expect(screen.queryByTestId("row-document-doc-a")).toBeNull());
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/parent/children/child-a/documents/doc-a",
+      expect.objectContaining({ method: "DELETE", credentials: "include" }),
+    );
   });
 
   it("searches trimmed case-insensitive titles and original file names", () => {

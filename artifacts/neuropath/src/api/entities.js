@@ -172,6 +172,10 @@ export const functions = {
         const data = await apiFetch("/client-portal-data", { method: "POST", body: JSON.stringify(args) });
         return { data };
       }
+      case "deleteClientDocument": {
+        const data = await apiFetch("/client-delete-document", { method: "POST", body: JSON.stringify(args) });
+        return { data };
+      }
       case "getClientDetail": {
         if (args.family_id) {
           const data = await apiFetch(`/family-detail?family_id=${encodeURIComponent(args.family_id)}`);

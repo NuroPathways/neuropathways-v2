@@ -4,11 +4,15 @@ import { useScanParentDocument, useSetParentDocumentSharing, getParentDocumentCo
 import { parentRequest } from "@/lib/parentSession";
 import { ErrorBox, errMsg } from "./common";
 import UploadBox from "./UploadBox";
-import { FileText } from "lucide-react";
+import { FileText, Trash2 } from "lucide-react";
 import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
 import { Input } from "@workspace/neuropathways-foundations/components/ui/input";
 import { Disclosure } from "@workspace/neuropathways-foundations/components/ui/disclosure";
 import { StatusBadge } from "@workspace/neuropathways-foundations/components/ui/status-badge";
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@workspace/neuropathways-foundations/components/ui/alert-dialog";
 import "@workspace/neuropathways-foundations/scoped.css";
 import "./docs-phase-eight.css";
 
@@ -109,8 +113,12 @@ export default function DocsPanel({ child, documents }) {
   const [batchStatus, setBatchStatus] = useState("");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-  const categories = ["all", ...Array.from(new Set(documents.map(categoryOf)))];
-  const shown = documents.filter((d) => (category === "all" || categoryOf(d) === category)
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deletedDocumentIds, setDeletedDocumentIds] = useState(() => new Set());
+  const visibleDocuments = documents.filter((document) => !deletedDocumentIds.has(document.id));
+  const categories = ["all", ...Array.from(new Set(visibleDocuments.map(categoryOf)))];
+  const shown = visibleDocuments.filter((d) => (category === "all" || categoryOf(d) === category)
     && `${d.title || ""} ${d.fileName || ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   const operationLock = useRef(false);
   const active = useRef(true);
@@ -124,6 +132,9 @@ export default function DocsPanel({ child, documents }) {
     active.current = true;
     return () => { active.current = false; };
   }, []);
+  useEffect(() => {
+    setDeletedDocumentIds(new Set());
+  }, [childId]);
 
   const readDocuments = async (targetDocuments) => {
     if (!targetDocuments.length || operationLock.current) return;
@@ -167,6 +178,28 @@ export default function DocsPanel({ child, documents }) {
 
   const retry = (document) => {
     void readDocuments([document]);
+  };
+
+  const deleteDocument = async () => {
+    if (!deleteTarget || deleteBusy) return;
+    const target = deleteTarget;
+    setDeleteBusy(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/parent/children/${encodeURIComponent(childId)}/documents/${encodeURIComponent(target.id)}`,
+        parentRequest({ method: "DELETE" }),
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error || "The document could not be deleted.");
+      setDeletedDocumentIds((current) => new Set([...current, target.id]));
+      setDeleteTarget(null);
+      await refresh();
+    } catch (deleteError) {
+      setError(errMsg(deleteError, "The document could not be deleted. It is still in your account."));
+    } finally {
+      setDeleteBusy(false);
+    }
   };
 
   const toggle = (d) => {
@@ -282,6 +315,7 @@ export default function DocsPanel({ child, documents }) {
                   <Button type="button" className="np-docs-btn" onClick={() => void download(d)} aria-label={`Download ${name}`} data-testid={`button-download-${d.id}`}>Download</Button>
                   {st.retry && d.canScan !== false && <Button type="button" className="np-docs-btn primary" disabled={operationBusy} onClick={() => retry(d)} data-testid={`button-retry-scan-${d.id}`}>{busyId === d.id ? "Reading..." : (st.actionLabel || "Retry reading")}</Button>}
                   {d.canShare !== false && <Button type="button" className="np-docs-btn" disabled={operationBusy || (!child.clinicianId && !d.shared)} onClick={() => toggle(d)} data-testid={`button-share-${d.id}`}>{d.shared ? "Stop sharing" : "Share with clinician"}</Button>}
+                  {d.uploadedBy === "parent" && <Button type="button" variant="outline" className="np-docs-btn text-destructive" disabled={operationBusy} onClick={() => { setError(""); setDeleteTarget(d); }} aria-label={`Delete ${name}`} data-testid={`button-delete-document-${d.id}`}><Trash2 aria-hidden="true" size={14} /> Delete</Button>}
                 </div>
                 <Disclosure className="np-docs-disclosure" title="View details" data-testid={`disclosure-document-details-${d.id}`}>
                   <dl className="np-docs-details" data-testid={`details-document-${d.id}`}>
@@ -313,6 +347,22 @@ export default function DocsPanel({ child, documents }) {
         <h3 id="np-docs-upload-title">Upload Document</h3>
         <UploadBox key={childId} childId={childId} />
       </section>
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deleteBusy) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove {deleteTarget?.title || "this document"} and its uploaded file from your account. Goals or support information already created from it will remain.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteBusy}>Keep document</AlertDialogCancel>
+            <Button variant="destructive" disabled={deleteBusy} onClick={() => void deleteDocument()} data-testid="button-confirm-delete-document">
+              {deleteBusy ? "Deleting…" : "Delete document"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
