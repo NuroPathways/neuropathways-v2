@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db, documentExtractionRunsTable } from "@workspace/db";
 import type {
   DocumentExtractionCategory,
@@ -9,6 +9,10 @@ import type {
 } from "@workspace/db";
 import { normalizedParentText } from "./parentDocumentPolicy";
 import { isDocumentPurpose, type DocumentClassificationStatus, type DocumentPurpose } from "./documentTaxonomy";
+import {
+  deleteEncryptedDocumentScanOutput,
+  saveEncryptedDocumentScanOutput,
+} from "./parentFileStorage";
 
 export type DocumentExtractionSource = {
   childId: string;
@@ -340,6 +344,13 @@ export async function persistDocumentExtractionRun(input: {
     eq(documentExtractionRunsTable.documentVersion, input.source.documentVersion),
   )).limit(1);
   const records = mergeRecords(existing?.records || [], input.records, input.status, now);
+  const scanOutputPath = input.source.searchableText.trim()
+    ? await saveEncryptedDocumentScanOutput(
+      input.source.documentId,
+      input.source.documentVersion,
+      Buffer.from(input.source.searchableText, "utf8"),
+    )
+    : existing?.scanOutputPath || null;
   const values = {
     childId: input.source.childId,
     documentId: input.source.documentId,
@@ -347,6 +358,7 @@ export async function persistDocumentExtractionRun(input: {
     documentType: input.source.documentType,
     scanStatus: input.status,
     records,
+    scanOutputPath,
     errorMessage: input.errorMessage || null,
     scannedBy: input.scannedBy,
     updatedAt: now,
@@ -394,6 +406,36 @@ export async function persistDocumentExtractionBatch(input: {
       now,
     });
   }));
+}
+
+export async function deleteDocumentScanOutputsForDocuments(documentIds: string[]): Promise<void> {
+  const ids = [...new Set(documentIds.filter(Boolean))];
+  if (ids.length === 0) return;
+  const runs = await db.select({
+    documentId: documentExtractionRunsTable.documentId,
+    scanOutputPath: documentExtractionRunsTable.scanOutputPath,
+  }).from(documentExtractionRunsTable)
+    .where(inArray(documentExtractionRunsTable.documentId, ids));
+  await Promise.all([...new Set(runs.map((run) => run.scanOutputPath).filter((path): path is string => Boolean(path)))]
+    .map(deleteEncryptedDocumentScanOutput));
+  await db.update(documentExtractionRunsTable)
+    .set({ scanOutputPath: null, updatedAt: new Date() })
+    .where(inArray(documentExtractionRunsTable.documentId, ids));
+}
+
+export async function deleteDocumentScanOutputsForChildren(childIds: string[]): Promise<void> {
+  const ids = [...new Set(childIds.filter(Boolean))];
+  if (ids.length === 0) return;
+  const runs = await db.select({
+    documentId: documentExtractionRunsTable.documentId,
+    scanOutputPath: documentExtractionRunsTable.scanOutputPath,
+  }).from(documentExtractionRunsTable)
+    .where(inArray(documentExtractionRunsTable.childId, ids));
+  await Promise.all([...new Set(runs.map((run) => run.scanOutputPath).filter((path): path is string => Boolean(path)))]
+    .map(deleteEncryptedDocumentScanOutput));
+  await db.update(documentExtractionRunsTable)
+    .set({ scanOutputPath: null, updatedAt: new Date() })
+    .where(inArray(documentExtractionRunsTable.childId, ids));
 }
 
 export function documentExtractionsToolProperty() {

@@ -36,6 +36,8 @@ import {
   documentExtractionsToolProperty,
   normalizeDocumentExtractions,
   persistDocumentExtractionBatch,
+  deleteDocumentScanOutputsForChildren,
+  deleteDocumentScanOutputsForDocuments,
   type DocumentExtractionSource,
 } from "../lib/documentExtractions";
 import {
@@ -509,6 +511,7 @@ function makeCrud(path: string, table: any) {
       ) {
         return res.status(409).json({ error: "This record contains parent-owned data and cannot be deleted by the clinic." });
       }
+      if (table === documentsTable) await deleteDocumentScanOutputsForDocuments([req.params.id]);
       await db.delete(table).where(eq(table.id, req.params.id));
       if (table === documentsTable) documentScanJobs.cancelDocument(req.params.id);
       return res.json({ ok: true });
@@ -1550,13 +1553,23 @@ router.post("/build-client-profile", async (req: any, res) => {
       includedDocIds.push(doc.id);
     }
 
-    console.info(`[NeuroPath] buildClientProfile: child=${child_id} included=${includedDocIds.length} failed=${failedDocs.length} of ${allScannableDocs.length}`);
+    req.log.info({
+      child_id,
+      included_count: includedDocIds.length,
+      failed_count: failedDocs.length,
+      scannable_count: allScannableDocs.length,
+    }, "Prepared documents for scanning");
 
     // Persist per-document failures so the UI can show a specific reason.
     const now = new Date();
-    for (const fd of failedDocs) {
-      if (!parentScanParentId) {
-        await db.update(documentsTable).set({ scanStatus: "error", scanError: fd.reason, scannedAt: now }).where(eq(documentsTable.id, fd.id)).catch(() => {});
+    if (!parentScanParentId) {
+      const updates = await Promise.allSettled(failedDocs.map((fd) =>
+        db.update(documentsTable)
+          .set({ scanStatus: "error", scanError: fd.reason, scannedAt: now })
+          .where(eq(documentsTable.id, fd.id))));
+      const failedUpdates = updates.filter((result) => result.status === "rejected");
+      if (failedUpdates.length) {
+        req.log.error({ count: failedUpdates.length, document_ids: failedDocs.map((doc) => doc.id) }, "Failed to persist terminal status for unreadable documents");
       }
     }
 
@@ -1564,12 +1577,19 @@ router.post("/build-client-profile", async (req: any, res) => {
     if (includedDocIds.length === 0) {
       const detail = failedDocs.map(f => f.reason).find(Boolean) || "The documents could not be read.";
       const sources = [...extractionSourceById.values()];
-      await persistDocumentExtractionBatch({
-        sources,
-        normalized: normalizeDocumentExtractions([], sources),
-        scannedBy: parentScanParentId ? null : clinicianId,
-        errorMessage: detail,
-      }).catch(() => undefined);
+      try {
+        await persistDocumentExtractionBatch({
+          sources,
+          normalized: normalizeDocumentExtractions([], sources),
+          scannedBy: parentScanParentId ? null : clinicianId,
+          errorMessage: detail,
+        });
+      } catch (persistenceError) {
+        req.log.error({
+          document_ids: sources.map((source) => source.documentId),
+          error_name: persistenceError instanceof Error ? persistenceError.name : "UnknownError",
+        }, "Failed to persist unreadable document scan status");
+      }
       const retainedExtractions = clinicianScopedDocumentScan
         ? previousExtractionForDocument(source_document_id)
         : [];
@@ -1582,12 +1602,19 @@ router.post("/build-client-profile", async (req: any, res) => {
     }
     if (failedDocs.length > 0 && existingProfile && !scopedDocumentScan) {
       const sources = [...extractionSourceById.values()];
-      await persistDocumentExtractionBatch({
-        sources,
-        normalized: normalizeDocumentExtractions([], sources),
-        scannedBy: parentScanParentId ? null : clinicianId,
-        errorMessage: failedDocs[0].reason,
-      }).catch(() => undefined);
+      try {
+        await persistDocumentExtractionBatch({
+          sources,
+          normalized: normalizeDocumentExtractions([], sources),
+          scannedBy: parentScanParentId ? null : clinicianId,
+          errorMessage: failedDocs[0].reason,
+        });
+      } catch (persistenceError) {
+        req.log.error({
+          document_ids: sources.map((source) => source.documentId),
+          error_name: persistenceError instanceof Error ? persistenceError.name : "UnknownError",
+        }, "Failed to persist partial document scan status");
+      }
       return res.status(422).json({
         error: { code: "partial_scan_failed", message: `The combined scan was not saved because ${failedDocs.length} document(s) could not be read. ${failedDocs[0].reason} Other documents have not been marked as failed. Previously extracted information has been preserved.` },
         failed: failedDocs,
@@ -1726,14 +1753,50 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       const sources = includedDocIds
         .map((id) => extractionSourceById.get(id))
         .filter((source): source is DocumentExtractionSource => Boolean(source));
-      await persistDocumentExtractionBatch({
-        sources,
-        normalized: normalizeDocumentExtractions([], sources),
-        scannedBy: parentScanParentId ? null : clinicianId,
-        errorMessage: failure.message,
-      }).catch(() => undefined);
-      req.log.error({ status: ex?.status, code: failure.code }, "Clinical document reader rejected the scan");
-      return res.status(failure.status).json({ error: { code: failure.code, message: failure.message }, failed: failedDocs });
+      let scanOutputAvailable = false;
+      let persistenceFailed = false;
+      try {
+        const runs = await persistDocumentExtractionBatch({
+          sources,
+          normalized: normalizeDocumentExtractions([], sources),
+          scannedBy: parentScanParentId ? null : clinicianId,
+          errorMessage: failure.message,
+        });
+        scanOutputAvailable = runs.some((run) => Boolean(run.scanOutputPath));
+      } catch (persistenceError) {
+        persistenceFailed = true;
+        req.log.error({
+          document_ids: includedDocIds,
+          error_name: persistenceError instanceof Error ? persistenceError.name : "UnknownError",
+        }, "Failed to persist document scan output and extraction status");
+      }
+      const finalMessage = scanOutputAvailable
+        ? `${failure.message} Readable text from this document was saved securely. Retry the scan; no new upload is needed.`
+        : persistenceFailed
+          ? `${failure.message} The reader could not save extracted text to secure storage, but the original file and previous findings remain saved.`
+        : failure.message;
+      if (!parentScanParentId) {
+        const statusUpdates = await Promise.allSettled(includedDocIds.map((id) =>
+          db.update(documentsTable)
+            .set({ scanStatus: "error", scanError: finalMessage.slice(0, 500), scannedAt: now })
+            .where(eq(documentsTable.id, id))));
+        const failedUpdates = statusUpdates.filter((result) => result.status === "rejected");
+        if (failedUpdates.length) {
+          req.log.error({ count: failedUpdates.length, document_ids: includedDocIds }, "Failed to persist terminal document scan status");
+        }
+      }
+      req.log.error({
+        status: failure.status,
+        code: failure.code,
+        upstream_status: ex?.upstreamStatus ?? ex?.status ?? ex?.httpStatus,
+        scan_output_available: scanOutputAvailable,
+        persistence_failed: persistenceFailed,
+      }, "Clinical document reader rejected the scan");
+      return res.status(failure.status).json({
+        error: { code: failure.code, message: finalMessage },
+        failed: failedDocs,
+        scanOutputAvailable,
+      });
     }
 
     const toolUse = message.content.find((b: any) => b.type === "tool_use") as any;
@@ -1742,18 +1805,30 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       const sources = includedDocIds
         .map((id) => extractionSourceById.get(id))
         .filter((source): source is DocumentExtractionSource => Boolean(source));
-      await persistDocumentExtractionBatch({
-        sources,
-        normalized: normalizeDocumentExtractions(undefined, sources),
-        scannedBy: parentScanParentId ? null : clinicianId,
-        errorMessage: "The document classification was unreadable. Please retry the scan.",
-      }).catch(() => undefined);
-      for (const id of includedDocIds) {
-        if (!parentScanParentId) {
-          await db.update(documentsTable).set({ scanStatus: "error", scanError: "The AI returned an unreadable result. Please try again.", scannedAt: now }).where(eq(documentsTable.id, id)).catch(() => {});
+      try {
+        await persistDocumentExtractionBatch({
+          sources,
+          normalized: normalizeDocumentExtractions(undefined, sources),
+          scannedBy: parentScanParentId ? null : clinicianId,
+          errorMessage: "The document classification was unreadable. Please retry the scan.",
+        });
+      } catch (persistenceError) {
+        req.log.error({
+          document_ids: sources.map((source) => source.documentId),
+          error_name: persistenceError instanceof Error ? persistenceError.name : "UnknownError",
+        }, "Failed to persist unreadable document classification");
+      }
+      if (!parentScanParentId) {
+        const updates = await Promise.allSettled(includedDocIds.map((id) =>
+          db.update(documentsTable)
+            .set({ scanStatus: "error", scanError: "The AI returned an unreadable result. Please try again.", scannedAt: now })
+            .where(eq(documentsTable.id, id))));
+        const failedUpdates = updates.filter((result) => result.status === "rejected");
+        if (failedUpdates.length) {
+          req.log.error({ count: failedUpdates.length, document_ids: includedDocIds }, "Failed to persist terminal status for unreadable AI result");
         }
       }
-      console.error(`[NeuroPath] buildClientProfile: no tool_use output child=${child_id} stop_reason=${message.stop_reason}`);
+      req.log.error({ child_id, stop_reason: message.stop_reason }, "Document reader returned no structured classification");
       return fail(502, "ai_invalid_response", "The AI returned an unexpected result. Please try scanning again.");
     }
     if (!Array.isArray(extracted.document_extractions)) {
@@ -1772,19 +1847,29 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       const sources = includedDocIds
         .map((id) => extractionSourceById.get(id))
         .filter((source): source is DocumentExtractionSource => Boolean(source));
-      await persistDocumentExtractionBatch({
-        sources,
-        normalized: normalizeDocumentExtractions(undefined, sources),
-        scannedBy: parentScanParentId ? null : clinicianId,
-        errorMessage: "The document classification was incomplete. Please retry the scan.",
-      }).catch(() => undefined);
-      for (const id of includedDocIds) {
-        if (!parentScanParentId) {
-          await db.update(documentsTable).set({
+      try {
+        await persistDocumentExtractionBatch({
+          sources,
+          normalized: normalizeDocumentExtractions(undefined, sources),
+          scannedBy: parentScanParentId ? null : clinicianId,
+          errorMessage: "The document classification was incomplete. Please retry the scan.",
+        });
+      } catch (persistenceError) {
+        req.log.error({
+          document_ids: sources.map((source) => source.documentId),
+          error_name: persistenceError instanceof Error ? persistenceError.name : "UnknownError",
+        }, "Failed to persist incomplete document classification");
+      }
+      if (!parentScanParentId) {
+        const updates = await Promise.allSettled(includedDocIds.map((id) =>
+          db.update(documentsTable).set({
             scanStatus: "error",
             scanError: "The document classification was incomplete. Please try again.",
             scannedAt: now,
-          }).where(eq(documentsTable.id, id)).catch(() => {});
+          }).where(eq(documentsTable.id, id))));
+        const failedUpdates = updates.filter((result) => result.status === "rejected");
+        if (failedUpdates.length) {
+          req.log.error({ count: failedUpdates.length, document_ids: includedDocIds }, "Failed to persist terminal status for incomplete classification");
         }
       }
       return fail(502, "classification_incomplete", "The document classification was incomplete. Please try scanning again.");
@@ -1925,10 +2010,15 @@ Example: do not write only "${childName} will complete a graduated exposure hier
         normalized: normalizeDocumentExtractions([], failedExtractionSources),
         scannedBy: parentScanParentId ? null : clinicianId,
         errorMessage: firstError || "The document could not be read. Please retry the scan.",
-      }).catch(() => undefined);
+      }).catch((persistenceError) => {
+        req.log.error({
+          document_ids: failedExtractionSources.map((source) => source.documentId),
+          error_name: persistenceError instanceof Error ? persistenceError.name : "UnknownError",
+        }, "Failed to persist unreadable document entries from combined scan");
+      });
     }
     if (message.stop_reason === "max_tokens") {
-      console.warn(`[NeuroPath] buildClientProfile: output truncated at max_tokens child=${child_id} behaviors=${(extracted.behaviors || []).length}`);
+      req.log.warn({ child_id, behavior_count: (extracted.behaviors || []).length }, "Document classification response was truncated");
       warnings.push("The source classification was truncated. Review the extracted items and retry the scan if needed.");
     }
     if (extractionRuns.some((run) => run.scanStatus === "partial")) {
@@ -1962,8 +2052,15 @@ Example: do not write only "${childName} will complete a graduated exposure hier
     }
 
     // Mark the successfully scanned documents.
-    for (const id of includedDocIds) {
-      await db.update(documentsTable).set({ scanStatus: "done", scanError: null, scannedAt: now }).where(eq(documentsTable.id, id)).catch(() => {});
+    if (!parentScanParentId) {
+      const updates = await Promise.allSettled(includedDocIds.map((id) =>
+        db.update(documentsTable)
+          .set({ scanStatus: "done", scanError: null, scannedAt: now })
+          .where(eq(documentsTable.id, id))));
+      const failedUpdates = updates.filter((result) => result.status === "rejected");
+      if (failedUpdates.length) {
+        req.log.error({ count: failedUpdates.length, document_ids: includedDocIds }, "Failed to persist completed document scan status");
+      }
     }
     if (scopedDocumentScan) {
       const scopedGoalRecords = extractionRuns
@@ -2209,6 +2306,7 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
         if (await familyHasParentOwnedChildren(entity_id)) return res.status(409).json({ error: "This family contains parent-owned data and cannot be deleted by the clinic." });
         const kids = await db.select().from(childrenTable).where(eq(childrenTable.familyId, entity_id));
+        await deleteDocumentScanOutputsForChildren(kids.map((kid) => kid.id));
         for (const k of kids) {
           await db.delete(documentsTable).where(eq(documentsTable.childId, k.id));
           await db.delete(behaviorPlansTable).where(eq(behaviorPlansTable.childId, k.id));
@@ -2237,6 +2335,7 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         if (!existing) return res.status(404).json({ error: "Not found" });
         if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
         if (await isParentOwnedDocument(entity_id)) return res.status(403).json({ error: "Only the parent can delete a parent-owned document." });
+        await deleteDocumentScanOutputsForDocuments([entity_id]);
         await db.delete(documentsTable).where(eq(documentsTable.id, entity_id));
         await auditLog({ userId: req.user.id, userRole: "clinician", action: "document_deleted", targetType: "document", targetId: entity_id });
         return res.json({ ok: true });

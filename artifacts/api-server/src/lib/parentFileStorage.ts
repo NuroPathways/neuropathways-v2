@@ -67,12 +67,12 @@ function decrypt(ciphertext: Buffer): Buffer {
   }
 }
 
-function objectLocation(storagePath: string): { bucketName: string; objectName: string } {
+function objectLocation(storagePath: string, namespace = "parent-documents"): { bucketName: string; objectName: string } {
   const root = privateRoot();
   const parts = storagePath.split("/");
   const bucketName = parts.shift();
   const objectName = parts.join("/");
-  const expectedPrefix = [root.objectPrefix, "parent-documents"].filter(Boolean).join("/");
+  const expectedPrefix = [root.objectPrefix, namespace].filter(Boolean).join("/");
   if (
     bucketName !== root.bucketName ||
     !objectName.startsWith(`${expectedPrefix}/`) ||
@@ -111,6 +111,61 @@ export async function readEncryptedParentDocument(storagePath: string): Promise<
 
 export async function deleteEncryptedParentDocument(storagePath: string): Promise<void> {
   const { bucketName, objectName } = objectLocation(storagePath);
+  await objectStorageClient.bucket(bucketName).file(objectName).delete({ ignoreNotFound: true });
+}
+
+const SCAN_OUTPUT_PREFIX = Buffer.from("NPS1");
+
+export async function saveEncryptedDocumentScanOutput(
+  documentId: string,
+  documentVersion: string,
+  plain: Buffer,
+): Promise<string> {
+  if (!documentId || !/^[0-9a-f]{64}$/i.test(documentVersion)) {
+    throw new Error("Invalid document scan output identifier");
+  }
+  const root = privateRoot();
+  const opaqueId = crypto.createHash("sha256").update(documentId).digest("hex");
+  const objectName = [root.objectPrefix, "document-scan-outputs", `${opaqueId}-${documentVersion}.enc`]
+    .filter(Boolean)
+    .join("/");
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const ciphertext = Buffer.concat([cipher.update(plain), cipher.final()]);
+  const encrypted = Buffer.concat([SCAN_OUTPUT_PREFIX, iv, cipher.getAuthTag(), ciphertext]);
+  await objectStorageClient.bucket(root.bucketName).file(objectName).save(encrypted, {
+    resumable: false,
+    metadata: {
+      contentType: "application/octet-stream",
+      cacheControl: "private, no-store",
+      metadata: { encryption: "AES-256-GCM", format: "NPS1" },
+    },
+  });
+  return `${root.bucketName}/${objectName}`;
+}
+
+export async function readEncryptedDocumentScanOutput(storagePath: string): Promise<Buffer> {
+  const { bucketName, objectName } = objectLocation(storagePath, "document-scan-outputs");
+  const [encrypted] = await objectStorageClient.bucket(bucketName).file(objectName).download();
+  if (encrypted.length < SCAN_OUTPUT_PREFIX.length + 12 + 16 + 1 ||
+      !encrypted.subarray(0, SCAN_OUTPUT_PREFIX.length).equals(SCAN_OUTPUT_PREFIX)) {
+    throw new Error("Stored document scan output is unreadable");
+  }
+  const offset = SCAN_OUTPUT_PREFIX.length;
+  const iv = encrypted.subarray(offset, offset + 12);
+  const tag = encrypted.subarray(offset + 12, offset + 28);
+  const ciphertext = encrypted.subarray(offset + 28);
+  try {
+    const decipher = crypto.createDecipheriv("aes-256-gcm", encryptionKey(), iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  } catch {
+    throw new Error("Stored document scan output is unreadable");
+  }
+}
+
+export async function deleteEncryptedDocumentScanOutput(storagePath: string): Promise<void> {
+  const { bucketName, objectName } = objectLocation(storagePath, "document-scan-outputs");
   await objectStorageClient.bucket(bucketName).file(objectName).delete({ ignoreNotFound: true });
 }
 

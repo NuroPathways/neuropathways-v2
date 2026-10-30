@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { DocumentProcessingError, documentAiError } from "./documentAi";
 
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
 const MAX_RENDER_MS = 30_000;
@@ -52,16 +53,29 @@ export async function prepareClinicalPdf(bytes: Buffer): Promise<Buffer> {
 }
 
 export function clinicalScanServiceError(error: unknown): { status: number; code: string; message: string; invalidDocument: boolean } {
-  const err = error as { status?: number; message?: string };
-  const message = String(err?.message ?? "");
-  if (Number(err?.status) === 400 && /pdf|document|image/i.test(message)) {
+  const value = error as { status?: number; httpStatus?: number; message?: string };
+  const message = String(value?.message ?? "");
+  if (/PDF is invalid|password-protected|damaged or incomplete|too large after preparing|took too long to read/i.test(message)) {
     return {
-      status: 422, code: "document_rejected", invalidDocument: true,
-      message: "The document reader rejected a file. Re-export the affected PDF or image and upload it again. Previously extracted information has been preserved.",
+      status: 422,
+      code: /password-protected/i.test(message) ? "document_password_protected" : "document_pdf_unreadable",
+      invalidDocument: true,
+      message: `${message} Previously extracted information has been preserved.`,
     };
   }
+  const processingError = error instanceof DocumentProcessingError
+    ? error
+    : documentAiError({
+      ...value,
+      status: value?.status ?? value?.httpStatus,
+    });
+  const safeMessage = /previous.*(preserved|kept)/i.test(processingError.message)
+    ? processingError.message
+    : `${processingError.message} Previously extracted information has been preserved.`;
   return {
-    status: 502, code: "ai_error", invalidDocument: false,
-    message: "The AI service could not process the documents right now. Please try again in a moment. Previously extracted information has been preserved.",
+    status: processingError.httpStatus,
+    code: processingError.code,
+    invalidDocument: processingError.httpStatus === 422 && !processingError.retryable,
+    message: safeMessage,
   };
 }

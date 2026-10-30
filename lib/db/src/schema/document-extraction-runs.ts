@@ -52,6 +52,7 @@ export const documentExtractionRunsTable = pgTable(
     documentType: varchar("document_type").notNull(),
     scanStatus: varchar("scan_status").$type<DocumentExtractionScanStatus>().notNull(),
     records: jsonb("records").$type<DocumentExtractionRecord[]>().notNull().default([]),
+    scanOutputPath: varchar("scan_output_path", { length: 512 }),
     errorMessage: text("error_message"),
     scannedBy: varchar("scanned_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

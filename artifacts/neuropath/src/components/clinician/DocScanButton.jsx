@@ -6,6 +6,8 @@ import DocumentStatusInfo from "./DocumentStatusInfo";
 
 const scanStatus = (doc) => String(doc?.scan_status ?? doc?.scanStatus ?? "pending").toLowerCase();
 const scanError = (doc) => doc?.scan_error ?? doc?.scanError ?? "";
+const scanOutputWasSaved = (doc) => Boolean(doc?.scanOutputAvailable ?? doc?.scan_output_available) ||
+  /readable text from this document was saved securely/i.test(String(scanError(doc)));
 
 // Reusable AI scan / re-scan control for a single document.
 // Re-scans only this document so unrelated missing or unsupported files cannot
@@ -69,6 +71,7 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
   const [showError, setShowError] = useState(false);
   const runningScan = useRef(false);
   const [progress, setProgress] = useState(null);
+  const [hasSavedScanOutput, setHasSavedScanOutput] = useState(() => scanOutputWasSaved(doc));
 
   useEffect(() => {
     // Ignore stale list data only while this control owns an active request.
@@ -84,7 +87,8 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
           : "pending";
     setStatus(next);
     setErrorMsg(next === "error" ? (scanError(doc) || "Failed") : "");
-  }, [doc.id, doc.scan_status, doc.scanStatus, doc.scan_error, doc.scanError]);
+    setHasSavedScanOutput(scanOutputWasSaved(doc));
+  }, [doc.id, doc.scan_status, doc.scanStatus, doc.scan_error, doc.scanError, doc.scanOutputAvailable, doc.scan_output_available]);
 
   const runScan = async () => {
     if ((!clinicianId && !inviteToken) || status === "scanning" || runningScan.current) return;
@@ -115,6 +119,10 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
       const failed = failedDocuments(e);
       const ownFailure = failed.find(f => f.id === doc.id);
       const reason = ownFailure?.reason || parseErrorMessage(e);
+      const outputSaved = body?.scanOutputAvailable === true ||
+        body?.scan_output_available === true ||
+        /readable text from this document was saved securely/i.test(reason);
+      setHasSavedScanOutput(outputSaved);
       setErrorMsg(reason);
       setStatus(failed.length && !ownFailure ? "blocked" : "error");
       setShowError(true);
@@ -124,6 +132,7 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
         error: true,
         message: reason,
         failed,
+        scanOutputAvailable: outputSaved,
         documentExtractions: body?.documentExtractions ?? body?.document_extractions ?? [],
         retainedExtractionFallback: body?.retainedExtractionFallback ?? body?.retained_extraction_fallback ?? false,
       });
@@ -192,7 +201,9 @@ export default function DocScanButton({ doc, clinicianId, inviteToken, hasSavedE
         <div role="alert" className="max-w-[18rem] text-right text-xs text-foreground" data-testid={`text-scan-error-${doc.id}`}>
           <p className="font-semibold">{failure.reason}</p>
           {failure.detail && failure.detail !== failure.reason && <p className="text-muted-foreground break-words">{failure.detail}</p>}
-          {!failure.retryable && hasSavedExtractions
+          {hasSavedScanOutput
+            ? <p className="text-muted-foreground">Readable text from this document was saved securely. Retry the scan when the AI reader is available; you do not need to upload it again.</p>
+            : !failure.retryable && hasSavedExtractions
             ? <p className="text-muted-foreground">Saved extracted information is shown below. Upload a fresh copy only if you need another scan.</p>
             : !failure.retryable
               ? <p className="text-muted-foreground">No saved extraction is available yet. Upload a fresh copy if you want to scan this document.</p>

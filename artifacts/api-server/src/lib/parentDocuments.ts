@@ -1615,15 +1615,36 @@ async function readParentDocument(
       publicMessage: message,
       classificationPersisted,
     }, "Document processing failed; no document content is logged");
+    let scanOutputAvailable = false;
     if (!classificationPersisted && extractionSources.length) {
-      await persistDocumentExtractionBatch({
-        sources: extractionSources,
-        normalized: normalizeDocumentExtractions(undefined, extractionSources),
-        scannedBy: parentId,
-        errorMessage: message,
-      }).catch(() => undefined);
+      try {
+        const runs = await persistDocumentExtractionBatch({
+          sources: extractionSources,
+          normalized: normalizeDocumentExtractions(undefined, extractionSources),
+          scannedBy: parentId,
+          errorMessage: message,
+        });
+        scanOutputAvailable = runs.some((run) => Boolean(run.scanOutputPath));
+      } catch (persistenceError) {
+        logger.error({
+          operation: "parent_document_scan_persist_failure",
+          documentId,
+          errorName: persistenceError instanceof Error ? persistenceError.name : "UnknownError",
+        }, "Failed to preserve document scan output and extraction status");
+      }
     }
-    await setScanStatus(documentId, "error", message.slice(0, 500)).catch(() => undefined);
+    if (scanOutputAvailable) {
+      reportedError.message = `${message} Readable text from this document was saved securely. Retry the scan; no new upload is needed.`;
+    }
+    try {
+      await setScanStatus(documentId, "error", reportedError.message.slice(0, 500));
+    } catch (statusError) {
+      logger.error({
+        operation: "parent_document_scan_status_failure",
+        documentId,
+        errorName: statusError instanceof Error ? statusError.name : "UnknownError",
+      }, "Failed to persist terminal parent document scan status");
+    }
     throw reportedError;
   }
 }

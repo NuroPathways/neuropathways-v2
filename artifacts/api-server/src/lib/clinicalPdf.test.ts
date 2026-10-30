@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { prepareClinicalPdf, clinicalScanServiceError } from "./clinicalPdf";
+import { DocumentProcessingError } from "./documentAi";
 
 export function pdfFixture(): Buffer {
   const objects = [
@@ -44,6 +45,21 @@ test("header-only fake PDF is rejected locally with an actionable file error", a
 });
 test("invalid PDF service rejection is distinguished from temporary service failure", () => {
   assert.deepEqual(clinicalScanServiceError({ status: 400, message: "The PDF specified was not valid." }).status, 422);
-  assert.match(clinicalScanServiceError({ status: 400, message: "invalid PDF" }).message, /Re-export/);
-  assert.equal(clinicalScanServiceError({ status: 503, message: "unavailable" }).status, 502);
+  assert.match(clinicalScanServiceError({ status: 400, message: "invalid PDF" }).message, /re-exported/i);
+  const unavailable = clinicalScanServiceError({ status: 503, message: "unavailable" });
+  assert.equal(unavailable.status, 503);
+  assert.equal(unavailable.code, "document_ai_unavailable");
+  assert.match(unavailable.message, /temporarily unavailable/i);
+  assert.match(unavailable.message, /previously extracted information has been preserved/i);
+
+  const limited = clinicalScanServiceError(new DocumentProcessingError(
+    "The reader reached its page limit.",
+    "document_ai_limit",
+    422,
+    false,
+    413,
+  ));
+  assert.equal(limited.status, 422);
+  assert.equal(limited.code, "document_ai_limit");
+  assert.equal(limited.invalidDocument, true);
 });
