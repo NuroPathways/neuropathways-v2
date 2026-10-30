@@ -56,4 +56,18 @@ describe("clinician document deletion", () => {
     expect(await screen.findByText("Family plan")).toBeTruthy();
     expect(screen.queryByTestId("button-delete-document-parent-doc")).toBeNull();
   });
+
+  it("allows deletion of a family upload attached to the clinician's client", async () => {
+    api.documents.mockResolvedValueOnce([{
+      id: "family-doc",
+      child_id: "child",
+      clinician_id: "clinician",
+      title: "Family upload",
+      scan_status: "done",
+      uploaded_by: "client:child",
+    }]);
+    mount();
+    expect(await screen.findByText("Family upload")).toBeTruthy();
+    expect(screen.getByTestId("button-delete-document-family-doc")).toBeTruthy();
+  });
 });

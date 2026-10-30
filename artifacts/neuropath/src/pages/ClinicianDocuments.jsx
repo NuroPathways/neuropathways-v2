@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import DocScanButton from "@/components/clinician/DocScanButton";
 import DocumentExtractionDisclosure from "@/components/clinician/DocumentExtractionDisclosure";
 import { documentFailureMessage } from "@/components/clinician/DocumentStatusInfo";
+import { canClinicianDeleteDocument } from "@/lib/documentOwnership";
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
@@ -49,11 +50,6 @@ function cleanTitle(fileName) {
     .replace(/[_\-]+/g, " ")
     .replace(/\b\w/g, l => l.toUpperCase())
     .trim();
-}
-
-export function canClinicianDeleteDocument(document, clinicianId) {
-  const uploadedBy = document?.uploaded_by ?? document?.uploadedBy;
-  return Boolean(clinicianId && uploadedBy === clinicianId);
 }
 
 export default function ClinicianDocuments() {
@@ -415,7 +411,7 @@ export default function ClinicianDocuments() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this document?</AlertDialogTitle>
             <AlertDialogDescription>
-              Remove {deleteTarget?.title || "this document"} from the clinician portal. An active scan for this document will be stopped. Existing goals, clinical notes, and other documents are not deleted.
+              Remove {deleteTarget?.title || "this document"} from the clinician and family document centers. An active scan will be stopped. Goals, clinical notes, and support information already created from it will remain.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError && <p role="alert" className="text-sm text-destructive">{deleteError}</p>}

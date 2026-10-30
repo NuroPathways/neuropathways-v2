@@ -10,6 +10,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import SupportReview from "@/components/parentfree/SupportReview";
 import { recordClinicianObservationFeedback } from "@workspace/api-client-react";
+import { canClinicianDeleteDocument } from "@/lib/documentOwnership";
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@workspace/neuropathways-foundations/components/ui/alert-dialog";
+
+function actionErrorMessage(error, fallback) {
+  const raw = String(error?.message || "");
+  const jsonStart = raw.indexOf("{");
+  if (jsonStart >= 0) {
+    try {
+      const body = JSON.parse(raw.slice(jsonStart));
+      if (typeof body?.error === "string") return body.error;
+    } catch {
+      // Fall through to a sanitized status message.
+    }
+  }
+  return raw.replace(/^API error \d+:\s*/, "").trim() || fallback;
+}
 
 function ObservationFeedback({ childId, log }) {
   const [feedback, setFeedback] = useState(log.clinicianFeedback || "");
@@ -50,6 +69,9 @@ export default function ClientDetail() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [documents, setDocuments] = useState([]);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteDocBusy, setDeleteDocBusy] = useState(false);
+  const [deleteDocError, setDeleteDocError] = useState("");
   const [behaviorLogs, setBehaviorLogs] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [clinicianId, setClinicianId] = useState("");
@@ -125,9 +147,19 @@ export default function ClientDetail() {
     e.target.value = "";
   };
 
-  const handleDeleteDoc = async (docId) => {
-    await base44.functions.invoke('manageClientRecord', { action: 'deleteDocument', entity_id: docId });
-    setDocuments(prev => prev.filter(d => d.id !== docId));
+  const handleDeleteDoc = async () => {
+    if (!deleteTarget || deleteDocBusy) return;
+    setDeleteDocBusy(true);
+    setDeleteDocError("");
+    try {
+      await base44.functions.invoke('manageClientRecord', { action: 'deleteDocument', entity_id: deleteTarget.id });
+      setDocuments(prev => prev.filter(d => d.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (error) {
+      setDeleteDocError(actionErrorMessage(error, "The document could not be deleted. Please try again."));
+    } finally {
+      setDeleteDocBusy(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -258,7 +290,17 @@ export default function ClientDetail() {
                   </div>
                   <DocScanButton doc={doc} clinicianId={clinicianId} />
                   <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors"><Download className="w-4 h-4" /></a>
-                  <button onClick={() => handleDeleteDoc(doc.id)} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></button>
+                  {canClinicianDeleteDocument(doc, clinicianId) && (
+                    <button
+                      type="button"
+                      onClick={() => { setDeleteDocError(""); setDeleteTarget(doc); }}
+                      aria-label={`Delete document ${doc.title || doc.file_name || ""}`}
+                      data-testid={`button-delete-client-detail-document-${doc.id}`}
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -413,6 +455,23 @@ export default function ClientDetail() {
           )}
         </div>
       </div>
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deleteDocBusy) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes {deleteTarget?.title || "the document"} and its uploaded file from the clinician and family document centers. Goals or support information already created from it will remain.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteDocError && <p role="alert" className="text-sm text-destructive">{deleteDocError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteDocBusy}>Keep document</AlertDialogCancel>
+            <Button variant="destructive" disabled={deleteDocBusy} onClick={() => void handleDeleteDoc()} data-testid="button-confirm-delete-client-detail-document">
+              {deleteDocBusy ? "Deleting…" : "Delete document"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
