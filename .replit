@@ -22,3 +22,6 @@ timeoutMs = 20000
 [nix]
 channel = "stable-25_05"
 packages = ["poppler"]
+
+[objectStorage]
+defaultBucketID = "replit-objstore-8a88a05f-02e1-4201-bce4-e12dafcfd8bd"
