@@ -4,6 +4,7 @@ import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { db, childrenTable, documentsTable, userProfilesTable } from "@workspace/db";
+import { writeAuditEventBestEffort } from "../lib/auditEvents";
 import { eq } from "drizzle-orm";
 import { requireMobileAuth } from "./mobile";
 import { validateClientSession, sessionMayAccessChild } from "./entities-helpers";
@@ -600,9 +601,35 @@ router.use("/uploads", (req: any, res: Response) => {
       const checkDocumentAccess = async (allowLegacyInviteToken = false) => {
         const allowed = await canReadDocument(registeredDocument, req, allowLegacyInviteToken);
         if (!allowed) {
+          await writeAuditEventBestEffort({
+            userId: req.user?.id ?? req.mobileUser?.id ?? registeredDocument.childId,
+            userRole: req.user?.id
+              ? (req.user.appRole === "clinician" ? "clinician" : "parent")
+              : req.mobileUser?.id ? "clinician_mobile" : "client",
+            tenantId: registeredDocument.tenantId,
+            action: "document_download_denied",
+            targetType: "document",
+            targetId: registeredDocument.id,
+            success: false,
+            reason: "Document access check denied the request.",
+            metadata: { child_id: registeredDocument.childId },
+            requestId: req.id,
+          });
           res.status(403).json({ error: "Access denied" });
           return;
         }
+        await writeAuditEventBestEffort({
+          userId: req.user?.id ?? req.mobileUser?.id ?? registeredDocument.childId,
+          userRole: req.user?.id
+            ? (req.user.appRole === "clinician" ? "clinician" : "parent")
+            : req.mobileUser?.id ? "clinician_mobile" : "client",
+          tenantId: registeredDocument.tenantId,
+          action: "document_download_authorized",
+          targetType: "document",
+          targetId: registeredDocument.id,
+          metadata: { child_id: registeredDocument.childId },
+          requestId: req.id,
+        });
         serveFile(registeredDocument);
       };
       if (req.user?.id) {

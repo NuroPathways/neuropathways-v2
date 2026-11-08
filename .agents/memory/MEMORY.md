@@ -28,3 +28,4 @@
 - [Research-informed parent activities](parent-activity-evidence.md) — cite research with its limits; a general template is not proven treatment or a substitute for an authorized child-specific plan.
 - [Clinic account boundaries](clinic-account-boundaries.md) — keep clinic administration separate from chart access; require an active, explicit client assignment.
 - [Authentication and session security](authentication-session-security.md) — sanitize credentials at the shared response boundary and revoke stale sessions after credential or family-access changes.
+- [Audit-backed file cleanup](audit-backed-file-cleanup.md) — make document removal, cleanup retries, and audit evidence durable without exposing storage paths or mutating prior audit events.

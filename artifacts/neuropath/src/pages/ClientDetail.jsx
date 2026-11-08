@@ -72,6 +72,7 @@ export default function ClientDetail() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteDocBusy, setDeleteDocBusy] = useState(false);
   const [deleteDocError, setDeleteDocError] = useState("");
+  const [deleteDocNotice, setDeleteDocNotice] = useState("");
   const [behaviorLogs, setBehaviorLogs] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [clinicianId, setClinicianId] = useState("");
@@ -151,12 +152,21 @@ export default function ClientDetail() {
     if (!deleteTarget || deleteDocBusy) return;
     setDeleteDocBusy(true);
     setDeleteDocError("");
+    setDeleteDocNotice("");
     try {
-      await base44.functions.invoke('manageClientRecord', { action: 'deleteDocument', entity_id: deleteTarget.id });
+      const result = await base44.functions.invoke('manageClientRecord', { action: 'deleteDocument', entity_id: deleteTarget.id });
       setDocuments(prev => prev.filter(d => d.id !== deleteTarget.id));
+      if (result?.data?.cleanupStatus && result.data.cleanupStatus !== "complete") {
+        setDeleteDocNotice(result.data.error || "Document access was removed. Stored-file cleanup is still being completed.");
+      }
       setDeleteTarget(null);
     } catch (error) {
-      setDeleteDocError(actionErrorMessage(error, "The document could not be deleted. Please try again."));
+      const message = actionErrorMessage(error, "The document could not be deleted. Please try again.");
+      if (message.startsWith("Access was removed,")) {
+        setDocuments(prev => prev.filter(d => d.id !== deleteTarget.id));
+        setDeleteTarget(null);
+      }
+      setDeleteDocError(message);
     } finally {
       setDeleteDocBusy(false);
     }
@@ -464,6 +474,7 @@ export default function ClientDetail() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteDocError && <p role="alert" className="text-sm text-destructive">{deleteDocError}</p>}
+          {deleteDocNotice && <p role="status" className="text-sm">{deleteDocNotice}</p>}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteDocBusy}>Keep document</AlertDialogCancel>
             <Button variant="destructive" disabled={deleteDocBusy} onClick={() => void handleDeleteDoc()} data-testid="button-confirm-delete-client-detail-document">

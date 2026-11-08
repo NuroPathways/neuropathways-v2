@@ -108,6 +108,7 @@ export default function DocsPanel({ child, documents }) {
   const qc = useQueryClient();
   const childId = child.id;
   const [error, setError] = useState("");
+  const [cleanupNotice, setCleanupNotice] = useState("");
   const [busyId, setBusyId] = useState(null);
   const [operationBusy, setOperationBusy] = useState(false);
   const [batchStatus, setBatchStatus] = useState("");
@@ -185,12 +186,20 @@ export default function DocsPanel({ child, documents }) {
     const target = deleteTarget;
     setDeleteBusy(true);
     setError("");
+    setCleanupNotice("");
     try {
       const response = await fetch(
         `/api/parent/children/${encodeURIComponent(childId)}/documents/${encodeURIComponent(target.id)}`,
         parentRequest({ method: "DELETE" }),
       );
       const body = await response.json().catch(() => ({}));
+      if (body?.cleanupStatus && body.cleanupStatus !== "complete") {
+        setDeletedDocumentIds((current) => new Set([...current, target.id]));
+        setDeleteTarget(null);
+        setCleanupNotice(body.error || "Document access was removed. Stored-file cleanup is still being completed.");
+        await refresh();
+        return;
+      }
       if (!response.ok) throw new Error(body?.error || "The document could not be deleted.");
       setDeletedDocumentIds((current) => new Set([...current, target.id]));
       setDeleteTarget(null);
@@ -262,6 +271,7 @@ export default function DocsPanel({ child, documents }) {
         <h2 id="np-docs-title">Document Center</h2>
         <p className="np-docs-hint">Keep your child's plans and important documents organized in one place. Documents are private until you choose to share them.</p>
         <ErrorBox error={error} />
+        {cleanupNotice && <p role="status" className="np-docs-hint">{cleanupNotice}</p>}
         {documents.length > 1 && (
           <div className="np-docs-section">
             <Button className="np-docs-btn primary" type="button" disabled={operationBusy} onClick={() => void readDocuments(documents)} data-testid="button-read-all-plans">

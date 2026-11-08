@@ -24,6 +24,7 @@ import {
   mobileTokensTable,
   clientSessionsTable,
 } from "@workspace/db";
+import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
 import {
   LogParentDailyActionBody,
   ChangeParentPasswordBody,
@@ -705,6 +706,16 @@ router.post("/parent/auth/register", parentRegistrationLimiter, async (req: Requ
           ...accountAuthorityEvent("parent_guardian", accountAuthority.ageGroup, true, false),
         },
       ]);
+      await writeAuditEvent(tx, {
+        userId: parentId,
+        userRole: "parent",
+        tenantId: workspaceId,
+        action: "parent_signup",
+        targetType: "parent_account",
+        targetId: parentId,
+        metadata: { account_type: "parent_free" },
+        requestId: String(req.id),
+      });
       return true;
     });
 
@@ -739,10 +750,33 @@ router.post("/parent/auth/login", parentLoginIpLimiter, parentLoginAccountLimite
     const [account] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.email, email));
     if (!account) {
       await performParentPasswordCheck(body.password);
+      await writeAuditEventBestEffort({
+        userRole: "parent",
+        action: "failed_login",
+        targetType: "parent_account",
+        success: false,
+        reason: "Invalid login credentials.",
+        metadata: { method: "email_password" },
+        ipAddress: req.ip,
+        requestId: String(req.id),
+      });
       res.status(401).json({ error: "Invalid email or password" });
       return;
     }
     if (!await verifyParentPassword(body.password, account.passwordHash)) {
+      await writeAuditEventBestEffort({
+        userId: account.id,
+        userRole: "parent",
+        tenantId: account.workspaceId,
+        action: "failed_login",
+        targetType: "parent_account",
+        targetId: account.id,
+        success: false,
+        reason: "Invalid login credentials.",
+        metadata: { method: "email_password" },
+        ipAddress: req.ip,
+        requestId: String(req.id),
+      });
       res.status(401).json({ error: "Invalid email or password" });
       return;
     }
@@ -760,6 +794,16 @@ router.post("/parent/auth/login", parentLoginIpLimiter, parentLoginAccountLimite
         tokenHash: hashParentSessionToken(token),
         parentId: account.id,
         expiresAt,
+      });
+      await writeAuditEvent(tx, {
+        userId: account.id,
+        userRole: "parent",
+        tenantId: account.workspaceId,
+        action: "login",
+        targetType: "parent_account",
+        targetId: account.id,
+        metadata: { method: "email_password" },
+        requestId: String(req.id),
       });
       return { token, expiresAt };
     });
@@ -838,6 +882,16 @@ router.post("/parent/auth/change-password", passwordChangeLimiter, requireParent
           eq(parentSessionsTable.parentId, parent.id),
           ne(parentSessionsTable.tokenHash, currentSessionHash),
         ));
+      await writeAuditEvent(tx, {
+        userId: parent.id,
+        userRole: "parent",
+        tenantId: parent.workspaceId,
+        action: "parent_password_changed",
+        targetType: "parent_account",
+        targetId: parent.id,
+        metadata: { other_sessions_revoked: true },
+        requestId: String(req.id),
+      });
       return true;
     });
 
@@ -911,6 +965,7 @@ router.post("/parent/data-requests", requireParent, async (req: any, res: Respon
       reason: "Authenticated account holder submitted a data request.",
       metadata: {
         request_id: requestId,
+        correlation_id: String(req.id),
         account_type: "parent_free",
         request_type: requestType,
         requested_at: requestedAt.toISOString(),

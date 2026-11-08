@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { db } from "@workspace/db";
+import { writeAuditEvent } from "./auditEvents";
 import {
   auditLogsTable,
   childrenTable,
@@ -448,6 +449,7 @@ export async function createParentDocument(input: {
   documentType?: string;
   declaredMimeType: string;
   bytes: Buffer;
+  requestId?: string;
 }): Promise<{ document: ParentDocumentWire; duplicate: boolean }> {
   const child = await ownedChild(input.parentId, input.childId);
   if (child.settings.workspaceId !== input.workspaceId) throw new Error("Child not found");
@@ -497,6 +499,16 @@ export async function createParentDocument(input: {
         sha256,
       }).returning();
       if (!document || !metadata) throw new Error("Document record could not be saved");
+      await writeAuditEvent(tx, {
+        userId: input.parentId,
+        userRole: "parent",
+        tenantId: input.workspaceId,
+        action: "document_uploaded",
+        targetType: "document",
+        targetId: id,
+        metadata: { child_id: input.childId, document_type: documentType },
+        requestId: input.requestId,
+      });
       return { document, metadata };
     });
     return { document: toWire(created.document, created.metadata), duplicate: false };
@@ -2239,6 +2251,7 @@ export async function setParentDocumentSharing(
   childId: string,
   documentId: string,
   shared: boolean,
+  requestId?: string,
 ): Promise<ParentDocumentWire> {
   const child = await ownedChild(parentId, childId);
   const metadata = await isParentDocument(documentId);
@@ -2323,6 +2336,16 @@ export async function setParentDocumentSharing(
       source: "parent_documents",
       actorType: "parent",
       metadata: { documentId, childId, clinicianId, shared },
+    });
+    await writeAuditEvent(tx, {
+      userId: parentId,
+      userRole: "parent",
+      tenantId: metadata.workspaceId,
+      action: shared ? "document_sharing_granted" : "document_sharing_revoked",
+      targetType: "document",
+      targetId: documentId,
+      metadata: { child_id: childId, clinician_id: clinicianId, sharing_enabled: shared },
+      requestId,
     });
   });
   return toWire((await findDocument(documentId))!, (await isParentDocument(documentId))!);

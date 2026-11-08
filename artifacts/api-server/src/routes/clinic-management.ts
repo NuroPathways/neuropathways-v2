@@ -213,6 +213,7 @@ router.post("/clinic-management/:clinicId/staff/:staffUserId/revoke", async (req
           revokedAssignmentCount: revokedAssignments.length,
           legacyChildAccessBlockedCount: legacyChildIds.length,
           parentDocumentSharesRevokedCount: revokedParentDocumentShareCount,
+          correlation_id: String(req.id),
         },
       });
       return {
@@ -390,7 +391,12 @@ router.post("/clinic-management/:clinicId/clients/:childId/reassign", async (req
         targetType: "clinical_assignment",
         targetId: childId,
         success: true,
-        metadata: { previousClinicianIds, clinicianId, revokedParentDocumentShareCount },
+        metadata: {
+          previousClinicianIds,
+          clinicianId,
+          revokedParentDocumentShareCount,
+          correlation_id: String(req.id),
+        },
       });
     });
     return res.json({ ok: true, childId, clinicianId });

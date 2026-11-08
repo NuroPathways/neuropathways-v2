@@ -1,6 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { db, usersTable, sessionsTable } from "@workspace/db";
+import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
 import { userProfilesTable, clinicianCredentialsTable, consentEventsTable } from "@workspace/db";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { createSession, deleteSession, getSessionId, SESSION_COOKIE, SESSION_TTL } from "../lib/auth";
@@ -110,6 +111,15 @@ async function registerClinician(req: any, res: any) {
         actorType: "user",
         metadata: authorityRecord.metadata,
       });
+      await writeAuditEvent(tx, {
+        userId,
+        userRole: PENDING_CLINICIAN_ROLE,
+        action: "clinician_access_requested",
+        targetType: "clinician_account",
+        targetId: userId,
+        metadata: { status: "pending_approval" },
+        requestId: req.id,
+      });
     });
 
     return res.status(202).json({
@@ -144,11 +154,35 @@ async function loginClinician(req: any, res: any) {
       .from(clinicianCredentialsTable)
       .where(eq(clinicianCredentialsTable.email, normalizedEmail));
 
-    if (!creds)
+    if (!creds) {
+      await writeAuditEventBestEffort({
+        userRole: "clinician",
+        action: "failed_login",
+        targetType: "clinician_account",
+        success: false,
+        reason: "Invalid login credentials.",
+        metadata: { method: "email_password" },
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
       return res.status(401).json({ error: "Invalid email or password" });
+    }
 
-    if (!await verifyClinicianPassword(password, creds.passwordHash))
+    if (!await verifyClinicianPassword(password, creds.passwordHash)) {
+      await writeAuditEventBestEffort({
+        userId: creds.userId,
+        userRole: "clinician",
+        action: "failed_login",
+        targetType: "clinician_account",
+        targetId: creds.userId,
+        success: false,
+        reason: "Invalid login credentials.",
+        metadata: { method: "email_password" },
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
       return res.status(401).json({ error: "Invalid email or password" });
+    }
 
     const [user] = await db
       .select()
@@ -182,6 +216,16 @@ async function loginClinician(req: any, res: any) {
       setSessionCookie(res, sid);
       res.json({ ok: true, redirect: "/ClinicianDashboard" });
     }
+    await writeAuditEventBestEffort({
+      userId: user.id,
+      userRole: "clinician",
+      action: "login",
+      targetType: "clinician_account",
+      targetId: user.id,
+      metadata: { method: "email_password" },
+      ipAddress: req.ip,
+      requestId: req.id,
+    });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -225,6 +269,15 @@ router.post("/clinician/change-password", async (req: any, res) => {
       await tx.delete(sessionsTable).where(currentSessionId
         ? and(userSessions, ne(sessionsTable.sid, currentSessionId))
         : userSessions);
+      await writeAuditEvent(tx, {
+        userId: req.user.id,
+        userRole: "clinician",
+        action: "clinician_password_changed",
+        targetType: "clinician_account",
+        targetId: req.user.id,
+        metadata: { other_sessions_revoked: true },
+        requestId: req.id,
+      });
       return true;
     });
     if (!changed) return res.status(409).json({ error: "Your password changed in another session. Sign in again before trying once more." });

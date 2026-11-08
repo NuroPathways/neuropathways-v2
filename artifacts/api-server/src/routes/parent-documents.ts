@@ -28,10 +28,15 @@ import {
 } from "../lib/parentDocuments";
 import { parentPdfReaderMessages } from "../lib/parentPdfText";
 import { DocumentProcessingError } from "../lib/documentAi";
-import { deleteDocumentScanOutputsForDocuments } from "../lib/documentExtractions";
-import { deleteEncryptedParentDocument } from "../lib/parentFileStorage";
-import { deleteUploadedDocumentFile } from "../lib/uploadedDocumentFile";
 import { clinicianCanAccessChild } from "../lib/clinicAuthorization";
+import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
+import {
+  documentCleanupSpecs,
+  documentCleanupStatus,
+  documentScanOutputPaths,
+  processPendingDocumentCleanupJobs,
+  queueDocumentCleanup,
+} from "../lib/documentCleanup";
 
 const router = Router();
 const upload = multer({
@@ -96,6 +101,7 @@ router.post(
         documentType,
         declaredMimeType: file.mimetype,
         bytes: file.buffer,
+        requestId: req.id,
       });
       return res.status(result.duplicate ? 200 : 201).json(result.document);
     } catch (error) {
@@ -135,10 +141,23 @@ router.delete(
         return res.status(404).json({ error: "Parent-uploaded document not found" });
       }
 
-      await deleteDocumentScanOutputsForDocuments([documentId]);
+      const scanOutputPaths = await documentScanOutputPaths(documentId);
       documentScanJobs.cancelDocument(documentId);
+      const cleanupTasks = documentCleanupSpecs({
+        documentId,
+        childId,
+        tenantId: document.tenantId ?? req.parentAccount.workspaceId,
+        actorId: ownerId,
+        actorRole: "parent",
+        requestId: req.id,
+        parentStoragePath: metadata?.storagePath,
+        uploadedFileUrl: metadata ? null : document.fileUrl,
+        scanOutputPaths,
+      });
+      let cleanupJobIds: string[] = [];
       if (metadata) {
         await db.transaction(async (tx) => {
+          cleanupJobIds = await queueDocumentCleanup(tx, cleanupTasks);
           await tx.delete(parentDocumentsTable).where(and(
             eq(parentDocumentsTable.documentId, documentId),
             eq(parentDocumentsTable.parentId, ownerId),
@@ -149,31 +168,57 @@ router.delete(
             eq(documentsTable.parentId, ownerId),
             eq(documentsTable.childId, childId),
           ));
+          await writeAuditEvent(tx, {
+            userId: ownerId,
+            userRole: "parent",
+            tenantId: document.tenantId ?? req.parentAccount.workspaceId,
+            action: "document_deleted",
+            targetType: "document",
+            targetId: documentId,
+            metadata: {
+              child_id: childId,
+              cleanup_task_count: cleanupJobIds.length,
+              cleanup_status: cleanupJobIds.length ? "pending" : "complete",
+            },
+            requestId: req.id,
+          });
         });
-        try {
-          await deleteEncryptedParentDocument(metadata.storagePath);
-        } catch (error) {
-          req.log.error({
-            document_id: documentId,
-            error_name: error instanceof Error ? error.name : "UnknownError",
-          }, "Parent document record deleted but encrypted source cleanup failed");
-        }
       } else {
-        await db.delete(documentsTable).where(and(
-          eq(documentsTable.id, documentId),
-          eq(documentsTable.childId, childId),
-          eq(documentsTable.uploadedBy, `client:${childId}`),
-        ));
-        try {
-          await deleteUploadedDocumentFile(document.fileUrl);
-        } catch (error) {
-          req.log.error({
-            document_id: documentId,
-            error_name: error instanceof Error ? error.name : "UnknownError",
-          }, "Legacy parent document record deleted but local source cleanup failed");
-        }
+        await db.transaction(async (tx) => {
+          cleanupJobIds = await queueDocumentCleanup(tx, cleanupTasks);
+          await tx.delete(documentsTable).where(and(
+            eq(documentsTable.id, documentId),
+            eq(documentsTable.childId, childId),
+            eq(documentsTable.uploadedBy, `client:${childId}`),
+          ));
+          await writeAuditEvent(tx, {
+            userId: ownerId,
+            userRole: "parent",
+            tenantId: document.tenantId ?? req.parentAccount.workspaceId,
+            action: "document_deleted",
+            targetType: "document",
+            targetId: documentId,
+            metadata: {
+              child_id: childId,
+              cleanup_task_count: cleanupJobIds.length,
+              cleanup_status: cleanupJobIds.length ? "pending" : "complete",
+            },
+            requestId: req.id,
+          });
+        });
       }
-      return res.json({ ok: true });
+      await processPendingDocumentCleanupJobs(cleanupJobIds.length, cleanupJobIds);
+      const cleanupStatus = await documentCleanupStatus(cleanupJobIds);
+      if (cleanupStatus !== "complete") {
+        return res.status(202).json({
+          ok: false,
+          cleanupStatus,
+          error: cleanupStatus === "failed"
+            ? "Access was removed, but source-file cleanup could not be confirmed. Administrator review is required."
+            : "Access was removed. Stored-file cleanup is queued and will retry automatically.",
+        });
+      }
+      return res.json({ ok: true, cleanupStatus });
     } catch (error) {
       req.log.error({
         document_id: documentId,
@@ -195,6 +240,16 @@ async function sendParentDocumentContent(req: any, res: Response) {
       const visible = await listParentDocuments(req.parentAccount.id, legacy.childId);
       if (!visible.some(d => d.id === legacy.id)) return res.status(403).json({ error: "Access denied" });
       const bytes = await readParentDocumentBytes(legacy.id);
+       await writeAuditEventBestEffort({
+         userId: req.parentAccount.id,
+         userRole: "parent",
+         tenantId: legacy.tenantId,
+         action: "document_downloaded",
+         targetType: "document",
+         targetId: legacy.id,
+         metadata: { child_id: legacy.childId },
+         requestId: req.id,
+       });
       const ext = path.extname(legacy.fileName || "").toLowerCase();
       const mime: Record<string, string> = { ".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".txt": "text/plain; charset=utf-8", ".doc": "application/msword", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
       res.setHeader("Content-Type", mime[ext] || "application/octet-stream");
@@ -218,6 +273,22 @@ async function sendParentDocumentContent(req: any, res: Response) {
     const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, metadata.documentId));
     if (!document) return res.status(404).json({ error: "Document content not found" });
     const bytes = await readParentDocumentBytes(metadata.documentId);
+    const actor = req.parentAccount?.id
+      ? { userId: req.parentAccount.id, userRole: "parent" }
+      : req.user?.id
+        ? { userId: req.user.id, userRole: req.mobileUser ? "clinician_mobile" : "clinician" }
+        : req.mobileUser?.id
+          ? { userId: req.mobileUser.id, userRole: "clinician_mobile" }
+          : { userId: metadata.childId, userRole: "client" };
+    await writeAuditEventBestEffort({
+      ...actor,
+      tenantId: metadata.workspaceId,
+      action: "document_downloaded",
+      targetType: "document",
+      targetId: metadata.documentId,
+      metadata: { child_id: metadata.childId, parent_id: metadata.parentId },
+      requestId: req.id,
+    });
     res.setHeader("Content-Type", metadata.mimeType);
     res.setHeader("Content-Disposition", disposition(safeFilename(document.fileName || "document")));
     res.setHeader("Cache-Control", "private, no-store");
@@ -264,9 +335,32 @@ router.post(
         if (!collector) return;
         res = collector;
       }
-      return res.json(await scanParentDocument(parentId(req), req.params.childId, req.params.documentId));
+      const scanned = await scanParentDocument(parentId(req), req.params.childId, req.params.documentId);
+      await writeAuditEventBestEffort({
+        userId: parentId(req),
+        userRole: "parent",
+        tenantId: req.parentAccount.workspaceId,
+        action: "document_scan_requested",
+        targetType: "document",
+        targetId: req.params.documentId,
+        metadata: { child_id: req.params.childId, outcome: "completed" },
+        requestId: req.id,
+      });
+      return res.json(scanned);
     } catch (error) {
       const message = error instanceof Error ? error.message : "The document scan failed. Please try again.";
+      await writeAuditEventBestEffort({
+        userId: req.parentAccount?.id,
+        userRole: "parent",
+        tenantId: req.parentAccount?.workspaceId,
+        action: "document_scan_requested",
+        targetType: "document",
+        targetId: req.params.documentId,
+        success: false,
+        reason: "Document scan did not complete.",
+        metadata: { child_id: req.params.childId },
+        requestId: req.id,
+      });
       if (error instanceof DocumentProcessingError) {
         return res.status(error.httpStatus).json({
           error: error.message, code: error.code, retryable: error.retryable,
@@ -347,6 +441,7 @@ router.patch(
         req.params.childId,
         req.params.documentId,
         req.body.shared,
+        req.id,
       ));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Document sharing could not be updated";

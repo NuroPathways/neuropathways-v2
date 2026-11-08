@@ -8,6 +8,7 @@ import {
   clientProfilesTable,
 } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { writeAuditEventBestEffort } from "../lib/auditEvents";
 
 const router = Router();
 function bulkImportTemporarilyEnabled(): boolean {
@@ -72,6 +73,18 @@ async function importRecords(
 
 router.post("/import/:entity", requireAuth, async (req: any, res) => {
   if (!bulkImportTemporarilyEnabled()) {
+    await writeAuditEventBestEffort({
+      userId: req.user.id,
+      userRole: req.user.appRole ?? null,
+      action: "administrative_import_denied",
+      targetType: "import",
+      targetId: String(req.params.entity ?? "").slice(0, 80),
+      success: false,
+      reason: "Bulk import remains disabled until import authorization and ownership controls are implemented.",
+      metadata: { record_count: Array.isArray(req.body?.records) ? req.body.records.length : 0 },
+      ipAddress: req.ip,
+      requestId: req.id,
+    });
     return res.status(503).json({
       error: "Bulk data import is temporarily unavailable until role and ownership controls are in place.",
     });

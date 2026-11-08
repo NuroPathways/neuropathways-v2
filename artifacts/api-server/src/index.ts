@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { recoverInterruptedParentDocumentScans } from "./lib/parentDocuments";
+import { processPendingDocumentCleanupJobs } from "./lib/documentCleanup";
 
 const rawPort = process.env["PORT"];
 
@@ -36,6 +37,16 @@ async function start() {
     }
 
     logger.info({ port }, "Server listening");
+    const cleanupTick = () => {
+      void processPendingDocumentCleanupJobs().catch((error) => {
+        logger.error({
+          error_name: error instanceof Error ? error.name : "UnknownError",
+        }, "Pending document file cleanup could not be processed");
+      });
+    };
+    cleanupTick();
+    const cleanupTimer = setInterval(cleanupTick, 30_000);
+    cleanupTimer.unref();
   });
 }
 

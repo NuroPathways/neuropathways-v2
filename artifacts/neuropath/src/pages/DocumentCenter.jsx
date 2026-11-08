@@ -143,6 +143,11 @@ export default function DocumentCenter({ embedded = false }) {
         child_id: document.child_id ?? document.childId,
         invite_token: user?.invite_token,
       });
+      if (result?.data?.cleanupStatus && result.data.cleanupStatus !== "complete") {
+        setDocuments((current) => current.filter((item) => item.id !== document.id));
+        setFileError(result.data.error || "Document access was removed. Stored-file cleanup is still being completed.");
+        return;
+      }
       if (result?.data?.error || result?.data?.ok === false) {
         throw new Error(result.data.error || "The document could not be deleted.");
       }

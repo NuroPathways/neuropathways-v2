@@ -52,8 +52,14 @@ import {
   userIsActivePlatformAdministrator,
 } from "../lib/clinicAuthorization";
 import { resolveLocalUploadReference } from "../lib/localUploadReference";
-import { deleteUploadedDocumentFile } from "../lib/uploadedDocumentFile";
-import { deleteEncryptedParentDocument } from "../lib/parentFileStorage";
+import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
+import {
+  documentCleanupSpecs,
+  documentScanOutputPaths,
+  documentCleanupStatus,
+  processPendingDocumentCleanupJobs,
+  queueDocumentCleanup,
+} from "../lib/documentCleanup";
 import {
   serializeApiResponse as serialize,
   stripCredentialMaterial as stripSensitive,
@@ -68,7 +74,6 @@ import {
   documentExtractionsToolProperty,
   normalizeDocumentExtractions,
   persistDocumentExtractionBatch,
-  deleteDocumentScanOutputsForChildren,
   deleteDocumentScanOutputsForDocuments,
   type DocumentExtractionSource,
 } from "../lib/documentExtractions";
@@ -173,7 +178,10 @@ async function deleteClinicianDocumentRecord(
   documentId: string,
   clinicianId: string,
   req: any,
-): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+): Promise<
+  | { ok: true; cleanupStatus: "complete" | "pending" | "failed" }
+  | { ok: false; status: number; error: string }
+> {
   const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, documentId));
   if (!document) return { ok: false, status: 404, error: "Document not found." };
   const documentChildId = document.childId;
@@ -190,9 +198,22 @@ async function deleteClinicianDocumentRecord(
     return { ok: false, status: 403, error: "This family document is not shared with your clinician account." };
   }
 
-  await deleteDocumentScanOutputsForDocuments([documentId]);
+  const scanOutputPaths = await documentScanOutputPaths(documentId);
   documentScanJobs.cancelDocument(documentId);
+  let cleanupJobIds: string[] = [];
   await db.transaction(async (tx) => {
+    const cleanupTasks = documentCleanupSpecs({
+      documentId,
+      childId: documentChildId,
+      tenantId: document.tenantId ?? clinicianId,
+      actorId: clinicianId,
+      actorRole: "clinician",
+      requestId: req.id,
+      parentStoragePath: parentMetadata?.storagePath,
+      uploadedFileUrl: parentMetadata ? null : document.fileUrl,
+      scanOutputPaths,
+    });
+    cleanupJobIds = await queueDocumentCleanup(tx, cleanupTasks);
     if (parentMetadata) {
       await tx.delete(parentDocumentsTable).where(and(
         eq(parentDocumentsTable.documentId, documentId),
@@ -203,33 +224,23 @@ async function deleteClinicianDocumentRecord(
       eq(documentsTable.id, documentId),
       eq(documentsTable.childId, documentChildId),
     ));
-  });
-
-  try {
-    if (parentMetadata) await deleteEncryptedParentDocument(parentMetadata.storagePath);
-    else await deleteUploadedDocumentFile(document.fileUrl);
-  } catch (error) {
-    req.log.error({
-      document_id: documentId,
-      error_name: error instanceof Error ? error.name : "UnknownError",
-    }, "Clinician-deleted document source cleanup failed");
-  }
-  try {
-    await auditLog({
+    await writeAuditEvent(tx, {
       userId: clinicianId,
       userRole: "clinician",
       action: "document_deleted",
       targetType: "document",
       targetId: documentId,
-      tenantId: clinicianId,
+      tenantId: document.tenantId ?? clinicianId,
+      metadata: {
+        child_id: documentChildId,
+        cleanup_task_count: cleanupJobIds.length,
+        cleanup_status: cleanupJobIds.length ? "pending" : "complete",
+      },
+      requestId: req.id,
     });
-  } catch (error) {
-    req.log.error({
-      document_id: documentId,
-      error_name: error instanceof Error ? error.name : "UnknownError",
-    }, "Clinician document deletion audit could not be written");
-  }
-  return { ok: true };
+  });
+  await processPendingDocumentCleanupJobs(cleanupJobIds.length, cleanupJobIds);
+  return { ok: true, cleanupStatus: await documentCleanupStatus(cleanupJobIds) };
 }
 const CLIENT_SUPPORT_CONTENT_VERSION = 3;
 function documentTextSegmentsForAi(label: string, documentId: string, text: string, sourceKind = "Document") {
@@ -461,23 +472,12 @@ async function auditLog(opts: {
   metadata?: any;
   tenantId?: string;
   ip?: string;
+  requestId?: string;
 }) {
-  try {
-    await db.insert(auditLogsTable).values({
-      userId: opts.userId ?? null,
-      userRole: opts.userRole ?? null,
-      tenantId: opts.tenantId ?? null,
-      action: opts.action,
-      targetType: opts.targetType ?? null,
-      targetId: opts.targetId ?? null,
-      success: opts.success ?? true,
-      reason: opts.reason ?? null,
-      metadata: opts.metadata ?? null,
-      ipAddress: opts.ip ?? null,
-    });
-  } catch {
-    // Audit log failure should never break the main request
-  }
+  await writeAuditEventBestEffort({
+    ...opts,
+    ipAddress: opts.ip,
+  });
 }
 
 // ──────────────────────────────────────────────
@@ -753,7 +753,7 @@ function makeCrud(path: string, table: any) {
       const [row] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!row) return res.status(404).json({ error: "Not found" });
       if (!(await actorCanReadEntityRow(scope, table, row))) {
-        await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "record outside authorized child or family scope" });
+        await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "record outside authorized child or family scope", requestId: req.id });
         return res.status(403).json({ error: "Access denied" });
       }
       return res.json(stripSensitive(serialize(row)));
@@ -892,7 +892,14 @@ function makeCrud(path: string, table: any) {
       if (table === documentsTable) {
         const deletion = await deleteClinicianDocumentRecord(req.params.id, req.user.id, req);
         if (!deletion.ok) return res.status(deletion.status).json({ error: deletion.error });
-        return res.json({ ok: true });
+        if (deletion.cleanupStatus === "complete") return res.json({ ok: true, cleanupStatus: "complete" });
+        return res.status(202).json({
+          ok: false,
+          cleanupStatus: deletion.cleanupStatus,
+          error: deletion.cleanupStatus === "failed"
+            ? "Access was removed, but source-file cleanup could not be confirmed. Administrator review is required."
+            : "Access was removed. Stored-file cleanup is queued and will retry automatically.",
+        });
       }
       if (table === rewardTokensTable && existing.source === "care_team") {
         return res.status(409).json({ error: "Archive this goal in Goals & Activities; its history must be preserved." });
@@ -2734,8 +2741,19 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         if (!existing) return res.status(404).json({ error: "Not found" });
         if (!(await clinicianCanAccessChild(req.user.id, entity_id))) return res.status(403).json({ error: "Access denied" });
         if (await isParentOwnedChild(entity_id)) return res.status(409).json({ error: "The clinic cannot delete a parent-owned child profile." });
-        await db.delete(childrenTable).where(eq(childrenTable.id, entity_id));
-        await auditLog({ userId: req.user.id, userRole: "clinician", action: "child_deleted", targetType: "child", targetId: entity_id });
+        await db.transaction(async (tx) => {
+          await tx.delete(childrenTable).where(eq(childrenTable.id, entity_id));
+          await writeAuditEvent(tx, {
+            userId: req.user.id,
+            userRole: "clinician",
+            action: "child_deleted",
+            targetType: "child",
+            targetId: entity_id,
+            tenantId: existing.tenantId ?? existing.clinicianId,
+            metadata: { deletion_scope: "child_record_only" },
+            requestId: req.id,
+          });
+        });
         return res.json({ ok: true });
       }
       case "updateFamily": {
@@ -2814,17 +2832,70 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
           clinicianCanAccessChild(req.user.id, kid.id)
         ))).every(Boolean);
         if (!allChildrenAuthorized) return res.status(403).json({ error: "One or more clients are outside your assigned scope." });
-        await deleteDocumentScanOutputsForChildren(kids.map((kid) => kid.id));
-        for (const k of kids) {
-          await db.delete(documentsTable).where(eq(documentsTable.childId, k.id));
-          await db.delete(behaviorPlansTable).where(eq(behaviorPlansTable.childId, k.id));
-          await db.delete(behaviorLogsTable).where(eq(behaviorLogsTable.childId, k.id));
-          await db.delete(interventionPlansTable).where(eq(interventionPlansTable.childId, k.id));
-          await db.delete(childrenTable).where(eq(childrenTable.id, k.id));
+        const childIds = kids.map((kid) => kid.id);
+        const familyDocuments = childIds.length
+          ? await db.select().from(documentsTable).where(inArray(documentsTable.childId, childIds))
+          : [];
+        if (familyDocuments.length) {
+          const parentOwnedDocumentRows = await db.select({ documentId: parentDocumentsTable.documentId })
+            .from(parentDocumentsTable)
+            .where(inArray(parentDocumentsTable.documentId, familyDocuments.map((doc) => doc.id)));
+          if (parentOwnedDocumentRows.length) {
+            return res.status(409).json({ error: "This family has parent-owned documents that must remain under parent control." });
+          }
         }
-        await db.delete(familiesTable).where(eq(familiesTable.id, entity_id));
-        await auditLog({ userId: req.user.id, userRole: "clinician", action: "family_deleted", targetType: "family", targetId: entity_id });
-        return res.json({ ok: true });
+        const taskGroups = await Promise.all(familyDocuments.map(async (document) =>
+          documentCleanupSpecs({
+            documentId: document.id,
+            childId: document.childId!,
+            tenantId: document.tenantId ?? existing.tenantId ?? existing.clinicianId,
+            actorId: req.user.id,
+            actorRole: "clinician",
+            requestId: req.id,
+            uploadedFileUrl: document.fileUrl,
+            scanOutputPaths: await documentScanOutputPaths(document.id),
+          })
+        ));
+        const cleanupTasks = taskGroups.flat();
+        let cleanupJobIds: string[] = [];
+        await db.transaction(async (tx) => {
+          cleanupJobIds = await queueDocumentCleanup(tx, cleanupTasks);
+          for (const k of kids) {
+            await tx.delete(documentsTable).where(eq(documentsTable.childId, k.id));
+            await tx.delete(behaviorPlansTable).where(eq(behaviorPlansTable.childId, k.id));
+            await tx.delete(behaviorLogsTable).where(eq(behaviorLogsTable.childId, k.id));
+            await tx.delete(interventionPlansTable).where(eq(interventionPlansTable.childId, k.id));
+            await tx.delete(childrenTable).where(eq(childrenTable.id, k.id));
+          }
+          await tx.delete(familiesTable).where(eq(familiesTable.id, entity_id));
+          await writeAuditEvent(tx, {
+            userId: req.user.id,
+            userRole: "clinician",
+            action: "family_deleted",
+            targetType: "family",
+            targetId: entity_id,
+            tenantId: existing.tenantId ?? existing.clinicianId,
+            metadata: {
+              child_count: kids.length,
+              document_count: familyDocuments.length,
+              cleanup_task_count: cleanupJobIds.length,
+            },
+            requestId: req.id,
+          });
+        });
+        familyDocuments.forEach((document) => documentScanJobs.cancelDocument(document.id));
+        await processPendingDocumentCleanupJobs(cleanupJobIds.length, cleanupJobIds);
+        const cleanupStatus = await documentCleanupStatus(cleanupJobIds);
+        if (cleanupStatus !== "complete") {
+          return res.status(202).json({
+            ok: false,
+            cleanupStatus,
+            error: cleanupStatus === "failed"
+              ? "The family record was removed, but some source-file cleanup needs administrator review."
+              : "The family record was removed. Stored-file cleanup is queued and will retry automatically.",
+          });
+        }
+        return res.json({ ok: true, cleanupStatus });
       }
       case "createDocument": {
         const docData = bodyToCamel(data || {});
@@ -2855,7 +2926,14 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         }
         const deletion = await deleteClinicianDocumentRecord(entity_id, req.user.id, req);
         if (!deletion.ok) return res.status(deletion.status).json({ error: deletion.error });
-        return res.json({ ok: true });
+        if (deletion.cleanupStatus === "complete") return res.json({ ok: true, cleanupStatus: "complete" });
+        return res.status(202).json({
+          ok: false,
+          cleanupStatus: deletion.cleanupStatus,
+          error: deletion.cleanupStatus === "failed"
+            ? "Access was removed, but source-file cleanup could not be confirmed. Administrator review is required."
+            : "Access was removed. Stored-file cleanup is queued and will retry automatically.",
+        });
       }
       default:
         return res.status(400).json({ error: `Unknown action: ${action}` });
@@ -3019,7 +3097,7 @@ router.post("/verify-client-credentials", async (req, res) => {
       }
     }
     if (!child) {
-      await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username: cleanUsername } });
+      await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username: cleanUsername }, requestId: String(req.id) });
       return res.json({ error: "Invalid username or access code" });
     }
 
@@ -3029,7 +3107,7 @@ router.post("/verify-client-credentials", async (req, res) => {
       ? await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId))
       : [undefined];
 
-    await auditLog({ action: "login", targetType: "child", targetId: child.id, success: true, tenantId: child.clinicianId ?? undefined });
+    await auditLog({ action: "login", targetType: "child", targetId: child.id, success: true, tenantId: child.clinicianId ?? undefined, requestId: String(req.id) });
 
     const token = await generateClientToken(child.id, cleanUsername);
     const session = {
@@ -3132,7 +3210,7 @@ router.post("/client-session/login", async (req, res) => {
       }
     }
     if (!child) {
-      await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username: cleanUsername } });
+      await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username: cleanUsername }, requestId: String(req.id) });
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
@@ -3142,7 +3220,7 @@ router.post("/client-session/login", async (req, res) => {
       ? await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId))
       : [undefined];
 
-    await auditLog({ action: "login", targetType: "child", targetId: child.id, success: true, tenantId: child.clinicianId ?? undefined });
+    await auditLog({ action: "login", targetType: "child", targetId: child.id, success: true, tenantId: child.clinicianId ?? undefined, requestId: String(req.id) });
 
     const token = await generateClientToken(child.id, cleanUsername);
     return res.json({
@@ -3223,6 +3301,7 @@ router.post("/client-upload-document", async (req: any, res) => {
       targetId: doc.id,
       success: true,
       tenantId: child.clinicianId ?? undefined,
+      requestId: req.id,
     });
 
     return res.status(201).json(serialize(doc));
@@ -3252,30 +3331,53 @@ router.post("/client-delete-document", async (req: any, res) => {
       return res.status(403).json({ error: "You can delete only documents uploaded by this client account." });
     }
 
-    await deleteDocumentScanOutputsForDocuments([documentId]);
+    const scanOutputPaths = await documentScanOutputPaths(documentId);
     documentScanJobs.cancelDocument(documentId);
-    await db.delete(documentsTable).where(and(
-      eq(documentsTable.id, documentId),
-      eq(documentsTable.childId, csession.childId),
-      eq(documentsTable.uploadedBy, `client:${csession.childId}`),
-    ));
-    try {
-      await deleteUploadedDocumentFile(document.fileUrl);
-    } catch (error) {
-      req.log.error({
-        document_id: documentId,
-        error_name: error instanceof Error ? error.name : "UnknownError",
-      }, "Client document record deleted but local source-file cleanup failed");
-    }
-    await auditLog({
-      userId: csession.childId,
-      userRole: "client",
-      action: "client_document_deleted",
-      targetType: "document",
-      targetId: documentId,
-      tenantId: document.tenantId ?? undefined,
+    const cleanupTasks = documentCleanupSpecs({
+      documentId,
+      childId: csession.childId,
+      tenantId: document.tenantId,
+      actorId: csession.childId,
+      actorRole: "client",
+      requestId: req.id,
+      uploadedFileUrl: document.fileUrl,
+      scanOutputPaths,
     });
-    return res.json({ ok: true });
+    let cleanupJobIds: string[] = [];
+    await db.transaction(async (tx) => {
+      cleanupJobIds = await queueDocumentCleanup(tx, cleanupTasks);
+      await tx.delete(documentsTable).where(and(
+        eq(documentsTable.id, documentId),
+        eq(documentsTable.childId, csession.childId),
+        eq(documentsTable.uploadedBy, `client:${csession.childId}`),
+      ));
+      await writeAuditEvent(tx, {
+        userId: csession.childId,
+        userRole: "client",
+        action: "client_document_deleted",
+        targetType: "document",
+        targetId: documentId,
+        tenantId: document.tenantId,
+        metadata: {
+          child_id: csession.childId,
+          cleanup_task_count: cleanupJobIds.length,
+          cleanup_status: cleanupJobIds.length ? "pending" : "complete",
+        },
+        requestId: req.id,
+      });
+    });
+    await processPendingDocumentCleanupJobs(cleanupJobIds.length, cleanupJobIds);
+    const cleanupStatus = await documentCleanupStatus(cleanupJobIds);
+    if (cleanupStatus !== "complete") {
+      return res.status(202).json({
+        ok: false,
+        cleanupStatus,
+        error: cleanupStatus === "failed"
+          ? "Access was removed, but source-file cleanup could not be confirmed. Administrator review is required."
+          : "Access was removed. Stored-file cleanup is queued and will retry automatically.",
+      });
+    }
+    return res.json({ ok: true, cleanupStatus });
   } catch (error) {
     req.log.error({
       error_name: error instanceof Error ? error.name : "UnknownError",

@@ -157,10 +157,16 @@ async function logAudit(
     targetId: string;
     tenantId?: string | null;
     metadata?: Record<string, unknown>;
+    requestId?: string | number;
   },
 ) {
+  const { requestId, ...row } = values;
   await tx.insert(auditLogsTable).values({
-    ...values,
+    ...row,
+    metadata: {
+      ...(values.metadata ?? {}),
+      ...(requestId === undefined ? {} : { request_id: String(requestId) }),
+    },
     success: true,
   });
 }
@@ -331,6 +337,7 @@ router.delete("/parent/children/:childId/clinic-link", requireParent, async (req
         targetId: child.id,
         tenantId: workspaceId,
         metadata: { clinicianId: child.clinicianId ?? null, familyId: child.familyId ?? null },
+        requestId: req.id,
       });
     });
     return res.json({ ok: true, message: "Clinic access was disconnected. Your parent account and records are unchanged." });
@@ -667,6 +674,7 @@ router.post("/parent/children/:childId/connect", requireParent, async (req: any,
           familyId: invite.familyId,
           mergedChildId: duplicateChild?.id ?? null,
         },
+        requestId: req.id,
       });
       await logAudit(tx, {
         userId: parentId,
@@ -681,6 +689,7 @@ router.post("/parent/children/:childId/connect", requireParent, async (req: any,
           documentIds: sharedIds,
           shareObservations: req.body?.shareObservations === true,
         },
+        requestId: req.id,
       });
 
       return updatedChild;
