@@ -26,3 +26,4 @@
 - [Goal source and draft safety](goal-source-presentation.md) — group by goal origin, retain raw technical titles, and keep edit drafts when details collapse.
 - [Chat safety presentation](chat-safety-presentation.md) — collapse only known nonurgent boilerplate; retain complete answers, disclaimers and source provenance.
 - [Research-informed parent activities](parent-activity-evidence.md) — cite research with its limits; a general template is not proven treatment or a substitute for an authorized child-specific plan.
+- [Clinic account boundaries](clinic-account-boundaries.md) — keep clinic administration separate from chart access; require an active, explicit client assignment.
