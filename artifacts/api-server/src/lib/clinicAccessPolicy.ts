@@ -73,6 +73,7 @@ type ClinicalRecordAccessInput = {
     recordTenantId: string | null;
     recordClinicianId: string | null;
     canonicalClinicId?: string | null;
+    linkedParentWorkspaceConsent?: boolean;
   } | null;
 };
 
@@ -130,5 +131,10 @@ export function canAccessClinicalRecord(input: ClinicalRecordAccessInput): boole
   );
   const expectedClinicId = legacy.profileTenantId?.trim() || input.userId;
   const clinicId = legacy.canonicalClinicId ?? legacyClinicId;
-  return legacyClinicId === expectedClinicId && clinicId === input.recordClinicId;
+  const tenantMatches = legacyClinicId === expectedClinicId;
+  const authorizedParentWorkspace = legacy.linkedParentWorkspaceConsent === true;
+  return (
+    (tenantMatches || authorizedParentWorkspace) &&
+    clinicId === input.recordClinicId
+  );
 }

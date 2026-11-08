@@ -72,9 +72,12 @@ export default function FamilyDetail() {
     setReconnecting(true);
     setReconnectMsg("");
     try {
-      // Generate a new token
-      const newToken = Math.random().toString(36).substring(2, 12) + Date.now().toString(36);
-      await base44.functions.invoke('manageClientRecord', { action: 'updateFamily', entity_id: familyId, data: { invite_token: newToken, invite_status: "pending" } });
+      const result = await base44.functions.invoke('manageClientRecord', {
+        action: 'regenerateFamilyInvite',
+        entity_id: familyId,
+      });
+      const newToken = result?.data?.record?.inviteToken || result?.data?.record?.invite_token;
+      if (!newToken) throw new Error("Invite was not regenerated.");
       setFamily(prev => ({ ...prev, invite_token: newToken, invite_status: "pending" }));
 
       if (family.invite_email) {

@@ -30,6 +30,7 @@ import {
 } from "@workspace/db";
 import { and, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { normalizeParentEmail, requireParent } from "../lib/parentAuth";
+import { clinicianCanManageClinicalWorkspace } from "../lib/clinicAuthorization";
 import { ownedParentChild, serializeParentChild } from "./parent";
 
 const router = Router();
@@ -135,6 +136,9 @@ async function resolveInvite(tokenValue: unknown, emailValue: unknown): Promise<
   if (!family || !clinicianProfile || !clinicianUser) {
     throw Object.assign(new Error("The invited clinic is no longer available"), { status: 403 });
   }
+  if (!(await clinicianCanManageClinicalWorkspace(invite.clinicianId))) {
+    throw Object.assign(new Error("The invited clinic is no longer active"), { status: 403 });
+  }
   const familyChildren = await db.select().from(childrenTable).where(and(
     eq(childrenTable.familyId, invite.familyId),
     eq(childrenTable.clinicianId, invite.clinicianId),
@@ -185,6 +189,9 @@ router.post("/parent/clinic-invites", async (req: any, res) => {
     ]);
     if (!req.user.id || !profile || !clinician) {
       return res.status(403).json({ error: "A clinician account is required to issue a parent invite" });
+    }
+    if (!(await clinicianCanManageClinicalWorkspace(clinicianId))) {
+      return res.status(403).json({ error: "An active clinical workspace is required to issue a parent invite" });
     }
 
     const familyId = typeof req.body?.familyId === "string" ? req.body.familyId.trim() : "";

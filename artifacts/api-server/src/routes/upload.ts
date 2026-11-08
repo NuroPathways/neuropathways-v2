@@ -9,6 +9,7 @@ import { requireMobileAuth } from "./mobile";
 import { validateClientSession, sessionMayAccessChild } from "./entities-helpers";
 import { isParentDocument, canReadParentDocument, readParentDocumentBytes } from "../lib/parentDocuments";
 import { isValidFileEncryptionKey } from "../lib/documentEncryptionPolicy";
+import { clinicianCanAccessChild } from "../lib/clinicAuthorization";
 
 const router = Router();
 
@@ -285,8 +286,10 @@ async function canReadDocument(
   const parentMetadata = await isParentDocument(document.id);
   if (parentMetadata) return canReadParentDocument(req, parentMetadata);
   if (req.user?.id) {
-    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, document.childId ?? ""));
-    return Boolean(child && child.clinicianId === req.user.id);
+    return Boolean(
+      document.childId &&
+      await clinicianCanAccessChild(req.user.id, document.childId),
+    );
   }
   if (req.mobileUser?.childId) {
     if (document.childId !== req.mobileUser.childId) return false;
@@ -331,7 +334,7 @@ router.post(
       if (!child) {
         return res.status(404).json({ error: "Child not found" });
       }
-      if (isClinician && child.clinicianId !== req.user.id) {
+      if (isClinician && !(await clinicianCanAccessChild(req.user.id, childId))) {
         return res.status(403).json({ error: "Access denied" });
       }
 

@@ -17,6 +17,7 @@ export default function AddChildToFamilyModal({ open, onClose, onSuccess, clinic
   const [selectedChildIds, setSelectedChildIds] = useState([]);
   const [children, setChildren] = useState([emptyChild()]);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (open && clinicianId) {
@@ -36,29 +37,34 @@ export default function AddChildToFamilyModal({ open, onClose, onSuccess, clinic
   const handleSave = async () => {
     if (!selectedFamilyId) return;
     setSaving(true);
-
-    if (mode === "existing") {
-      for (const id of selectedChildIds) {
-        await base44.entities.Child.update(id, { family_id: selectedFamilyId });
+    setError("");
+    try {
+      if (mode === "existing") {
+        for (const id of selectedChildIds) {
+          await base44.functions.invoke("manageClientRecord", {
+            action: "moveChildToFamily",
+            entity_id: id,
+            data: { family_id: selectedFamilyId },
+          });
+        }
+      } else {
+        for (const child of children) {
+          if (!child.child_name.trim()) continue;
+          await base44.entities.Child.create({
+            child_name: child.child_name.trim(),
+            age: child.age ? Number(child.age) : undefined,
+            diagnosis: child.diagnosis || undefined,
+            triggers: child.triggers || undefined,
+            is_patient: child.is_patient || false,
+            family_id: selectedFamilyId,
+            clinician_id: clinicianId,
+          });
+        }
       }
-    } else {
-      const existingKids = await base44.entities.Child.filter({ family_id: selectedFamilyId }).catch(() => []);
-      const parentEmail = existingKids[0]?.parent_email;
-      const parentId = existingKids[0]?.parent_id;
-      for (const child of children) {
-        if (!child.child_name.trim()) continue;
-        await base44.entities.Child.create({
-          child_name: child.child_name.trim(),
-          age: child.age ? Number(child.age) : undefined,
-          diagnosis: child.diagnosis || undefined,
-          triggers: child.triggers || undefined,
-          is_patient: child.is_patient || false,
-          family_id: selectedFamilyId,
-          clinician_id: clinicianId,
-          parent_id: parentId,
-          parent_email: parentEmail,
-        });
-      }
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Could not update this family.");
+      setSaving(false);
+      return;
     }
 
     setSaving(false);
@@ -87,6 +93,7 @@ export default function AddChildToFamilyModal({ open, onClose, onSuccess, clinic
             <X className="w-5 h-5" />
           </button>
         </div>
+        {error && <p role="alert" className="px-6 pt-3 text-sm text-destructive">{error}</p>}
 
         <div className="p-6 overflow-y-auto flex-1 space-y-5">
           {/* Family selector */}

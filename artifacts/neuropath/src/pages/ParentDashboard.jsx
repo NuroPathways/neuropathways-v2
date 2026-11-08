@@ -502,12 +502,6 @@ export default function ParentDashboard() {
         const allKidsMap = new Map();
         for (const k of [...kidsByParentId, ...kidsByEmail]) allKidsMap.set(k.id, k);
         allKids = Array.from(allKidsMap.values());
-        // Back-fill parent_id on children found only by email
-        for (const k of allKids) {
-          if (!k.parent_id && user.id) {
-            base44.entities.Child.update(k.id, { parent_id: user.id }).catch(() => {});
-          }
-        }
       }
 
       const msgs = await base44.entities.Message.filter({ to_user_id: user.id }).catch(() => []);

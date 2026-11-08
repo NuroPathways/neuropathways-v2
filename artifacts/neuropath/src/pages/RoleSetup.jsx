@@ -31,17 +31,10 @@ export default function RoleSetup() {
   const finishParent = async (me, family, authority = null) => {
     const updates = { app_role: "parent" };
     if (family) {
-      // Only an invite can establish care-team relationships. Never accept
-      // family/clinician identifiers from the URL or invent them for a
-      // standalone parent account.
-      updates.linked_family_id = family.id;
-      updates.linked_clinician_id = family.clinician_id;
-      updates.account_type = family.account_type || "parent_family";
-      const kids = await base44.entities.Child.filter({ family_id: family.id }).catch(() => []);
-      for (const kid of kids) {
-        await base44.entities.Child.update(kid.id, { parent_id: me.id, parent_email: me.email }).catch(() => {});
-      }
-      await base44.entities.Family.update(family.id, { invite_status: "accepted" }).catch(() => {});
+      // The server verifies the invite, email, family, and child ownership
+      // before creating the parent-family link.
+      await base44.functions.invoke("acceptParentFamilyInvite", { inviteToken });
+      updates.account_type = family.account_type || family.accountType || "parent_family";
     } else {
       // OIDC parents can onboard independently; they do not need a clinic
       // invite and must start without fabricated relationship identifiers.
@@ -68,10 +61,12 @@ export default function RoleSetup() {
 
       // ── Invite link flow (always means client/parent) ──
       if (inviteToken) {
-        const families = await base44.entities.Family.filter({ invite_token: inviteToken }).catch(() => []);
-        if (families[0]) {
+        const family = await base44.functions.invoke("previewParentFamilyInvite", { inviteToken })
+          .then((result) => result.data)
+          .catch(() => null);
+        if (family) {
           setSignupRole("parent");
-          setSignupContext({ me, family: families[0] });
+          setSignupContext({ me, family });
           return;
         }
         // Invalid token — if they already have a role, just route them

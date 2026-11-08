@@ -1,9 +1,8 @@
 import { Router, type Request, type Response } from "express";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   db, childrenTable, userProfilesTable, rewardTokensTable, careTeamAssignmentsTable, careTeamVersionsTable,
   careTeamPracticeTable, parentPracticeProgressTable,
-  parentAccountsTable, parentClinicConsentsTable,
 } from "@workspace/db";
 import {
   CreateCareTeamGoalBody, UpdateCareTeamGoalBody, CreateCareTeamAssignmentBody, UpdateCareTeamAssignmentBody,
@@ -12,6 +11,7 @@ import {
 import { requireParent, parentActor, ownedParentChild } from "../lib/parentAuth";
 import { careTeamActivityLibrary } from "../lib/parentDailyActions";
 import { isActivityPublishConfirmationSatisfied } from "../lib/parentActivityLibrary";
+import { clinicianCanAccessChild } from "../lib/clinicAuthorization";
 import {
   assignmentWire, careGoalWire, careWorkspace, readableGoalTitle, carePracticeHistory, resolveAssignment,
   isCareTeamActivityComplete, isCareTeamRecommendationComplete,
@@ -23,21 +23,10 @@ async function clinicianChild(req: Request, res: Response) {
   if (!req.user?.id) { res.status(401).json({ error: "Clinician sign-in required" }); return null; }
   const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
   if (profile?.appRole !== "clinician") { res.status(403).json({ error: "Clinician access required" }); return null; }
-  const [child] = await db.select().from(childrenTable).where(and(
-    eq(childrenTable.id, String(req.params.childId)), eq(childrenTable.clinicianId, req.user.id),
+  const [child] = await db.select().from(childrenTable).where(eq(
+    childrenTable.id, String(req.params.childId),
   ));
-  let linkedWorkspace = false;
-  if (child?.parentId && child.tenantId && ![req.user.id, profile.tenantId].includes(child.tenantId)) {
-    const [parent] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, child.parentId));
-    const [grant] = await db.select().from(parentClinicConsentsTable).where(and(
-      eq(parentClinicConsentsTable.parentId, child.parentId), eq(parentClinicConsentsTable.childId, child.id),
-      eq(parentClinicConsentsTable.clinicianId, req.user.id), isNull(parentClinicConsentsTable.revokedAt),
-    ));
-    // Linking retains the original parent's workspace; it never migrates or
-    // copies the child to a clinician tenant. Require the actual live link.
-    linkedWorkspace = Boolean(parent && parent.workspaceId === child.tenantId && grant);
-  }
-  if (!child || (child.tenantId && ![req.user.id, profile.tenantId].includes(child.tenantId) && !linkedWorkspace)) {
+  if (!child || !(await clinicianCanAccessChild(req.user.id, child.id))) {
     res.status(404).json({ error: "Authorized client not found" }); return null;
   }
   return child;

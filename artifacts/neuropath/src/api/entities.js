@@ -188,6 +188,17 @@ export const functions = {
         const data = await apiFetch(`/family-detail?family_id=${encodeURIComponent(args.family_id)}`);
         return { data };
       }
+      case "previewParentFamilyInvite": {
+        const data = await apiFetch(`/parent/family-invite-preview?token=${encodeURIComponent(args.inviteToken)}`);
+        return { data };
+      }
+      case "acceptParentFamilyInvite": {
+        const data = await apiFetch("/parent/accept-family-invite", {
+          method: "POST",
+          body: JSON.stringify({ inviteToken: args.inviteToken }),
+        });
+        return { data };
+      }
       case "createClientAccount": {
         const data = await apiFetch("/create-client-account", { method: "POST", body: JSON.stringify(args) });
         return { data };

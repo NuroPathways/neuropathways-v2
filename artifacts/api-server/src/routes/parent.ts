@@ -42,6 +42,7 @@ import {
   serializeParentDailyAction,
   serializeParentDailyActionLog,
 } from "../lib/parentDailyActions";
+import { clinicianCanAccessChild } from "../lib/clinicAuthorization";
 import {
   ACCOUNT_AUTHORITY_CONSENT_VERSION,
   accountAuthorityEvent,
@@ -1719,10 +1720,10 @@ router.post("/clinician/children/:childId/observations/:logId/feedback", async (
     if (profile?.appRole !== "clinician") return res.status(403).json({ error: "Clinician only" });
     const childId = String(req.params.childId || "");
     const logId = String(req.params.logId || "");
-    const [child] = await db.select().from(childrenTable).where(and(
-      eq(childrenTable.id, childId),
-      eq(childrenTable.clinicianId, clinicianId),
-    ));
+    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, childId));
+    if (!child || !(await clinicianCanAccessChild(clinicianId, childId))) {
+      return res.status(404).json({ error: "Shared observation not found" });
+    }
     const [log] = await db.select().from(parentLogsTable).where(and(
       eq(parentLogsTable.id, logId),
       eq(parentLogsTable.childId, childId),

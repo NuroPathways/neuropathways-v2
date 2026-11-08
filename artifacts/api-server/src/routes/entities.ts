@@ -38,6 +38,15 @@ import { clinicalScanServiceError } from "../lib/clinicalPdf";
 import { prepareSupportPdf } from "../lib/supportPdf";
 import { fillExplicitlyLabeledSupportFields } from "../lib/documentSupportFallback";
 import { resolveParentActor } from "../lib/parentAuth";
+import { classifyFamilyAccount } from "../lib/familyParentAuth";
+import {
+  clinicianCanAccessChild,
+  clinicianCanManageClinicalWorkspace,
+  getClinicianAccessibleChildren,
+  getParentAccessibleChildren,
+  parentCanAccessChild,
+  userIsActivePlatformAdministrator,
+} from "../lib/clinicAuthorization";
 import { resolveLocalUploadReference } from "../lib/localUploadReference";
 import { deleteUploadedDocumentFile } from "../lib/uploadedDocumentFile";
 import { deleteEncryptedParentDocument } from "../lib/parentFileStorage";
@@ -75,6 +84,78 @@ const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
 const router = Router();
 
+router.get("/parent/family-invite-preview", requireAuth, async (req: any, res) => {
+  const token = typeof req.query?.token === "string" ? req.query.token.trim() : "";
+  if (!token) return res.status(400).json({ error: "Invite token required." });
+  try {
+    const [family] = await db.select().from(familiesTable).where(eq(familiesTable.inviteToken, token));
+    if (!family || classifyFamilyAccount(family.accountType) !== "family" || family.inviteStatus !== "pending") {
+      return res.status(404).json({ error: "This family invitation is not available." });
+    }
+    const email = String(req.user?.email || "").trim().toLowerCase();
+    if (family.email && family.email.trim().toLowerCase() !== email) {
+      return res.status(403).json({ error: "This invitation was sent to a different email address." });
+    }
+    return res.json({
+      id: family.id,
+      familyName: family.familyName,
+      accountType: family.accountType,
+      clinicianId: family.clinicianId,
+    });
+  } catch {
+    return res.status(500).json({ error: "Unable to verify this invitation." });
+  }
+});
+
+router.post("/parent/accept-family-invite", requireAuth, async (req: any, res) => {
+  const token = typeof req.body?.inviteToken === "string" ? req.body.inviteToken.trim() : "";
+  const userId = typeof req.user?.id === "string" ? req.user.id : "";
+  if (!token || !userId) return res.status(400).json({ error: "Invite token required." });
+  try {
+    const [family] = await db.select().from(familiesTable).where(eq(familiesTable.inviteToken, token));
+    if (!family || classifyFamilyAccount(family.accountType) !== "family" || family.inviteStatus !== "pending") {
+      return res.status(404).json({ error: "This family invitation is not available." });
+    }
+    const email = String(req.user?.email || "").trim().toLowerCase();
+    if (family.email && family.email.trim().toLowerCase() !== email) {
+      return res.status(403).json({ error: "This invitation was sent to a different email address." });
+    }
+    const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, userId));
+    if (!profile || !["parent", null, ""].includes(profile.appRole)) {
+      return res.status(403).json({ error: "This account cannot accept a family invitation." });
+    }
+    const familyChildren = await db.select().from(childrenTable).where(and(
+      eq(childrenTable.familyId, family.id),
+      family.clinicianId ? eq(childrenTable.clinicianId, family.clinicianId) : isNull(childrenTable.clinicianId),
+      family.tenantId ? eq(childrenTable.tenantId, family.tenantId) : isNull(childrenTable.tenantId),
+    ));
+    if (!familyChildren.length || familyChildren.some((child) => child.parentId && child.parentId !== userId)) {
+      return res.status(409).json({ error: "This family has children linked to another parent account." });
+    }
+    await db.transaction(async (tx) => {
+      await tx.update(childrenTable).set({
+        parentId: userId,
+        parentEmail: email || family.email,
+      }).where(and(
+        eq(childrenTable.familyId, family.id),
+        family.clinicianId ? eq(childrenTable.clinicianId, family.clinicianId) : isNull(childrenTable.clinicianId),
+        family.tenantId ? eq(childrenTable.tenantId, family.tenantId) : isNull(childrenTable.tenantId),
+        or(isNull(childrenTable.parentId), eq(childrenTable.parentId, userId)),
+      ));
+      await tx.update(familiesTable).set({ inviteStatus: "accepted" })
+        .where(eq(familiesTable.id, family.id));
+      await tx.update(userProfilesTable).set({
+        appRole: "parent",
+        accountType: "parent_family",
+        linkedFamilyId: family.id,
+      }).where(eq(userProfilesTable.id, userId));
+    });
+    return res.json({ ok: true, familyId: family.id });
+  } catch {
+    return res.status(500).json({ error: "Unable to accept this invitation." });
+  }
+});
+
 async function deleteClinicianDocumentRecord(
   documentId: string,
   clinicianId: string,
@@ -82,7 +163,8 @@ async function deleteClinicianDocumentRecord(
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, documentId));
   if (!document) return { ok: false, status: 404, error: "Document not found." };
-  if (document.clinicianId !== clinicianId) {
+  const documentChildId = document.childId;
+  if (!documentChildId || !(await clinicianCanAccessChild(clinicianId, documentChildId))) {
     return { ok: false, status: 403, error: "This document is not attached to one of your clients." };
   }
 
@@ -106,7 +188,7 @@ async function deleteClinicianDocumentRecord(
     }
     await tx.delete(documentsTable).where(and(
       eq(documentsTable.id, documentId),
-      eq(documentsTable.clinicianId, clinicianId),
+      eq(documentsTable.childId, documentChildId),
     ));
   });
 
@@ -426,60 +508,237 @@ function stripSensitive(row: any): any {
   return row;
 }
 
+type EntityActorScope = {
+  role: "clinician" | "parent";
+  userId: string;
+  children: typeof childrenTable.$inferSelect[];
+  childIds: string[];
+  familyIds: string[];
+};
+
+async function resolveEntityActorScope(req: any): Promise<EntityActorScope | null> {
+  const userId = typeof req.user?.id === "string" ? req.user.id : "";
+  if (!userId) return null;
+  const role = req.user?.appRole;
+  const children = role === "clinician"
+    ? await getClinicianAccessibleChildren(userId)
+    : role === "parent"
+      ? await getParentAccessibleChildren(userId, req.user?.email)
+      : null;
+  if (!children) return null;
+  const childIds = children.map((child) => child.id);
+  const familyIds = [...new Set(children.map((child) => child.familyId).filter((id): id is string => Boolean(id)))];
+  return { role, userId, children, childIds, familyIds };
+}
+
+function actorScopeClauses(scope: EntityActorScope, table: any) {
+  if (table === childrenTable) {
+    return scope.childIds.length ? [inArray(childrenTable.id, scope.childIds)] : null;
+  }
+  if (table === familiesTable) {
+    return scope.familyIds.length ? [inArray(familiesTable.id, scope.familyIds)] : null;
+  }
+  if (table.childId) {
+    return scope.childIds.length ? [inArray(table.childId, scope.childIds)] : null;
+  }
+  if (scope.role === "parent" && table.parentId) {
+    return [eq(table.parentId, scope.userId)];
+  }
+  if (scope.role === "clinician" && table.clinicianId) {
+    return [eq(table.clinicianId, scope.userId)];
+  }
+  return null;
+}
+
+async function actorCanReadEntityRow(
+  scope: EntityActorScope,
+  table: any,
+  row: any,
+): Promise<boolean> {
+  if (table === childrenTable) return scope.childIds.includes(row.id);
+  if (table === familiesTable) return scope.familyIds.includes(row.id);
+
+  const child = scope.children.find((item) => item.id === row.childId);
+  if (!child || !table.childId) return false;
+
+  if (table === documentsTable) {
+    const visible = await legacyVisibleDocuments([row], child.clinicianId ?? null);
+    return visible.some((document) => document.id === row.id);
+  }
+  if (scope.role === "clinician") {
+    if (table === behaviorLogsTable && row.parentId) {
+      const [consent] = await db.select({ parentId: parentClinicConsentsTable.parentId })
+        .from(parentClinicConsentsTable).where(and(
+          eq(parentClinicConsentsTable.clinicianId, scope.userId),
+          eq(parentClinicConsentsTable.childId, child.id),
+          isNull(parentClinicConsentsTable.revokedAt),
+          sql`${parentClinicConsentsTable.scopes} @> '["observations"]'::jsonb`,
+        ));
+      if (!consent) return false;
+    }
+    if (table === rewardTokensTable && row.parentId && !row.createdByClinician) {
+      return false;
+    }
+    return true;
+  }
+
+  if (table === rewardTokensTable && row.createdByClinician) {
+    return row.publicationStatus === "published" && row.clinicianId === child.clinicianId;
+  }
+  if (table === rewardTokensTable && row.parentId !== scope.userId) return false;
+  if (table === aiConversationsTable && row.parentId !== scope.userId) return false;
+  if (table === behaviorLogsTable && row.parentId && row.parentId !== scope.userId && !scope.childIds.includes(row.parentId)) {
+    return false;
+  }
+  return true;
+}
+
+async function scopedFamilySiblings(child: typeof childrenTable.$inferSelect) {
+  if (!child.familyId || child.accountType === "individual") return [child];
+  const [family] = await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId));
+  if (classifyFamilyAccount(family?.accountType) !== "family") return [child];
+  return db.select().from(childrenTable).where(and(
+    eq(childrenTable.familyId, child.familyId),
+    child.clinicianId ? eq(childrenTable.clinicianId, child.clinicianId) : isNull(childrenTable.clinicianId),
+    child.tenantId ? eq(childrenTable.tenantId, child.tenantId) : isNull(childrenTable.tenantId),
+  ));
+}
+
+async function clinicianVisibleBehaviorLogs(userId: string, logs: any[]) {
+  const parentLogChildIds = [...new Set(logs.filter((log) => log.parentId).map((log) => log.childId))];
+  if (!parentLogChildIds.length) return logs;
+  const grants = await db.select({ childId: parentClinicConsentsTable.childId })
+    .from(parentClinicConsentsTable).where(and(
+      eq(parentClinicConsentsTable.clinicianId, userId),
+      inArray(parentClinicConsentsTable.childId, parentLogChildIds),
+      isNull(parentClinicConsentsTable.revokedAt),
+      sql`${parentClinicConsentsTable.scopes} @> '["observations"]'::jsonb`,
+    ));
+  const allowedChildIds = new Set(grants.map((grant) => grant.childId));
+  return logs.filter((log) => !log.parentId || allowedChildIds.has(log.childId));
+}
+
 function makeCrud(path: string, table: any) {
-  router.get(path, requireAuth, async (req: any, res) => {
+  router.get(path, requireAuth, async (req: any, res): Promise<any> => {
     try {
+      const scope = await resolveEntityActorScope(req);
+      if (!scope) return res.status(403).json({ error: "This account cannot access this data." });
+      const mandatoryClauses = actorScopeClauses(scope, table);
+      if (!mandatoryClauses) return res.status(403).json({ error: "This record type has no authorized account scope." });
       const query = { ...(req.query as Record<string, string>) };
-
-      // Security: scope list queries to the authenticated user's records.
-      // Tables with clinicianId are scoped by clinicianId; tables with only
-      // tenantId (daily_check_ins, win_logs, messages, ai_conversations) are
-      // scoped by tenantId. Without this, unscoped tables leak all rows.
-      if (req.user && table.clinicianId) {
-        query.clinicianId = req.user.id;
-      } else if (req.user && table.tenantId) {
-        query.tenantId = req.user.id;
+      const clauses = [...mandatoryClauses, ...filterClauses(table, query)];
+      const rows = await db.select().from(table).where(and(...clauses));
+      const visibleRows = [];
+      for (const row of rows as any[]) {
+        if (await actorCanReadEntityRow(scope, table, row)) visibleRows.push(row);
       }
-
-      const clauses = filterClauses(table, query);
-      const rows = clauses.length > 0
-        ? await db.select().from(table).where(and(...clauses))
-        : await db.select().from(table);
-      const [requesterProfile] = path === "/behavior-logs"
-        ? await db.select({ appRole: userProfilesTable.appRole })
-            .from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id))
-        : [null];
-      if (path === "/behavior-logs" && requesterProfile?.appRole === "clinician") {
-        const grants = await db.select({ childId: parentClinicConsentsTable.childId })
-          .from(parentClinicConsentsTable)
-          .where(and(
-            eq(parentClinicConsentsTable.clinicianId, req.user.id),
-            isNull(parentClinicConsentsTable.revokedAt),
-            sql`${parentClinicConsentsTable.scopes} @> '["observations"]'::jsonb`,
-          ));
-        const allowedChildren = new Set(grants.map((grant) => grant.childId));
-        const visibleRows = rows.filter((row: any) => !row.parentId || allowedChildren.has(row.childId));
-        res.json(stripSensitive(serialize(visibleRows)));
-        return;
-      }
-      res.json(stripSensitive(serialize(rows)));
+      res.json(stripSensitive(serialize(visibleRows)));
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  router.post(path, requireAuth, async (req: any, res) => {
+  router.post(path, requireAuth, async (req: any, res): Promise<any> => {
     try {
+      const scope = await resolveEntityActorScope(req);
+      if (!scope) return res.status(403).json({ error: "This account cannot create this data." });
+      const parentWritable = new Set([
+        behaviorLogsTable, rewardTokensTable, messagesTable, aiConversationsTable,
+        dailyCheckInsTable, winLogsTable, engagementEventsTable,
+      ]);
+      if (scope.role === "parent" && !parentWritable.has(table)) {
+        return res.status(403).json({ error: "Use the parent workspace for this action." });
+      }
+      if (scope.role === "clinician" && !(await clinicianCanManageClinicalWorkspace(scope.userId))) {
+        return res.status(403).json({ error: "Active clinician workspace access is required." });
+      }
       const data = bodyToCamel(req.body);
       if (table === rewardTokensTable &&
         (data.source === "care_team" || ["publicationStatus", "goalDetails", "goalVersion", "goalVersions"].some(k => k in data))) {
         res.status(409).json({ error: "Use Goals & Activities to manage published clinical goals." });
         return;
       }
-      // Inject clinicianId and tenantId on create
-      if (table.clinicianId) data.clinicianId = req.user.id;
-      if (table.tenantId) data.tenantId = req.user.id; // tenantId = clinicianId until multi-clinic
-      if (table.createdBy) data.createdBy = req.user.id;
+      let child: typeof childrenTable.$inferSelect | undefined;
+      if (table === childrenTable) {
+        if (scope.role !== "clinician") return res.status(403).json({ error: "Only an authorized clinician can create a client profile." });
+        if (data.familyId) {
+          const [family] = await db.select().from(familiesTable).where(and(
+            eq(familiesTable.id, String(data.familyId)),
+            eq(familiesTable.clinicianId, scope.userId),
+          ));
+          if (!family) return res.status(403).json({ error: "The family is not in your authorized workspace." });
+          data.tenantId = family.tenantId || family.clinicianId;
+          data.accountType = family.accountType;
+          data.parentEmail = family.email;
+        } else {
+          const [profile] = await db.select({ tenantId: userProfilesTable.tenantId })
+            .from(userProfilesTable).where(eq(userProfilesTable.id, scope.userId));
+          data.tenantId = profile?.tenantId || scope.userId;
+        }
+        data.clinicianId = scope.userId;
+        data.createdBy = scope.userId;
+        data.status = "active";
+        for (const key of ["id", "parentId", "accessCode", "username", "createdDate", "updatedAt"]) delete data[key];
+      } else if (table === familiesTable) {
+        if (scope.role !== "clinician") return res.status(403).json({ error: "Only an authorized clinician can create a family." });
+        const [profile] = await db.select({ tenantId: userProfilesTable.tenantId })
+          .from(userProfilesTable).where(eq(userProfilesTable.id, scope.userId));
+        data.clinicianId = scope.userId;
+        data.tenantId = profile?.tenantId || scope.userId;
+        data.createdBy = scope.userId;
+        data.inviteStatus = "pending";
+        data.inviteToken = crypto.randomBytes(32).toString("base64url");
+        for (const key of ["id", "createdDate", "updatedAt"]) delete data[key];
+      } else if (table.childId) {
+        const childId = typeof data.childId === "string" ? data.childId : "";
+        child = scope.children.find((candidate) => candidate.id === childId);
+        if (!child) return res.status(403).json({ error: "The child is not linked to this account." });
+        if (scope.role === "clinician" && !(await clinicianCanAccessChild(scope.userId, child.id))) {
+          return res.status(403).json({ error: "The client is outside your assigned clinical scope." });
+        }
+        if (scope.role === "parent" && !(await parentCanAccessChild(scope.userId, req.user?.email, child.id))) {
+          return res.status(403).json({ error: "The child is not linked to this parent account." });
+        }
+        data.childId = child.id;
+        if (table.clinicianId) data.clinicianId = child.clinicianId;
+        if (table.tenantId) data.tenantId = child.tenantId || child.clinicianId || child.familyId;
+        if (table.parentId) data.parentId = scope.role === "parent" ? scope.userId : null;
+        if (table.createdBy) data.createdBy = scope.userId;
+        for (const key of ["id", "createdDate", "updatedAt", "publicationStatus", "createdByClinician"]) delete data[key];
+        if (table === rewardTokensTable) {
+          if (scope.role === "parent") {
+            data.source = "manual";
+            data.createdByClinician = false;
+            data.parentId = scope.userId;
+          } else {
+            data.createdByClinician = true;
+            data.parentId = null;
+          }
+        }
+        if (table === documentsTable) {
+          for (const key of [
+            "id", "uploadedBy", "parentId", "source", "extractedText",
+            "extractionStatus", "processingStatus", "scanStatus", "reviewStatus",
+            "reviewedBy", "reviewedAt", "clinicalReviewStatus", "clinicalApproval",
+            "classification", "documentType",
+          ]) delete data[key];
+          data.uploadedBy = scope.role === "parent" ? "client" : scope.userId;
+        }
+        if (table === behaviorLogsTable && scope.role === "parent") data.parentId = scope.userId;
+        if (table === messagesTable) {
+          data.fromUserId = scope.userId;
+          data.senderRole = scope.role;
+          data.toUserId = scope.role === "parent"
+            ? child.clinicianId
+            : (child.parentId || child.id);
+        }
+        if (table === aiConversationsTable && scope.role === "parent") {
+          data.parentId = scope.userId;
+          data.childName = child.childName;
+        }
+      } else {
+        return res.status(403).json({ error: "This record type requires an authorized client or family scope." });
+      }
       const rows = await db.insert(table).values(data).returning() as any[];
       const row = rows[0];
       res.status(201).json(stripSensitive(serialize(row)));
@@ -490,15 +749,12 @@ function makeCrud(path: string, table: any) {
 
   router.get(`${path}/:id`, requireAuth, async (req: any, res) => {
     try {
+      const scope = await resolveEntityActorScope(req);
+      if (!scope) return res.status(403).json({ error: "This account cannot access this data." });
       const [row] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!row) return res.status(404).json({ error: "Not found" });
-      // Security: enforce ownership — fail closed when tenant/clinician is null
-      if (table.clinicianId && row.clinicianId !== req.user.id) {
-        await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "clinicianId mismatch" });
-        return res.status(403).json({ error: "Access denied" });
-      }
-      if (!table.clinicianId && table.tenantId && row.tenantId !== req.user.id) {
-        await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "tenantId mismatch" });
+      if (!(await actorCanReadEntityRow(scope, table, row))) {
+        await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "record outside authorized child or family scope" });
         return res.status(403).json({ error: "Access denied" });
       }
       return res.json(stripSensitive(serialize(row)));
@@ -509,13 +765,19 @@ function makeCrud(path: string, table: any) {
 
   router.patch(`${path}/:id`, requireAuth, async (req: any, res) => {
     try {
+      const scope = await resolveEntityActorScope(req);
+      if (!scope) return res.status(403).json({ error: "This account cannot modify this data." });
       const [existing] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!existing) return res.status(404).json({ error: "Not found" });
-      if (table.clinicianId && existing.clinicianId !== req.user.id) {
-        return res.status(403).json({ error: "Access denied" });
+      if (!(await actorCanReadEntityRow(scope, table, existing))) return res.status(403).json({ error: "Access denied" });
+      if (table === childrenTable || table === familiesTable) {
+        return res.status(409).json({ error: "Use the authorized client-management workflow for this change." });
       }
-      if (!table.clinicianId && table.tenantId && existing.tenantId !== req.user.id) {
-        return res.status(403).json({ error: "Access denied" });
+      if (scope.role === "parent" && ![
+        childrenTable, behaviorLogsTable, rewardTokensTable, messagesTable,
+        aiConversationsTable, dailyCheckInsTable, winLogsTable, engagementEventsTable,
+      ].includes(table)) {
+        return res.status(403).json({ error: "Use the parent workspace for this action." });
       }
       if (table === documentsTable && await isParentOwnedDocument(req.params.id)) {
         return res.status(403).json({ error: "Only the parent can edit a parent-owned document." });
@@ -539,10 +801,29 @@ function makeCrud(path: string, table: any) {
         "clinicianId",
         "tenantId",
         "parentId",
+        "parentEmail",
         "familyId",
         "childId",
         "workspaceId",
         "createdBy",
+        "username",
+        "accessCode",
+        "accountType",
+        "status",
+        "uploadedBy",
+        "fromUserId",
+        "toUserId",
+        "senderRole",
+        "source",
+        "createdByClinician",
+        "publicationStatus",
+        "goalDetails",
+        "goalVersion",
+        "goalVersions",
+        "scanStatus",
+        "reviewStatus",
+        "reviewedBy",
+        "reviewedAt",
       ];
       for (const key of immutableFields) {
         if (!(key in table) || !(key in update)) continue;
@@ -554,9 +835,31 @@ function makeCrud(path: string, table: any) {
       if (Object.keys(update).length === 0) {
         return res.json(stripSensitive(serialize(existing)));
       }
+      if (scope.role === "parent") {
+        if (table === rewardTokensTable && existing.createdByClinician) {
+          for (const key of Object.keys(update)) {
+            if (!["progress", "tokensEarned"].includes(key)) delete update[key];
+          }
+        }
+        if (table === behaviorLogsTable) {
+          for (const key of Object.keys(update)) {
+            if (!["intensity", "context", "possibleFunction", "parentFeedback", "notes"].includes(key)) {
+              delete update[key];
+            }
+          }
+        }
+        if (table === messagesTable) {
+          for (const key of Object.keys(update)) {
+            if (key !== "isRead") delete update[key];
+          }
+        }
+        if (Object.keys(update).length === 0) {
+          return res.status(403).json({ error: "This record has no parent-editable fields." });
+        }
+      }
       const [row] = await db.update(table)
         .set(update)
-        .where(eq(table.id, req.params.id))
+        .where(and(eq(table.id, req.params.id), ...(actorScopeClauses(scope, table) || [])))
         .returning();
       return res.json(stripSensitive(serialize(row)));
     } catch (e: any) {
@@ -566,8 +869,20 @@ function makeCrud(path: string, table: any) {
 
   router.delete(`${path}/:id`, requireAuth, async (req: any, res) => {
     try {
+      const scope = await resolveEntityActorScope(req);
+      if (!scope) return res.status(403).json({ error: "This account cannot delete this data." });
       const [existing] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!existing) return res.status(404).json({ error: "Not found" });
+      if (!(await actorCanReadEntityRow(scope, table, existing))) return res.status(403).json({ error: "Access denied" });
+      if (table === childrenTable || table === familiesTable) {
+        return res.status(409).json({ error: "Use the authorized client-management workflow to delete this record." });
+      }
+      if (scope.role === "parent" && ![
+        rewardTokensTable, behaviorLogsTable, winLogsTable, dailyCheckInsTable,
+        engagementEventsTable, aiConversationsTable,
+      ].includes(table)) {
+        return res.status(403).json({ error: "This record cannot be deleted from this account." });
+      }
       if (table === documentsTable) {
         const deletion = await deleteClinicianDocumentRecord(req.params.id, req.user.id, req);
         if (!deletion.ok) return res.status(deletion.status).json({ error: deletion.error });
@@ -576,11 +891,9 @@ function makeCrud(path: string, table: any) {
       if (table === rewardTokensTable && existing.source === "care_team") {
         return res.status(409).json({ error: "Archive this goal in Goals & Activities; its history must be preserved." });
       }
-      if (table.clinicianId && existing.clinicianId !== req.user.id) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      if (!table.clinicianId && table.tenantId && existing.tenantId !== req.user.id) {
-        return res.status(403).json({ error: "Access denied" });
+      if (scope.role === "parent" && table === rewardTokensTable &&
+          (existing.createdByClinician || existing.parentId !== scope.userId)) {
+        return res.status(403).json({ error: "This goal is not owned by this parent account." });
       }
       if (
         (table === childrenTable && await isParentOwnedChild(req.params.id)) ||
@@ -588,7 +901,7 @@ function makeCrud(path: string, table: any) {
       ) {
         return res.status(409).json({ error: "This record contains parent-owned data and cannot be deleted by the clinic." });
       }
-      await db.delete(table).where(eq(table.id, req.params.id));
+      await db.delete(table).where(and(eq(table.id, req.params.id), ...(actorScopeClauses(scope, table) || [])));
       return res.json({ ok: true });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
@@ -782,22 +1095,20 @@ router.get("/clinician-data", requireAuth, async (req: any, res) => {
     const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
     if (!profile || profile.appRole !== "clinician") return res.status(403).json({ error: "Clinician only" });
 
-    const [children, families, logs, messages] = await Promise.all([
-      db.select().from(childrenTable).where(eq(childrenTable.clinicianId, req.user.id)),
-      db.select().from(familiesTable).where(eq(familiesTable.clinicianId, req.user.id)),
-      db.select().from(behaviorLogsTable).where(eq(behaviorLogsTable.clinicianId, req.user.id)),
-      db.select().from(messagesTable).where(eq(messagesTable.toUserId, req.user.id)),
-    ]);
+    const children = await getClinicianAccessibleChildren(req.user.id);
+    const childIds = children.map((child) => child.id);
+    const familyIds = [...new Set(children.map((child) => child.familyId).filter((id): id is string => Boolean(id)))];
+    const [families, logs, messages] = childIds.length
+      ? await Promise.all([
+          familyIds.length
+            ? db.select().from(familiesTable).where(inArray(familiesTable.id, familyIds))
+            : Promise.resolve([]),
+          db.select().from(behaviorLogsTable).where(inArray(behaviorLogsTable.childId, childIds)),
+          db.select().from(messagesTable).where(inArray(messagesTable.childId, childIds)),
+        ])
+      : [[], [], []];
 
-    const observationConsents = await db.select({ childId: parentClinicConsentsTable.childId })
-      .from(parentClinicConsentsTable)
-      .where(and(
-        eq(parentClinicConsentsTable.clinicianId, req.user.id),
-        isNull(parentClinicConsentsTable.revokedAt),
-        sql`${parentClinicConsentsTable.scopes} @> '["observations"]'::jsonb`,
-      ));
-    const sharedObservationChildIds = new Set(observationConsents.map((grant) => grant.childId));
-    const visibleLogs = logs.filter((log: any) => !log.parentId || sharedObservationChildIds.has(log.childId));
+    const visibleLogs = await clinicianVisibleBehaviorLogs(req.user.id, logs);
 
     return res.json({
       children: stripSensitive(serialize(children)),
@@ -834,8 +1145,8 @@ router.post("/client-portal-data", async (req, res) => {
     if (!authChild?.familyId || authChild.familyId !== targetChild?.familyId) {
       return res.status(403).json({ error: "Access denied" });
     }
-    // Cross-tenant guard: both children must belong to the same clinician.
-    if (authChild.clinicianId !== targetChild.clinicianId) {
+    // Cross-tenant guard: family, clinician, and tenant must all match.
+    if (authChild.clinicianId !== targetChild.clinicianId || authChild.tenantId !== targetChild.tenantId) {
       return res.status(403).json({ error: "Access denied" });
     }
     familyId = authChild.familyId;
@@ -864,12 +1175,17 @@ router.post("/client-portal-data", async (req, res) => {
 
     // Fetch siblings in the same family AND same clinician so the selector never
     // surfaces children that belong to a different clinician tenant.
-    const siblings = familyId && child?.accountType !== "individual"
-      ? await db.select().from(childrenTable).where(
-          clinicianId
-            ? and(eq(childrenTable.familyId, familyId), eq(childrenTable.clinicianId, clinicianId))
-            : eq(childrenTable.familyId, familyId)
-        )
+    const [family] = familyId
+      ? await db.select().from(familiesTable).where(eq(familiesTable.id, familyId))
+      : [undefined];
+    const siblings = familyId &&
+      child?.accountType !== "individual" &&
+      classifyFamilyAccount(family?.accountType) === "family"
+      ? await db.select().from(childrenTable).where(and(
+          eq(childrenTable.familyId, familyId),
+          clinicianId ? eq(childrenTable.clinicianId, clinicianId) : isNull(childrenTable.clinicianId),
+          child?.tenantId ? eq(childrenTable.tenantId, child.tenantId) : isNull(childrenTable.tenantId),
+        ))
       : (child ? [child] : []);
 
     const visibleDocuments = await legacyVisibleDocuments(documents, clinicianId);
@@ -898,7 +1214,7 @@ router.post("/client-access-code-reset/request", requireAuth, async (req: any, r
       res.status(404).json({ error: "Child not found" });
       return;
     }
-    if (child.clinicianId !== req.user.id) {
+    if (!(await clinicianCanAccessChild(req.user.id, childId))) {
       await auditLog({ userId: req.user.id, userRole: "clinician", action: "access_code_reset_requested", targetType: "child", targetId: childId, success: false, reason: "clinicianId mismatch" });
       res.status(403).json({ error: "Access denied" });
       return;
@@ -1074,7 +1390,7 @@ router.get("/client-detail", requireAuth, async (req: any, res) => {
     if (!child) return res.status(404).json({ error: "Child not found" });
 
     // Security: ensure this child belongs to the requesting clinician
-    if (child.clinicianId !== req.user.id) {
+    if (!(await clinicianCanAccessChild(req.user.id, child_id))) {
       await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: "child", targetId: child_id, success: false });
       return res.status(403).json({ error: "Access denied" });
     }
@@ -1085,8 +1401,11 @@ router.get("/client-detail", requireAuth, async (req: any, res) => {
 
     await auditLog({ userId: req.user.id, userRole: "clinician", action: "client_viewed", targetType: "child", targetId: child_id, tenantId: child.clinicianId ?? undefined });
 
-    const visibleDocuments = await legacyVisibleDocuments(documents, req.user.id);
-    return res.json(stripSensitive(serialize({ child, plans, documents: visibleDocuments, interventionPlans, behaviorLogs, clientAccount })));
+    const [visibleDocuments, visibleLogs] = await Promise.all([
+      legacyVisibleDocuments(documents, req.user.id),
+      clinicianVisibleBehaviorLogs(req.user.id, behaviorLogs),
+    ]);
+    return res.json(stripSensitive(serialize({ child, plans, documents: visibleDocuments, interventionPlans, behaviorLogs: visibleLogs, clientAccount })));
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }
@@ -1106,13 +1425,17 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
     ]);
     if (!family) return res.status(404).json({ error: "Family not found" });
 
-    // Security: ensure this family belongs to the requesting clinician
-    if (family.clinicianId !== req.user.id) {
+    const accessChecks = await Promise.all(children.map(async (child) => ({
+      child,
+      allowed: await clinicianCanAccessChild(req.user.id, child.id),
+    })));
+    const accessibleChildren = accessChecks.filter((item) => item.allowed).map((item) => item.child);
+    if (accessibleChildren.length === 0) {
       await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: "family", targetId: family_id, success: false });
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const childIds = children.map(c => c.id);
+    const childIds = accessibleChildren.map(c => c.id);
     let allDocuments: any[] = [];
     let logsCount = 0;
     let messagesCount = 0;
@@ -1126,12 +1449,12 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
         db.select().from(behaviorPlansTable).where(inArray(behaviorPlansTable.childId, childIds)),
       ]);
       allDocuments = await legacyVisibleDocuments(docs, req.user.id);
-      logsCount = logs.length;
+      logsCount = (await clinicianVisibleBehaviorLogs(req.user.id, logs)).length;
       messagesCount = msgs.length;
       plansCount = plans.length;
     }
 
-    const primaryChild = children.find(c => c.username) ?? children[0];
+    const primaryChild = accessibleChildren.find(c => c.username) ?? accessibleChildren[0];
     const clientAccount = primaryChild?.username
       ? { username: primaryChild.username, access_code_set: !!primaryChild.accessCode, email: family.email }
       : null;
@@ -1140,7 +1463,7 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
 
     return res.json({
       family: serializeFamily(family),
-      children: stripSensitive(serialize(children)),
+      children: stripSensitive(serialize(accessibleChildren)),
       documents: serialize(allDocuments),
       clientAccount: serialize(clientAccount),
       stats: { logs: logsCount, messages: messagesCount, documents: allDocuments.length, plans: plansCount },
@@ -1154,9 +1477,19 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
 // createClientAccount — creates family + children + credentials
 // ──────────────────────────────────────────────
 
-router.post("/create-client-account", requireAuth, async (req: any, res) => {
+router.post("/create-client-account", requireAuth, async (req: any, res): Promise<any> => {
   const { accountType, familyName, notes, parentName, token, accountEmail, children, clientAccount } = req.body;
   try {
+    if (!(await clinicianCanManageClinicalWorkspace(req.user.id))) {
+      return res.status(403).json({ error: "Active clinician workspace access is required." });
+    }
+    const [profile] = await db.select({ tenantId: userProfilesTable.tenantId })
+      .from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
+    const tenantId = profile?.tenantId || req.user.id;
+    const normalizedAccountType = sanitizeStr(accountType) ?? "individual";
+    if (!["individual", "family", "parent", "parent_family", "caregiver"].includes(normalizedAccountType)) {
+      return res.status(400).json({ error: "Unsupported account type." });
+    }
     const firstName = sanitizeStr(clientAccount?.first_name) ?? null;
     const lastName = sanitizeStr(clientAccount?.last_name) ?? null;
     const phone = sanitizeStr(clientAccount?.phone) ?? null;
@@ -1167,7 +1500,7 @@ router.post("/create-client-account", requireAuth, async (req: any, res) => {
 
     const [family] = await db.insert(familiesTable).values({
       clinicianId: req.user.id,
-      tenantId: req.user.id,
+      tenantId,
       createdBy: req.user.id,
       familyName: cleanFamilyName,
       firstName,
@@ -1178,7 +1511,7 @@ router.post("/create-client-account", requireAuth, async (req: any, res) => {
       notes: sanitizeStr(notes) ?? null,
       inviteToken: sanitizeStr(token) ?? null,
       inviteStatus: "pending",
-      accountType: sanitizeStr(accountType) ?? "individual",
+      accountType: normalizedAccountType,
     }).returning();
 
     const createdChildren = [];
@@ -1189,7 +1522,7 @@ router.post("/create-client-account", requireAuth, async (req: any, res) => {
         const childName = sanitizeStr(c.child_name ?? c.childName) ?? cleanFamilyName;
         const [child] = await db.insert(childrenTable).values({
           clinicianId: req.user.id,
-          tenantId: req.user.id,
+          tenantId,
           createdBy: req.user.id,
           familyId: family.id,
           parentEmail: sanitizeStr(accountEmail) ?? null,
@@ -1199,7 +1532,7 @@ router.post("/create-client-account", requireAuth, async (req: any, res) => {
           notes: sanitizeStr(c.notes) ?? null,
           triggers: sanitizeStr(c.triggers) ?? null,
           isPatient: c.is_patient ?? c.isPatient ?? true,
-          accountType: sanitizeStr(accountType) ?? "individual",
+          accountType: normalizedAccountType,
           username: sanitizeStr(clientAccount?.username) ?? null,
           accessCode: hashedCode,
           status: "active",
@@ -1242,6 +1575,11 @@ router.post("/build-client-profile", async (req: any, res) => {
   // parent-scoped scan of one clinician document already visible in the
   // selected child's Document Center.
   if (req.isAuthenticated?.()) {
+    const [profile] = await db.select({ appRole: userProfilesTable.appRole })
+      .from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
+    if (profile?.appRole !== "clinician") {
+      return res.status(403).json({ error: "A clinician account is required for this scan route." });
+    }
     clinicianId = req.user.id;
     clinicianScopedDocumentScan = typeof source_document_id === "string" && Boolean(source_document_id.trim());
   } else {
@@ -1286,7 +1624,7 @@ router.post("/build-client-profile", async (req: any, res) => {
   console.info(`[NeuroPath] buildClientProfile: start child=${child_id} clinician=${clinicianId} force_rebuild=${!!force_rebuild}`);
   try {
     // Ownership: when called by a clinician, verify they own the child.
-    if (req.isAuthenticated?.() && child.clinicianId !== clinicianId) {
+    if (req.isAuthenticated?.() && !(await clinicianCanAccessChild(req.user.id, child_id))) {
       return fail(403, "forbidden", "You don't have permission to scan this client's documents.");
     }
     let parentScannableDocumentIds: Set<string> | null = null;
@@ -2348,13 +2686,20 @@ Example: do not write only "${childName} will complete a graduated exposure hier
 router.post("/manage-client-record", requireAuth, async (req: any, res) => {
   const { action, entity_id, data } = req.body;
   try {
+    if (!(await clinicianCanManageClinicalWorkspace(req.user.id))) {
+      return res.status(403).json({ error: "Active clinician workspace access is required." });
+    }
     switch (action) {
       case "updateChild": {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [existing] = await db.select().from(childrenTable).where(eq(childrenTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
-        if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        if (!(await clinicianCanAccessChild(req.user.id, entity_id))) return res.status(403).json({ error: "Access denied" });
         const update = bodyToCamel(data || {});
+        for (const field of [
+          "id", "parentId", "tenantId", "clinicianId", "familyId", "createdBy",
+          "username", "accessCode", "accountType", "status", "parentEmail",
+        ]) delete update[field];
         if (await isParentOwnedChild(entity_id)) {
           const fields = ["parentId", "tenantId", "clinicianId", "familyId", "createdBy"] as const;
           if (fields.some(key => key in update && update[key] !== existing[key])) {
@@ -2371,7 +2716,7 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [existing] = await db.select().from(childrenTable).where(eq(childrenTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
-        if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        if (!(await clinicianCanAccessChild(req.user.id, entity_id))) return res.status(403).json({ error: "Access denied" });
         if (await isParentOwnedChild(entity_id)) return res.status(409).json({ error: "The clinic cannot delete a parent-owned child profile." });
         await db.delete(childrenTable).where(eq(childrenTable.id, entity_id));
         await auditLog({ userId: req.user.id, userRole: "clinician", action: "child_deleted", targetType: "child", targetId: entity_id });
@@ -2381,20 +2726,78 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [existing] = await db.select().from(familiesTable).where(eq(familiesTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
-        if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+        const familyChildren = await db.select({ id: childrenTable.id }).from(childrenTable)
+          .where(eq(childrenTable.familyId, entity_id));
+        const authorizedFamilyChild = (await Promise.all(familyChildren.map((child) =>
+          clinicianCanAccessChild(req.user.id, child.id)
+        ))).some(Boolean);
+        if (existing.clinicianId !== req.user.id && !authorizedFamilyChild) return res.status(403).json({ error: "Access denied" });
+        const familyUpdate = bodyToCamel(data || {});
+        for (const field of ["id", "clinicianId", "tenantId", "createdBy", "accountType", "inviteStatus", "inviteToken"]) {
+          delete familyUpdate[field];
+        }
         const [family] = await db.update(familiesTable)
-          .set(bodyToCamel(data || {}))
+          .set(familyUpdate)
           .where(eq(familiesTable.id, entity_id))
           .returning();
         return res.json(serialize({ record: serializeFamily(family) }));
+      }
+      case "moveChildToFamily": {
+        if (!entity_id || typeof data?.family_id !== "string") {
+          return res.status(400).json({ error: "entity_id and family_id required" });
+        }
+        const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, entity_id));
+        const [family] = await db.select().from(familiesTable).where(and(
+          eq(familiesTable.id, data.family_id),
+          eq(familiesTable.clinicianId, req.user.id),
+        ));
+        if (!child || !(await clinicianCanAccessChild(req.user.id, entity_id)) ||
+            !family || classifyFamilyAccount(family.accountType) !== "family") {
+          return res.status(403).json({ error: "The client or family is outside your authorized workspace." });
+        }
+        if (await isParentOwnedChild(entity_id) || child.parentId) {
+          return res.status(409).json({ error: "A linked parent-owned client cannot be moved between families." });
+        }
+        if ((child.tenantId || child.clinicianId) !== (family.tenantId || family.clinicianId)) {
+          return res.status(403).json({ error: "Client and family must belong to the same clinic workspace." });
+        }
+        const [updated] = await db.update(childrenTable).set({
+          familyId: family.id,
+          accountType: family.accountType,
+          parentEmail: family.email,
+        }).where(eq(childrenTable.id, child.id)).returning();
+        await auditLog({ userId: req.user.id, userRole: "clinician", action: "child_family_linked", targetType: "child", targetId: child.id, tenantId: child.tenantId ?? undefined });
+        return res.json(serialize({ record: updated }));
+      }
+      case "regenerateFamilyInvite": {
+        if (!entity_id) return res.status(400).json({ error: "entity_id required" });
+        const [existing] = await db.select().from(familiesTable).where(eq(familiesTable.id, entity_id));
+        if (!existing) return res.status(404).json({ error: "Family not found" });
+        const familyChildren = await db.select({ id: childrenTable.id }).from(childrenTable)
+          .where(eq(childrenTable.familyId, entity_id));
+        const authorizedChild = (await Promise.all(familyChildren.map((child) =>
+          clinicianCanAccessChild(req.user.id, child.id)
+        ))).some(Boolean);
+        if (existing.clinicianId !== req.user.id && !authorizedChild) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        const [updated] = await db.update(familiesTable).set({
+          inviteToken: crypto.randomBytes(32).toString("base64url"),
+          inviteStatus: "pending",
+        }).where(eq(familiesTable.id, entity_id)).returning();
+        return res.json(serialize({ record: serializeFamily(updated) }));
       }
       case "deleteFamily": {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [existing] = await db.select().from(familiesTable).where(eq(familiesTable.id, entity_id));
         if (!existing) return res.status(404).json({ error: "Not found" });
-        if (existing.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
         if (await familyHasParentOwnedChildren(entity_id)) return res.status(409).json({ error: "This family contains parent-owned data and cannot be deleted by the clinic." });
         const kids = await db.select().from(childrenTable).where(eq(childrenTable.familyId, entity_id));
+        if (existing.clinicianId !== req.user.id && kids.length === 0) return res.status(403).json({ error: "Access denied" });
+        const allChildrenAuthorized = (await Promise.all(kids.map((kid) =>
+          clinicianCanAccessChild(req.user.id, kid.id)
+        ))).every(Boolean);
+        if (!allChildrenAuthorized) return res.status(403).json({ error: "One or more clients are outside your assigned scope." });
         await deleteDocumentScanOutputsForChildren(kids.map((kid) => kid.id));
         for (const k of kids) {
           await db.delete(documentsTable).where(eq(documentsTable.childId, k.id));
@@ -2409,10 +2812,20 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
       }
       case "createDocument": {
         const docData = bodyToCamel(data || {});
+        if (typeof docData.childId !== "string" || !(await clinicianCanAccessChild(req.user.id, docData.childId))) {
+          return res.status(403).json({ error: "The client is outside your assigned clinical scope." });
+        }
+        const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, docData.childId));
+        for (const key of [
+          "id", "parentId", "source", "extractedText", "extractionStatus",
+          "processingStatus", "scanStatus", "reviewStatus", "reviewedBy",
+          "reviewedAt", "clinicalReviewStatus", "clinicalApproval",
+          "classification", "documentType",
+        ]) delete docData[key];
         const [doc] = await db.insert(documentsTable).values({
           ...docData,
           clinicianId: req.user.id,
-          tenantId: req.user.id,
+          tenantId: child?.tenantId || child?.clinicianId,
           uploadedBy: req.user.id,
         }).returning();
         await auditLog({ userId: req.user.id, userRole: "clinician", action: "document_uploaded", targetType: "document", targetId: doc.id, tenantId: req.user.id });
@@ -2420,6 +2833,10 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
       }
       case "deleteDocument": {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
+        const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, entity_id));
+        if (!document?.childId || !(await clinicianCanAccessChild(req.user.id, document.childId))) {
+          return res.status(403).json({ error: "The document is outside your assigned clinical scope." });
+        }
         const deletion = await deleteClinicianDocumentRecord(entity_id, req.user.id, req);
         if (!deletion.ok) return res.status(deletion.status).json({ error: deletion.error });
         return res.json({ ok: true });
@@ -2471,8 +2888,7 @@ router.post("/manage-client-goal", async (req: any, res) => {
 
   const clinicianMayAccessChild = async (targetChildId: string | null | undefined) => {
     if (!clinicianId || !targetChildId) return false;
-    const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, targetChildId));
-    return child?.clinicianId === clinicianId;
+    return clinicianCanAccessChild(clinicianId, targetChildId);
   };
 
   // May the caller act on an existing reward-token row?
@@ -2513,7 +2929,7 @@ router.post("/manage-client-goal", async (req: any, res) => {
           // up in the clinician's goals list (makeCrud filters by clinicianId).
           const [childRow] = await db.select().from(childrenTable).where(eq(childrenTable.id, targetChildId));
           if (childRow?.clinicianId) values.clinicianId = childRow.clinicianId;
-          if (childRow?.tenantId) values.tenantId = childRow.tenantId;
+           if (childRow?.tenantId) values.tenantId = childRow.tenantId;
         }
         const [goal] = await db.insert(rewardTokensTable).values(values).returning();
         return res.json(serialize({ record: goal }));
@@ -2591,11 +3007,7 @@ router.post("/verify-client-credentials", async (req, res) => {
       return res.json({ error: "Invalid username or access code" });
     }
 
-    const siblings = child.familyId && child.accountType !== "individual"
-      ? await db.select().from(childrenTable).where(and(eq(childrenTable.familyId, child.familyId),
-          child.clinicianId ? eq(childrenTable.clinicianId, child.clinicianId) : isNull(childrenTable.clinicianId),
-          child.tenantId ? eq(childrenTable.tenantId, child.tenantId) : isNull(childrenTable.tenantId)))
-      : [child];
+    const siblings = await scopedFamilySiblings(child);
 
     const [family] = child.familyId
       ? await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId))
@@ -2655,10 +3067,7 @@ router.post("/client-session/change-access-code", async (req, res) => {
       await db.update(childrenTable).set({ accessCode: hashedCode }).where(eq(childrenTable.id, child.id));
     }
 
-    const siblings = child.familyId
-      ? await db.select().from(childrenTable).where(eq(childrenTable.familyId, child.familyId))
-      : [child];
-    const freshSiblings = await db.select().from(childrenTable).where(eq(childrenTable.familyId, child.familyId || child.id));
+    const siblings = await scopedFamilySiblings(child);
     const [family] = child.familyId
       ? await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId))
       : [undefined];
@@ -2669,7 +3078,7 @@ router.post("/client-session/change-access-code", async (req, res) => {
       child_name: child.childName,
       family_name: family?.familyName ?? null,
       primary_contact: family?.primaryContact ?? null,
-      children: serialize(freshSiblings.length > 0 ? freshSiblings : siblings),
+      children: serialize(siblings),
     };
     await auditLog({ action: "access_code_changed", targetType: "child", targetId: child.id, success: true });
     return res.json({ ok: true, session });
@@ -2702,9 +3111,7 @@ router.post("/client-session/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const siblings = child.familyId
-      ? await db.select().from(childrenTable).where(eq(childrenTable.familyId, child.familyId))
-      : [child];
+    const siblings = await scopedFamilySiblings(child);
 
     const [family] = child.familyId
       ? await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId))
@@ -2895,9 +3302,15 @@ router.post("/add-child-to-family", requireAuth, async (req: any, res) => {
   const { family_id, child_name, age, diagnosis, triggers, notes } = req.body;
   if (!family_id || !child_name) return res.status(400).json({ error: "family_id and child_name required" });
   try {
+    if (!(await clinicianCanManageClinicalWorkspace(req.user.id))) {
+      return res.status(403).json({ error: "Active clinician workspace access is required." });
+    }
     const [family] = await db.select().from(familiesTable).where(eq(familiesTable.id, family_id));
     if (!family) return res.status(404).json({ error: "Family not found" });
     if (family.clinicianId !== req.user.id) return res.status(403).json({ error: "Access denied" });
+    if (classifyFamilyAccount(family.accountType) !== "family") {
+      return res.status(409).json({ error: "This account does not support family members." });
+    }
 
     // Get existing children to share credentials
     const existingChildren = await db.select().from(childrenTable).where(eq(childrenTable.familyId, family_id));
@@ -2905,7 +3318,7 @@ router.post("/add-child-to-family", requireAuth, async (req: any, res) => {
 
     const [child] = await db.insert(childrenTable).values({
       clinicianId: req.user.id,
-      tenantId: req.user.id,
+      tenantId: family.tenantId || family.clinicianId,
       createdBy: req.user.id,
       familyId: family_id,
       parentEmail: family.email ?? null,
@@ -3093,8 +3506,9 @@ router.post("/parent-signup", async (req, res) => {
 
 router.post("/admin/migrate-access-codes", requireAuth, async (req: any, res) => {
   try {
-    const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
-    if (!profile || profile.appRole !== "clinician") return res.status(403).json({ error: "Clinician only" });
+    if (!(await userIsActivePlatformAdministrator(req.user.id))) {
+      return res.status(403).json({ error: "An active platform administrator grant is required." });
+    }
 
     const allChildren = await db.select().from(childrenTable)
       .where(eq(childrenTable.clinicianId, req.user.id));

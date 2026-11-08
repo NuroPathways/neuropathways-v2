@@ -242,14 +242,19 @@ router.get("/mobile/behavior-logs", requireMobileAuth, async (req: any, res) => 
   }
 });
 
-router.post("/mobile/behavior-logs", requireMobileAuth, async (req: any, res) => {
+router.post("/mobile/behavior-logs", requireMobileAuth, async (req: any, res): Promise<any> => {
   try {
     const data = bodyToCamel(req.body);
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
-    const clinicianId = child?.clinicianId ?? null;
+    if (!child) return res.status(403).json({ error: "The selected client is no longer available." });
+    for (const key of ["id", "childId", "clinicianId", "tenantId", "parentId", "createdBy"]) delete data[key];
+    const clinicianId = child.clinicianId ?? null;
     const [row] = await db
       .insert(behaviorLogsTable)
-      .values({ ...data, childId: req.mobileUser.childId, clinicianId, tenantId: clinicianId })
+      .values({
+        ...data, childId: req.mobileUser.childId, clinicianId,
+        tenantId: child.tenantId || clinicianId, parentId: req.mobileUser.childId,
+      })
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
@@ -273,14 +278,19 @@ router.get("/mobile/messages", requireMobileAuth, async (req: any, res) => {
   }
 });
 
-router.post("/mobile/messages", requireMobileAuth, async (req: any, res) => {
+router.post("/mobile/messages", requireMobileAuth, async (req: any, res): Promise<any> => {
   try {
     const data = bodyToCamel(req.body);
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
-    const clinicianId = child?.clinicianId ?? null;
+    if (!child) return res.status(403).json({ error: "The selected client is no longer available." });
+    for (const key of ["id", "childId", "clinicianId", "tenantId", "parentId", "createdBy", "fromUserId", "toUserId", "senderRole"]) delete data[key];
+    const clinicianId = child.clinicianId ?? null;
     const [row] = await db
       .insert(messagesTable)
-      .values({ ...data, childId: req.mobileUser.childId, tenantId: clinicianId, senderRole: "client" })
+      .values({
+        ...data, childId: req.mobileUser.childId, tenantId: child.tenantId || clinicianId,
+        fromUserId: req.mobileUser.childId, toUserId: clinicianId, senderRole: "client",
+      })
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
@@ -338,14 +348,19 @@ router.get("/mobile/win-logs", requireMobileAuth, async (req: any, res) => {
   }
 });
 
-router.post("/mobile/win-logs", requireMobileAuth, async (req: any, res) => {
+router.post("/mobile/win-logs", requireMobileAuth, async (req: any, res): Promise<any> => {
   try {
     const data = bodyToCamel(req.body);
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
-    const clinicianId = child?.clinicianId ?? null;
+    if (!child) return res.status(403).json({ error: "The selected client is no longer available." });
+    for (const key of ["id", "childId", "clinicianId", "tenantId", "parentId", "createdBy"]) delete data[key];
+    const clinicianId = child.clinicianId ?? null;
     const [row] = await db
       .insert(winLogsTable)
-      .values({ ...data, childId: req.mobileUser.childId, tenantId: clinicianId })
+      .values({
+        ...data, childId: req.mobileUser.childId, tenantId: child.tenantId || clinicianId,
+        parentId: req.mobileUser.childId,
+      })
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
@@ -369,14 +384,19 @@ router.get("/mobile/daily-check-ins", requireMobileAuth, async (req: any, res) =
   }
 });
 
-router.post("/mobile/daily-check-ins", requireMobileAuth, async (req: any, res) => {
+router.post("/mobile/daily-check-ins", requireMobileAuth, async (req: any, res): Promise<any> => {
   try {
     const data = bodyToCamel(req.body);
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
-    const clinicianId = child?.clinicianId ?? null;
+    if (!child) return res.status(403).json({ error: "The selected client is no longer available." });
+    for (const key of ["id", "childId", "clinicianId", "tenantId", "parentId", "createdBy"]) delete data[key];
+    const clinicianId = child.clinicianId ?? null;
     const [row] = await db
       .insert(dailyCheckInsTable)
-      .values({ ...data, childId: req.mobileUser.childId, tenantId: clinicianId })
+      .values({
+        ...data, childId: req.mobileUser.childId, tenantId: child.tenantId || clinicianId,
+        parentId: req.mobileUser.childId,
+      })
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
