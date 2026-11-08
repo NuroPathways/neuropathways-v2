@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createPageUrl } from "@/utils";
-import { base44 } from '@/api/entities';
 import { Stethoscope, Heart } from "lucide-react";
 import { motion } from "framer-motion";
 import BrandMark from "@/components/brand/BrandMark";
@@ -10,14 +8,9 @@ export default function RoleSelection() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(null);
 
-  const selectRole = async (role) => {
+  const selectRole = (role) => {
     setLoading(role);
-    await base44.auth.updateMe({ role });
-    if (role === "clinician") {
-      navigate(createPageUrl("ClinicianDashboard"));
-    } else {
-      navigate(createPageUrl("ParentDashboard"));
-    }
+    navigate(`/RoleSetup?role=${encodeURIComponent(role)}`);
   };
 
   return (
@@ -49,7 +42,7 @@ export default function RoleSelection() {
               <div>
                 <p className="font-semibold text-foreground text-base">I am a Clinician</p>
                 <p className="text-muted-foreground text-sm mt-1 leading-relaxed">
-                  Create behavior plans, manage clients, and build personalized strategies for families.
+                  Request clinician access. Administrator approval is required before client records are available.
                 </p>
               </div>
             </div>

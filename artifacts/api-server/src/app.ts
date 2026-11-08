@@ -7,6 +7,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { authMiddleware } from "./middlewares/authMiddleware";
+import { pendingClinicianAccessGuard } from "./middlewares/pendingClinicianAccessGuard";
 
 const app: Express = express();
 
@@ -75,6 +76,8 @@ app.use([
   "/api/client-session/login",
   "/api/verify-client-credentials",
   "/api/clinician/login",
+  "/api/clinician/register",
+  "/api/mobile/clinician/register",
   "/api/mobile/auth/login",
   "/api/login",
 ], authLimiter);
@@ -125,6 +128,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(authMiddleware);
+app.use(pendingClinicianAccessGuard);
 
 app.use("/api", router);
 

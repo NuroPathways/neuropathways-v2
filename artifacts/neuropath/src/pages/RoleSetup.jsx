@@ -4,12 +4,12 @@ import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
 import { Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
 import BrandMark from "@/components/brand/BrandMark";
 import SignupAuthorityFields from "@/components/signup/SignupAuthorityFields";
 
-// This page no longer asks the user to pick a role.
-// The role comes from which login portal they used (?role=clinician or ?role=parent),
-// or from an invite token. It sets everything up automatically and redirects.
+// Parent setup follows the selected portal or a family invite. Clinician requests
+// enter a non-privileged pending state until an authorized approver activates them.
 export default function RoleSetup() {
   const [status, setStatus] = useState("Setting up your account...");
   const [invalidInvite, setInvalidInvite] = useState(false);
@@ -20,8 +20,9 @@ export default function RoleSetup() {
   const [parentConfirmed, setParentConfirmed] = useState(false);
   const [setupError, setSetupError] = useState("");
   const [submittingAuthority, setSubmittingAuthority] = useState(false);
+  const [pendingClinicianApproval, setPendingClinicianApproval] = useState(false);
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
+  const { refreshUser, logout } = useAuth();
 
   const params = new URLSearchParams(window.location.search);
   const inviteToken = params.get("invite");
@@ -60,6 +61,11 @@ export default function RoleSetup() {
         return;
       }
 
+      if ((me.app_role || me.appRole) === "pending_clinician") {
+        setPendingClinicianApproval(true);
+        return;
+      }
+
       // ── Invite link flow (always means client/parent) ──
       if (inviteToken) {
         const families = await base44.entities.Family.filter({ invite_token: inviteToken }).catch(() => []);
@@ -76,12 +82,13 @@ export default function RoleSetup() {
       }
 
       // ── Existing users go straight to their dashboard ──
-      if (me.app_role === "clinician") { navigate("/ClinicianDashboard"); return; }
-      if (me.app_role === "parent") { navigate("/ParentDashboard"); return; }
+      if ((me.app_role || me.appRole) === "clinician") { navigate("/ClinicianDashboard"); return; }
+      if ((me.app_role || me.appRole) === "parent") { navigate("/ParentDashboard"); return; }
 
       // ── New users: role comes from the portal they signed in through ──
       if (forceRole === "clinician") {
-        setInvalidInvite(true);
+        setSignupRole("clinician");
+        setSignupContext({ me, family: null });
         return;
       }
 
@@ -118,12 +125,42 @@ export default function RoleSetup() {
     };
     setSubmittingAuthority(true);
     try {
-      await finishParent(signupContext.me, signupContext.family, authority);
+      if (signupRole === "clinician") {
+        await base44.auth.updateMe({
+          app_role: "pending_clinician",
+          account_type: "clinician",
+          ...authority,
+        });
+        await refreshUser();
+        setSignupRole("");
+        setSignupContext(null);
+        setPendingClinicianApproval(true);
+      } else {
+        await finishParent(signupContext.me, signupContext.family, authority);
+      }
     } catch {
-      setSetupError("We could not record your account details. Please try again.");
+      setSetupError("We could not submit your account details. Please try again.");
+    } finally {
       setSubmittingAuthority(false);
     }
   };
+
+  if (pendingClinicianApproval) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 font-inter">
+        <motion.main initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-lg space-y-4 rounded-2xl border border-border bg-card p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><BrandMark size={38} /></div>
+            <div><p className="text-xs text-muted-foreground">NeuroPathways</p><h1 className="text-xl font-semibold text-foreground">Clinician access pending</h1></div>
+          </div>
+          <p role="status" className="text-sm leading-6 text-muted-foreground">
+            Your account is waiting for clinic administrator approval. Client records and clinician tools stay unavailable until an authorized approver activates your account.
+          </p>
+          <Button type="button" variant="outline" className="w-full" onClick={logout}>Sign out</Button>
+        </motion.main>
+      </div>
+    );
+  }
 
   if (signupRole && signupContext) {
     return (
@@ -131,15 +168,19 @@ export default function RoleSetup() {
         <motion.main initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-lg space-y-4 rounded-2xl border border-border bg-card p-6">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><BrandMark size={38} /></div>
-            <div><p className="text-xs text-muted-foreground">NeuroPathways</p><h1 className="text-xl font-semibold text-foreground">Account holder details</h1></div>
+            <div><p className="text-xs text-muted-foreground">NeuroPathways</p><h1 className="text-xl font-semibold text-foreground">{signupRole === "clinician" ? "Request clinician access" : "Account holder details"}</h1></div>
           </div>
-          <p className="text-sm leading-6 text-muted-foreground">We ask for an age group and these statements to record who is creating the account. Children under 13 cannot create their own accounts.</p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {signupRole === "clinician"
+              ? "Clinician accounts remain pending until an authorized clinic administrator approves them. Client records are not available while approval is pending."
+              : "We ask for an age group and these statements to record who is creating the account. Children under 13 cannot create their own accounts."}
+          </p>
           <form onSubmit={submitAuthority} className="space-y-4">
             <SignupAuthorityFields role={signupRole === "parent" ? "parent_guardian" : "clinician"} ageGroup={ageGroup} setAgeGroup={setAgeGroup} adultConfirmed={adultConfirmed} setAdultConfirmed={setAdultConfirmed} parentConfirmed={parentConfirmed} setParentConfirmed={setParentConfirmed} />
             {setupError && <p role="alert" className="text-sm text-destructive">{setupError}</p>}
-            <button type="submit" disabled={submittingAuthority || !ageGroup || ageGroup === "under_13" || !adultConfirmed || (signupRole === "parent" && !parentConfirmed)} className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-50">
-              {submittingAuthority ? "Saving…" : "Continue"}
-            </button>
+            <Button type="submit" disabled={submittingAuthority || !ageGroup || ageGroup === "under_13" || !adultConfirmed || (signupRole === "parent" && !parentConfirmed)} className="w-full">
+              {submittingAuthority ? "Saving…" : signupRole === "clinician" ? "Submit access request" : "Continue"}
+            </Button>
           </form>
         </motion.main>
       </div>

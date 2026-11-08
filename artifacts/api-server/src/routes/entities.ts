@@ -5,6 +5,7 @@ import {
 import {
   canSetSelfServiceAccountType,
   canSetSelfServiceRole,
+  PENDING_CLINICIAN_ROLE,
 } from "../lib/securityPolicies";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -729,7 +730,9 @@ router.patch("/users/me", requireAuth, async (req: any, res) => {
         error: "This account type can only be assigned through an authorized account setup.",
       });
     }
-    const roleChange = updateData.appRole === "parent" || updateData.appRole === "clinician"
+    const roleChange = updateData.appRole === "parent"
+      || updateData.appRole === "clinician"
+      || updateData.appRole === PENDING_CLINICIAN_ROLE
       ? updateData.appRole
       : null;
     const needsNewAuthority = roleChange !== null && roleChange !== currentProfile?.appRole;

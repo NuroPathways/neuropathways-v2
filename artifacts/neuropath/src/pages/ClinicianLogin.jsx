@@ -4,16 +4,16 @@ import { base44 } from '@/api/entities';
 import { useAuth } from '@/lib/AuthContext';
 import { Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
+import { Input } from "@workspace/neuropathways-foundations/components/ui/input";
+import { Label } from "@workspace/neuropathways-foundations/components/ui/label";
 import { Shell } from "@/components/parentfree/common";
 import SignupAuthorityFields from "@/components/signup/SignupAuthorityFields";
 
 export default function ClinicianLogin() {
   const navigate = useNavigate();
   const { checkUserAuth } = useAuth();
-  const [mode, setMode] = useState("choose"); // "choose" | "email-login" | "email-register"
+  const [mode, setMode] = useState("choose"); // choose | email-login | email-register | registration-pending
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -25,8 +25,10 @@ export default function ClinicianLogin() {
     base44.auth.isAuthenticated().then(async (authed) => {
       if (authed) {
         const user = await base44.auth.me();
-        if (user.app_role === "clinician") navigate("/ClinicianDashboard");
-        else if (user.app_role === "parent") navigate("/ParentDashboard");
+        const role = user.app_role || user.appRole;
+        if (role === "clinician") navigate("/ClinicianDashboard");
+        else if (role === "parent") navigate("/ParentDashboard");
+        else if (role === "pending_clinician") navigate("/RoleSetup?role=clinician");
         else navigate("/RoleSetup?role=clinician");
       }
     });
@@ -75,8 +77,7 @@ export default function ClinicianLogin() {
       });
       const data = await res.json();
       if (!res.ok || data.error) { setError(data.error || "Registration failed"); setLoading(false); return; }
-      await checkUserAuth();
-      navigate("/ClinicianDashboard");
+      setMode("registration-pending");
     } catch {
       setError("Network error — please try again.");
     }
@@ -106,8 +107,16 @@ export default function ClinicianLogin() {
                 >
                   <Mail className="w-4 h-4" /> Sign In with Email
                 </Button>
-                <p role="status" className="text-xs text-center text-muted-foreground">
-                  Clinician registration is paused pending clinic approval.
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full rounded-xl py-5 font-semibold text-sm"
+                  onClick={() => { setMode("email-register"); setError(""); }}
+                >
+                  Request clinician access
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">
+                  New clinician accounts stay locked until an authorized clinic administrator approves them.
                 </p>
 
               </motion.div>
@@ -143,8 +152,11 @@ export default function ClinicianLogin() {
                   {loading ? "Signing in…" : "Sign In"}
                 </Button>
 
-                <p role="status" className="text-xs text-center text-muted-foreground">
-                  Clinician registration is paused pending clinic approval.
+                <p className="text-xs text-center text-muted-foreground">
+                  Need an account?{" "}
+                  <button type="button" onClick={() => { setMode("email-register"); setError(""); }} className="text-primary font-medium hover:underline">
+                    Request clinician access
+                  </button>
                 </p>
               </motion.form>
             )}
@@ -194,6 +206,18 @@ export default function ClinicianLogin() {
                   </button>
                 </p>
               </motion.form>
+            )}
+
+            {mode === "registration-pending" && (
+              <motion.div key="registration-pending" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+                <h2 className="font-semibold text-foreground">Request received</h2>
+                <p role="status" className="rounded-xl border border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
+                  Your account is pending clinic administrator approval. You cannot access client records or clinician tools until an authorized approver activates it.
+                </p>
+                <Button type="button" variant="outline" className="w-full rounded-xl" onClick={() => setMode("email-login")}>
+                  Return to sign in
+                </Button>
+              </motion.div>
             )}
           </AnimatePresence>
         </div>

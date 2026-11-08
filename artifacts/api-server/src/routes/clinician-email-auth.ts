@@ -1,10 +1,13 @@
 import { Router } from "express";
+import crypto from "crypto";
 import { db, usersTable } from "@workspace/db";
-import { userProfilesTable, clinicianCredentialsTable } from "@workspace/db";
+import { userProfilesTable, clinicianCredentialsTable, consentEventsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { createSession, deleteSession, getSessionId, SESSION_COOKIE, SESSION_TTL } from "../lib/auth";
 import { isDisabledPublicDemoClinicianEmail } from "../lib/publicDemoAccountPolicy";
+import { accountAuthorityEvent, validateAccountAuthority } from "../lib/accountAuthority";
 import { createClinicianPasswordHash, verifyClinicianPassword } from "../lib/clinicianPassword";
+import { PENDING_CLINICIAN_ROLE } from "../lib/securityPolicies";
 
 const router = Router();
 
@@ -18,10 +21,108 @@ function setSessionCookie(res: any, sid: string) {
   });
 }
 
-async function registerClinician(_req: any, res: any) {
-  return res.status(403).json({
-    error: "Clinician registration is paused pending clinic administrator approval.",
-  });
+async function registerClinician(req: any, res: any) {
+  const { email, password, firstName, lastName } = req.body;
+  const authority = validateAccountAuthority(req.body, "clinician");
+  if (!authority.ok) {
+    return res.status(authority.error.startsWith("A parent or guardian must create this account") ? 403 : 400)
+      .json({ error: authority.error });
+  }
+  if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters" });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  if (
+    normalizedEmail.length > 254 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ||
+    isDisabledPublicDemoClinicianEmail(normalizedEmail)
+  ) {
+    return res.status(400).json({ error: "Enter a valid work email address." });
+  }
+  if (
+    typeof firstName !== "string" ||
+    typeof lastName !== "string" ||
+    !firstName.trim() ||
+    !lastName.trim() ||
+    firstName.length > 100 ||
+    lastName.length > 100
+  ) {
+    return res.status(400).json({ error: "First and last name are required." });
+  }
+
+  const cleanFirstName = firstName.trim();
+  const cleanLastName = lastName.trim();
+
+  try {
+    const [existingCredentials] = await db
+      .select()
+      .from(clinicianCredentialsTable)
+      .where(eq(clinicianCredentialsTable.email, normalizedEmail));
+    if (existingCredentials) {
+      return res.status(409).json({ error: "An account with this email already exists. Please sign in." });
+    }
+
+    const [existingUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, normalizedEmail));
+    if (existingUser) {
+      return res.status(409).json({
+        error: 'An account with this email already exists. If you previously signed in with Replit, use "Continue with Replit Account" to sign in.',
+      });
+    }
+
+    const userId = crypto.randomUUID();
+    const passwordHash = await createClinicianPasswordHash(password);
+    const authorityRecord = accountAuthorityEvent("clinician", authority.ageGroup, false, false);
+
+    // The account is created in a non-privileged state. It receives no session
+    // and cannot access client records until an authorized approver activates it.
+    await db.transaction(async (tx) => {
+      await tx.insert(usersTable).values({
+        id: userId,
+        email: normalizedEmail,
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
+      });
+      await tx.insert(userProfilesTable).values({
+        id: userId,
+        appRole: PENDING_CLINICIAN_ROLE,
+        accountType: "clinician",
+        displayName: `${cleanFirstName} ${cleanLastName}`,
+      });
+      await tx.insert(clinicianCredentialsTable).values({
+        userId,
+        email: normalizedEmail,
+        passwordHash,
+      });
+      await tx.insert(consentEventsTable).values({
+        subjectId: userId,
+        eventType: authorityRecord.eventType,
+        policyType: "account_holder_authority",
+        version: "1.0",
+        acceptanceMethod: "signup_checkbox",
+        source: "signup",
+        actorType: "user",
+        metadata: authorityRecord.metadata,
+      });
+    });
+
+    return res.status(202).json({
+      ok: true,
+      pendingApproval: true,
+      message: "Your request was received. Your clinician account is pending approval and remains locked until a clinic administrator approves it.",
+    });
+  } catch (error: any) {
+    if (error?.code === "23505") {
+      return res.status(409).json({ error: "An account with this email already exists. Please sign in." });
+    }
+    return res.status(500).json({ error: "Could not submit the clinician access request. Please try again." });
+  }
 }
 
 router.post("/clinician/register", registerClinician);
@@ -56,6 +157,12 @@ async function loginClinician(req: any, res: any) {
     if (!user)
       return res.status(401).json({ error: "Account not found" });
     const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, user.id));
+    if (profile?.appRole === PENDING_CLINICIAN_ROLE) {
+      return res.status(403).json({
+        error: "This clinician account is awaiting clinic administrator approval.",
+        pendingApproval: true,
+      });
+    }
     if (profile?.appRole !== "clinician")
       return res.status(403).json({ error: "This account is not a clinician account" });
 
