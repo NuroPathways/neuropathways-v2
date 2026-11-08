@@ -1,8 +1,8 @@
 import { Router } from "express";
 import crypto from "crypto";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, sessionsTable } from "@workspace/db";
 import { userProfilesTable, clinicianCredentialsTable, consentEventsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { createSession, deleteSession, getSessionId, SESSION_COOKIE, SESSION_TTL } from "../lib/auth";
 import { isDisabledPublicDemoClinicianEmail } from "../lib/publicDemoAccountPolicy";
 import { accountAuthorityEvent, validateAccountAuthority } from "../lib/accountAuthority";
@@ -210,9 +210,26 @@ router.post("/clinician/change-password", async (req: any, res) => {
     if (!await verifyClinicianPassword(current_password, creds.passwordHash)) return res.status(401).json({ error: "Current password is incorrect" });
 
     const passwordHash = await createClinicianPasswordHash(new_password);
-    await db.update(clinicianCredentialsTable).set({ passwordHash }).where(eq(clinicianCredentialsTable.userId, req.user.id));
+    const currentSessionId = getSessionId(req);
+    const changed = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(clinicianCredentialsTable)
+        .set({ passwordHash })
+        .where(and(
+          eq(clinicianCredentialsTable.userId, req.user.id),
+          eq(clinicianCredentialsTable.passwordHash, creds.passwordHash),
+        ))
+        .returning({ userId: clinicianCredentialsTable.userId });
+      if (!updated) return false;
 
-    return res.json({ ok: true });
+      const userSessions = sql`${sessionsTable.sess} -> 'user' ->> 'id' = ${req.user.id}`;
+      await tx.delete(sessionsTable).where(currentSessionId
+        ? and(userSessions, ne(sessionsTable.sid, currentSessionId))
+        : userSessions);
+      return true;
+    });
+    if (!changed) return res.status(409).json({ error: "Your password changed in another session. Sign in again before trying once more." });
+
+    return res.json({ ok: true, otherSessionsRevoked: true });
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }

@@ -17,6 +17,14 @@ export const hasFamilyCredential = (req: Request) => req.headers["x-family-token
 export const familyOwnerId = (familyId: string) => `${PREFIX}${familyId}`;
 export const familyIdForOwner = (id: string) => id.startsWith(PREFIX) ? id.slice(PREFIX.length) : null;
 
+async function revokeFamilyCredential(token: string, channel: "web" | "mobile"): Promise<void> {
+  if (channel === "web") {
+    await db.delete(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, token));
+  } else {
+    await db.delete(mobileTokensTable).where(eq(mobileTokensTable.token, token));
+  }
+}
+
 /** A capability derived exclusively from an unexpired server-backed credential. */
 export async function resolveFamilyParent(req: Request): Promise<ParentIdentity> {
   const web = req.headers["x-family-token"];
@@ -32,16 +40,24 @@ export async function resolveFamilyParent(req: Request): Promise<ParentIdentity>
       .where(and(eq(mobileTokensTable.token, token), gt(mobileTokensTable.expiresAt, now)));
   if (!session?.childId) throw new FamilyAccessError(401, "Family session expired. Sign in again.");
   const [anchor] = await db.select().from(childrenTable).where(eq(childrenTable.id, session.childId));
-  if (!anchor?.familyId || anchor.status === "merged") throw new FamilyAccessError(409, "This login has no active family relationship");
+  if (!anchor?.familyId || (anchor.status && anchor.status !== "active")) {
+    await revokeFamilyCredential(token, web !== undefined ? "web" : "mobile");
+    throw new FamilyAccessError(409, "This login has no active family relationship");
+  }
   const [family] = await db.select().from(familiesTable).where(eq(familiesTable.id, anchor.familyId));
   if (!family || family.clinicianId !== anchor.clinicianId) {
+    await revokeFamilyCredential(token, web !== undefined ? "web" : "mobile");
     throw new FamilyAccessError(403, "Family relationship is not authorized");
   }
   const classification = classifyFamilyAccount(family.accountType);
-  if (classification !== "family" || anchor.accountType === "individual") throw new FamilyAccessError(409,
-    classification === "individual" || anchor.accountType === "individual" ? "Individual clients use the client experience" : "Family account type needs correction by your clinic",
-    classification === "individual" || anchor.accountType === "individual" ? "individual_client" : "unknown_account_type");
+  if (classification !== "family" || anchor.accountType === "individual") {
+    await revokeFamilyCredential(token, web !== undefined ? "web" : "mobile");
+    throw new FamilyAccessError(409,
+      classification === "individual" || anchor.accountType === "individual" ? "Individual clients use the client experience" : "Family account type needs correction by your clinic",
+      classification === "individual" || anchor.accountType === "individual" ? "individual_client" : "unknown_account_type");
+  }
   if (!(await familyChildrenForOwner(familyOwnerId(family.id))).some(c => c.id === anchor.id)) {
+    await revokeFamilyCredential(token, web !== undefined ? "web" : "mobile");
     throw new FamilyAccessError(403, "Family membership or clinic consent is no longer valid");
   }
   return familyIdentity(family);

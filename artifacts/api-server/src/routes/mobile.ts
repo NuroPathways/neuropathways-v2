@@ -16,23 +16,12 @@ import {
   familiesTable,
 } from "@workspace/db";
 import { classifyFamilyAccount, familyChildrenForOwner, familyOwnerId } from "../lib/familyParentAuth";
-import { eq, and, gt, isNull } from "drizzle-orm";
-
-function scryptHash(input: string, salt: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(input, salt, 64, (err, key) => {
-      if (err) reject(err);
-      else resolve(key.toString("hex"));
-    });
-  });
-}
-
-async function verifyAccessCode(code: string, stored: string): Promise<boolean> {
-  if (!stored || !stored.includes(":")) return code.toUpperCase() === stored?.toUpperCase();
-  const [salt, storedHash] = stored.split(":");
-  const inputHash = await scryptHash(code.toUpperCase(), salt);
-  return inputHash === storedHash;
-}
+import { eq, and, gt, isNull, inArray, sql } from "drizzle-orm";
+import { revokeClientSessionsForChildren } from "../lib/clientSessionRevocation";
+import {
+  hashClientAccessCode as hashAccessCode,
+  verifyClientAccessCode as verifyAccessCode,
+} from "../lib/clientAccessCode";
 
 const router = Router();
 
@@ -59,12 +48,19 @@ export async function requireMobileAuth(req: any, res: any, next: any) {
     if (!row) return res.status(401).json({ error: "Invalid or expired token" });
     const [anchor] = await db.select().from(childrenTable).where(eq(childrenTable.id, row.childId));
     if (!anchor) return res.status(401).json({ error: "Account no longer available" });
+    const revokeAndRespond = async (status: number, message: string) => {
+      await db.delete(mobileTokensTable).where(eq(mobileTokensTable.token, token));
+      return res.status(status).json({ error: message });
+    };
+    if (anchor.status && anchor.status !== "active") {
+      return revokeAndRespond(401, "Account is no longer active");
+    }
     const [family] = anchor.familyId ? await db.select().from(familiesTable).where(eq(familiesTable.id, anchor.familyId)) : [];
     const classification = anchor.accountType === "individual" ? "individual" : classifyFamilyAccount(family?.accountType);
-    if (classification === "unknown") return res.status(409).json({ error: "Your clinic needs to correct this account's family type" });
-    if (!family || family.clinicianId !== anchor.clinicianId) return res.status(403).json({ error: "Family relationship is not authorized" });
+    if (classification === "unknown") return revokeAndRespond(409, "Your clinic needs to correct this account's family type");
+    if (!family || family.clinicianId !== anchor.clinicianId) return revokeAndRespond(403, "Family relationship is not authorized");
     const familyChildren = classification === "family" ? await familyChildrenForOwner(familyOwnerId(family.id)) : [anchor];
-    if (!familyChildren.some(c => c.id === anchor.id)) return res.status(403).json({ error: "Family membership or clinic consent is no longer valid" });
+    if (!familyChildren.some(c => c.id === anchor.id)) return revokeAndRespond(403, "Family membership or clinic consent is no longer valid");
     // Selection changes the record being used, never the token's authenticated identity.
     // Lists and logout must remain accessible if a previously selected sibling was reassigned.
     const requested = ["/mobile/children", "/mobile/auth/logout", "/mobile/session"].includes(req.path)
@@ -157,17 +153,29 @@ router.post("/mobile/auth/change-access-code", requireMobileAuth, async (req: an
     if (!child?.accessCode || !(await verifyAccessCode(current_access_code.trim(), child.accessCode))) {
       return res.status(401).json({ error: "Current access code is incorrect." });
     }
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hash = await scryptHash(new_access_code.trim().toUpperCase(), salt);
-    const accessCode = `${salt}:${hash}`;
-    if (child.familyId) {
-      await db.update(childrenTable).set({ accessCode }).where(and(
-        eq(childrenTable.familyId, child.familyId),
-        child.clinicianId ? eq(childrenTable.clinicianId, child.clinicianId) : isNull(childrenTable.clinicianId),
-      ));
-    } else {
-      await db.update(childrenTable).set({ accessCode }).where(eq(childrenTable.id, child.id));
-    }
+    const siblings = child.familyId && child.accountType !== "individual"
+      ? (await familyChildrenForOwner(familyOwnerId(child.familyId))).filter((item) =>
+        item.clinicianId === child.clinicianId &&
+        (item.tenantId || null) === (child.tenantId || null))
+      : [child];
+    const childIds = siblings.map((item) => item.id);
+    const accessCode = await hashAccessCode(new_access_code.trim());
+    const lockKey = `${child.clinicianId || child.tenantId || "independent"}:${
+      child.familyId && child.accountType !== "individual" ? `family:${child.familyId}` : `child:${child.id}`
+    }`;
+    const currentToken = req.headers["x-mobile-token"] as string;
+    const changed = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
+      const [currentChild] = await tx.select().from(childrenTable)
+        .where(eq(childrenTable.id, child.id)).for("update");
+      if (!currentChild?.accessCode ||
+          !(await verifyAccessCode(current_access_code.trim(), currentChild.accessCode))) return false;
+
+      await tx.update(childrenTable).set({ accessCode }).where(inArray(childrenTable.id, childIds));
+      await revokeClientSessionsForChildren(tx, childIds, currentToken);
+      return true;
+    });
+    if (!changed) return res.status(401).json({ error: "Current access code is incorrect." });
     return res.json({ ok: true });
   } catch (e: any) {
     return res.status(500).json({ error: e.message });

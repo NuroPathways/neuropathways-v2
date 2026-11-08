@@ -74,11 +74,15 @@ const passwordResetCompleteLimiter = rateLimit({
 });
 app.use([
   "/api/client-session/login",
+  "/api/client-session/change-access-code",
   "/api/verify-client-credentials",
   "/api/clinician/login",
+  "/api/mobile/clinician/login",
+  "/api/clinician/change-password",
   "/api/clinician/register",
   "/api/mobile/clinician/register",
   "/api/mobile/auth/login",
+  "/api/mobile/auth/change-access-code",
   "/api/login",
 ], authLimiter);
 app.use("/api/client-access-code-reset/request", accessCodeResetRequestLimiter);

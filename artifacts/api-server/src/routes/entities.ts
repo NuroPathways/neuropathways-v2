@@ -38,7 +38,11 @@ import { clinicalScanServiceError } from "../lib/clinicalPdf";
 import { prepareSupportPdf } from "../lib/supportPdf";
 import { fillExplicitlyLabeledSupportFields } from "../lib/documentSupportFallback";
 import { resolveParentActor } from "../lib/parentAuth";
-import { classifyFamilyAccount } from "../lib/familyParentAuth";
+import {
+  classifyFamilyAccount,
+  familyChildrenForOwner,
+  familyOwnerId,
+} from "../lib/familyParentAuth";
 import {
   clinicianCanAccessChild,
   clinicianCanManageClinicalWorkspace,
@@ -50,6 +54,15 @@ import {
 import { resolveLocalUploadReference } from "../lib/localUploadReference";
 import { deleteUploadedDocumentFile } from "../lib/uploadedDocumentFile";
 import { deleteEncryptedParentDocument } from "../lib/parentFileStorage";
+import {
+  serializeApiResponse as serialize,
+  stripCredentialMaterial as stripSensitive,
+} from "../lib/safeApiResponse";
+import { revokeClientSessionsForChildren } from "../lib/clientSessionRevocation";
+import {
+  hashClientAccessCode as hashAccessCode,
+  verifyClientAccessCode as verifyAccessCode,
+} from "../lib/clientAccessCode";
 import {
   DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE,
   documentExtractionsToolProperty,
@@ -239,22 +252,6 @@ function snakeToCamel(str: string) {
   return str.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 
-function camelToSnake(str: string): string {
-  return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-}
-
-function serialize(val: any): any {
-  if (val === null || val === undefined) return val;
-  if (Array.isArray(val)) return val.map(serialize);
-  if (val instanceof Date) return val.toISOString();
-  if (typeof val === "object") {
-    return Object.fromEntries(
-      Object.entries(val).map(([k, v]) => [camelToSnake(k), serialize(v)])
-    );
-  }
-  return val;
-}
-
 // Sanitize potentially bad string values (e.g. "undefined", "null")
 function sanitizeStr(v: any): string | null {
   if (!v || v === "undefined" || v === "null") return null;
@@ -390,28 +387,6 @@ router.post("/data-requests", requireAuth, async (req: any, res) => {
 // Access code hashing (scrypt, same pattern as clinician passwords)
 // ──────────────────────────────────────────────
 
-function scryptHash(input: string, salt: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(input, salt, 64, (err, key) => {
-      if (err) reject(err);
-      else resolve(key.toString("hex"));
-    });
-  });
-}
-
-async function hashAccessCode(code: string): Promise<string> {
-  const salt = crypto.randomBytes(16).toString("hex");
-  const hash = await scryptHash(code.toUpperCase(), salt);
-  return `${salt}:${hash}`;
-}
-
-async function verifyAccessCode(code: string, stored: string): Promise<boolean> {
-  if (!stored || !stored.includes(":")) return code.toUpperCase() === stored?.toUpperCase();
-  const [salt, storedHash] = stored.split(":");
-  const inputHash = await scryptHash(code.toUpperCase(), salt);
-  return inputHash === storedHash;
-}
-
 // ──────────────────────────────────────────────
 // Client-session token helpers
 // ──────────────────────────────────────────────
@@ -442,6 +417,22 @@ async function validateClientSession(token: string | undefined | null): Promise<
   if (!row?.childId) return null;
   if (row.expiresAt && row.expiresAt < new Date()) return null;
   if (isDisabledPublicDemoClientUsername(row.username)) return null;
+  const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, row.childId));
+  if (!child || (child.status && child.status !== "active")) {
+    await db.delete(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, token));
+    return null;
+  }
+  if (child.familyId && child.accountType !== "individual") {
+    const [family] = await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId));
+    const authorizedChildren = family && family.clinicianId === child.clinicianId &&
+      classifyFamilyAccount(family.accountType) === "family"
+      ? await familyChildrenForOwner(familyOwnerId(family.id))
+      : [];
+    if (!authorizedChildren.some((authorizedChild) => authorizedChild.id === child.id)) {
+      await db.delete(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, token));
+      return null;
+    }
+  }
   return { childId: row.childId };
 }
 
@@ -493,20 +484,6 @@ async function auditLog(opts: {
 // Generic CRUD factory (protected by auth)
 // Automatically scopes list queries by clinicianId for clinician users
 // ──────────────────────────────────────────────
-
-const SENSITIVE_FIELDS = ["access_code", "password_hash"];
-function stripSensitive(row: any): any {
-  if (Array.isArray(row)) return row.map(stripSensitive);
-  if (row && typeof row === "object") {
-    const out: Record<string, any> = {};
-    for (const [k, v] of Object.entries(row)) {
-      if (SENSITIVE_FIELDS.includes(k)) continue;
-      out[k] = (v && typeof v === "object") ? stripSensitive(v) : v;
-    }
-    return out;
-  }
-  return row;
-}
 
 type EntityActorScope = {
   role: "clinician" | "parent";
@@ -3094,19 +3071,28 @@ router.post("/client-session/change-access-code", async (req, res) => {
     }
     if (!child) return res.status(401).json({ error: "Current username or access code is incorrect" });
 
+    const siblings = await scopedFamilySiblings(child);
+    const childIds = siblings.map((sibling) => sibling.id);
     const hashedCode = await hashAccessCode(new_access_code);
-    // Update all siblings sharing the same family credentials
-    if (child.familyId && child.accountType !== "individual") {
-      await db.update(childrenTable).set({ accessCode: hashedCode }).where(and(
-        eq(childrenTable.familyId, child.familyId),
-        child.clinicianId ? eq(childrenTable.clinicianId, child.clinicianId) : isNull(childrenTable.clinicianId),
-        child.tenantId ? eq(childrenTable.tenantId, child.tenantId) : isNull(childrenTable.tenantId),
-      ));
-    } else {
-      await db.update(childrenTable).set({ accessCode: hashedCode }).where(eq(childrenTable.id, child.id));
+    const resetScopeKey = `${child.clinicianId || child.tenantId || "independent"}:${
+      child.familyId && child.accountType !== "individual" ? `family:${child.familyId}` : `child:${child.id}`
+    }`;
+    const changed = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${resetScopeKey}))`);
+      const [currentChild] = await tx.select().from(childrenTable)
+        .where(eq(childrenTable.id, child.id)).for("update");
+      if (!currentChild?.accessCode ||
+          !(await verifyAccessCode(current_access_code, currentChild.accessCode))) return false;
+
+      await tx.update(childrenTable).set({ accessCode: hashedCode })
+        .where(inArray(childrenTable.id, childIds));
+      await revokeClientSessionsForChildren(tx, childIds);
+      return true;
+    });
+    if (!changed) {
+      return res.status(401).json({ error: "Current username or access code is incorrect" });
     }
 
-    const siblings = await scopedFamilySiblings(child);
     const [family] = child.familyId
       ? await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId))
       : [undefined];
