@@ -28,3 +28,11 @@ Treat a recognizable upstream startup HTML page as a temporary service interrupt
 **Why:** The preview proxy returned an HTML startup page during a scan. Generic file-format matching found CSS text in that page, incorrectly labeled a valid PDF unsupported, exposed the whole page to the user, and removed the retry action. Startup pages can arrive with success or failure status codes and non-HTML content types.
 
 **How to apply:** Distinguish transport responses before classifying file-reading errors across all account clients. Bounded automatic replay is appropriate only for a known startup rejection before the app accepted the request; never blindly replay an upload or AI scan after an ambiguous network error or gateway timeout, since it may already have run.
+
+## Security remediation must preserve document outputs
+
+For security work, change authorization, storage, session, or audit boundaries only. Do not change document parsing, AI prompts, extraction/classification, goal/activity/support generation, or their output contracts without separate approval.
+
+**Why:** The user explicitly requires security fixes to preserve the current scanner and all document-derived outcomes.
+
+**How to apply:** Capture hashes and synthetic-test baselines before security edits. Keep document processing tests in the regression suite and stop for approval if a security fix appears to require changing processing behavior.
