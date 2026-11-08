@@ -8,6 +8,7 @@ import {
   childrenTable,
   clientProfilesTable,
   consentEventsTable,
+  parentClinicConsentsTable,
   documentsTable,
   documentExtractionRunsTable,
   familiesTable,
@@ -22,6 +23,8 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { CLAUDE_MODEL, getAnthropicClient } from "./anthropic";
+import { nextParentClinicConsentScopes } from "./parentSharingPolicy";
+import { clinicalRecordClinicId, clinicianCanAccessChild } from "./clinicAuthorization";
 import {
   buildParentChatSafeFallback,
   buildParentChatSystemPrompt,
@@ -2244,20 +2247,72 @@ export async function setParentDocumentSharing(
     throw new Error("Parent document not found");
   }
   if (shared && !child.clinicianId) throw new Error("Connect this child to a clinician before sharing documents");
+  const sharingClinicId = shared ? await clinicalRecordClinicId(childId) : null;
+  if (shared && (!sharingClinicId || !(await clinicianCanAccessChild(child.clinicianId!, childId)))) {
+    throw new Error("This clinician is no longer authorized for this child");
+  }
   if (shared && metadata.sharedClinicianId && metadata.sharedClinicianId !== child.clinicianId) {
     throw new Error("This document is shared with another clinician. Revoke access before sharing it again.");
   }
   const clinicianId = shared ? child.clinicianId : null;
   await db.transaction(async (tx) => {
+    const now = new Date();
+    if (shared && sharingClinicId) {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${sharingClinicId}))`);
+      const [currentChild] = await tx.select({ clinicianId: childrenTable.clinicianId })
+        .from(childrenTable).where(eq(childrenTable.id, childId));
+      if (!currentChild || currentChild.clinicianId !== clinicianId ||
+          !(await clinicianCanAccessChild(clinicianId!, childId))) {
+        throw new Error("This clinician is no longer authorized for this child");
+      }
+    }
     await tx.update(parentDocumentsTable).set({
       sharedClinicianId: clinicianId,
       ...(shared ? {} : { reviewedBy: null, reviewedAt: null }),
-      updatedAt: new Date(),
+      updatedAt: now,
     }).where(eq(parentDocumentsTable.documentId, documentId));
     await tx.update(documentsTable).set({
       tenantId: shared ? clinicianId : metadata.workspaceId,
       clinicianId: shared ? clinicianId : null,
     }).where(eq(documentsTable.id, documentId));
+    const [grant] = await tx.select().from(parentClinicConsentsTable).where(and(
+      eq(parentClinicConsentsTable.parentId, parentId),
+      eq(parentClinicConsentsTable.childId, childId),
+    )).for("update");
+    if (shared) {
+      const currentScopes = grant?.revokedAt ? [] : grant?.scopes;
+      const { scopes } = nextParentClinicConsentScopes(currentScopes, true, true);
+      await tx.insert(parentClinicConsentsTable).values({
+        parentId,
+        childId,
+        clinicianId: child.clinicianId!,
+        scopes,
+        consentedAt: now,
+        revokedAt: null,
+      }).onConflictDoUpdate({
+        target: [parentClinicConsentsTable.parentId, parentClinicConsentsTable.childId],
+        set: { clinicianId: child.clinicianId!, scopes, consentedAt: now, revokedAt: null },
+      });
+    } else if (grant) {
+      const [remainingSharedDocument] = await tx.select({ documentId: parentDocumentsTable.documentId })
+        .from(parentDocumentsTable).where(and(
+          eq(parentDocumentsTable.parentId, parentId),
+          eq(parentDocumentsTable.childId, childId),
+          eq(parentDocumentsTable.sharedClinicianId, child.clinicianId!),
+        )).limit(1);
+      const { scopes, revoked } = nextParentClinicConsentScopes(
+        grant.revokedAt ? [] : grant.scopes,
+        false,
+        Boolean(remainingSharedDocument),
+      );
+      await tx.update(parentClinicConsentsTable).set({
+        scopes,
+        revokedAt: revoked ? now : null,
+      }).where(and(
+        eq(parentClinicConsentsTable.parentId, parentId),
+        eq(parentClinicConsentsTable.childId, childId),
+      ));
+    }
     await tx.insert(consentEventsTable).values({
       subjectId: parentId,
       familyId: child.familyId || null,
@@ -2269,14 +2324,6 @@ export async function setParentDocumentSharing(
       actorType: "parent",
       metadata: { documentId, childId, clinicianId, shared },
     });
-    if (!shared) {
-      // Derived clinical summaries are cached content too. Removing a revoked source invalidates
-      // the whole derived profile rather than leaving source-less private guidance in clinic views.
-      await tx.delete(clientProfilesTable).where(and(
-        eq(clientProfilesTable.childId, childId),
-        sql`${clientProfilesTable.sourceDocIds} @> ${JSON.stringify([documentId])}::jsonb`,
-      ));
-    }
   });
   return toWire((await findDocument(documentId))!, (await isParentDocument(documentId))!);
 }

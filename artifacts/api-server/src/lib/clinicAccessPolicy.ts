@@ -113,6 +113,13 @@ export function canAccessClinicalRecord(input: ClinicalRecordAccessInput): boole
   ) && activeAssignments.some((assignment) => assignment.role === "clinical_supervisor");
   if (assignedSupervisor) return true;
 
+  const explicitAssignments = input.assignments.filter((assignment) =>
+    assignment.userId === input.userId &&
+    assignment.clinicId === input.recordClinicId &&
+    assignment.clientId === input.clientId
+  );
+  if (explicitAssignments.length) return false;
+
   const explicitMemberships = input.memberships.filter((membership) =>
     membership.userId === input.userId &&
     membership.clinicId === input.recordClinicId

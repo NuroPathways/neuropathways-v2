@@ -27,7 +27,7 @@ import { recoverDocumentClassifications, readDocumentClassificationResponse } fr
 import { requestDocumentAi, requireCompleteDocumentAiResponse } from "../lib/documentAi";
 import { decryptBuffer } from "./upload";
 import { splitDocumentTextForAi } from "../lib/documentTextChunks";
-import { legacyVisibleDocuments, isParentOwnedChild, isParentOwnedDocument, familyHasParentOwnedChildren } from "../lib/documentVisibility";
+import { allSourceDocumentsVisible, legacyVisibleDocuments, isParentOwnedChild, isParentOwnedDocument, familyHasParentOwnedChildren } from "../lib/documentVisibility";
 import {
   isParentDocument,
   listParentDocuments,
@@ -565,6 +565,25 @@ async function actorCanReadEntityRow(
     const visible = await legacyVisibleDocuments([row], child.clinicianId ?? null);
     return visible.some((document) => document.id === row.id);
   }
+  if (scope.role === "clinician" && table === clientProfilesTable) {
+    if (Array.isArray(row.sourceDocIds) &&
+        row.sourceDocIds.some((id: unknown) => typeof id !== "string" || !id)) {
+      return false;
+    }
+    const sourceDocumentIds: string[] = Array.isArray(row.sourceDocIds)
+      ? [...new Set(row.sourceDocIds as string[])]
+      : [];
+    if (sourceDocumentIds.length) {
+      const sourceDocuments = await db.select({ id: documentsTable.id, childId: documentsTable.childId })
+        .from(documentsTable).where(inArray(documentsTable.id, sourceDocumentIds));
+      if (sourceDocuments.length !== sourceDocumentIds.length ||
+          sourceDocuments.some((document) => document.childId !== row.childId)) {
+        return false;
+      }
+      const visibleSources = await legacyVisibleDocuments(sourceDocuments, scope.userId);
+      if (!allSourceDocumentsVisible(sourceDocumentIds, visibleSources.map((document) => document.id))) return false;
+    }
+  }
   if (scope.role === "clinician") {
     if (table === behaviorLogsTable && row.parentId) {
       const [consent] = await db.select({ parentId: parentClinicConsentsTable.parentId })
@@ -642,6 +661,9 @@ function makeCrud(path: string, table: any) {
     try {
       const scope = await resolveEntityActorScope(req);
       if (!scope) return res.status(403).json({ error: "This account cannot create this data." });
+      if (table === clientProfilesTable) {
+        return res.status(409).json({ error: "Use secure document processing to create or update this profile." });
+      }
       const parentWritable = new Set([
         behaviorLogsTable, rewardTokensTable, messagesTable, aiConversationsTable,
         dailyCheckInsTable, winLogsTable, engagementEventsTable,
@@ -770,6 +792,9 @@ function makeCrud(path: string, table: any) {
       const [existing] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!existing) return res.status(404).json({ error: "Not found" });
       if (!(await actorCanReadEntityRow(scope, table, existing))) return res.status(403).json({ error: "Access denied" });
+      if (table === clientProfilesTable) {
+        return res.status(409).json({ error: "Use secure document processing to update this profile." });
+      }
       if (table === childrenTable || table === familiesTable) {
         return res.status(409).json({ error: "Use the authorized client-management workflow for this change." });
       }
@@ -820,6 +845,7 @@ function makeCrud(path: string, table: any) {
         "goalDetails",
         "goalVersion",
         "goalVersions",
+        "sourceDocIds",
         "scanStatus",
         "reviewStatus",
         "reviewedBy",
@@ -874,6 +900,9 @@ function makeCrud(path: string, table: any) {
       const [existing] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!existing) return res.status(404).json({ error: "Not found" });
       if (!(await actorCanReadEntityRow(scope, table, existing))) return res.status(403).json({ error: "Access denied" });
+      if (table === clientProfilesTable) {
+        return res.status(409).json({ error: "Profiles cannot be deleted through this endpoint." });
+      }
       if (table === childrenTable || table === familiesTable) {
         return res.status(409).json({ error: "Use the authorized client-management workflow to delete this record." });
       }
@@ -1702,6 +1731,16 @@ router.post("/build-client-profile", async (req: any, res) => {
       )
       .map((doc) => doc.id));
     const existingSourceIds: string[] = Array.isArray((existingProfile as any)?.sourceDocIds) ? (existingProfile as any).sourceDocIds : [];
+    if (req.isAuthenticated?.() && !parentScanParentId && existingSourceIds.length) {
+      const currentlyVisibleIds = new Set(clinicianVisibleDocuments.map((document) => document.id));
+      if (!allSourceDocumentsVisible(existingSourceIds, [...currentlyVisibleIds])) {
+        return fail(
+          403,
+          "revoked_source",
+          "This saved summary includes documents no longer shared with this clinic. The saved record is retained, but this clinic cannot view or rebuild it.",
+        );
+      }
+    }
     const hasCurrentSupportContent = Array.isArray((existingProfile as any)?.behaviors)
       && (existingProfile as any).behaviors.length > 0
       && (existingProfile as any).behaviors.every(

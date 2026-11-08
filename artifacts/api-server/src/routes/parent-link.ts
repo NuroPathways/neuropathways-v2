@@ -6,6 +6,7 @@ import {
   behaviorLogsTable,
   behaviorPlansTable,
   childrenTable,
+  clinicalAssignmentsTable,
   clientAccessCodeResetsTable,
   clientProfilesTable,
   clientSessionsTable,
@@ -276,17 +277,45 @@ router.delete("/parent/children/:childId/clinic-link", requireParent, async (req
     }
 
     await db.transaction(async (tx: any) => {
-      await tx.update(parentDocumentsTable).set({ sharedClinicianId: null })
+      const ownedDocuments = await tx.select({
+        documentId: parentDocumentsTable.documentId,
+        workspaceId: parentDocumentsTable.workspaceId,
+      }).from(parentDocumentsTable).where(and(
+        eq(parentDocumentsTable.parentId, parentId),
+        eq(parentDocumentsTable.childId, child.id),
+      ));
+      await tx.update(parentDocumentsTable).set({
+        sharedClinicianId: null,
+        reviewedBy: null,
+        reviewedAt: null,
+      })
         .where(and(
           eq(parentDocumentsTable.parentId, parentId),
           eq(parentDocumentsTable.childId, child.id),
         ));
+      for (const workspaceId of new Set(ownedDocuments.map((row: any) => row.workspaceId).filter(Boolean))) {
+        const documentIds = ownedDocuments
+          .filter((row: any) => row.workspaceId === workspaceId)
+          .map((row: any) => row.documentId);
+        if (documentIds.length) {
+          await tx.update(documentsTable).set({ tenantId: workspaceId, clinicianId: null })
+            .where(inArray(documentsTable.id, documentIds));
+        }
+      }
       await tx.update(parentClinicConsentsTable).set({
         scopes: [],
         revokedAt: new Date(),
       }).where(and(
         eq(parentClinicConsentsTable.parentId, parentId),
         eq(parentClinicConsentsTable.childId, child.id),
+      ));
+      await tx.update(clinicalAssignmentsTable).set({
+        status: "revoked",
+        revokedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(and(
+        eq(clinicalAssignmentsTable.clientId, child.id),
+        eq(clinicalAssignmentsTable.status, "active"),
       ));
       await tx.update(childrenTable).set({ clinicianId: null, familyId: null })
         .where(and(

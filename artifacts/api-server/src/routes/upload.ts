@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
-import { db, childrenTable, documentsTable } from "@workspace/db";
+import { db, childrenTable, documentsTable, userProfilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireMobileAuth } from "./mobile";
 import { validateClientSession, sessionMayAccessChild } from "./entities-helpers";
@@ -284,7 +284,18 @@ async function canReadDocument(
   allowLegacyInviteToken = false,
 ): Promise<boolean> {
   const parentMetadata = await isParentDocument(document.id);
-  if (parentMetadata) return canReadParentDocument(req, parentMetadata);
+  if (parentMetadata) {
+    if (!(await canReadParentDocument(req, parentMetadata))) return false;
+    if (req.user?.id) {
+      const [profile] = await db.select({ appRole: userProfilesTable.appRole })
+        .from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
+      if (profile?.appRole === "clinician") {
+        return Boolean(document.childId && await clinicianCanAccessChild(req.user.id, document.childId));
+      }
+      return ["parent", "caregiver"].includes(profile?.appRole || "");
+    }
+    return true;
+  }
   if (req.user?.id) {
     return Boolean(
       document.childId &&

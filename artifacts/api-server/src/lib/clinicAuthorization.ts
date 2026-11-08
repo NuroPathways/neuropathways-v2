@@ -30,17 +30,29 @@ export async function clinicianCanAccessChild(userId: string, childId: string): 
   if (!child || profile?.appRole !== "clinician") return false;
 
   const legacyTenantKey = resolveLegacyClinicId(child.tenantId, child.clinicianId);
-  const clinicRows = legacyTenantKey
+  const [recordClinicianProfile] = child.clinicianId
+    ? await db.select({ appRole: userProfilesTable.appRole, tenantId: userProfilesTable.tenantId })
+      .from(userProfilesTable).where(eq(userProfilesTable.id, child.clinicianId))
+    : [];
+  const [parentWorkspace] = child.parentId && child.tenantId
+    ? await db.select({ workspaceId: parentAccountsTable.workspaceId })
+      .from(parentAccountsTable).where(eq(parentAccountsTable.id, child.parentId))
+    : [];
+  const linkedParentWorkspace = parentWorkspace?.workspaceId === child.tenantId;
+  const clinicLookupKey = linkedParentWorkspace && recordClinicianProfile?.appRole === "clinician"
+    ? recordClinicianProfile.tenantId?.trim() || legacyTenantKey
+    : legacyTenantKey;
+  const clinicRows = clinicLookupKey
     ? await db.select({
         id: clinicsTable.id,
         legacyTenantId: clinicsTable.legacyTenantId,
         status: clinicsTable.status,
       }).from(clinicsTable).where(or(
-        eq(clinicsTable.id, legacyTenantKey),
-        eq(clinicsTable.legacyTenantId, legacyTenantKey),
+        eq(clinicsTable.id, clinicLookupKey),
+        eq(clinicsTable.legacyTenantId, clinicLookupKey),
       ))
     : [];
-  const clinicId = resolveClinicIdForTenant(legacyTenantKey, clinicRows);
+  const clinicId = resolveClinicIdForTenant(clinicLookupKey, clinicRows);
   if (!clinicId) return false;
   const clinic = clinicRows.find((row) => row.id === clinicId);
 
@@ -68,20 +80,15 @@ export async function clinicianCanAccessChild(userId: string, childId: string): 
   ]);
 
   let linkedParentWorkspaceConsent = false;
-  if (child.parentId && child.tenantId && child.clinicianId === userId) {
-    const [parent] = await db.select({
-      workspaceId: parentAccountsTable.workspaceId,
-    }).from(parentAccountsTable).where(eq(parentAccountsTable.id, child.parentId));
-    if (parent?.workspaceId === child.tenantId) {
-      const [grant] = await db.select({ parentId: parentClinicConsentsTable.parentId })
-        .from(parentClinicConsentsTable).where(and(
-          eq(parentClinicConsentsTable.parentId, child.parentId),
-          eq(parentClinicConsentsTable.childId, childId),
-          eq(parentClinicConsentsTable.clinicianId, userId),
-          isNull(parentClinicConsentsTable.revokedAt),
-        ));
-      linkedParentWorkspaceConsent = Boolean(grant);
-    }
+  if (linkedParentWorkspace && child.parentId && child.clinicianId === userId) {
+    const [grant] = await db.select({ parentId: parentClinicConsentsTable.parentId })
+      .from(parentClinicConsentsTable).where(and(
+        eq(parentClinicConsentsTable.parentId, child.parentId),
+        eq(parentClinicConsentsTable.childId, childId),
+        eq(parentClinicConsentsTable.clinicianId, userId),
+        isNull(parentClinicConsentsTable.revokedAt),
+      ));
+    linkedParentWorkspaceConsent = Boolean(grant);
   }
 
   return canAccessClinicalRecord({
@@ -161,6 +168,54 @@ export async function clinicianCanManageClinicalWorkspace(userId: string): Promi
       eq(clinicMembershipsTable.status, "active"),
     ));
   return Boolean(membership);
+}
+
+export async function clinicianCanManageClinic(userId: string, clinicId: string): Promise<boolean> {
+  const [[profile], [clinic], [membership]] = await Promise.all([
+    db.select({ appRole: userProfilesTable.appRole }).from(userProfilesTable)
+      .where(eq(userProfilesTable.id, userId)),
+    db.select({ id: clinicsTable.id, status: clinicsTable.status }).from(clinicsTable)
+      .where(eq(clinicsTable.id, clinicId)),
+    db.select({ id: clinicMembershipsTable.id }).from(clinicMembershipsTable).where(and(
+      eq(clinicMembershipsTable.userId, userId),
+      eq(clinicMembershipsTable.clinicId, clinicId),
+      eq(clinicMembershipsTable.role, "clinic_admin"),
+      eq(clinicMembershipsTable.status, "active"),
+    )),
+  ]);
+  return profile?.appRole === "clinician" && clinic?.status === "active" && Boolean(membership);
+}
+
+export async function clinicalRecordClinicId(childId: string): Promise<string | null> {
+  const [child] = await db.select({
+    tenantId: childrenTable.tenantId,
+    clinicianId: childrenTable.clinicianId,
+    parentId: childrenTable.parentId,
+  }).from(childrenTable).where(eq(childrenTable.id, childId));
+  if (!child) return null;
+  const legacyTenantKey = resolveLegacyClinicId(child.tenantId, child.clinicianId);
+  const [recordClinicianProfile] = child.clinicianId
+    ? await db.select({ appRole: userProfilesTable.appRole, tenantId: userProfilesTable.tenantId })
+      .from(userProfilesTable).where(eq(userProfilesTable.id, child.clinicianId))
+    : [];
+  const [parentWorkspace] = child.parentId && child.tenantId
+    ? await db.select({ workspaceId: parentAccountsTable.workspaceId })
+      .from(parentAccountsTable).where(eq(parentAccountsTable.id, child.parentId))
+    : [];
+  const linkedParentWorkspace = parentWorkspace?.workspaceId === child.tenantId;
+  const clinicLookupKey = linkedParentWorkspace && recordClinicianProfile?.appRole === "clinician"
+    ? recordClinicianProfile.tenantId?.trim() || legacyTenantKey
+    : legacyTenantKey;
+  if (!clinicLookupKey) return null;
+  const clinicRows = await db.select({
+    id: clinicsTable.id,
+    legacyTenantId: clinicsTable.legacyTenantId,
+    status: clinicsTable.status,
+  }).from(clinicsTable).where(or(
+    eq(clinicsTable.id, clinicLookupKey),
+    eq(clinicsTable.legacyTenantId, clinicLookupKey),
+  ));
+  return resolveClinicIdForTenant(clinicLookupKey, clinicRows);
 }
 
 export async function userIsActivePlatformAdministrator(userId: string): Promise<boolean> {

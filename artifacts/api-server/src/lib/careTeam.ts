@@ -146,7 +146,7 @@ export async function carePracticeHistory(childId: string, clinicianId: string |
   for (const row of rows) {
     if (!parentId && (!clinicianId || !(await mayReadParentPractice(row.parentId, childId, clinicianId)))) continue;
     const [assignment] = await db.select().from(careTeamAssignmentsTable).where(eq(careTeamAssignmentsTable.id, row.assignmentId));
-    if (!assignment || assignment.childId !== childId || (!parentId && assignment.clinicianId !== clinicianId)) continue;
+    if (!assignment || assignment.childId !== childId) continue;
     const [v] = await db.select().from(careTeamVersionsTable).where(and(
       eq(careTeamVersionsTable.assignmentId, row.assignmentId), eq(careTeamVersionsTable.version, row.version),
     ));
@@ -172,9 +172,9 @@ export async function careObservations(childId: string, clinicianId: string) {
     });
   }
   const seen = new Set(own.map(l => l.id));
-  const legacy = await db.select().from(behaviorLogsTable).where(and(
-    eq(behaviorLogsTable.childId, childId), eq(behaviorLogsTable.clinicianId, clinicianId),
-  )).orderBy(desc(behaviorLogsTable.createdDate)).limit(100);
+  const legacy = await db.select().from(behaviorLogsTable)
+    .where(eq(behaviorLogsTable.childId, childId))
+    .orderBy(desc(behaviorLogsTable.createdDate)).limit(100);
   for (const row of legacy) {
     if (seen.has(row.id) || (row.eventCategory && row.eventCategory !== "behavior")) continue;
     if (row.parentId) {
@@ -188,11 +188,11 @@ export async function careObservations(childId: string, clinicianId: string) {
 
 export async function careWorkspace(childId: string, clinicianId: string | null, parentId?: string) {
   const goals = clinicianId ? await db.select().from(rewardTokensTable).where(and(
-    eq(rewardTokensTable.childId, childId), eq(rewardTokensTable.clinicianId, clinicianId),
+    eq(rewardTokensTable.childId, childId),
     parentId ? and(eq(rewardTokensTable.createdByClinician, true), eq(rewardTokensTable.publicationStatus, "published")) : undefined,
   )).orderBy(desc(rewardTokensTable.createdDate)) : [];
   const assignments = clinicianId ? await db.select().from(careTeamAssignmentsTable).where(and(
-    eq(careTeamAssignmentsTable.childId, childId), eq(careTeamAssignmentsTable.clinicianId, clinicianId),
+    eq(careTeamAssignmentsTable.childId, childId),
     parentId ? eq(careTeamAssignmentsTable.status, "published") : undefined,
   )).orderBy(desc(careTeamAssignmentsTable.updatedAt)) : [];
   const assignmentWires = await Promise.all(assignments.map(a => assignmentWire(a, parentId)));
@@ -211,7 +211,6 @@ export async function careWorkspace(childId: string, clinicianId: string | null,
 
   const [child] = await db.select().from(childrenTable).where(and(
     eq(childrenTable.id, childId),
-    eq(childrenTable.clinicianId, clinicianId),
   ));
   if (!child) {
     return {

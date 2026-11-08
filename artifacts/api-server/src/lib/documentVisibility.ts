@@ -1,6 +1,18 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, parentDocumentsTable, parentChildSettingsTable, childrenTable } from "@workspace/db";
 
+export function allSourceDocumentsVisible(
+  sourceDocumentIds: unknown,
+  visibleDocumentIds: readonly string[],
+): boolean {
+  if (!Array.isArray(sourceDocumentIds)) return true;
+  const sourceIds = [...new Set(sourceDocumentIds)];
+  if (sourceIds.length === 0) return true;
+  if (sourceIds.some((id) => typeof id !== "string" || !id)) return false;
+  const visible = new Set(visibleDocumentIds);
+  return sourceIds.every((id) => visible.has(id));
+}
+
 /**
  * Old clinician and invited-child APIs must not infer permission to a
  * parent-owned document from the fact that its child is linked to a clinic.

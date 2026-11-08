@@ -152,3 +152,33 @@ test("legacy direct clinician assignments remain scoped to their tenant", () => 
     legacy: { ...base.legacy, recordClinicianId: "someone-else" },
   }), false);
 });
+
+test("a revoked explicit assignment blocks legacy direct-clinician fallback", () => {
+  const base = {
+    userId: "departed-clinician",
+    clinicId: clinics.alpha,
+    clientId: "legacy-client",
+    recordClinicId: clinics.alpha,
+    clinicStatus: "active",
+    memberships: [],
+    assignments: [],
+    legacy: {
+      profileRole: "clinician",
+      profileTenantId: "legacy-tenant-alpha",
+      recordTenantId: "legacy-tenant-alpha",
+      recordClinicianId: "departed-clinician",
+      canonicalClinicId: clinics.alpha,
+    },
+  };
+  assert.equal(canAccessClinicalRecord(base), true);
+  assert.equal(canAccessClinicalRecord({
+    ...base,
+    assignments: [{
+      clinicId: clinics.alpha,
+      clientId: "legacy-client",
+      userId: "departed-clinician",
+      role: "treating_clinician",
+      status: "revoked",
+    }],
+  }), false);
+});

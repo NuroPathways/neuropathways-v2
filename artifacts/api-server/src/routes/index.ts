@@ -13,6 +13,7 @@ import parentDocumentsRouter from "./parent-documents";
 import parentLinkRouter from "./parent-link";
 import parentFamilyDataRouter from "./parent-family-data";
 import careTeamRouter from "./care-team";
+import clinicManagementRouter from "./clinic-management";
 
 const router: IRouter = Router();
 
@@ -23,6 +24,7 @@ router.use(passwordResetRouter);
 router.use(parentRouter);
 router.use(parentFamilyDataRouter);
 router.use(careTeamRouter);
+router.use(clinicManagementRouter);
 router.use(parentDocumentsRouter);
 router.use(parentLinkRouter);
 router.use(entitiesRouter);

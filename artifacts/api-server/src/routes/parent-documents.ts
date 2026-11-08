@@ -1,7 +1,7 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import path from "node:path";
-import { db, documentsTable, parentDocumentsTable } from "@workspace/db";
+import { db, documentsTable, parentDocumentsTable, userProfilesTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { requireParent, resolveParentActor } from "../lib/parentAuth";
 import { FamilyAccessError } from "../lib/familyParentAuth";
@@ -31,6 +31,7 @@ import { DocumentProcessingError } from "../lib/documentAi";
 import { deleteDocumentScanOutputsForDocuments } from "../lib/documentExtractions";
 import { deleteEncryptedParentDocument } from "../lib/parentFileStorage";
 import { deleteUploadedDocumentFile } from "../lib/uploadedDocumentFile";
+import { clinicianCanAccessChild } from "../lib/clinicAuthorization";
 
 const router = Router();
 const upload = multer({
@@ -206,6 +207,14 @@ async function sendParentDocumentContent(req: any, res: Response) {
       return res.status(req.parentAccount || req.user || req.mobileUser || req.headers["x-client-token"] ? 403 : 401)
         .json({ error: "Access denied" });
     }
+    if (req.user?.id) {
+      const [profile] = await db.select({ appRole: userProfilesTable.appRole })
+        .from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
+      if (profile?.appRole === "clinician" &&
+          !(await clinicianCanAccessChild(req.user.id, metadata.childId))) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+    }
     const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, metadata.documentId));
     if (!document) return res.status(404).json({ error: "Document content not found" });
     const bytes = await readParentDocumentBytes(metadata.documentId);
@@ -265,6 +274,9 @@ router.post(
       }
       if (message === "Parent document not found" || message === "Child not found") {
         return res.status(404).json({ error: message });
+      }
+      if (message.includes("no longer authorized")) {
+        return res.status(403).json({ error: message });
       }
       if (message.includes("AI service") || message.includes("AI returned") || message.includes("scan failed")) {
         return res.status(502).json({ error: message });
@@ -363,6 +375,9 @@ router.post("/parent/children/:childId/chat", requireParent, async (req: any, re
 
 router.post("/parent/children/:childId/support-review", async (req: any, res: Response) => {
   if (!req.user?.id) return res.status(401).json({ error: "Clinician authentication required" });
+  if (!(await clinicianCanAccessChild(req.user.id, req.params.childId))) {
+    return res.status(403).json({ error: "Access denied" });
+  }
   if (typeof req.body?.approved !== "boolean") return res.status(400).json({ error: "approved must be a boolean" });
   try {
     return res.json(await reviewParentSupport(req.user.id, req.params.childId, req.body.approved));
@@ -376,6 +391,9 @@ router.post("/parent/children/:childId/support-review", async (req: any, res: Re
 
 router.get("/parent/children/:childId/shared-support", async (req: any, res: Response) => {
   if (!req.user?.id) return res.status(401).json({ error: "Clinician authentication required" });
+  if (!(await clinicianCanAccessChild(req.user.id, req.params.childId))) {
+    return res.status(403).json({ error: "Access denied" });
+  }
   try {
     return res.json(await getParentSharedSupport(req.user.id, req.params.childId));
   } catch (error) {
@@ -389,6 +407,9 @@ router.get("/parent/children/:childId/shared-support", async (req: any, res: Res
 
 router.post("/parent/children/:childId/shared-support/:cardId/activities/:activityIndex", async (req: any, res: Response) => {
   if (!req.user?.id) return res.status(401).json({ error: "Clinician authentication required" });
+  if (!(await clinicianCanAccessChild(req.user.id, req.params.childId))) {
+    return res.status(403).json({ error: "Access denied" });
+  }
   const activityIndex = Number(req.params.activityIndex);
   const { contentVersion, action } = req.body || {};
   if (!Number.isInteger(activityIndex) || activityIndex < 0 ||
