@@ -9,6 +9,7 @@ import {
   updateSession,
   type SessionData,
 } from "../lib/auth";
+import { isDisabledPublicDemoClinicianEmail } from "../lib/publicDemoAccountPolicy";
 
 declare global {
   namespace Express {
@@ -77,6 +78,12 @@ export async function authMiddleware(
 
   const refreshed = await refreshIfExpired(sid, session);
   if (!refreshed) {
+    await clearSession(res, sid);
+    next();
+    return;
+  }
+
+  if (isDisabledPublicDemoClinicianEmail(refreshed.user.email)) {
     await clearSession(res, sid);
     next();
     return;

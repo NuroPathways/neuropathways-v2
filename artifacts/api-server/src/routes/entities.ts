@@ -1,4 +1,11 @@
 import { Router } from "express";
+import {
+  isDisabledPublicDemoClientUsername,
+} from "../lib/publicDemoAccountPolicy";
+import {
+  canSetSelfServiceAccountType,
+  canSetSelfServiceRole,
+} from "../lib/securityPolicies";
 import path from "node:path";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
@@ -351,6 +358,7 @@ async function validateClientSession(token: string | undefined | null): Promise<
   const [row] = await db.select().from(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, token));
   if (!row?.childId) return null;
   if (row.expiresAt && row.expiresAt < new Date()) return null;
+  if (isDisabledPublicDemoClientUsername(row.username)) return null;
   return { childId: row.childId };
 }
 
@@ -709,6 +717,18 @@ router.patch("/users/me", requireAuth, async (req: any, res) => {
     for (const k of allowed) if (body[k] !== undefined) updateData[k] = body[k];
 
     const [currentProfile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
+    const currentRole = currentProfile?.appRole ?? null;
+    const currentType = currentProfile?.accountType ?? null;
+    if (!canSetSelfServiceRole(currentRole, updateData.appRole)) {
+      return res.status(403).json({
+        error: "Role changes require the authorized onboarding or approval workflow.",
+      });
+    }
+    if (!canSetSelfServiceAccountType(currentRole, currentType, updateData.appRole, updateData.accountType)) {
+      return res.status(403).json({
+        error: "This account type can only be assigned through an authorized account setup.",
+      });
+    }
     const roleChange = updateData.appRole === "parent" || updateData.appRole === "clinician"
       ? updateData.appRole
       : null;
@@ -2549,6 +2569,9 @@ router.post("/verify-client-credentials", async (req, res) => {
   const { username, access_code } = req.body;
   if (!username || !access_code) return res.status(400).json({ error: "username and access_code required" });
   const cleanUsername = username.trim().toLowerCase();
+  if (isDisabledPublicDemoClientUsername(cleanUsername)) {
+    return res.status(401).json({ error: "Invalid username or access code" });
+  }
   try {
     const candidates = await db.select().from(childrenTable)
       .where(eq(childrenTable.username, cleanUsername));
@@ -2601,6 +2624,9 @@ router.post("/client-session/change-access-code", async (req, res) => {
   if (new_access_code.length < 4)
     return res.status(400).json({ error: "New access code must be at least 4 characters" });
   const cleanUsername = username.trim().toLowerCase();
+  if (isDisabledPublicDemoClientUsername(cleanUsername)) {
+    return res.status(401).json({ error: "Current username or access code is incorrect" });
+  }
   try {
     const candidates = await db.select().from(childrenTable)
       .where(eq(childrenTable.username, cleanUsername));
@@ -2654,6 +2680,9 @@ router.post("/client-session/login", async (req, res) => {
   const { username, access_code } = req.body;
   if (!username || !access_code) return res.status(400).json({ error: "username and access_code required" });
   const cleanUsername = username.trim().toLowerCase();
+  if (isDisabledPublicDemoClientUsername(cleanUsername)) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
   try {
     const candidates = await db.select().from(childrenTable)
       .where(eq(childrenTable.username, cleanUsername));

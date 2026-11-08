@@ -10,6 +10,9 @@ import {
 import { sql } from "drizzle-orm";
 
 const router = Router();
+function bulkImportTemporarilyEnabled(): boolean {
+  return false;
+}
 
 // Auth guard
 function requireAuth(req: any, res: any, next: any) {
@@ -68,6 +71,12 @@ async function importRecords(
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 router.post("/import/:entity", requireAuth, async (req: any, res) => {
+  if (!bulkImportTemporarilyEnabled()) {
+    return res.status(503).json({
+      error: "Bulk data import is temporarily unavailable until role and ownership controls are in place.",
+    });
+  }
+
   const { entity } = req.params;
   const { records } = req.body as { records: Record<string, any>[] };
 

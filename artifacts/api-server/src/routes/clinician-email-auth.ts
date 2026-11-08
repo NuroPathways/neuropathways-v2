@@ -1,10 +1,9 @@
 import { Router } from "express";
-import crypto from "crypto";
 import { db, usersTable } from "@workspace/db";
-import { userProfilesTable, clinicianCredentialsTable, consentEventsTable } from "@workspace/db";
+import { userProfilesTable, clinicianCredentialsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { createSession, deleteSession, getSessionId, SESSION_COOKIE, SESSION_TTL } from "../lib/auth";
-import { accountAuthorityEvent, validateAccountAuthority } from "../lib/accountAuthority";
+import { isDisabledPublicDemoClinicianEmail } from "../lib/publicDemoAccountPolicy";
 import { createClinicianPasswordHash, verifyClinicianPassword } from "../lib/clinicianPassword";
 
 const router = Router();
@@ -19,103 +18,10 @@ function setSessionCookie(res: any, sid: string) {
   });
 }
 
-async function registerClinician(req: any, res: any) {
-  const { email, password, firstName, lastName } = req.body;
-  const authority = validateAccountAuthority(req.body, "clinician");
-  if (!authority.ok) {
-    return res.status(authority.error.startsWith("A parent or guardian must create this account") ? 403 : 400).json({ error: authority.error });
-  }
-  if (!email || !password)
-    return res.status(400).json({ error: "Email and password are required" });
-  if (password.length < 8)
-    return res.status(400).json({ error: "Password must be at least 8 characters" });
-
-  const normEmail = email.toLowerCase().trim();
-
-  try {
-    const [existingCreds] = await db
-      .select()
-      .from(clinicianCredentialsTable)
-      .where(eq(clinicianCredentialsTable.email, normEmail));
-    if (existingCreds)
-      return res.status(409).json({ error: "An account with this email already exists. Please sign in." });
-
-    // The users table also enforces a unique email. A row can already exist
-    // here from a prior Replit (OIDC) sign-in even when no password credentials
-    // exist. Detect that explicitly instead of failing on the DB constraint.
-    const [existingUser] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.email, normEmail));
-    if (existingUser)
-      return res.status(409).json({
-        error:
-          'An account with this email already exists. If you previously signed in with Replit, use "Continue with Replit Account" to sign in.',
-      });
-
-    const userId = crypto.randomUUID();
-    const passwordHash = await createClinicianPasswordHash(password);
-
-    // Create the three rows atomically so a mid-way failure can't leave an
-    // orphan users row that blocks future registration attempts.
-    await db.transaction(async (tx) => {
-      await tx.insert(usersTable).values({
-        id: userId,
-        email: normEmail,
-        firstName: firstName?.trim() || null,
-        lastName: lastName?.trim() || null,
-      });
-
-      await tx.insert(userProfilesTable).values({
-        id: userId,
-        appRole: "clinician",
-        accountType: "clinician",
-        displayName:
-          firstName && lastName
-            ? `${firstName.trim()} ${lastName.trim()}`
-            : firstName?.trim() || null,
-      });
-
-      await tx.insert(clinicianCredentialsTable).values({
-        userId,
-        email: normEmail,
-        passwordHash,
-      });
-      await tx.insert(consentEventsTable).values({
-        subjectId: userId,
-        eventType: accountAuthorityEvent("clinician", authority.ageGroup, false, false).eventType,
-        policyType: "account_holder_authority",
-        version: "1.0",
-        acceptanceMethod: "signup_checkbox",
-        source: "signup",
-        actorType: "user",
-        metadata: accountAuthorityEvent("clinician", authority.ageGroup, false, false).metadata,
-      });
-    });
-
-    const sid = await createSession({
-      user: {
-        id: userId,
-        email: normEmail,
-        firstName: firstName?.trim() || null,
-        lastName: lastName?.trim() || null,
-        profileImageUrl: null,
-      },
-      access_token: "email_auth",
-    });
-    if (req.path.startsWith("/mobile/")) {
-      res.status(201).json({ token: sid, clinician: { id: userId, email: normEmail, first_name: firstName?.trim() || null, last_name: lastName?.trim() || null, role: "clinician" } });
-    } else {
-      setSessionCookie(res, sid);
-      res.status(201).json({ ok: true, redirect: "/ClinicianDashboard" });
-    }
-  } catch (e: any) {
-    // Postgres unique_violation — e.g. a concurrent registration for the same
-    // email slipped past the pre-checks. Return a clean 409 instead of a 500.
-    if (e?.code === "23505")
-      return res.status(409).json({ error: "An account with this email already exists. Please sign in." });
-    res.status(500).json({ error: e.message });
-  }
+async function registerClinician(_req: any, res: any) {
+  return res.status(403).json({
+    error: "Clinician registration is paused pending clinic administrator approval.",
+  });
 }
 
 router.post("/clinician/register", registerClinician);
@@ -126,11 +32,16 @@ async function loginClinician(req: any, res: any) {
   if (!email || !password)
     return res.status(400).json({ error: "Email and password are required" });
 
+  const normalizedEmail = String(email).toLowerCase().trim();
+  if (isDisabledPublicDemoClinicianEmail(normalizedEmail)) {
+    return res.status(401).json({ error: "Invalid email or password" });
+  }
+
   try {
     const [creds] = await db
       .select()
       .from(clinicianCredentialsTable)
-      .where(eq(clinicianCredentialsTable.email, email.toLowerCase().trim()));
+      .where(eq(clinicianCredentialsTable.email, normalizedEmail));
 
     if (!creds)
       return res.status(401).json({ error: "Invalid email or password" });

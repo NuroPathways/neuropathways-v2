@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { requireMobileAuth } from "./mobile";
 import { validateClientSession, sessionMayAccessChild } from "./entities-helpers";
 import { isParentDocument, canReadParentDocument, readParentDocumentBytes } from "../lib/parentDocuments";
+import { isValidFileEncryptionKey } from "../lib/documentEncryptionPolicy";
 
 const router = Router();
 
@@ -68,22 +69,9 @@ function detectSupportedUpload(file: Express.Multer.File, contents: Buffer): Sup
 }
 
 function validateAndNormalizeUpload(file: Express.Multer.File): SupportedUpload | null {
-  const contents = fs.readFileSync(file.path);
-  const detected = detectSupportedUpload(file, contents);
-  if (!detected) return null;
-
-  const currentExtension = path.extname(file.filename).toLowerCase();
-  if (currentExtension !== detected.extension) {
-    const currentBase = currentExtension
-      ? file.filename.slice(0, -currentExtension.length)
-      : file.filename;
-    const normalizedFilename = `${currentBase}${detected.extension}`;
-    const normalizedPath = path.join(uploadDir, normalizedFilename);
-    fs.renameSync(file.path, normalizedPath);
-    file.filename = normalizedFilename;
-    file.path = normalizedPath;
-  }
-  file.mimetype = detected.mimeType;
+  if (!Buffer.isBuffer(file.buffer)) return null;
+  const detected = detectSupportedUpload(file, file.buffer);
+  if (detected) file.mimetype = detected.mimeType;
   return detected;
 }
 
@@ -91,20 +79,19 @@ const uploadDir = path.resolve(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 // AES-256-GCM encryption at rest. The key is loaded from FILE_ENCRYPTION_KEY
-// env var (64 hex chars = 32 bytes). When unset, files are stored unencrypted
-// for backward compatibility — set the key before first production upload.
+// (64 hex chars = 32 bytes); new uploads are rejected when it is unavailable.
 const ENCRYPTION_KEY: Buffer | null = (() => {
   const hex = process.env.FILE_ENCRYPTION_KEY;
   if (!hex) {
-    console.warn("[NeuroPath] FILE_ENCRYPTION_KEY not set — uploads will NOT be encrypted at rest");
+    console.warn("[NeuroPath] FILE_ENCRYPTION_KEY not set — document uploads are disabled");
     return null;
   }
-  if (hex.length !== 64) throw new Error("FILE_ENCRYPTION_KEY must be 64 hex characters (32 bytes)");
+  if (!isValidFileEncryptionKey(hex)) throw new Error("FILE_ENCRYPTION_KEY must be 64 hex characters (32 bytes)");
   return Buffer.from(hex, "hex");
 })();
 
 function encryptBuffer(plain: Buffer): Buffer {
-  if (!ENCRYPTION_KEY) return plain;
+  if (!ENCRYPTION_KEY) throw new Error("Encrypted document storage is unavailable");
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", ENCRYPTION_KEY, iv);
   const encrypted = Buffer.concat([cipher.update(plain), cipher.final()]);
@@ -157,20 +144,6 @@ function isNewEncryptedDocumentFile(document: typeof documentsTable.$inferSelect
     filename.slice(0, -extension.length).toLowerCase() === document.id.toLowerCase();
 }
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    const safeOriginalName = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, "_");
-    cb(null, `${unique}-${safeOriginalName || "upload"}`);
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 20 * 1024 * 1024 },
-});
-
 const secureDocumentUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024, fieldSize: 1024, fields: 8, files: 1, parts: 10 },
@@ -195,6 +168,20 @@ function removeFile(filePath?: string) {
     fs.unlinkSync(filePath);
   } catch {
     // The file may already have been removed by Multer or a previous cleanup.
+  }
+}
+
+function persistEncryptedUpload(contents: Buffer, extension: string): string {
+  if (!ENCRYPTION_KEY) throw new Error("Encrypted document storage is unavailable");
+  const filename = `${crypto.randomUUID()}${extension}`;
+  const filePath = path.join(uploadDir, filename);
+  try {
+    fs.writeFileSync(filePath, encryptBuffer(contents), { flag: "wx", mode: 0o600 });
+    fs.chmodSync(filePath, 0o600);
+    return filename;
+  } catch (error) {
+    removeFile(filePath);
+    throw error;
   }
 }
 
@@ -456,27 +443,23 @@ router.get("/mobile/documents/:id/content", requireDocumentAuth, async (req: any
   }
 });
 
-router.post("/upload", requireAuth, upload.single("file"), (req, res) => {
+router.post("/upload", requireAuth, requireEncryptionConfigured, secureDocumentUpload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file provided" });
-  if (!validateAndNormalizeUpload(req.file)) {
-    fs.unlinkSync(req.file.path);
+  const detected = validateAndNormalizeUpload(req.file);
+  if (!detected) {
     return res.status(400).json({
       error: "This file could not be read. Upload a PDF, DOCX, JPG, PNG, GIF, WebP, or text file.",
     });
   }
 
-  // Encrypt the file at rest
-  if (ENCRYPTION_KEY) {
-    try {
-      const plain = fs.readFileSync(req.file.path);
-      fs.writeFileSync(req.file.path, encryptBuffer(plain));
-    } catch (e: any) {
-      fs.unlinkSync(req.file.path);
-      return res.status(500).json({ error: "Encryption failed" });
-    }
+  let filename: string;
+  try {
+    filename = persistEncryptedUpload(req.file.buffer, detected.extension);
+  } catch {
+    return res.status(500).json({ error: "Encryption failed" });
   }
 
-  const fileUrl = `/api/uploads/${req.file.filename}`;
+  const fileUrl = `/api/uploads/${filename}`;
   return res.json({ file_url: fileUrl, file_name: req.file.originalname });
 });
 
@@ -484,29 +467,23 @@ router.post("/upload", requireAuth, upload.single("file"), (req, res) => {
 // Client-session upload — parents can upload photos/docs with an invite_token
 // ──────────────────────────────────────────────
 
-router.post("/client-upload", upload.single("file"), async (req: any, res) => {
-  const discardTemporaryUpload = () => {
-    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-  };
+router.post("/client-upload", requireEncryptionConfigured, secureDocumentUpload.single("file"), async (req: any, res) => {
   const invite_token = req.body?.invite_token;
   if (!invite_token) {
-    discardTemporaryUpload();
     return res.status(401).json({ error: "invite_token required" });
   }
   if (req.body?.authorized_uploader !== "true") {
-    discardTemporaryUpload();
     return res.status(400).json({ error: 'authorized_uploader must be "true"' });
   }
 
   const csession = await validateClientSession(invite_token);
   if (!csession) {
-    discardTemporaryUpload();
     return res.status(401).json({ error: "Invalid or expired session" });
   }
 
   if (!req.file) return res.status(400).json({ error: "No file provided" });
-  if (!validateAndNormalizeUpload(req.file)) {
-    fs.unlinkSync(req.file.path);
+  const detected = validateAndNormalizeUpload(req.file);
+  if (!detected) {
     return res.status(400).json({
       error: "This file could not be read. Upload a PDF, DOCX, JPG, PNG, GIF, WebP, or text file. Convert HEIC photos to JPG first.",
     });
@@ -515,26 +492,20 @@ router.post("/client-upload", upload.single("file"), async (req: any, res) => {
   // Verify child access
   const child_id = req.body?.child_id;
   if (!child_id) {
-    fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: "child_id required" });
   }
   if (!(await sessionMayAccessChild(csession.childId, child_id))) {
-    fs.unlinkSync(req.file.path);
     return res.status(403).json({ error: "Access denied" });
   }
 
-  // Encrypt at rest
-  if (ENCRYPTION_KEY) {
-    try {
-      const plain = fs.readFileSync(req.file.path);
-      fs.writeFileSync(req.file.path, encryptBuffer(plain));
-    } catch {
-      fs.unlinkSync(req.file.path);
-      return res.status(500).json({ error: "Encryption failed" });
-    }
+  let filename: string;
+  try {
+    filename = persistEncryptedUpload(req.file.buffer, detected.extension);
+  } catch {
+    return res.status(500).json({ error: "Encryption failed" });
   }
 
-  const fileUrl = `/api/uploads/${req.file.filename}`;
+  const fileUrl = `/api/uploads/${filename}`;
   return res.json({ file_url: fileUrl, file_name: req.file.originalname });
 });
 
@@ -594,7 +565,6 @@ router.use("/uploads", (req: any, res: Response) => {
 
   const canonicalFileUrl = `/api/uploads/${path.basename(safePath)}`;
   const localFileUrl = `/uploads/${path.basename(safePath)}`;
-  const isRegisteredDocumentFilename = UUID_DOCUMENT_FILENAME.test(path.basename(safePath));
   void (async () => {
     try {
       let [associatedDocument] = await db
@@ -608,11 +578,7 @@ router.use("/uploads", (req: any, res: Response) => {
           .where(eq(documentsTable.fileUrl, localFileUrl));
       }
       if (!associatedDocument) {
-        if (isRegisteredDocumentFilename) {
-          res.status(404).json({ error: "File not found" });
-          return;
-        }
-        serveFile();
+        res.status(404).json({ error: "File not found" });
         return;
       }
       const registeredDocument = associatedDocument;

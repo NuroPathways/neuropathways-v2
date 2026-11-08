@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { db } from "@workspace/db";
 import { clientSessionsTable, childrenTable, familiesTable } from "@workspace/db";
 import { classifyFamilyAccount } from "../lib/familyParentAuth";
+import { isDisabledPublicDemoClientUsername } from "../lib/publicDemoAccountPolicy";
 import { eq } from "drizzle-orm";
 
 export async function validateClientSession(token: string | undefined | null): Promise<{ childId: string } | null> {
@@ -10,6 +11,7 @@ export async function validateClientSession(token: string | undefined | null): P
   const [row] = await db.select().from(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, token));
   if (!row?.childId) return null;
   if (row.expiresAt && row.expiresAt < new Date()) return null;
+  if (isDisabledPublicDemoClientUsername(row.username)) return null;
   return { childId: row.childId };
 }
 

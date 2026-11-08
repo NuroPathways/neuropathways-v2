@@ -134,25 +134,6 @@ export default function UsernameLogin() {
             </button>
           </form>
 
-        <div className="pf-card sun" style={{ padding: 16, marginTop: 14 }}>
-          <p className="pf-eyebrow" style={{ marginBottom: 8 }}>Demo accounts</p>
-          <div style={{ display: "grid", gap: 4, fontSize: ".78rem" }}>
-            {[
-              { u: "rivera.parent", c: "DEMO01", label: "Rivera (ADHD + Dyslexia)" },
-              { u: "nguyen.parent", c: "DEMO02", label: "Nguyen (Sensory)" },
-              { u: "jordan.e",     c: "DEMO03", label: "Jordan (Anxiety)" },
-              { u: "alex.m",       c: "DEMO04", label: "Alex (ADHD)" },
-            ].map(d => (
-              <button key={d.u} type="button" onClick={() => { setUsername(d.u); setAccessCode(d.c); }}
-                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/70 transition-colors cursor-pointer">
-                <span style={{ fontWeight: 700 }}>{d.u}</span> / <span>{d.c}</span>
-                <span style={{ color: "var(--pf-ink-soft)", fontSize: ".7rem", marginLeft: 6 }}>{d.label}</span>
-              </button>
-            ))}
-          </div>
-          <p className="pf-hint" style={{ fontSize: ".7rem", marginTop: 8 }}>Select an account to fill the form, then sign in.</p>
-        </div>
-
         <div style={{ marginTop: 18, display: "grid", gap: 10, textAlign: "center" }}>
           <p className="pf-hint">
             No account yet?{" "}

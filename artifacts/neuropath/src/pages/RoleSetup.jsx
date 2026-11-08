@@ -52,12 +52,6 @@ export default function RoleSetup() {
     navigate("/ParentDashboard");
   };
 
-  const finishClinician = async (authority = null) => {
-    await base44.auth.updateMe({ app_role: "clinician", account_type: "clinician", ...(authority || {}) });
-    await refreshUser();
-    navigate("/ClinicianDashboard");
-  };
-
   useEffect(() => {
     const init = async () => {
       const me = await base44.auth.me().catch(() => null);
@@ -87,8 +81,7 @@ export default function RoleSetup() {
 
       // ── New users: role comes from the portal they signed in through ──
       if (forceRole === "clinician") {
-        setSignupRole("clinician");
-        setSignupContext({ me, family: null });
+        setInvalidInvite(true);
         return;
       }
 
@@ -125,8 +118,7 @@ export default function RoleSetup() {
     };
     setSubmittingAuthority(true);
     try {
-      if (signupRole === "clinician") await finishClinician(authority);
-      else await finishParent(signupContext.me, signupContext.family, authority);
+      await finishParent(signupContext.me, signupContext.family, authority);
     } catch {
       setSetupError("We could not record your account details. Please try again.");
       setSubmittingAuthority(false);
@@ -162,8 +154,14 @@ export default function RoleSetup() {
             <BrandMark size={60} />
           </div>
           <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
-            <p className="text-sm font-semibold text-yellow-800 mb-1">Unable to set up this account</p>
-            <p className="text-sm text-yellow-700">Client accounts require a parent/guardian or clinician invitation. Return to the correct signup page or contact your clinician.</p>
+            <p className="text-sm font-semibold text-yellow-800 mb-1">
+              {forceRole === "clinician" ? "Clinician approval required" : "Unable to set up this account"}
+            </p>
+            <p className="text-sm text-yellow-700">
+              {forceRole === "clinician"
+                ? "New clinician accounts require approval from a clinic administrator. Contact your administrator to request access."
+                : "Client accounts require a parent/guardian or clinician invitation. Return to the correct signup page or contact your clinician."}
+            </p>
           </div>
           <button onClick={() => navigate("/")} className="mt-6 text-sm text-muted-foreground hover:text-foreground">
             ← Back to welcome page

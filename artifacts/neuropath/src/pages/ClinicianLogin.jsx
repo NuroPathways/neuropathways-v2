@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from '@/lib/AuthContext';
-import { Mail, Lock, Eye, EyeOff, User, ChevronDown, ChevronUp } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,13 +106,9 @@ export default function ClinicianLogin() {
                 >
                   <Mail className="w-4 h-4" /> Sign In with Email
                 </Button>
-                <Button
-                  variant="outline"
-                  className="w-full rounded-xl py-5 font-semibold text-sm gap-2"
-                  onClick={() => setMode("email-register")}
-                >
-                  <User className="w-4 h-4" /> Create New Account
-                </Button>
+                <p role="status" className="text-xs text-center text-muted-foreground">
+                  Clinician registration is paused pending clinic approval.
+                </p>
 
               </motion.div>
             )}
@@ -147,11 +143,8 @@ export default function ClinicianLogin() {
                   {loading ? "Signing in…" : "Sign In"}
                 </Button>
 
-                <p className="text-xs text-center text-muted-foreground">
-                  No account yet?{" "}
-                  <button type="button" onClick={() => { setMode("email-register"); setError(""); }} className="text-primary font-medium hover:underline">
-                    Create one
-                  </button>
+                <p role="status" className="text-xs text-center text-muted-foreground">
+                  Clinician registration is paused pending clinic approval.
                 </p>
               </motion.form>
             )}
@@ -203,16 +196,6 @@ export default function ClinicianLogin() {
               </motion.form>
             )}
           </AnimatePresence>
-        </div>
-
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-4">
-          <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider mb-2">Demo Account</p>
-          <button type="button" onClick={() => { setMode("email-login"); setForm(f => ({ ...f, email: "demo@neuropathways.app", password: "Demo2026!np" })); }}
-            className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer text-xs font-mono text-amber-900">
-            <span className="font-semibold">demo@neuropathways.app</span> / <span>Demo2026!np</span>
-            <span className="text-amber-700 font-sans text-[10px] ml-1.5">Dr. Sarah Chen — 4 families, 5 clients</span>
-          </button>
-          <p className="text-[10px] text-amber-600 mt-2">Tap to auto-fill, then press Sign In.</p>
         </div>
 
         <button onClick={() => navigate("/")} className="pf-link" style={{ margin: "18px auto 0", display: "block" }}>

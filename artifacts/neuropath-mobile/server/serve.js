@@ -12,6 +12,10 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const {
+  resolveStaticFilePath,
+  resolveRealStaticFilePath,
+} = require("./staticPathSafety");
 
 const STATIC_ROOT = path.resolve(__dirname, "..", "static-build");
 const TEMPLATE_PATH = path.resolve(__dirname, "templates", "landing-page.html");
@@ -46,7 +50,12 @@ function getAppName() {
 }
 
 function serveManifest(platform, res) {
-  const manifestPath = path.join(STATIC_ROOT, platform, "manifest.json");
+  const manifestPath = resolveStaticFilePath(STATIC_ROOT, `/${platform}/manifest.json`);
+  if (!manifestPath) {
+    res.writeHead(403, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid static path" }));
+    return;
+  }
 
   if (!fs.existsSync(manifestPath)) {
     res.writeHead(404, { "content-type": "application/json" });
@@ -56,7 +65,13 @@ function serveManifest(platform, res) {
     return;
   }
 
-  const manifest = fs.readFileSync(manifestPath, "utf-8");
+  const realManifestPath = resolveRealStaticFilePath(STATIC_ROOT, manifestPath);
+  if (!realManifestPath) {
+    res.writeHead(403, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid static path" }));
+    return;
+  }
+  const manifest = fs.readFileSync(realManifestPath, "utf-8");
   res.writeHead(200, {
     "content-type": "application/json",
     "expo-protocol-version": "1",
@@ -82,18 +97,23 @@ function serveLandingPage(req, res, landingPageTemplate, appName) {
 }
 
 function serveStaticFile(urlPath, res) {
-  const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, "");
-  const filePath = path.join(STATIC_ROOT, safePath);
-
-  if (!filePath.startsWith(STATIC_ROOT)) {
+  const candidatePath = resolveStaticFilePath(STATIC_ROOT, urlPath);
+  if (!candidatePath) {
     res.writeHead(403);
     res.end("Forbidden");
     return;
   }
 
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+  if (!fs.existsSync(candidatePath) || fs.statSync(candidatePath).isDirectory()) {
     res.writeHead(404);
     res.end("Not Found");
+    return;
+  }
+
+  const filePath = resolveRealStaticFilePath(STATIC_ROOT, candidatePath);
+  if (!filePath) {
+    res.writeHead(403);
+    res.end("Forbidden");
     return;
   }
 
