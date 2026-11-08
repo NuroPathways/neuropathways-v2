@@ -1,3 +1,5 @@
+import { aiOperationalControls, AiOperationalError } from "./aiOperationalControls";
+
 /** Public errors never contain provider payloads, document text or credentials. */
 export class DocumentProcessingError extends Error {
   constructor(
@@ -20,6 +22,14 @@ export interface DocumentAiRequestOptions {
 
 export function documentAiError(error: unknown): DocumentProcessingError {
   if (error instanceof DocumentProcessingError) return error;
+  if (error instanceof AiOperationalError) {
+    return new DocumentProcessingError(
+      error.message,
+      error.code,
+      error.status,
+      error.status === 429,
+    );
+  }
   const value = error as { status?: number; name?: string; message?: string };
   const status = typeof value?.status === "number" ? value.status : undefined;
   // Inspect provider diagnostics only to classify, never send or log raw text.
@@ -56,15 +66,16 @@ export function documentAiError(error: unknown): DocumentProcessingError {
 
 export async function requestDocumentAi<T>(
   request: (options: DocumentAiRequestOptions) => Promise<T>,
+  context: { actorId?: string | null } = {},
 ): Promise<T> {
   try {
     // Let the SDK retry connection errors, 408/409/429 and 5xx responses.
     // One deadline includes all retries/backoff, so requests cannot run forever.
-    return await request({
+    return await aiOperationalControls.run(context.actorId, () => request({
       timeout: 240_000,
       maxRetries: 2,
       signal: AbortSignal.timeout(300_000),
-    });
+    }));
   } catch (error) {
     throw documentAiError(error);
   }

@@ -5,7 +5,11 @@ import { DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE, documentExtractionsToolProperty } 
 /** Recover an omitted classification field from the real source, not fabricated
  * placeholders. Keep the already-read support profile separate from this pass.
  */
-export async function readDocumentClassificationResponse(content: any[], signal?: AbortSignal) {
+export async function readDocumentClassificationResponse(
+  content: any[],
+  signal?: AbortSignal,
+  actorId?: string | null,
+) {
   const anthropic = await getAnthropicClient();
   const response = await requestDocumentAi(options => anthropic.messages.create({
     model: CLAUDE_MODEL,
@@ -24,13 +28,17 @@ export async function readDocumentClassificationResponse(content: any[], signal?
     messages: [{ role: "user", content }],
   }, { ...options, timeout: 120_000, maxRetries: 1, signal: AbortSignal.any([
     options.signal, AbortSignal.timeout(180_000), ...(signal ? [signal] : []),
-  ]) }));
+  ]) }), { actorId });
   requireCompleteDocumentAiResponse(response);
   return response;
 }
 
-export async function recoverDocumentClassifications(content: any[], signal?: AbortSignal): Promise<unknown[]> {
-  const response = await readDocumentClassificationResponse(content, signal);
+export async function recoverDocumentClassifications(
+  content: any[],
+  signal?: AbortSignal,
+  actorId?: string | null,
+): Promise<unknown[]> {
+  const response = await readDocumentClassificationResponse(content, signal, actorId);
   const tool = response.content.find(block => block.type === "tool_use");
   const records = tool?.type === "tool_use"
     ? (tool.input as { document_extractions?: unknown }).document_extractions

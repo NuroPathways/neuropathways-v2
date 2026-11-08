@@ -96,10 +96,10 @@ for (const [name, path] of Object.entries(MOBILE_PATHS)) {
   };
 }
 
-export async function invokeAI(prompt: string): Promise<string> {
+export async function invokeAI(prompt: string, childId: string): Promise<string> {
   const result = await apiFetch("/ai/invoke-llm", {
     method: "POST",
-    body: JSON.stringify({ prompt, model: "claude-opus-4-5" }),
+    body: JSON.stringify({ prompt, model: "claude-opus-4-5", child_id: childId }),
   });
   return result?.content?.[0]?.text ?? result?.text ?? JSON.stringify(result);
 }

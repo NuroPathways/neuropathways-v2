@@ -403,6 +403,12 @@ async function run(): Promise<void> {
   });
   expectStatus(unapprovedAiFile, 400, "AI invocation refuses unverified file paths for an authenticated parent");
   const independentChild = await createParentChild(parentA.auth, `Independent ${runKey}`);
+  const unscopedAiPrompt = await post("/ai/invoke-llm", parentA.auth, {
+    prompt: "Use information from any client record I mention.",
+    child_id: independentChild.id,
+    source_document_ids: [crypto.randomUUID()],
+  });
+  expectStatus(unscopedAiPrompt, 403, "AI invocation refuses a source document outside the selected child's authorized scope");
   const parentOwnedGoalId = crypto.randomUUID();
   await db.insert(rewardTokensTable).values({
     id: parentOwnedGoalId,
@@ -422,6 +428,11 @@ async function run(): Promise<void> {
   const familyA = await createFamily(clinicianA.auth, `Fixture Family A ${runKey}`, parentA.email);
   const familyB = await createFamily(clinicianB.auth, `Fixture Family B ${runKey}`, parentB.email);
   const clinicBChild = await createClinicChild(clinicianB.auth, familyB, `Clinic B child ${runKey}`);
+  const crossClinicAiScan = await post("/build-client-profile", clinicianA.auth, {
+    child_id: clinicBChild.id,
+    force_rebuild: true,
+  });
+  expectStatus(crossClinicAiScan, 403, "Cross-clinic AI scan is denied before document reading or model invocation");
   const crossClinicianGoalCreate = await post("/manage-client-goal", clinicianA.auth, {
     action: "create",
     child_id: clinicBChild.id,

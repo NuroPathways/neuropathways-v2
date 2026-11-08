@@ -1582,6 +1582,9 @@ router.post("/build-client-profile", async (req: any, res) => {
   const { child_id, force_rebuild, invite_token, source_document_id, include_cached_extractions } = req.body;
   let clinicianId: string | null = null;
   let parentScanParentId: string | null = null;
+  let aiActorId: string | null = null;
+  let aiAuditActorId: string | null = null;
+  let aiActorRole: string = "client";
   let clinicianScopedDocumentScan = false;
 
   // Clinicians retain their existing flow. Parent sessions may request a
@@ -1594,6 +1597,9 @@ router.post("/build-client-profile", async (req: any, res) => {
       return res.status(403).json({ error: "A clinician account is required for this scan route." });
     }
     clinicianId = req.user.id;
+    aiActorId = `clinician:${req.user.id}`;
+    aiAuditActorId = req.user.id;
+    aiActorRole = "clinician";
     clinicianScopedDocumentScan = typeof source_document_id === "string" && Boolean(source_document_id.trim());
   } else {
     if (typeof source_document_id === "string" && source_document_id.trim()) {
@@ -1603,16 +1609,38 @@ router.post("/build-client-profile", async (req: any, res) => {
         parentScanParentId = null;
       }
     }
+    if (parentScanParentId) {
+      aiActorId = `parent:${parentScanParentId}`;
+      aiAuditActorId = parentScanParentId;
+      aiActorRole = "parent";
+    }
     if (!parentScanParentId) {
       const csession = await validateClientSession(invite_token);
       if (!csession) return res.status(401).json({ error: "Authentication required" });
       if (!(await sessionMayAccessChild(csession.childId, child_id))) {
         return res.status(403).json({ error: "Access denied" });
       }
+      aiActorId = `client:${crypto.createHash("sha256").update(String(invite_token)).digest("hex")}`;
+      aiAuditActorId = csession.childId;
+      aiActorRole = "client";
     }
   }
   const scopedDocumentScan = Boolean(parentScanParentId || clinicianScopedDocumentScan);
-  const fail = (status: number, code: string, message: string) => {
+  const fail = async (status: number, code: string, message: string) => {
+    if (["forbidden", "revoked_source"].includes(code)) {
+      await writeAuditEventBestEffort({
+        userId: aiAuditActorId || undefined,
+        userRole: aiActorRole,
+        tenantId: req.parentAccount?.workspaceId ?? req.familyParent?.workspaceId ?? undefined,
+        action: "ai_document_access_denied",
+        targetType: "child",
+        targetId: child_id || "unspecified",
+        success: false,
+        reason: "AI document scope or source visibility check failed.",
+        metadata: { operation: "document_scan", denial_code: code },
+        requestId: String(req.id),
+      });
+    }
     console.error(`[NeuroPath] buildClientProfile ${code}: child=${child_id} clinician=${clinicianId} — ${message}`);
     return res.status(status).json({ error: { code, message } });
   };
@@ -1679,6 +1707,21 @@ router.post("/build-client-profile", async (req: any, res) => {
     if (scopedDocumentScan && docs.length !== 1) {
       return fail(404, "document_not_found", "This document is no longer available to scan.");
     }
+    await writeAuditEventBestEffort({
+      userId: aiAuditActorId || undefined,
+      userRole: aiActorRole,
+      tenantId: req.parentAccount?.workspaceId ?? req.familyParent?.workspaceId ?? child.tenantId ?? undefined,
+      action: "document_scan_requested",
+      targetType: source_document_id ? "document" : "child",
+      targetId: source_document_id || child_id,
+      metadata: {
+        child_id,
+        source_document_id: source_document_id || null,
+        visible_document_count: docs.length,
+        operation: "profile_scan",
+      },
+      requestId: String(req.id),
+    });
     if (req.body.async_scan === true && !include_cached_extractions) {
       // Re-run the existing child/document authorization before every poll.
       // Never use a caller-supplied clinician ID as the job owner.
@@ -2184,6 +2227,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
         message = await readDocumentClassificationResponse(
           includedDocIds.flatMap(id => documentContentById.get(id) || []),
           res.locals?.documentScanSignal,
+          aiActorId,
         );
       } else {
         const anthropic = await getAnthropicClient();
@@ -2193,7 +2237,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
           tools: [profileTool],
           tool_choice: { type: "tool", name: "save_behavioral_profile" },
           messages: [{ role: "user", content: contentParts }],
-        }, requestOptions));
+        }, requestOptions), { actorId: aiActorId });
       }
       requireCompleteDocumentAiResponse(message);
     } catch (ex: any) {
@@ -2288,6 +2332,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
         extracted.document_extractions = await recoverDocumentClassifications(
           includedDocIds.flatMap(id => documentContentById.get(id) || []),
           res.locals?.documentScanSignal,
+          aiActorId,
         );
       } catch {
         req.log.warn("Focused document classification recovery did not complete");
@@ -2364,7 +2409,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
             }],
           }, { ...requestOptions, timeout: 60_000, maxRetries: 0, signal: AbortSignal.any([
             requestOptions.signal, AbortSignal.timeout(60_000), ...(res.locals?.documentScanSignal ? [res.locals.documentScanSignal] : []),
-          ]) }));
+          ]) }), { actorId: aiActorId });
           requireCompleteDocumentAiResponse(candidateResponse);
           const candidateResult = candidateResponse.content.find((block: any) => block.type === "tool_use") as any;
           if (!Array.isArray(candidateResult?.input?.cards)) {
@@ -2421,7 +2466,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
             }],
           }, { ...requestOptions, timeout: 60_000, maxRetries: 0, signal: AbortSignal.any([
             requestOptions.signal, AbortSignal.timeout(60_000), ...(res.locals?.documentScanSignal ? [res.locals.documentScanSignal] : []),
-          ]) }));
+          ]) }), { actorId: aiActorId });
           requireCompleteDocumentAiResponse(suggestionResponse);
           const suggestionResult = suggestionResponse.content.find((block: any) => block.type === "tool_use") as any;
           if (!Array.isArray(suggestionResult?.input?.cards)) {

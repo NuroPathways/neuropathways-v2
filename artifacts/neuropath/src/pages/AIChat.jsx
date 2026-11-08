@@ -292,7 +292,14 @@ async function buildContext(childId, childName, user, isIndividual = false) {
     context += `\n`;
   }
 
-  return { context, hasPlans: plans.length + interventions.length > 0, hasDocuments: documents.length > 0 || !!portalProfile };
+  return {
+    context,
+    hasPlans: plans.length + interventions.length > 0,
+    hasDocuments: documents.length > 0 || !!portalProfile,
+    documentIds: [...new Set(documents
+      .map(doc => field(doc, "id", "document_id"))
+      .filter(id => typeof id === "string" && id.trim()))],
+  };
 }
 
 async function generateResponse(userMessage, child, clinicianContext, conversationHistory, isIndividualClient) {
@@ -359,6 +366,8 @@ IMPORTANT RESPONSE RULES:
   return await base44.integrations.Core.InvokeLLM({
     model: "claude_sonnet_4_6",
     invite_token: user?.invite_token,
+    child_id: field(child, "id", "child_id"),
+    source_document_ids: clinicianContext?.documentIds || [],
     prompt: `${systemPrompt}\n\n${securityRule}\n\n${isIndividualClient ? "Client's" : "Parent's"} message: "${userMessage}"\n\nRespond directly and helpfully:`
   });
 }

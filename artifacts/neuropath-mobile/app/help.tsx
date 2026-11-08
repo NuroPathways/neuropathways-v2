@@ -48,6 +48,7 @@ export default function HelpScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      if (!childId) throw new Error("The signed-in client could not be verified.");
       const planContext =
         plans.length > 0
           ? `\n\nBehavior plans for ${user?.child_name ?? "this client"}:\n${plans
@@ -72,7 +73,7 @@ Provide immediate, step-by-step guidance for this situation. Format as:
 
 Keep it concise, practical, and calming.`;
 
-      const reply = await invokeAI(prompt);
+      const reply = await invokeAI(prompt, childId);
       setGuidance(reply);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {

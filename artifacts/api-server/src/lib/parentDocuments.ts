@@ -95,6 +95,7 @@ import {
 import { readParentPdfText, parentPdfReaderMessages } from "./parentPdfText";
 import { prepareSupportPdf } from "./supportPdf";
 import { DocumentProcessingError, requestDocumentAi, requireCompleteDocumentAiResponse } from "./documentAi";
+import { parentVisibleScanDocumentIds } from "./documentVisibility";
 import {
   buildSupportConcernGenerationPrompt,
   buildSupportConcernGenerationContent,
@@ -836,7 +837,7 @@ async function readParentDocument(
   if (!metadata) throw new Error("Parent document not found");
   const document = await findDocument(documentId);
   if (!document || document.parentId !== parentId || document.childId !== childId) throw new Error("Parent document not found");
-  const [[settings], clinicianDocs] = await Promise.all([
+  const [[settings], clinicianDocumentRows] = await Promise.all([
     familyIdForOwner(parentId) ? Promise.resolve([child.settings]) :
       db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId)),
     child.clinicianId
@@ -849,6 +850,13 @@ async function readParentDocument(
         )).orderBy(desc(documentsTable.createdDate))
       : Promise.resolve([]),
   ]);
+  const visibleClinicianDocumentIds = parentVisibleScanDocumentIds(
+    await listParentDocuments(parentId, childId),
+    childId,
+  );
+  const clinicianDocs = clinicianDocumentRows.filter((candidate) =>
+    visibleClinicianDocumentIds.has(candidate.id),
+  );
   const selectedBehaviors = parentBehaviorsFromSettings(settings);
   const fingerprint = parentScanFingerprint({
     documentClassificationVersion: "clinical-document-purpose-support-concerns-parent-upload-guidance-v9",
@@ -978,7 +986,7 @@ async function readParentDocument(
         role: "user",
         content: buildParentDocumentDiscoveryContent(generationDocuments, allowedIds),
       }],
-    }, requestOptions));
+    }, requestOptions), { actorId: `parent:${parentId}` });
     requireCompleteDocumentAiResponse(discoveryResponse);
     const discoveryResult = discoveryResponse.content.find((block: any) => block.type === "tool_use") as any;
     if (!discoveryResult?.input || typeof discoveryResult.input !== "object" ||
@@ -1029,7 +1037,7 @@ async function readParentDocument(
               role: "user",
               content: buildSupportConcernCandidatePrompt(batch),
             }],
-          }, requestOptions));
+          }, requestOptions), { actorId: `parent:${parentId}` });
           requireCompleteDocumentAiResponse(candidateResponse);
           const candidateResult = candidateResponse.content.find((block: any) => block.type === "tool_use") as any;
           if (!Array.isArray(candidateResult?.input?.cards)) {
@@ -1151,7 +1159,7 @@ async function readParentDocument(
               role: "user",
               content: buildSupportConcernGenerationContent(batchSourceDocumentIds, sourceDocuments, prompt),
             }],
-          }, requestOptions));
+          }, requestOptions), { actorId: `parent:${parentId}` });
           requireCompleteDocumentAiResponse(concernResponse);
           const concernResult = concernResponse.content.find((block: any) => block.type === "tool_use") as any;
           if (!Array.isArray(concernResult?.input?.cards)) {
@@ -1341,7 +1349,7 @@ async function readParentDocument(
         tools: [toolSchema() as any],
         tool_choice: { type: "tool", name: "save_parent_support" },
         messages: [{ role: "user", content }],
-      }, requestOptions));
+      }, requestOptions), { actorId: `parent:${parentId}` });
       requireCompleteDocumentAiResponse(response);
       const result = response.content.find((block: any) => block.type === "tool_use") as any;
       if (!result?.input || typeof result.input !== "object") throw new Error("The AI returned an unreadable result. Please try scanning again.");
@@ -2748,7 +2756,7 @@ export async function parentChat(
   let answer = "";
   try {
     const anthropic = await getAnthropicClient();
-    const response = await anthropic.messages.create({
+    const response = await requestDocumentAi((requestOptions) => anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 8192,
       system: `${buildParentChatSystemPrompt(serverContext.sourceDocuments.length > 0)}
@@ -2756,7 +2764,7 @@ export async function parentChat(
 Server context:
 ${JSON.stringify(serverContext)}`,
       messages: [{ role: "user", content: message }],
-    });
+    }, requestOptions), { actorId: `parent:${parentId}` });
     answer = response.content
       .filter((block: any) => block.type === "text")
       .map((block: any) => block.text)

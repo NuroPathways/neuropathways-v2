@@ -1,6 +1,15 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, parentDocumentsTable, parentChildSettingsTable, childrenTable } from "@workspace/db";
 
+export function parentVisibleScanDocumentIds(
+  rows: readonly { id: string; childId: string | null; uploadedBy: string; canScan?: boolean }[],
+  childId: string,
+): Set<string> {
+  return new Set(rows
+    .filter((row) => row.childId === childId && row.uploadedBy === "clinician" && row.canScan === true)
+    .map((row) => row.id));
+}
+
 export function allSourceDocumentsVisible(
   sourceDocumentIds: unknown,
   visibleDocumentIds: readonly string[],

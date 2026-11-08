@@ -73,6 +73,7 @@ export default function AIScreen() {
     setLoading(true);
 
     try {
+      if (!childId) throw new Error("The signed-in client could not be verified.");
       const profileLines = [
         `Name: ${childProfile?.childName ?? user?.child_name ?? "not recorded"}`,
         childProfile?.age != null ? `Age: ${childProfile.age}` : "",
@@ -120,7 +121,7 @@ ${history || "No earlier messages."}
 
 Child's message: ${msgText}`;
 
-      const reply = await invokeAI(prompt);
+      const reply = await invokeAI(prompt, childId);
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",

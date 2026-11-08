@@ -461,9 +461,37 @@ router.post("/parent/children/:childId/chat", requireParent, async (req: any, re
     return res.status(400).json({ error: "message must be a non-empty string of at most 4000 characters" });
   }
   try {
-    return res.json(await parentChat(parentId(req), req.params.childId, req.body.message, req.get("x-parent-local-date")));
+    const result = await parentChat(
+      parentId(req),
+      req.params.childId,
+      req.body.message,
+      req.get("x-parent-local-date"),
+    );
+    await writeAuditEventBestEffort({
+      userId: parentId(req),
+      userRole: "parent",
+      tenantId: req.parentAccount?.workspaceId ?? req.familyParent?.workspaceId,
+      action: "ai_parent_support_chat",
+      targetType: "child",
+      targetId: req.params.childId,
+      metadata: { source_reference_count: result.sourceReferences.length },
+      requestId: String(req.id),
+    });
+    return res.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "The support assistant could not answer";
+    await writeAuditEventBestEffort({
+      userId: parentId(req),
+      userRole: "parent",
+      tenantId: req.parentAccount?.workspaceId ?? req.familyParent?.workspaceId,
+      action: message === "Child not found" ? "ai_parent_support_access_denied" : "ai_parent_support_failed",
+      targetType: "child",
+      targetId: req.params.childId,
+      success: false,
+      reason: message === "Child not found" ? "Child is outside the authenticated family scope." : "AI support request could not be completed.",
+      metadata: { operation: "parent_chat" },
+      requestId: String(req.id),
+    });
     return res.status(message === "Child not found" ? 404 : 502).json({ error: message });
   }
 });
