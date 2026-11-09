@@ -29,3 +29,4 @@
 - [Clinic account boundaries](clinic-account-boundaries.md) — keep clinic administration separate from chart access; require an active, explicit client assignment.
 - [Authentication and session security](authentication-session-security.md) — sanitize credentials at the shared response boundary and revoke stale sessions after credential or family-access changes.
 - [Audit-backed file cleanup](audit-backed-file-cleanup.md) — make document removal, cleanup retries, and audit evidence durable without exposing storage paths or mutating prior audit events.
+- [Isolated security regression tests](isolated-security-regression-tests.md) — seed synthetic fixtures only into a dedicated localhost database; never inherit the Replit app’s configured database.
