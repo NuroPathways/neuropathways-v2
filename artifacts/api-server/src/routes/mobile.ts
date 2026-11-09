@@ -15,9 +15,10 @@ import {
   mobileTokensTable,
   familiesTable,
 } from "@workspace/db";
-import { classifyFamilyAccount, familyChildrenForOwner, familyOwnerId } from "../lib/familyParentAuth";
+import { classifyFamilyAccount, familyChildrenForOwner, familyOwnerId, isFamilyAccessRevoked } from "../lib/familyParentAuth";
 import { eq, and, gt, isNull, inArray, sql } from "drizzle-orm";
 import { revokeClientSessionsForChildren } from "../lib/clientSessionRevocation";
+import { respondWithInternalError } from "../lib/apiError";
 import {
   hashClientAccessCode as hashAccessCode,
   verifyClientAccessCode as verifyAccessCode,
@@ -56,6 +57,9 @@ export async function requireMobileAuth(req: any, res: any, next: any) {
       return revokeAndRespond(401, "Account is no longer active");
     }
     const [family] = anchor.familyId ? await db.select().from(familiesTable).where(eq(familiesTable.id, anchor.familyId)) : [];
+    if (isFamilyAccessRevoked(family)) {
+      return revokeAndRespond(401, "This family account is no longer active.");
+    }
     const classification = anchor.accountType === "individual" ? "individual" : classifyFamilyAccount(family?.accountType);
     if (classification === "unknown") return revokeAndRespond(409, "Your clinic needs to correct this account's family type");
     if (!family || family.clinicianId !== anchor.clinicianId) return revokeAndRespond(403, "Family relationship is not authorized");
@@ -80,7 +84,7 @@ export async function requireMobileAuth(req: any, res: any, next: any) {
     req.mobileUser = { childId: selected.id, authenticatedChildId: anchor.id, experience: classification === "family" ? "parent" : "client" };
     next();
   } catch (e: any) {
-    return res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 }
 
@@ -107,6 +111,9 @@ router.post("/mobile/auth/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid username or access code" });
     }
     const [family] = child.familyId ? await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId)) : [];
+    if (isFamilyAccessRevoked(family)) {
+      return res.status(401).json({ error: "This family account is no longer active." });
+    }
     const classification = child.accountType === "individual" ? "individual" : classifyFamilyAccount(family?.accountType);
     if (classification === "unknown") return res.status(409).json({ error: "Your clinic needs to correct this account's family type" });
     if (!family || family.clinicianId !== child.clinicianId) return res.status(403).json({ error: "Family relationship is not authorized" });
@@ -124,7 +131,7 @@ router.post("/mobile/auth/login", async (req, res) => {
       },
     });
   } catch (e: any) {
-    return res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile-auth-login");
   }
 });
 
@@ -134,7 +141,7 @@ router.delete("/mobile/auth/logout", requireMobileAuth, async (req: any, res) =>
     await db.delete(mobileTokensTable).where(eq(mobileTokensTable.token, token));
     return res.json({ ok: true });
   } catch (e: any) {
-    return res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile-auth-logout");
   }
 });
 router.get("/mobile/session", requireMobileAuth, async (req: any, res) => {
@@ -178,7 +185,7 @@ router.post("/mobile/auth/change-access-code", requireMobileAuth, async (req: an
     if (!changed) return res.status(401).json({ error: "Current access code is incorrect." });
     return res.json({ ok: true });
   } catch (e: any) {
-    return res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile-access-code-change");
   }
 });
 
@@ -214,7 +221,7 @@ router.get("/mobile/children", requireMobileAuth, async (req: any, res) => {
     siblings.sort((a, b) => a.id === child.id ? -1 : b.id === child.id ? 1 : (a.childName ?? "").localeCompare(b.childName ?? ""));
     return res.json(siblings.map(({ accessCode: _accessCode, ...publicChild }) => publicChild));
   } catch (e: any) {
-    return res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile-children");
   }
 });
 
@@ -230,7 +237,7 @@ router.get("/mobile/behavior-plans", requireMobileAuth, async (req: any, res) =>
       .where(eq(behaviorPlansTable.childId, req.mobileUser.childId));
     res.json(rows);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 
@@ -246,7 +253,7 @@ router.get("/mobile/behavior-logs", requireMobileAuth, async (req: any, res) => 
       .where(eq(behaviorLogsTable.childId, req.mobileUser.childId));
     res.json(rows);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 
@@ -266,7 +273,7 @@ router.post("/mobile/behavior-logs", requireMobileAuth, async (req: any, res): P
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 
@@ -282,7 +289,7 @@ router.get("/mobile/messages", requireMobileAuth, async (req: any, res) => {
       .where(eq(messagesTable.childId, req.mobileUser.childId));
     res.json(rows);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 
@@ -302,7 +309,7 @@ router.post("/mobile/messages", requireMobileAuth, async (req: any, res): Promis
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 
@@ -319,7 +326,7 @@ router.get("/mobile/documents", requireMobileAuth, async (req: any, res) => {
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
     res.json(await legacyVisibleDocuments(rows, child?.clinicianId ?? null, "client"));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 
@@ -336,7 +343,7 @@ router.get("/mobile/reward-tokens", requireMobileAuth, async (req: any, res) => 
     res.json(rows.filter(g => !g.createdByClinician || g.publicationStatus === "published")
       .map(({ goalVersions: _versions, ...g }) => g));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 
@@ -352,7 +359,7 @@ router.get("/mobile/win-logs", requireMobileAuth, async (req: any, res) => {
       .where(eq(winLogsTable.childId, req.mobileUser.childId));
     res.json(rows);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 
@@ -372,7 +379,7 @@ router.post("/mobile/win-logs", requireMobileAuth, async (req: any, res): Promis
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 
@@ -388,7 +395,7 @@ router.get("/mobile/daily-check-ins", requireMobileAuth, async (req: any, res) =
       .where(eq(dailyCheckInsTable.childId, req.mobileUser.childId));
     res.json(rows);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 
@@ -408,7 +415,7 @@ router.post("/mobile/daily-check-ins", requireMobileAuth, async (req: any, res):
       .returning();
     res.status(201).json(row);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 
@@ -424,7 +431,7 @@ router.get("/mobile/ai-conversations", requireMobileAuth, async (req: any, res) 
       .where(eq(aiConversationsTable.childId, req.mobileUser.childId));
     res.json(rows);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "mobile");
   }
 });
 

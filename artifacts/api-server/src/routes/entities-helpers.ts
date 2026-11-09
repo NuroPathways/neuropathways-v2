@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { db } from "@workspace/db";
 import { clientSessionsTable, childrenTable, familiesTable } from "@workspace/db";
-import { classifyFamilyAccount } from "../lib/familyParentAuth";
+import { classifyFamilyAccount, isFamilyAccessRevoked } from "../lib/familyParentAuth";
 import { isDisabledPublicDemoClientUsername } from "../lib/publicDemoAccountPolicy";
 import { eq } from "drizzle-orm";
 
@@ -12,6 +12,22 @@ export async function validateClientSession(token: string | undefined | null): P
   if (!row?.childId) return null;
   if (row.expiresAt && row.expiresAt < new Date()) return null;
   if (isDisabledPublicDemoClientUsername(row.username)) return null;
+  const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, row.childId));
+  if (!child || (child.status && child.status !== "active")) {
+    await db.delete(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, token));
+    return null;
+  }
+  if (child.familyId) {
+    const [family] = await db.select().from(familiesTable).where(eq(familiesTable.id, child.familyId));
+    const familyInvalid = !family ||
+      isFamilyAccessRevoked(family) ||
+      family.clinicianId !== child.clinicianId ||
+      (child.accountType !== "individual" && classifyFamilyAccount(family.accountType) !== "family");
+    if (familyInvalid) {
+      await db.delete(clientSessionsTable).where(eq(clientSessionsTable.inviteToken, token));
+      return null;
+    }
+  }
   return { childId: row.childId };
 }
 
@@ -22,7 +38,8 @@ export async function sessionMayAccessChild(sessionChildId: string, targetChildI
   if (!auth?.familyId || auth.familyId !== target?.familyId) return false;
   if (auth.clinicianId !== target.clinicianId) return false;
   const [family] = await db.select().from(familiesTable).where(eq(familiesTable.id, auth.familyId));
-  if (classifyFamilyAccount(family?.accountType) !== "family" || auth.accountType === "individual") return false;
+  if (!family || isFamilyAccessRevoked(family) ||
+      classifyFamilyAccount(family.accountType) !== "family" || auth.accountType === "individual") return false;
   if (family?.clinicianId !== auth.clinicianId || auth.tenantId !== target.tenantId) return false;
   return true;
 }

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
+import { respondWithInternalError } from "../lib/apiError";
 import {
   usersTable, userProfilesTable,
   familiesTable, childrenTable, behaviorPlansTable, documentsTable,
@@ -261,7 +262,7 @@ router.post("/import/:entity", requireAuth, async (req: any, res) => {
 
     return res.json(result!);
   } catch (e: any) {
-    return res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "import");
   }
 });
 

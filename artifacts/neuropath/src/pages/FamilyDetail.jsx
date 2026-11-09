@@ -125,7 +125,7 @@ export default function FamilyDetail() {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm("Delete this family and all associated data? This cannot be undone.")) return;
+    if (!window.confirm("Remove this family's sign-in access? Existing sessions will be revoked. Clinical records and uploaded documents will be kept.")) return;
     await base44.functions.invoke('manageClientRecord', { action: 'deleteFamily', entity_id: familyId });
     navigate("/ClinicianDashboard");
   };
@@ -147,7 +147,18 @@ export default function FamilyDetail() {
           ) : (
             <>
               <Button size="sm" variant="outline" className="rounded-xl h-8" onClick={() => setEditing(true)}><Edit2 className="w-3.5 h-3.5" /></Button>
-              <Button size="sm" variant="destructive" className="rounded-xl h-8" onClick={handleDelete}><Trash2 className="w-3.5 h-3.5" /></Button>
+              {family.invite_status !== "revoked" && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="rounded-xl h-8"
+                  aria-label="Remove family sign-in access"
+                  title="Remove family sign-in access"
+                  onClick={handleDelete}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -184,8 +195,14 @@ export default function FamilyDetail() {
               {family.account_type === "individual" ? "Client Connection" : family.account_type === "caregiver" ? "Caregiver Connection" : "Parent Connection"}
             </p>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-xs px-2 py-1 rounded-full font-medium ${family.invite_status === "accepted" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                {family.invite_status === "accepted" ? "Connected" : "Pending"}
+              <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                family.invite_status === "revoked"
+                  ? "bg-muted text-muted-foreground"
+                  : family.invite_status === "accepted"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-yellow-100 text-yellow-700"
+              }`}>
+                {family.invite_status === "revoked" ? "Access removed" : family.invite_status === "accepted" ? "Connected" : "Pending"}
               </span>
               {family.invite_email && (
                 <span className="text-xs text-muted-foreground">{family.invite_email}</span>
@@ -198,7 +215,7 @@ export default function FamilyDetail() {
                 disabled={reconnecting}
               >
                 <RefreshCw className={`w-3 h-3 ${reconnecting ? "animate-spin" : ""}`} />
-                {reconnecting ? "Sending..." : "Resend Invite"}
+                {reconnecting ? "Sending..." : family.invite_status === "revoked" ? "Reissue Invite" : "Resend Invite"}
               </Button>
               {family.invite_token && (
                 <Button
@@ -218,7 +235,7 @@ export default function FamilyDetail() {
           </div>
 
           {/* Login Credentials */}
-          {clientAccount?.username && (
+          {family.invite_status !== "revoked" && clientAccount?.username && (
             <div className="mt-4 pt-4 border-t border-border">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
                 <Key className="w-3 h-3" /> Login Credentials

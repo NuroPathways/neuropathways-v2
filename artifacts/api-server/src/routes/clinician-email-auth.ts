@@ -2,6 +2,7 @@ import { Router } from "express";
 import crypto from "crypto";
 import { db, usersTable, sessionsTable } from "@workspace/db";
 import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
+import { respondWithInternalError } from "../lib/apiError";
 import { userProfilesTable, clinicianCredentialsTable, consentEventsTable } from "@workspace/db";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { createSession, deleteSession, getSessionId, SESSION_COOKIE, SESSION_TTL } from "../lib/auth";
@@ -227,7 +228,7 @@ async function loginClinician(req: any, res: any) {
       requestId: req.id,
     });
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "clinician-login");
   }
 }
 
@@ -284,7 +285,7 @@ router.post("/clinician/change-password", async (req: any, res) => {
 
     return res.json({ ok: true, otherSessionsRevoked: true });
   } catch (e: any) {
-    return res.status(500).json({ error: e.message });
+    return respondWithInternalError(req, res, e, "clinician-password-change");
   }
 });
 

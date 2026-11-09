@@ -34,9 +34,11 @@ export default function FamilyCard({ family, children = [] }) {
 
   const initial = displayName[0]?.toUpperCase() || "?";
 
-  const statusDot = family.invite_status === "accepted"
-    ? <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" title="Connected" />
-    : <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Pending" />;
+  const statusDot = family.invite_status === "revoked"
+    ? <span className="w-2 h-2 rounded-full bg-muted-foreground flex-shrink-0" title="Access removed" />
+    : family.invite_status === "accepted"
+      ? <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" title="Connected" />
+      : <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Pending" />;
 
   return (
     <Link

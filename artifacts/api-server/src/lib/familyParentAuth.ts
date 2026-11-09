@@ -10,6 +10,9 @@ export function classifyFamilyAccount(type: string | null | undefined): "family"
   if (familyAccountTypes.has(type ?? "")) return "family";
   return type === "individual" ? "individual" : "unknown";
 }
+export function isFamilyAccessRevoked(family: { inviteStatus?: string | null } | null | undefined): boolean {
+  return family?.inviteStatus === "revoked";
+}
 export class FamilyAccessError extends Error {
   constructor(public status: number, message: string, public code?: string) { super(message); }
 }
@@ -45,9 +48,12 @@ export async function resolveFamilyParent(req: Request): Promise<ParentIdentity>
     throw new FamilyAccessError(409, "This login has no active family relationship");
   }
   const [family] = await db.select().from(familiesTable).where(eq(familiesTable.id, anchor.familyId));
-  if (!family || family.clinicianId !== anchor.clinicianId) {
+  if (!family || family.clinicianId !== anchor.clinicianId || isFamilyAccessRevoked(family)) {
     await revokeFamilyCredential(token, web !== undefined ? "web" : "mobile");
-    throw new FamilyAccessError(403, "Family relationship is not authorized");
+    throw new FamilyAccessError(
+      isFamilyAccessRevoked(family) ? 401 : 403,
+      isFamilyAccessRevoked(family) ? "This family account is no longer active." : "Family relationship is not authorized",
+    );
   }
   const classification = classifyFamilyAccount(family.accountType);
   if (classification !== "family" || anchor.accountType === "individual") {
@@ -74,7 +80,7 @@ export async function resolveCookieFamilyParent(req: Request): Promise<ParentIde
   const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
   if (!profile?.linkedFamilyId || !["parent", "caregiver"].includes(profile.appRole || "") || profile.accountType === "parent_free") return null;
   const [family] = await db.select().from(familiesTable).where(eq(familiesTable.id, profile.linkedFamilyId));
-  if (!family) return null;
+  if (!family || isFamilyAccessRevoked(family)) return null;
   const children = await db.select().from(childrenTable).where(eq(childrenTable.familyId, family.id));
   const bound = family.createdBy === req.user.id || children.some(c => c.parentId === req.user!.id);
   if (!bound) throw new FamilyAccessError(403, "Your account is not verified for this family");
@@ -87,7 +93,7 @@ export async function familyChildrenForOwner(owner: string) {
   const id = familyIdForOwner(owner);
   if (!id) return [];
   const [family] = await db.select().from(familiesTable).where(eq(familiesTable.id, id));
-  if (!family || classifyFamilyAccount(family.accountType) !== "family") return [];
+  if (!family || isFamilyAccessRevoked(family) || classifyFamilyAccount(family.accountType) !== "family") return [];
   const rows = await db.select().from(childrenTable).where(and(
     eq(childrenTable.familyId, id),
     family.clinicianId ? eq(childrenTable.clinicianId, family.clinicianId) : isNull(childrenTable.clinicianId),
