@@ -54,6 +54,7 @@ import {
 } from "../lib/clinicAuthorization";
 import { resolveLocalUploadReference } from "../lib/localUploadReference";
 import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
+import { accessCodeResetAuditTargetId } from "../lib/accessCodeResetAudit";
 import {
   documentCleanupSpecs,
   documentScanOutputPaths,
@@ -187,10 +188,29 @@ async function deleteClinicianDocumentRecord(
   | { ok: true; cleanupStatus: "complete" | "pending" | "failed" }
   | { ok: false; status: number; error: string }
 > {
+  const auditDenied = async (reason: string, childId?: string | null) => {
+    await writeAuditEventBestEffort({
+      userId: clinicianId,
+      userRole: req.user?.appRole || "clinician",
+      action: "document_delete_denied",
+      targetType: "document",
+      targetId: documentId,
+      tenantId: req.user?.tenantId ?? clinicianId,
+      success: false,
+      reason,
+      metadata: childId ? { child_id: childId } : undefined,
+      ipAddress: req.ip,
+      requestId: req.id,
+    });
+  };
   const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, documentId));
-  if (!document) return { ok: false, status: 404, error: "Document not found." };
+  if (!document) {
+    await auditDenied("document_not_found");
+    return { ok: false, status: 404, error: "Document not found." };
+  }
   const documentChildId = document.childId;
   if (!documentChildId || !(await clinicianCanAccessChild(clinicianId, documentChildId))) {
+    await auditDenied("document_outside_authorized_scope", documentChildId);
     return { ok: false, status: 403, error: "This document is not attached to one of your clients." };
   }
 
@@ -200,9 +220,11 @@ async function deleteClinicianDocumentRecord(
     parentMetadata.childId !== document.childId ||
     parentMetadata.sharedClinicianId !== clinicianId
   )) {
+    await auditDenied("document_not_shared_with_clinician", documentChildId);
     return { ok: false, status: 403, error: "This family document is not shared with your clinician account." };
   }
   if (!clinicianMayDeleteUploadedDocument(document, clinicianId, parentMetadata)) {
+    await auditDenied("uploader_ownership_required", documentChildId);
     return {
       ok: false,
       status: 403,
@@ -494,6 +516,32 @@ async function auditLog(opts: {
   });
 }
 
+async function auditGoalDeletionDenied(
+  req: any,
+  input: {
+    userId?: string;
+    userRole?: string;
+    tenantId?: string | null;
+    goalId?: string;
+    childId?: string | null;
+    reason: string;
+  },
+) {
+  await writeAuditEventBestEffort({
+    userId: input.userId,
+    userRole: input.userRole,
+    tenantId: input.tenantId,
+    action: "goal_delete_denied",
+    targetType: "goal",
+    targetId: input.goalId,
+    success: false,
+    reason: input.reason,
+    metadata: input.childId ? { child_id: input.childId } : undefined,
+    ipAddress: req.ip,
+    requestId: req.id,
+  });
+}
+
 // ──────────────────────────────────────────────
 // Generic CRUD factory (protected by auth)
 // Automatically scopes list queries by clinicianId for clinician users
@@ -759,7 +807,25 @@ function makeCrud(path: string, table: any) {
       } else {
         return res.status(403).json({ error: "This record type requires an authorized client or family scope." });
       }
-      const rows = await db.insert(table).values(data).returning() as any[];
+      const rows = table === rewardTokensTable
+        ? await db.transaction(async (tx) => {
+          const inserted = await tx.insert(table).values(data).returning() as any[];
+          const goal = inserted[0];
+          if (goal) {
+            await writeAuditEvent(tx, {
+              userId: scope.userId,
+              userRole: scope.role,
+              action: "goal_created",
+              targetType: "goal",
+              targetId: goal.id,
+              tenantId: goal.tenantId ?? child?.tenantId ?? scope.userId,
+              metadata: { child_id: goal.childId, source: goal.source ?? "manual" },
+              requestId: req.id,
+            });
+          }
+          return inserted;
+        })
+        : await db.insert(table).values(data).returning() as any[];
       const row = rows[0];
       res.status(201).json(stripSensitive(serialize(row)));
     } catch (e: any) {
@@ -896,8 +962,46 @@ function makeCrud(path: string, table: any) {
       const scope = await resolveEntityActorScope(req);
       if (!scope) return res.status(403).json({ error: "This account cannot delete this data." });
       const [existing] = await db.select().from(table).where(eq(table.id, req.params.id));
-      if (!existing) return res.status(404).json({ error: "Not found" });
-      if (!(await actorCanReadEntityRow(scope, table, existing))) return res.status(403).json({ error: "Access denied" });
+      if (!existing) {
+        if (table === rewardTokensTable) {
+          await auditGoalDeletionDenied(req, {
+            userId: scope.userId,
+            userRole: scope.role,
+            tenantId: req.user?.tenantId ?? scope.userId,
+            goalId: req.params.id,
+            reason: "goal_not_found",
+          });
+        }
+        return res.status(404).json({ error: "Not found" });
+      }
+      if (!(await actorCanReadEntityRow(scope, table, existing))) {
+        if (table === documentsTable) {
+          await writeAuditEventBestEffort({
+            userId: scope.userId,
+            userRole: scope.role,
+            action: "document_delete_denied",
+            targetType: "document",
+            targetId: existing.id,
+            tenantId: req.user?.tenantId ?? scope.userId,
+            success: false,
+            reason: "document_outside_authorized_scope",
+            metadata: existing.childId ? { child_id: existing.childId } : undefined,
+            ipAddress: req.ip,
+            requestId: req.id,
+          });
+        }
+        if (table === rewardTokensTable) {
+          await auditGoalDeletionDenied(req, {
+            userId: scope.userId,
+            userRole: scope.role,
+            tenantId: req.user?.tenantId ?? scope.userId,
+            goalId: existing.id,
+            childId: existing.childId,
+            reason: "goal_outside_authorized_scope",
+          });
+        }
+        return res.status(403).json({ error: "Access denied" });
+      }
       if (table === clientProfilesTable) {
         return res.status(409).json({ error: "Profiles cannot be deleted through this endpoint." });
       }
@@ -923,10 +1027,26 @@ function makeCrud(path: string, table: any) {
         });
       }
       if (table === rewardTokensTable && existing.source === "care_team") {
+        await auditGoalDeletionDenied(req, {
+          userId: scope.userId,
+          userRole: scope.role,
+          tenantId: existing.tenantId ?? req.user?.tenantId ?? scope.userId,
+          goalId: existing.id,
+          childId: existing.childId,
+          reason: "care_team_goal_requires_archive",
+        });
         return res.status(409).json({ error: "Archive this goal in Goals & Activities; its history must be preserved." });
       }
       if (scope.role === "parent" && table === rewardTokensTable &&
           (existing.createdByClinician || existing.parentId !== scope.userId)) {
+        await auditGoalDeletionDenied(req, {
+          userId: scope.userId,
+          userRole: scope.role,
+          tenantId: existing.tenantId ?? req.user?.tenantId ?? scope.userId,
+          goalId: existing.id,
+          childId: existing.childId,
+          reason: "goal_not_parent_owned",
+        });
         return res.status(403).json({ error: "This goal is not owned by this parent account." });
       }
       if (
@@ -935,7 +1055,31 @@ function makeCrud(path: string, table: any) {
       ) {
         return res.status(409).json({ error: "This record contains parent-owned data and cannot be deleted by the clinic." });
       }
-      await db.delete(table).where(and(eq(table.id, req.params.id), ...(actorScopeClauses(scope, table) || [])));
+      if (table === rewardTokensTable) {
+        await db.transaction(async (tx) => {
+          const deleted = await tx.delete(table)
+            .where(and(eq(table.id, req.params.id), ...(actorScopeClauses(scope, table) || [])))
+            .returning() as any[];
+          if (deleted.length) {
+            await writeAuditEvent(tx, {
+              userId: scope.userId,
+              userRole: scope.role,
+              action: "goal_deleted",
+              targetType: "goal",
+              targetId: existing.id,
+              tenantId: existing.tenantId ?? req.user?.tenantId ?? scope.userId,
+              metadata: {
+                child_id: existing.childId,
+                source: existing.source ?? "manual",
+                created_by_clinician: Boolean(existing.createdByClinician),
+              },
+              requestId: req.id,
+            });
+          }
+        });
+      } else {
+        await db.delete(table).where(and(eq(table.id, req.params.id), ...(actorScopeClauses(scope, table) || [])));
+      }
       return res.json({ ok: true });
     } catch (e: any) {
       return respondWithInternalError(req, res, e, "entities");
@@ -1299,6 +1443,19 @@ router.post("/client-access-code-reset/request", requireAuth, async (req: any, r
         expiresAt,
         createdBy: req.user.id,
       });
+      await writeAuditEvent(tx, {
+        userId: req.user.id,
+        userRole: "clinician",
+        action: "access_code_reset_requested",
+        targetType: "child",
+        targetId: child.id,
+        tenantId: child.tenantId ?? child.clinicianId!,
+        metadata: {
+          username: child.username,
+          reset_link_fingerprint: accessCodeResetAuditTargetId(tokenHash),
+        },
+        requestId: req.id,
+      });
     });
 
     let email = child.parentEmail ?? null;
@@ -1309,7 +1466,6 @@ router.post("/client-access-code-reset/request", requireAuth, async (req: any, r
       ));
       email = family?.email ?? null;
     }
-    await auditLog({ userId: req.user.id, userRole: "clinician", action: "access_code_reset_requested", targetType: "child", targetId: child.id, tenantId: child.tenantId ?? child.clinicianId!, metadata: { username: child.username } });
     res.json({
       reset_path: `/ResetAccessCode?token=${encodeURIComponent(rawToken)}`,
       expires_at: expiresAt.toISOString(),
@@ -1334,7 +1490,22 @@ router.post("/client-access-code-reset/complete", async (req: any, res) => {
   }
 
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-  let result: { username: string; childIds: string[]; clinicianId: string; tenantId: string } | null = null;
+  const resetLinkTargetId = accessCodeResetAuditTargetId(tokenHash);
+  type ResetAuditContext = {
+    id: string;
+    childId: string | null;
+    familyId: string | null;
+    clinicianId: string | null;
+    tenantId: string | null;
+  };
+  const failureAuditContext: { current: ResetAuditContext | null } = { current: null };
+  let result: {
+    username: string;
+    childIds: string[];
+    clinicianId: string;
+    tenantId: string;
+    familyId: string | null;
+  } | null = null;
   try {
     result = await db.transaction(async tx => {
       const now = new Date();
@@ -1343,7 +1514,52 @@ router.post("/client-access-code-reset/complete", async (req: any, res) => {
         isNull(clientAccessCodeResetsTable.usedAt),
         gt(clientAccessCodeResetsTable.expiresAt, now),
       ));
-      if (!candidate) return null;
+      if (!candidate) {
+        const [storedReset] = await tx.select({
+          id: clientAccessCodeResetsTable.id,
+          childId: clientAccessCodeResetsTable.childId,
+          familyId: clientAccessCodeResetsTable.familyId,
+          clinicianId: clientAccessCodeResetsTable.clinicianId,
+          tenantId: clientAccessCodeResetsTable.tenantId,
+        }).from(clientAccessCodeResetsTable)
+          .where(eq(clientAccessCodeResetsTable.tokenHash, tokenHash))
+          .limit(1);
+        if (storedReset) {
+          failureAuditContext.current = storedReset;
+        } else {
+          try {
+            const [invalidatedAudit] = await tx.select({
+              tenantId: auditLogsTable.tenantId,
+              metadata: auditLogsTable.metadata,
+            }).from(auditLogsTable).where(and(
+              eq(auditLogsTable.action, "access_code_reset_invalidated"),
+              eq(auditLogsTable.targetId, resetLinkTargetId),
+              eq(auditLogsTable.success, true),
+            )).orderBy(desc(auditLogsTable.createdDate)).limit(1);
+            const invalidatedMetadata = invalidatedAudit?.metadata as Record<string, unknown> | null;
+            if (invalidatedAudit) {
+              failureAuditContext.current = {
+                id: resetLinkTargetId,
+                childId: typeof invalidatedMetadata?.child_id === "string" ? invalidatedMetadata.child_id : null,
+                familyId: typeof invalidatedMetadata?.family_id === "string" ? invalidatedMetadata.family_id : null,
+                clinicianId: null,
+                tenantId: invalidatedAudit.tenantId,
+              };
+            }
+          } catch {
+            // Audit-history lookup is only for attributing an already-invalid
+            // token. It must not affect normal reset completion or its response.
+          }
+        }
+        return null;
+      }
+      failureAuditContext.current = {
+        id: candidate.id,
+        childId: candidate.childId,
+        familyId: candidate.familyId,
+        clinicianId: candidate.clinicianId,
+        tenantId: candidate.tenantId,
+      };
 
       const resetScopeKey = `${candidate.clinicianId}:${candidate.familyId ? `family:${candidate.familyId}` : `child:${candidate.childId}`}`;
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${resetScopeKey}))`);
@@ -1404,19 +1620,70 @@ router.post("/client-access-code-reset/complete", async (req: any, res) => {
         await tx.delete(clientSessionsTable).where(inArray(clientSessionsTable.childId, childIds));
         await tx.delete(mobileTokensTable).where(inArray(mobileTokensTable.childId, childIds));
       }
-      return { username: child.username, childIds, clinicianId: reset.clinicianId, tenantId: reset.tenantId };
+      await writeAuditEvent(tx, {
+        userId: childIds[0] ?? child.id,
+        userRole: "client",
+        action: "access_code_reset_completed",
+        targetType: "child",
+        targetId: childIds[0] ?? child.id,
+        success: true,
+        tenantId: reset.tenantId,
+        metadata: {
+          username: child.username,
+          affectedChildCount: childIds.length,
+          family_id: reset.familyId ?? null,
+          reset_link_fingerprint: resetLinkTargetId,
+        },
+        requestId: req.id,
+      });
+      return {
+        username: child.username,
+        childIds,
+        clinicianId: reset.clinicianId,
+        tenantId: reset.tenantId,
+        familyId: reset.familyId ?? null,
+      };
     });
   } catch (e: any) {
-    await auditLog({ action: "access_code_reset_failed", success: false, reason: "database error", ip: req.ip });
+    await auditLog({
+      userRole: "client",
+      action: "access_code_reset_failed",
+      targetType: "access_code_reset",
+      targetId: resetLinkTargetId,
+      tenantId: failureAuditContext.current?.tenantId ?? undefined,
+      success: false,
+      reason: "database error",
+      metadata: {
+        reset_record_id: failureAuditContext.current?.id,
+        family_id: failureAuditContext.current?.familyId,
+        child_id: failureAuditContext.current?.childId,
+      },
+      ip: req.ip,
+      requestId: req.id,
+    });
     return respondWithInternalError(req, res, e, "access-code-reset");
   }
 
   if (!result) {
-    await auditLog({ action: "access_code_reset_failed", success: false, reason: "invalid, expired, or already used token", ip: req.ip });
+    await auditLog({
+      userRole: "client",
+      action: "access_code_reset_failed",
+      targetType: "access_code_reset",
+      targetId: resetLinkTargetId,
+      tenantId: failureAuditContext.current?.tenantId ?? undefined,
+      success: false,
+      reason: "invalid, expired, revoked, or already used link",
+      metadata: {
+        reset_record_id: failureAuditContext.current?.id,
+        family_id: failureAuditContext.current?.familyId,
+        child_id: failureAuditContext.current?.childId,
+      },
+      ip: req.ip,
+      requestId: req.id,
+    });
     res.status(400).json({ error: "Invalid or expired reset link" });
     return;
   }
-  await auditLog({ userRole: "client", action: "access_code_reset_completed", targetType: "child", targetId: result.childIds[0], success: true, tenantId: result.tenantId, metadata: { username: result.username, affectedChildCount: result.childIds.length }, ip: req.ip });
   res.json({ ok: true, username: result.username });
 });
 
@@ -2799,8 +3066,30 @@ Example: do not write only "${childName} will complete a graduated exposure hier
 
 router.post("/manage-client-record", requireAuth, async (req: any, res) => {
   const { action, entity_id, data } = req.body;
+  const actorTenantId = req.user?.tenantId ?? req.user?.id;
+  const auditFamilyDenial = async (
+    auditAction: "family_access_revocation_denied" | "family_invitation_reissue_denied",
+    familyId: string | undefined,
+    reason: string,
+  ) => auditLog({
+    userId: req.user?.id,
+    userRole: req.user?.appRole || "clinician",
+    action: auditAction,
+    targetType: "family",
+    targetId: familyId,
+    tenantId: actorTenantId,
+    success: false,
+    reason,
+    ip: req.ip,
+    requestId: req.id,
+  });
   try {
     if (!(await clinicianCanManageClinicalWorkspace(req.user.id))) {
+      if (action === "deleteFamily") {
+        await auditFamilyDenial("family_access_revocation_denied", entity_id, "active_clinician_workspace_required");
+      } else if (action === "regenerateFamilyInvite") {
+        await auditFamilyDenial("family_invitation_reissue_denied", entity_id, "active_clinician_workspace_required");
+      }
       return res.status(403).json({ error: "Active clinician workspace access is required." });
     }
     switch (action) {
@@ -2897,35 +3186,70 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
       case "regenerateFamilyInvite": {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [existing] = await db.select().from(familiesTable).where(eq(familiesTable.id, entity_id));
-        if (!existing) return res.status(404).json({ error: "Family not found" });
+        if (!existing) {
+          await auditFamilyDenial("family_invitation_reissue_denied", entity_id, "family_not_found");
+          return res.status(404).json({ error: "Family not found" });
+        }
         const familyChildren = await db.select({ id: childrenTable.id }).from(childrenTable)
           .where(eq(childrenTable.familyId, entity_id));
         const authorizedChild = (await Promise.all(familyChildren.map((child) =>
           clinicianCanAccessChild(req.user.id, child.id)
         ))).some(Boolean);
         if (existing.clinicianId !== req.user.id && !authorizedChild) {
+          await auditFamilyDenial("family_invitation_reissue_denied", entity_id, "family_outside_authorized_clinical_scope");
           return res.status(403).json({ error: "Access denied" });
         }
-        const [updated] = await db.update(familiesTable).set({
-          inviteToken: crypto.randomBytes(32).toString("base64url"),
-          inviteStatus: "pending",
-        }).where(eq(familiesTable.id, entity_id)).returning();
+        const updated = await db.transaction(async (tx) => {
+          const [family] = await tx.update(familiesTable).set({
+            inviteToken: crypto.randomBytes(32).toString("base64url"),
+            inviteStatus: "pending",
+          }).where(eq(familiesTable.id, entity_id)).returning();
+          if (family) {
+            await writeAuditEvent(tx, {
+              userId: req.user.id,
+              userRole: "clinician",
+              action: "family_invitation_reissued",
+              targetType: "family",
+              targetId: family.id,
+              tenantId: family.tenantId ?? family.clinicianId ?? req.user.id,
+              metadata: {
+                previous_status: existing.inviteStatus ?? null,
+                new_status: "pending",
+              },
+              requestId: req.id,
+            });
+          }
+          return family;
+        });
         return res.json(serialize({ record: serializeFamily(updated) }));
       }
       case "deleteFamily": {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [existing] = await db.select().from(familiesTable).where(eq(familiesTable.id, entity_id));
-        if (!existing) return res.status(404).json({ error: "Not found" });
+        if (!existing) {
+          await auditFamilyDenial("family_access_revocation_denied", entity_id, "family_not_found");
+          return res.status(404).json({ error: "Not found" });
+        }
         if (isFamilyAccessRevoked(existing)) {
+          await auditFamilyDenial("family_access_revocation_denied", entity_id, "family_access_already_revoked");
           return res.status(409).json({ error: "This family's access has already been removed." });
         }
-        if (await familyHasParentOwnedChildren(entity_id)) return res.status(409).json({ error: "This family contains parent-owned data and cannot be deleted by the clinic." });
+        if (await familyHasParentOwnedChildren(entity_id)) {
+          await auditFamilyDenial("family_access_revocation_denied", entity_id, "parent_owned_records_must_be_retained");
+          return res.status(409).json({ error: "This family contains parent-owned data and cannot be deleted by the clinic." });
+        }
         const kids = await db.select().from(childrenTable).where(eq(childrenTable.familyId, entity_id));
-        if (existing.clinicianId !== req.user.id && kids.length === 0) return res.status(403).json({ error: "Access denied" });
+        if (existing.clinicianId !== req.user.id && kids.length === 0) {
+          await auditFamilyDenial("family_access_revocation_denied", entity_id, "family_outside_authorized_clinical_scope");
+          return res.status(403).json({ error: "Access denied" });
+        }
         const allChildrenAuthorized = (await Promise.all(kids.map((kid) =>
           clinicianCanAccessChild(req.user.id, kid.id)
         ))).every(Boolean);
-        if (!allChildrenAuthorized) return res.status(403).json({ error: "One or more clients are outside your assigned scope." });
+        if (!allChildrenAuthorized) {
+          await auditFamilyDenial("family_access_revocation_denied", entity_id, "one_or_more_children_outside_authorized_scope");
+          return res.status(403).json({ error: "One or more clients are outside your assigned scope." });
+        }
         const childIds = kids.map((kid) => kid.id);
         await db.transaction(async (tx) => {
           await revokeFamilyAccess(tx, {
@@ -2963,6 +3287,19 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, entity_id));
         if (!document?.childId || !(await clinicianCanAccessChild(req.user.id, document.childId))) {
+          await writeAuditEventBestEffort({
+            userId: req.user.id,
+            userRole: "clinician",
+            action: "document_delete_denied",
+            targetType: "document",
+            targetId: entity_id,
+            tenantId: req.user.tenantId ?? req.user.id,
+            success: false,
+            reason: "document_outside_authorized_scope",
+            metadata: document?.childId ? { child_id: document.childId } : undefined,
+            ipAddress: req.ip,
+            requestId: req.id,
+          });
           return res.status(403).json({ error: "The document is outside your assigned clinical scope." });
         }
         const deletion = await deleteClinicianDocumentRecord(entity_id, req.user.id, req);
@@ -3065,7 +3402,22 @@ router.post("/manage-client-goal", async (req: any, res) => {
           if (childRow?.clinicianId) values.clinicianId = childRow.clinicianId;
            if (childRow?.tenantId) values.tenantId = childRow.tenantId;
         }
-        const [goal] = await db.insert(rewardTokensTable).values(values).returning();
+        const [goal] = await db.transaction(async (tx) => {
+          const [created] = await tx.insert(rewardTokensTable).values(values).returning();
+          if (created) {
+            await writeAuditEvent(tx, {
+              userId: clinicianId ?? authChildId,
+              userRole: clinicianId ? (req.user?.appRole || "clinician") : "client",
+              action: "goal_created",
+              targetType: "goal",
+              targetId: created.id,
+              tenantId: created.tenantId ?? created.clinicianId ?? clinicianId ?? undefined,
+              metadata: { child_id: created.childId, source: created.source ?? "manual" },
+              requestId: req.id,
+            });
+          }
+          return [created];
+        });
         return res.json(serialize({ record: goal }));
       }
       case "update": {
@@ -3103,10 +3455,61 @@ router.post("/manage-client-goal", async (req: any, res) => {
       case "delete": {
         if (!entityId) return res.status(400).json({ error: "entity_id required" });
         const [existing] = await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.id, entityId));
-        if (!existing) return res.status(404).json({ error: "Not found" });
-        if (!(await canAccessRow(existing))) return res.status(403).json({ error: "Access denied" });
-        if (existing.source === "care_team") return res.status(409).json({ error: "Archive this goal in Goals & Activities." });
-        await db.delete(rewardTokensTable).where(eq(rewardTokensTable.id, entityId));
+        const actorId = clinicianId ?? authChildId ?? undefined;
+        const actorRole = clinicianId ? (req.user?.appRole || "clinician") : "client";
+        if (!existing) {
+          await auditGoalDeletionDenied(req, {
+            userId: actorId,
+            userRole: actorRole,
+            tenantId: req.user?.tenantId ?? clinicianId ?? undefined,
+            goalId: entityId,
+            reason: "goal_not_found",
+          });
+          return res.status(404).json({ error: "Not found" });
+        }
+        if (!(await canAccessRow(existing))) {
+          await auditGoalDeletionDenied(req, {
+            userId: actorId,
+            userRole: actorRole,
+            tenantId: existing.tenantId ?? existing.clinicianId ?? req.user?.tenantId ?? undefined,
+            goalId: existing.id,
+            childId: existing.childId,
+            reason: "goal_outside_authorized_scope",
+          });
+          return res.status(403).json({ error: "Access denied" });
+        }
+        if (existing.source === "care_team") {
+          await auditGoalDeletionDenied(req, {
+            userId: actorId,
+            userRole: actorRole,
+            tenantId: existing.tenantId ?? existing.clinicianId ?? req.user?.tenantId ?? undefined,
+            goalId: existing.id,
+            childId: existing.childId,
+            reason: "care_team_goal_requires_archive",
+          });
+          return res.status(409).json({ error: "Archive this goal in Goals & Activities." });
+        }
+        await db.transaction(async (tx) => {
+          const deleted = await tx.delete(rewardTokensTable)
+            .where(eq(rewardTokensTable.id, entityId))
+            .returning({ id: rewardTokensTable.id });
+          if (deleted.length) {
+            await writeAuditEvent(tx, {
+              userId: actorId,
+              userRole: actorRole,
+              action: "goal_deleted",
+              targetType: "goal",
+              targetId: existing.id,
+              tenantId: existing.tenantId ?? existing.clinicianId ?? clinicianId ?? undefined,
+              metadata: {
+                child_id: existing.childId,
+                source: existing.source ?? "manual",
+                created_by_clinician: Boolean(existing.createdByClinician),
+              },
+              requestId: req.id,
+            });
+          }
+        });
         return res.json({ ok: true });
       }
       default:
@@ -3375,11 +3778,42 @@ router.post("/client-delete-document", async (req: any, res) => {
     if (!csession) return res.status(401).json({ error: "Invalid or expired session" });
 
     const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, documentId));
-    if (!document) return res.status(404).json({ error: "Document not found" });
+    if (!document) {
+      await writeAuditEventBestEffort({
+        userId: csession.childId,
+        userRole: "client",
+        action: "client_document_delete_denied",
+        targetType: "document",
+        targetId: documentId,
+        success: false,
+        reason: "document_not_found",
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
+      return res.status(404).json({ error: "Document not found" });
+    }
     if (
       document.childId !== csession.childId ||
       document.uploadedBy !== `client:${csession.childId}`
     ) {
+      await writeAuditEventBestEffort({
+        userId: csession.childId,
+        userRole: "client",
+        action: "client_document_delete_denied",
+        targetType: "document",
+        targetId: documentId,
+        tenantId: document.tenantId,
+        success: false,
+        reason: document.childId !== csession.childId
+          ? "document_outside_client_session_scope"
+          : "uploader_ownership_required",
+        metadata: {
+          session_child_id: csession.childId,
+          document_child_id: document.childId,
+        },
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
       return res.status(403).json({ error: "You can delete only documents uploaded by this client account." });
     }
 

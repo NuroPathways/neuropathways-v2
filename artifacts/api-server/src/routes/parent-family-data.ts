@@ -5,6 +5,7 @@ import { CreateParentGoalBody, UpdateParentGoalBody, SendParentMessageBody } fro
 import { ownedParentChild, parentActor, requireParent } from "../lib/parentAuth";
 import { parentGoalOwnerIds } from "../lib/familyParentAuth";
 import { readableGoalTitle } from "../lib/careTeam";
+import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
 
 const router = Router();
 async function childScope(req: Request, res: Response) {
@@ -46,12 +47,27 @@ router.post("/parent/children/:childId/goals", requireParent, async (req, res) =
   const checked = CreateParentGoalBody.safeParse(req.body);
   if (!checked.success || !checked.data.title.trim()) return res.status(400).json({ error: "A goal title and a valid target are required" });
   const owner = parentActor(req).id;
-  const [row] = await db.insert(rewardTokensTable).values({
-    childId: child.id, parentId: owner, clinicianId: child.clinicianId, tenantId: child.tenantId,
-    goalTitle: checked.data.title.trim(), goalName: checked.data.title.trim(),
-    goalDescription: checked.data.description || "", target: checked.data.target || 10,
-    tokensGoal: checked.data.target || 10, progress: 0, tokensEarned: 0, source: "manual", createdByClinician: false,
-  }).returning();
+  const [row] = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(rewardTokensTable).values({
+      childId: child.id, parentId: owner, clinicianId: child.clinicianId, tenantId: child.tenantId,
+      goalTitle: checked.data.title.trim(), goalName: checked.data.title.trim(),
+      goalDescription: checked.data.description || "", target: checked.data.target || 10,
+      tokensGoal: checked.data.target || 10, progress: 0, tokensEarned: 0, source: "manual", createdByClinician: false,
+    }).returning();
+    if (created) {
+      await writeAuditEvent(tx, {
+        userId: owner,
+        userRole: "parent",
+        action: "goal_created",
+        targetType: "goal",
+        targetId: created.id,
+        tenantId: created.tenantId ?? child.tenantId ?? child.clinicianId,
+        metadata: { child_id: child.id, source: "manual" },
+        requestId: req.id === undefined ? undefined : String(req.id),
+      });
+    }
+    return [created];
+  });
   return res.status(201).json(goalWire(row, [owner]));
 });
 router.patch("/parent/children/:childId/goals/:goalId", requireParent, async (req, res) => {
@@ -84,8 +100,40 @@ router.delete("/parent/children/:childId/goals/:goalId", requireParent, async (r
   const condition = and(eq(rewardTokensTable.id, String(req.params.goalId)), eq(rewardTokensTable.childId, child.id));
   const [row] = await db.select().from(rewardTokensTable).where(condition);
   if (!row) return res.status(404).json({ error: "Goal not found" });
-  if (!editable(row, owners)) return res.status(403).json({ error: "Only your own manually created goals can be deleted" });
-  const deleted = await db.delete(rewardTokensTable).where(and(condition, inArray(rewardTokensTable.parentId, owners), eq(rewardTokensTable.createdByClinician, false), eq(rewardTokensTable.source, "manual"))).returning({ id: rewardTokensTable.id });
+  if (!editable(row, owners)) {
+    await writeAuditEventBestEffort({
+      userId: owner,
+      userRole: "parent",
+      action: "goal_delete_denied",
+      targetType: "goal",
+      targetId: row.id,
+      tenantId: row.tenantId ?? child.tenantId ?? child.clinicianId,
+      success: false,
+      reason: "goal_not_parent_owned",
+      metadata: { child_id: child.id, source: row.source ?? "manual" },
+      ipAddress: req.ip,
+      requestId: req.id === undefined ? undefined : String(req.id),
+    });
+    return res.status(403).json({ error: "Only your own manually created goals can be deleted" });
+  }
+  const deleted = await db.transaction(async (tx) => {
+    const rows = await tx.delete(rewardTokensTable)
+      .where(and(condition, inArray(rewardTokensTable.parentId, owners), eq(rewardTokensTable.createdByClinician, false), eq(rewardTokensTable.source, "manual")))
+      .returning({ id: rewardTokensTable.id });
+    if (rows.length) {
+      await writeAuditEvent(tx, {
+        userId: owner,
+        userRole: "parent",
+        action: "goal_deleted",
+        targetType: "goal",
+        targetId: row.id,
+        tenantId: row.tenantId ?? child.tenantId ?? child.clinicianId,
+        metadata: { child_id: child.id, source: row.source ?? "manual" },
+        requestId: req.id === undefined ? undefined : String(req.id),
+      });
+    }
+    return rows;
+  });
   if (!deleted.length) return res.status(409).json({ error: "Goal permissions changed" });
   return res.status(204).end();
 });
