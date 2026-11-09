@@ -22,19 +22,49 @@ export function allSourceDocumentsVisible(
   return sourceIds.every((id) => visible.has(id));
 }
 
+export type LegacyDocumentViewerRole = "clinician" | "parent" | "client";
+
+export function documentAccessRolesPermit(
+  accessRoles: string | null | undefined,
+  viewerRole: LegacyDocumentViewerRole,
+): boolean {
+  if (viewerRole === "clinician" || !accessRoles?.trim()) return true;
+
+  const configuredRoles = new Set(
+    accessRoles.toLowerCase().match(/[a-z]+/g) ?? [],
+  );
+  if (configuredRoles.has("all") || configuredRoles.has("everyone")) return true;
+  return ["parent", "caregiver", "family", "client", "guardian"].some((role) => configuredRoles.has(role));
+}
+
+export function filterDocumentsForViewerRole<T extends { accessRoles?: string | null }>(
+  rows: readonly T[],
+  viewerRole: LegacyDocumentViewerRole,
+): T[] {
+  return rows.filter((row) => documentAccessRolesPermit(row.accessRoles, viewerRole));
+}
+
 /**
  * Old clinician and invited-child APIs must not infer permission to a
  * parent-owned document from the fact that its child is linked to a clinic.
  */
-export async function legacyVisibleDocuments<T extends { id: string; childId: string | null }>(
+export async function legacyVisibleDocuments<T extends {
+  id: string;
+  childId: string | null;
+  accessRoles?: string | null;
+}>(
   rows: T[],
   clinicianId: string | null,
+  viewerRole: LegacyDocumentViewerRole = "clinician",
 ): Promise<T[]> {
   if (!rows.length) return rows;
   const metadata = await db.select().from(parentDocumentsTable)
     .where(inArray(parentDocumentsTable.documentId, rows.map(row => row.id)));
   const permissions = new Map(metadata.map(row => [row.documentId, row]));
-  return rows.filter(row => {
+  return filterDocumentsForViewerRole(
+    rows,
+    viewerRole,
+  ).filter(row => {
     const owned = permissions.get(row.id);
     return !owned || Boolean(clinicianId && owned.sharedClinicianId === clinicianId && owned.childId === row.childId);
   });

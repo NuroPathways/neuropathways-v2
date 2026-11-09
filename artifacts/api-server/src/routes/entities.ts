@@ -539,7 +539,7 @@ async function actorCanReadEntityRow(
   if (!child || !table.childId) return false;
 
   if (table === documentsTable) {
-    const visible = await legacyVisibleDocuments([row], child.clinicianId ?? null);
+    const visible = await legacyVisibleDocuments([row], child.clinicianId ?? null, scope.role);
     return visible.some((document) => document.id === row.id);
   }
   if (scope.role === "clinician" && table === clientProfilesTable) {
@@ -1146,20 +1146,35 @@ router.post("/client-portal-data", async (req, res) => {
   // Require a valid client-session token (new DB-backed or legacy cs_ format).
   const csession = await validateClientSession(invite_token);
   if (!csession) return res.status(401).json({ error: "Authentication required" });
+  const auditDeniedChildAccess = async (reason: string) => auditLog({
+    userRole: "client",
+    action: "cross_tenant_access_attempt",
+    targetType: "child",
+    targetId: typeof child_id === "string" ? child_id.slice(0, 128) : "invalid",
+    success: false,
+    reason,
+    metadata: { session_child_id: csession.childId },
+    requestId: String(req.id ?? ""),
+  });
 
   // The caller may read their own child or any sibling in the same family AND same clinician.
   // If the family is later split across clinicians, access is denied to the cross-tenant sibling.
   let familyId: string | null = null;
   let clinicianId: string | null = null;
   if (csession.childId !== child_id) {
-    if (!(await sessionMayAccessChild(csession.childId, child_id))) return res.status(403).json({ error: "Access denied" });
+    if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+      await auditDeniedChildAccess("client session attempted to access a child outside its authorized family and clinician scope");
+      return res.status(403).json({ error: "Access denied" });
+    }
     const [authChild] = await db.select().from(childrenTable).where(eq(childrenTable.id, csession.childId));
     const [targetChild] = await db.select().from(childrenTable).where(eq(childrenTable.id, child_id));
     if (!authChild?.familyId || authChild.familyId !== targetChild?.familyId) {
+      await auditDeniedChildAccess("client portal sibling access failed the family-scope check");
       return res.status(403).json({ error: "Access denied" });
     }
     // Cross-tenant guard: family, clinician, and tenant must all match.
     if (authChild.clinicianId !== targetChild.clinicianId || authChild.tenantId !== targetChild.tenantId) {
+      await auditDeniedChildAccess("client portal sibling access failed the clinician or tenant-scope check");
       return res.status(403).json({ error: "Access denied" });
     }
     familyId = authChild.familyId;
@@ -1201,7 +1216,7 @@ router.post("/client-portal-data", async (req, res) => {
         ))
       : (child ? [child] : []);
 
-    const visibleDocuments = await legacyVisibleDocuments(documents, clinicianId);
+    const visibleDocuments = await legacyVisibleDocuments(documents, clinicianId, "client");
     const visibleGoals = goals.filter(g => !g.createdByClinician || (g.publicationStatus === "published" && g.clinicianId === clinicianId))
       .map(({ goalVersions: _versions, ...goal }) => goal);
     return res.json(stripSensitive(serialize({ child: child ?? null, siblings, plans, documents: visibleDocuments, interventionPlans, profile, goals: visibleGoals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs, messages })));
@@ -1692,7 +1707,11 @@ router.post("/build-client-profile", async (req: any, res) => {
     const allDocuments = await db.select().from(documentsTable).where(eq(documentsTable.childId, child_id));
     const clinicianVisibleDocuments = parentScanParentId
       ? []
-      : await legacyVisibleDocuments(allDocuments, clinicianId);
+      : await legacyVisibleDocuments(
+          allDocuments,
+          clinicianId,
+          aiActorRole === "clinician" ? "clinician" : "client",
+        );
     const docs = parentScanParentId
       ? allDocuments.filter((document) =>
           document.id === source_document_id &&

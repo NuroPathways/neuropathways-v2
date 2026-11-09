@@ -4,6 +4,7 @@ import express from "express";
 import { test } from "node:test";
 import {
   auditLogsTable,
+  clientSessionsTable,
   childrenTable,
   clinicMembershipsTable,
   clinicalAssignmentsTable,
@@ -72,6 +73,86 @@ test("client-detail rejects a caller-selected child outside the clinician assign
     );
     assert.equal(response.status, 403);
     assert.deepEqual(await response.json(), { error: "Access denied" });
+  } finally {
+    (db as any).select = originalSelect;
+    (db as any).insert = originalInsert;
+    if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("client portal cross-family denial writes a security audit event", async (t) => {
+  const originalSelect = (db as any).select;
+  const originalInsert = (db as any).insert;
+  const sessionChild = {
+    id: "session-child",
+    status: "active",
+    familyId: null,
+    clinicianId: "clinician-a",
+    tenantId: "tenant-a",
+  };
+  const targetChild = {
+    id: "foreign-child",
+    status: "active",
+    familyId: null,
+    clinicianId: "clinician-b",
+    tenantId: "tenant-b",
+  };
+  let childReads = 0;
+  const auditRows: Record<string, unknown>[] = [];
+
+  (db as any).select = () => {
+    let table: unknown;
+    return {
+      from(value: unknown) { table = value; return this; },
+      where() {
+        if (table === clientSessionsTable) {
+          return Promise.resolve([{ childId: sessionChild.id, inviteToken: "synthetic-session-token", username: "synthetic" }]);
+        }
+        if (table === childrenTable) {
+          childReads += 1;
+          if (childReads === 1 || childReads === 2) return Promise.resolve([sessionChild]);
+          return Promise.resolve([targetChild]);
+        }
+        return Promise.resolve([]);
+      },
+    };
+  };
+  (db as any).insert = (table: unknown) => ({
+    values(values: Record<string, unknown>) {
+      assert.equal(table, auditLogsTable);
+      auditRows.push(values);
+      return Promise.resolve([]);
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use((req: any, _res, next) => {
+    req.id = "synthetic-request";
+    next();
+  });
+  app.use(entitiesRouter);
+  const server = app.listen(0, "127.0.0.1");
+  try {
+    await once(server, "listening");
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const response = await fetch(`http://127.0.0.1:${address.port}/client-portal-data`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ child_id: targetChild.id, invite_token: "synthetic-session-token" }),
+    });
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { error: "Access denied" });
+    assert.equal(auditRows.length, 1);
+    assert.equal(auditRows[0].action, "cross_tenant_access_attempt");
+    assert.equal(auditRows[0].userRole, "client");
+    assert.equal(auditRows[0].targetId, targetChild.id);
+    assert.equal(auditRows[0].success, false);
+    assert.deepEqual(auditRows[0].metadata, {
+      session_child_id: sessionChild.id,
+      request_id: "synthetic-request",
+    });
   } finally {
     (db as any).select = originalSelect;
     (db as any).insert = originalInsert;

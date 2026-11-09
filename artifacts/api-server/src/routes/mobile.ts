@@ -317,7 +317,7 @@ router.get("/mobile/documents", requireMobileAuth, async (req: any, res) => {
       .from(documentsTable)
       .where(eq(documentsTable.childId, req.mobileUser.childId));
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
-    res.json(await legacyVisibleDocuments(rows, child?.clinicianId ?? null));
+    res.json(await legacyVisibleDocuments(rows, child?.clinicianId ?? null, "client"));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

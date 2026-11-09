@@ -67,7 +67,11 @@ async function sourceDocumentsAreAuthorized(
   const visibleClinicianId = scope.userRole === "clinician"
     ? scope.userId
     : child?.clinicianId ?? null;
-  const visible = await legacyVisibleDocuments(rows, visibleClinicianId);
+  const visible = await legacyVisibleDocuments(
+    rows,
+    visibleClinicianId,
+    scope.userRole === "clinician" ? "clinician" : "client",
+  );
   const visibleIds = new Set(visible.map((document) => document.id));
   return sourceDocumentIds.every((id) => visibleIds.has(id));
 }
