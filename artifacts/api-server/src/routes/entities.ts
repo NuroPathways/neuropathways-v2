@@ -45,6 +45,7 @@ import {
   isFamilyAccessRevoked,
 } from "../lib/familyParentAuth";
 import {
+  clinicalRecordClinicId,
   clinicianCanAccessChild,
   clinicianCanManageClinicalWorkspace,
   getClinicianAccessibleChildren,
@@ -189,13 +190,14 @@ async function deleteClinicianDocumentRecord(
   | { ok: false; status: number; error: string }
 > {
   const auditDenied = async (reason: string, childId?: string | null) => {
+    const clinicId = childId ? await clinicalRecordClinicId(childId) : null;
     await writeAuditEventBestEffort({
       userId: clinicianId,
       userRole: req.user?.appRole || "clinician",
       action: "document_delete_denied",
       targetType: "document",
       targetId: documentId,
-      tenantId: req.user?.tenantId ?? clinicianId,
+      tenantId: clinicId ?? req.user?.tenantId ?? null,
       success: false,
       reason,
       metadata: childId ? { child_id: childId } : undefined,
@@ -209,6 +211,9 @@ async function deleteClinicianDocumentRecord(
     return { ok: false, status: 404, error: "Document not found." };
   }
   const documentChildId = document.childId;
+  const documentClinicId = documentChildId
+    ? await clinicalRecordClinicId(documentChildId)
+    : null;
   if (!documentChildId || !(await clinicianCanAccessChild(clinicianId, documentChildId))) {
     await auditDenied("document_outside_authorized_scope", documentChildId);
     return { ok: false, status: 403, error: "This document is not attached to one of your clients." };
@@ -239,7 +244,7 @@ async function deleteClinicianDocumentRecord(
     const cleanupTasks = documentCleanupSpecs({
       documentId,
       childId: documentChildId,
-      tenantId: document.tenantId ?? clinicianId,
+      tenantId: documentClinicId ?? document.tenantId ?? null,
       actorId: clinicianId,
       actorRole: "clinician",
       requestId: req.id,
@@ -264,7 +269,7 @@ async function deleteClinicianDocumentRecord(
       action: "document_deleted",
       targetType: "document",
       targetId: documentId,
-      tenantId: document.tenantId ?? clinicianId,
+      tenantId: documentClinicId ?? document.tenantId ?? null,
       metadata: {
         child_id: documentChildId,
         cleanup_task_count: cleanupJobIds.length,
@@ -976,13 +981,16 @@ function makeCrud(path: string, table: any) {
       }
       if (!(await actorCanReadEntityRow(scope, table, existing))) {
         if (table === documentsTable) {
+          const clinicId = existing.childId
+            ? await clinicalRecordClinicId(existing.childId)
+            : null;
           await writeAuditEventBestEffort({
             userId: scope.userId,
             userRole: scope.role,
             action: "document_delete_denied",
             targetType: "document",
             targetId: existing.id,
-            tenantId: req.user?.tenantId ?? scope.userId,
+            tenantId: clinicId ?? req.user?.tenantId ?? null,
             success: false,
             reason: "document_outside_authorized_scope",
             metadata: existing.childId ? { child_id: existing.childId } : undefined,
@@ -1212,11 +1220,37 @@ router.patch("/users/me", requireAuth, async (req: any, res) => {
     const currentRole = currentProfile?.appRole ?? null;
     const currentType = currentProfile?.accountType ?? null;
     if (!canSetSelfServiceRole(currentRole, updateData.appRole)) {
+      await writeAuditEventBestEffort({
+        userId: req.user.id,
+        userRole: currentRole ?? req.user.appRole ?? "authenticated",
+        tenantId: currentProfile?.tenantId ?? null,
+        action: "self_role_change_denied",
+        targetType: "user_profile",
+        targetId: req.user.id,
+        success: false,
+        reason: "Self-service role change denied by policy",
+        metadata: { attempted_field: "app_role" },
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
       return res.status(403).json({
         error: "Role changes require the authorized onboarding or approval workflow.",
       });
     }
     if (!canSetSelfServiceAccountType(currentRole, currentType, updateData.appRole, updateData.accountType)) {
+      await writeAuditEventBestEffort({
+        userId: req.user.id,
+        userRole: currentRole ?? req.user.appRole ?? "authenticated",
+        tenantId: currentProfile?.tenantId ?? null,
+        action: "self_account_type_change_denied",
+        targetType: "user_profile",
+        targetId: req.user.id,
+        success: false,
+        reason: "Self-service account type change denied by policy",
+        metadata: { attempted_field: "account_type" },
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
       return res.status(403).json({
         error: "This account type can only be assigned through an authorized account setup.",
       });
@@ -3280,20 +3314,23 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
           tenantId: child?.tenantId || child?.clinicianId,
           uploadedBy: req.user.id,
         }).returning();
-        await auditLog({ userId: req.user.id, userRole: "clinician", action: "document_uploaded", targetType: "document", targetId: doc.id, tenantId: req.user.id });
+        await auditLog({ userId: req.user.id, userRole: "clinician", action: "document_uploaded", targetType: "document", targetId: doc.id, tenantId: child?.tenantId ?? undefined });
         return res.json(serialize({ record: doc }));
       }
       case "deleteDocument": {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });
         const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, entity_id));
         if (!document?.childId || !(await clinicianCanAccessChild(req.user.id, document.childId))) {
+          const clinicId = document?.childId
+            ? await clinicalRecordClinicId(document.childId)
+            : null;
           await writeAuditEventBestEffort({
             userId: req.user.id,
             userRole: "clinician",
             action: "document_delete_denied",
             targetType: "document",
             targetId: entity_id,
-            tenantId: req.user.tenantId ?? req.user.id,
+            tenantId: clinicId ?? req.user.tenantId ?? null,
             success: false,
             reason: "document_outside_authorized_scope",
             metadata: document?.childId ? { child_id: document.childId } : undefined,

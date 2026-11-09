@@ -4,6 +4,7 @@ import express from "express";
 import { test } from "node:test";
 import {
   db,
+  auditLogsTable,
   consentEventsTable,
   userProfilesTable,
   usersTable,
@@ -13,11 +14,13 @@ import entitiesRouter from "./entities";
 test("self-service profile requests cannot activate or elevate clinician roles", async (t) => {
   const originalSelect = (db as any).select;
   const originalTransaction = (db as any).transaction;
+  const originalInsert = (db as any).insert;
   const profiles = new Map<string, Record<string, any>>([
     ["synthetic-parent", { id: "synthetic-parent", appRole: "parent", accountType: "parent_family" }],
     ["synthetic-clinician", { id: "synthetic-clinician", appRole: "clinician", accountType: "clinician", tenantId: "trusted-tenant" }],
   ]);
   const consentEvents: Record<string, unknown>[] = [];
+  const auditRows: Record<string, any>[] = [];
 
   (db as any).select = () => {
     let table: unknown;
@@ -60,6 +63,13 @@ test("self-service profile requests cannot activate or elevate clinician roles",
         },
       };
       return builder;
+    },
+  });
+  (db as any).insert = (table: unknown) => ({
+    values(values: Record<string, any>) {
+      assert.equal(table, auditLogsTable);
+      auditRows.push(values);
+      return Promise.resolve([]);
     },
   });
 
@@ -119,6 +129,17 @@ test("self-service profile requests cannot activate or elevate clinician roles",
       app_role: "pending_clinician",
       account_type: "clinician",
     })).status, 403);
+    const roleDenials = auditRows.filter((row) => row.action === "self_role_change_denied");
+    assert.equal(roleDenials.length, 4);
+    const clinicianEscalation = roleDenials.find((row) => row.userId === "synthetic-clinician");
+    assert.ok(clinicianEscalation);
+    assert.equal(clinicianEscalation?.userRole, "clinician");
+    assert.equal(clinicianEscalation?.tenantId, "trusted-tenant");
+    assert.equal(clinicianEscalation?.targetType, "user_profile");
+    assert.equal(clinicianEscalation?.targetId, "synthetic-clinician");
+    assert.equal(clinicianEscalation?.success, false);
+    assert.equal((clinicianEscalation?.metadata as Record<string, unknown>)?.attempted_field, "app_role");
+    assert.equal(JSON.stringify(auditRows).includes("platform_admin"), false);
 
     const profileUpdate = await request("synthetic-clinician", {
       display_name: "Updated Name",
@@ -132,6 +153,7 @@ test("self-service profile requests cannot activate or elevate clinician roles",
   } finally {
     (db as any).select = originalSelect;
     (db as any).transaction = originalTransaction;
+    (db as any).insert = originalInsert;
     delete (globalThis as any).__roleTestUserId;
     if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
   }

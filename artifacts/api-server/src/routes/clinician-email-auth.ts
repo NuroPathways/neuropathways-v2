@@ -1,6 +1,12 @@
 import { Router } from "express";
 import crypto from "crypto";
-import { db, usersTable, sessionsTable } from "@workspace/db";
+import {
+  db,
+  usersTable,
+  sessionsTable,
+  clinicMembershipsTable,
+  clinicsTable,
+} from "@workspace/db";
 import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
 import { respondWithInternalError } from "../lib/apiError";
 import { userProfilesTable, clinicianCredentialsTable, consentEventsTable } from "@workspace/db";
@@ -10,6 +16,7 @@ import { isDisabledPublicDemoClinicianEmail } from "../lib/publicDemoAccountPoli
 import { accountAuthorityEvent, validateAccountAuthority } from "../lib/accountAuthority";
 import { createClinicianPasswordHash, verifyClinicianPassword } from "../lib/clinicianPassword";
 import { PENDING_CLINICIAN_ROLE } from "../lib/securityPolicies";
+import { getClinicianAccessibleChildren } from "../lib/clinicAuthorization";
 
 const router = Router();
 
@@ -21,6 +28,20 @@ function setSessionCookie(res: any, sid: string) {
     path: "/",
     maxAge: SESSION_TTL,
   });
+}
+
+async function clinicianHasActiveAccess(userId: string): Promise<boolean> {
+  const [membership] = await db.select({ id: clinicMembershipsTable.id })
+    .from(clinicMembershipsTable)
+    .innerJoin(clinicsTable, eq(clinicsTable.id, clinicMembershipsTable.clinicId))
+    .where(and(
+      eq(clinicMembershipsTable.userId, userId),
+      eq(clinicMembershipsTable.status, "active"),
+      eq(clinicsTable.status, "active"),
+    ))
+    .limit(1);
+  if (membership) return true;
+  return (await getClinicianAccessibleChildren(userId)).length > 0;
 }
 
 async function registerClinician(req: any, res: any) {
@@ -200,6 +221,25 @@ async function loginClinician(req: any, res: any) {
     }
     if (profile?.appRole !== "clinician")
       return res.status(403).json({ error: "This account is not a clinician account" });
+
+    if (!(await clinicianHasActiveAccess(user.id))) {
+      await writeAuditEventBestEffort({
+        userId: user.id,
+        userRole: "clinician",
+        tenantId: profile?.tenantId ?? null,
+        action: "clinician_login_denied_no_active_access",
+        targetType: "clinician_account",
+        targetId: user.id,
+        success: false,
+        reason: "No active clinic membership or authorized client access",
+        metadata: { method: "email_password" },
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
+      return res.status(403).json({
+        error: "This clinician account has no active clinic or client access.",
+      });
+    }
 
     const sid = await createSession({
       user: {

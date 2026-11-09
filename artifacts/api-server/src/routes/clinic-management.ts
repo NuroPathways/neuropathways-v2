@@ -17,6 +17,7 @@ import {
   clinicalRecordClinicId,
   clinicianCanManageClinic,
 } from "../lib/clinicAuthorization";
+import { writeAuditEventBestEffort } from "../lib/auditEvents";
 
 const router = Router();
 
@@ -45,12 +46,39 @@ async function actorIsActiveClinicAdmin(tx: any, userId: string, clinicId: strin
 }
 
 router.post("/clinic-management/:clinicId/staff/:staffUserId/revoke", async (req: any, res) => {
-  const actorId = authenticatedUserId(req, res);
-  if (!actorId) return;
   const clinicId = String(req.params.clinicId || "");
   const staffUserId = String(req.params.staffUserId || "");
   if (!clinicId || !staffUserId) return res.status(400).json({ error: "Clinic and staff IDs are required" });
+  const actorId = typeof req.user?.id === "string" && req.user.id ? req.user.id : null;
+  if (!actorId) {
+    await writeAuditEventBestEffort({
+      userRole: "unauthenticated",
+      tenantId: clinicId,
+      action: "clinic_staff_access_revocation_denied",
+      targetType: "clinic_membership",
+      targetId: staffUserId,
+      success: false,
+      reason: "Authentication required for clinic staff access revocation",
+      metadata: { requested_clinic_id: clinicId },
+      ipAddress: req.ip,
+      requestId: req.id,
+    });
+    return res.status(401).json({ error: "Authentication required" });
+  }
   if (!(await clinicianCanManageClinic(actorId, clinicId))) {
+    await writeAuditEventBestEffort({
+      userId: actorId,
+      userRole: req.user?.appRole ?? req.user?.app_role ?? "authenticated",
+      tenantId: clinicId,
+      action: "clinic_staff_access_revocation_denied",
+      targetType: "clinic_membership",
+      targetId: staffUserId,
+      success: false,
+      reason: "Actor is not an active administrator for the requested clinic",
+      metadata: { requested_clinic_id: clinicId },
+      ipAddress: req.ip,
+      requestId: req.id,
+    });
     return res.status(403).json({ error: "An active clinic administrator is required" });
   }
 
