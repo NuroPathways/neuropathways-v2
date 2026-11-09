@@ -15,7 +15,7 @@
 - [Support availability](support-availability.md) — optional tracking failures must never interrupt guidance; verify selection of an actual behavior, not just the choice screen.
 - [Legal-notice provenance](legal-notice-provenance.md) — keep accepted policy text distinct from supplemental explanations; never silently change what a recorded consent means.
 - [Document reading optimization](document-reading-optimization.md) — reuse unchanged complete readings; preserve PDF visuals and keep raw-text caches temporary.
-- [Clinician document deletion](clinician-document-deletion.md) — assigned clinicians may delete family uploads, which also removes the source from the family portal; keep cross-client access blocked.
+- [Document deletion permissions](clinician-document-deletion.md) — sharing and assignment do not imply delete rights; require uploader ownership or separate authorization.
 - [Security advisory verification](security-advisory-verification.md) — newer releases and clean audits do not prove an attack is fixed; verify unavailable fixes with regressions.
 - [NeuroPathways brand mark](neuropathways-brand-mark.md) — keep the app icon as a simple head profile with a winding path and star, using a green-to-blue gradient.
 - [Headless responsive checks](headless-responsive-checks.md) — set metrics before navigation; inspect scroll width and fixed/select controls for route-specific overflow.
