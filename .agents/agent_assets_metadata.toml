@@ -728,3 +728,17 @@ mtime_ms = 1794345624614
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/bf663b25-0222-470c-8c17-22ed360db960/5f49bc79-2bcd-4976-949c-f05a4c1d1558"
 storage_version_token = "1794345653466276"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "1it3AmdAsY1sWeu5BsGL-"
+uri = "file://.local/verification/neuro-consolidated-20261110T213445Z/exports/NeuroPathways-Consolidated-Verification-20261110T213445Z.zip"
+type = "unspecified"
+title = "Consolidated NeuroPathways verification evidence"
+description = "Current Git state, per-test results, exact delete repair diff, startup-log review, prior evidence archives, and 82 additional unit-test results."
+logical_id = "d7421beb-7b15-4cf8-9409-038584656123"
+content_hash = "sha256:92a49f4b898e33fe1d9d4189862ab8860e46fa7fd956f8e67f465c6e2d793731"
+size = 646628
+mtime_ms = 1794346824889
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/d7421beb-7b15-4cf8-9409-038584656123/3c78c6e9-0713-44b4-893c-1e9dbbbeecca"
+storage_version_token = "1794346865066566"
+content_type = "application/octet-stream"
