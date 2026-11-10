@@ -1297,10 +1297,24 @@ export interface ParentDailyActionLogInput {
   note?: string;
 }
 
+/**
+ * The verified parent or family relationship available to the clinician.
+ */
+export type ParentSharedSupportAccountLink = typeof ParentSharedSupportAccountLink[keyof typeof ParentSharedSupportAccountLink];
+
+
+export const ParentSharedSupportAccountLink = {
+  parent: 'parent',
+  family: 'family',
+  none: 'none',
+} as const;
+
 export interface ParentSharedSupport {
   childName: string;
   supportCards: SupportCard[];
   documents: ParentDocument[];
+  /** The verified parent or family relationship available to the clinician. */
+  accountLink: ParentSharedSupportAccountLink;
 }
 
 export type ClinicianActivityActionInputAction = typeof ClinicianActivityActionInputAction[keyof typeof ClinicianActivityActionInputAction];
@@ -1484,6 +1498,52 @@ export interface PasswordResetCompleteInput {
      * @maxLength 128
      */
   newPassword: string;
+}
+
+export type ClinicStaffRole = typeof ClinicStaffRole[keyof typeof ClinicStaffRole];
+
+
+export const ClinicStaffRole = {
+  clinic_admin: 'clinic_admin',
+  clinical_supervisor: 'clinical_supervisor',
+  treating_clinician: 'treating_clinician',
+} as const;
+
+export type ClinicStaffStatus = typeof ClinicStaffStatus[keyof typeof ClinicStaffStatus];
+
+
+export const ClinicStaffStatus = {
+  active: 'active',
+  pending: 'pending',
+  suspended: 'suspended',
+  revoked: 'revoked',
+} as const;
+
+export interface ManagedClinicStaffMember {
+  userId: string;
+  displayName: string;
+  /** @nullable */
+  email: string | null;
+  roles: ClinicStaffRole[];
+  status: ClinicStaffStatus;
+  membershipCreatedAt: string;
+}
+
+export interface ManagedClinicStaffClinic {
+  clinicId: string;
+  clinicName: string;
+  staff: ManagedClinicStaffMember[];
+}
+
+export interface ManagedClinicStaffResponse {
+  clinics: ManagedClinicStaffClinic[];
+}
+
+export interface ClinicStaffRevocationResult {
+  ok: true;
+  membershipsRevoked: number;
+  assignmentsRevoked: number;
+  legacyChildrenBlocked: number;
 }
 
 export type RecordClinicianObservationFeedback200 = {

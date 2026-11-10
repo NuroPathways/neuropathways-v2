@@ -4,8 +4,11 @@ import { Users, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import FamilyAccordionItem from "@/components/clinician/FamilyAccordionItem";
+import { useAuth } from "@/lib/AuthContext";
+import ClinicStaffManagement from "@/components/clinician/ClinicStaffManagement";
 
 export default function ClinicianUsers() {
+  const { user } = useAuth();
   const [families, setFamilies] = useState([]);
   const [children, setChildren] = useState([]);
   const [parentUsers, setParentUsers] = useState([]);
@@ -55,7 +58,11 @@ export default function ClinicianUsers() {
   const displayedFamilies = families.filter((f) => allMatchedFamilyIds.has(f.id));
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto font-inter">
+    <div className="np-clinic-staff-users-page p-6 md:p-8 max-w-4xl mx-auto font-inter">
+      <ClinicStaffManagement
+        currentUserId={user?.id}
+        enabled={(user?.app_role || user?.appRole) === "clinician"}
+      />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground mb-1">My Families & Clients</h1>
         <p className="text-muted-foreground text-sm">All families and members you manage</p>

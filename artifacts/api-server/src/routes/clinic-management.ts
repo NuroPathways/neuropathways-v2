@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import {
   auditLogsTable,
   childrenTable,
@@ -10,9 +10,12 @@ import {
   db,
   parentClinicConsentsTable,
   parentDocumentsTable,
+  platformAdministratorGrantsTable,
   sessionsTable,
+  usersTable,
   userProfilesTable,
 } from "@workspace/db";
+import { ListManagedClinicStaffResponse } from "@workspace/api-zod";
 import {
   clinicalRecordClinicId,
   clinicianCanManageClinic,
@@ -44,6 +47,114 @@ async function actorIsActiveClinicAdmin(tx: any, userId: string, clinicId: strin
   ]);
   return Boolean(clinic && membership);
 }
+
+router.get("/clinic-management/staff", async (req: any, res): Promise<void> => {
+  const actorId = authenticatedUserId(req, res);
+  if (!actorId) return;
+
+  try {
+    const managedClinics = await db.select({
+      clinicId: clinicsTable.id,
+      clinicName: clinicsTable.displayName,
+    }).from(clinicMembershipsTable)
+      .innerJoin(clinicsTable, eq(clinicsTable.id, clinicMembershipsTable.clinicId))
+      .innerJoin(userProfilesTable, eq(userProfilesTable.id, clinicMembershipsTable.userId))
+      .where(and(
+        eq(clinicMembershipsTable.userId, actorId),
+        eq(clinicMembershipsTable.role, "clinic_admin"),
+        eq(clinicMembershipsTable.status, "active"),
+        eq(clinicsTable.status, "active"),
+        eq(userProfilesTable.appRole, "clinician"),
+      ))
+      .orderBy(asc(clinicsTable.displayName));
+
+    const clinicMembershipRows = await Promise.all(managedClinics.map(async (clinic) => {
+      const members = await db.select({
+        userId: clinicMembershipsTable.userId,
+        role: clinicMembershipsTable.role,
+        status: clinicMembershipsTable.status,
+        createdAt: clinicMembershipsTable.createdAt,
+        displayName: userProfilesTable.displayName,
+        firstName: userProfilesTable.firstName,
+        lastName: userProfilesTable.lastName,
+        email: usersTable.email,
+      }).from(clinicMembershipsTable)
+        .innerJoin(userProfilesTable, eq(userProfilesTable.id, clinicMembershipsTable.userId))
+        .innerJoin(usersTable, eq(usersTable.id, clinicMembershipsTable.userId))
+        .where(and(
+          eq(clinicMembershipsTable.clinicId, clinic.clinicId),
+          inArray(clinicMembershipsTable.role, ["clinic_admin", "clinical_supervisor", "treating_clinician"]),
+          inArray(clinicMembershipsTable.status, ["active", "pending", "suspended", "revoked"]),
+          eq(userProfilesTable.appRole, "clinician"),
+        ))
+        .orderBy(asc(userProfilesTable.lastName), asc(userProfilesTable.firstName), asc(usersTable.email));
+
+      return { clinic, members };
+    }));
+
+    const candidateIds = [...new Set(clinicMembershipRows.flatMap(({ members }) => members.map((member) => member.userId)))];
+    const activePlatformGrants = candidateIds.length
+      ? await db.select({ userId: platformAdministratorGrantsTable.userId })
+        .from(platformAdministratorGrantsTable)
+        .where(and(
+          inArray(platformAdministratorGrantsTable.userId, candidateIds),
+          eq(platformAdministratorGrantsTable.status, "active"),
+        ))
+      : [];
+    const platformAdminIds = new Set(activePlatformGrants.map((grant) => grant.userId));
+
+    const clinics = clinicMembershipRows.map(({ clinic, members }) => {
+      const byUser = new Map<string, {
+        userId: string;
+        displayName: string;
+        email: string | null;
+        roles: Set<string>;
+        statuses: Set<string>;
+        membershipCreatedAt: Date;
+      }>();
+
+      for (const member of members) {
+        if (platformAdminIds.has(member.userId)) continue;
+        const displayName = member.displayName?.trim() ||
+          [member.firstName, member.lastName].filter(Boolean).join(" ").trim() ||
+          member.email ||
+          "Clinician";
+        const existing = byUser.get(member.userId);
+        if (existing) {
+          existing.roles.add(member.role);
+          existing.statuses.add(member.status);
+          if (member.createdAt < existing.membershipCreatedAt) existing.membershipCreatedAt = member.createdAt;
+        } else {
+          byUser.set(member.userId, {
+            userId: member.userId,
+            displayName,
+            email: member.email,
+            roles: new Set([member.role]),
+            statuses: new Set([member.status]),
+            membershipCreatedAt: member.createdAt,
+          });
+        }
+      }
+
+      const statusPriority = ["active", "pending", "suspended", "revoked"];
+      const staff = [...byUser.values()].map((member) => ({
+        userId: member.userId,
+        displayName: member.displayName,
+        email: member.email,
+        roles: [...member.roles],
+        status: statusPriority.find((status) => member.statuses.has(status)) || "revoked",
+        membershipCreatedAt: member.membershipCreatedAt.toISOString(),
+      }));
+
+      return { clinicId: clinic.clinicId, clinicName: clinic.clinicName, staff };
+    });
+
+    res.json(ListManagedClinicStaffResponse.parse({ clinics }));
+  } catch (error) {
+    req.log?.error({ err: error }, "Clinic staff directory could not be loaded");
+    res.status(500).json({ error: "Staff directory could not be loaded" });
+  }
+});
 
 router.post("/clinic-management/:clinicId/staff/:staffUserId/revoke", async (req: any, res) => {
   const clinicId = String(req.params.clinicId || "");
@@ -253,6 +364,23 @@ router.post("/clinic-management/:clinicId/staff/:staffUserId/revoke", async (req
     return res.json({ ok: true, ...result });
   } catch (error: any) {
     const status = Number.isInteger(error?.status) ? error.status : 500;
+    if (actorId && (status === 403 || status === 409)) {
+      await writeAuditEventBestEffort({
+        userId: actorId,
+        userRole: req.user?.appRole ?? req.user?.app_role ?? "authenticated",
+        tenantId: clinicId,
+        action: "clinic_staff_access_revocation_denied",
+        targetType: "clinic_membership",
+        targetId: staffUserId,
+        success: false,
+        reason: status === 409
+          ? "Clinic access change would leave the clinic without an active administrator"
+          : "Actor no longer has permission to manage this clinic",
+        metadata: { requested_clinic_id: clinicId, denial_status: status },
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
+    }
     if (status === 500) req.log?.error?.({ err: error }, "Clinic staff access revocation failed");
     return res.status(status).json({
       error: status === 500 ? "Staff access could not be revoked" : error.message,

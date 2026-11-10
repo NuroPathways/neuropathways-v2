@@ -34,10 +34,12 @@ import type {
   CarePracticeInput,
   CarePracticeProgressInput,
   CareTeamWorkspace,
+  ClinicStaffRevocationResult,
   ClinicianActivityActionInput,
   ClinicianObservationFeedbackInput,
   CurrentAuthUser,
   HealthStatus,
+  ManagedClinicStaffResponse,
   OkResult,
   ParentAuthResult,
   ParentBehavior,
@@ -116,6 +118,183 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getListManagedClinicStaffUrl = () => {
+
+
+
+
+  return `/api/clinic-management/staff`
+}
+
+/**
+ * @summary List staff in clinics administered by the signed-in clinician
+ */
+export const listManagedClinicStaff = async ( options?: Parameters<typeof customFetch>[1]): Promise<ManagedClinicStaffResponse> => {
+
+  return customFetch<ManagedClinicStaffResponse>(getListManagedClinicStaffUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListManagedClinicStaffQueryKey = () => {
+    return [
+    `/api/clinic-management/staff`
+    ] as const;
+    }
+
+
+export const getListManagedClinicStaffQueryOptions = <TData = Awaited<ReturnType<typeof listManagedClinicStaff>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listManagedClinicStaff>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListManagedClinicStaffQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listManagedClinicStaff>>> = ({ signal }) => listManagedClinicStaff({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listManagedClinicStaff>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListManagedClinicStaffQueryResult = NonNullable<Awaited<ReturnType<typeof listManagedClinicStaff>>>
+export type ListManagedClinicStaffQueryError = ErrorType<void>
+
+
+export function useListManagedClinicStaff<TData = Awaited<ReturnType<typeof listManagedClinicStaff>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listManagedClinicStaff>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listManagedClinicStaff>>,
+          TError,
+          Awaited<ReturnType<typeof listManagedClinicStaff>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListManagedClinicStaff<TData = Awaited<ReturnType<typeof listManagedClinicStaff>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listManagedClinicStaff>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listManagedClinicStaff>>,
+          TError,
+          Awaited<ReturnType<typeof listManagedClinicStaff>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListManagedClinicStaff<TData = Awaited<ReturnType<typeof listManagedClinicStaff>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listManagedClinicStaff>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List staff in clinics administered by the signed-in clinician
+ */
+
+export function useListManagedClinicStaff<TData = Awaited<ReturnType<typeof listManagedClinicStaff>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listManagedClinicStaff>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListManagedClinicStaffQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRevokeClinicStaffAccessUrl = (clinicId: string,
+    staffUserId: string,) => {
+
+
+
+
+  return `/api/clinic-management/${clinicId}/staff/${staffUserId}/revoke`
+}
+
+/**
+ * @summary Revoke a clinician's access within an administered clinic
+ */
+export const revokeClinicStaffAccess = async (clinicId: string,
+    staffUserId: string, options?: Parameters<typeof customFetch>[1]): Promise<ClinicStaffRevocationResult> => {
+
+  return customFetch<ClinicStaffRevocationResult>(getRevokeClinicStaffAccessUrl(clinicId,staffUserId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeClinicStaffAccessMutationKey = () => ['revokeClinicStaffAccess'] as const;
+
+export const getRevokeClinicStaffAccessMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeClinicStaffAccess>>, TError,RevokeClinicStaffAccessMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeClinicStaffAccess>>, TError,RevokeClinicStaffAccessMutationVariables, TContext> => {
+
+const mutationKey = getRevokeClinicStaffAccessMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeClinicStaffAccess>>, RevokeClinicStaffAccessMutationVariables> = (props) => {
+          const {clinicId,staffUserId} = props ?? {};
+
+          return  revokeClinicStaffAccess(clinicId,staffUserId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeClinicStaffAccessMutationResult = NonNullable<Awaited<ReturnType<typeof revokeClinicStaffAccess>>>
+
+    export type RevokeClinicStaffAccessMutationError = ErrorType<void>
+    export type RevokeClinicStaffAccessMutationVariables = {clinicId: string;staffUserId: string}
+
+    /**
+ * @summary Revoke a clinician's access within an administered clinic
+ */
+export const useRevokeClinicStaffAccess = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeClinicStaffAccess>>, TError,RevokeClinicStaffAccessMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof revokeClinicStaffAccess>>,
+        TError,
+        RevokeClinicStaffAccessMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevokeClinicStaffAccessMutationOptions(options), queryClient);
+    }
 
 export const getGetCareTeamActivityLibraryUrl = () => {
 

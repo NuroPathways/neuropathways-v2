@@ -1,0 +1,344 @@
+.np-clinic-staff-panel {
+  display: grid;
+  gap: var(--np-space-related);
+  min-width: 0;
+  color: var(--np-color-foreground);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .np-clinic-staff-users-page {
+    padding-bottom: calc(
+      var(--np-space-control) +
+      var(--np-space-related-lg) +
+      env(safe-area-inset-bottom)
+    );
+  }
+}
+
+.np-clinic-staff-card {
+  border-color: var(--np-color-border);
+  border-radius: calc(var(--np-radius) + 4px);
+  background: var(--np-color-card);
+  color: var(--np-color-card-foreground);
+  box-shadow: var(--np-shadow-raised);
+}
+
+.np-clinic-staff-card-header {
+  padding: var(--np-space-card-lg);
+}
+
+.np-clinic-staff-heading-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--np-space-related);
+}
+
+.np-clinic-staff-heading-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--np-space-control);
+  height: var(--np-space-control);
+  border-radius: var(--np-radius);
+  background: var(--np-color-accent);
+  color: var(--np-color-chart-2);
+}
+
+.np-clinic-staff-heading-copy {
+  display: grid;
+  gap: var(--np-space-list);
+  min-width: 0;
+}
+
+.np-clinic-staff-title {
+  color: var(--np-color-foreground);
+  font-size: var(--np-text-section-title);
+  line-height: var(--np-leading-section-title);
+}
+
+.np-clinic-staff-description {
+  max-width: 68ch;
+  color: var(--np-color-muted-foreground);
+  font-size: var(--np-text-support);
+  line-height: var(--np-leading-support);
+}
+
+.np-clinic-staff-content {
+  display: grid;
+  gap: var(--np-space-related-lg);
+  padding: 0 var(--np-space-card-lg) var(--np-space-card-lg);
+}
+
+.np-clinic-staff-loading {
+  display: flex;
+  min-height: var(--np-space-control);
+  align-items: center;
+  gap: var(--np-space-list-lg);
+  color: var(--np-color-muted-foreground);
+  font-size: var(--np-text-support);
+}
+
+.np-clinic-staff-clinic {
+  display: grid;
+  gap: var(--np-space-list-lg);
+  min-width: 0;
+}
+
+.np-clinic-staff-clinic-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--np-space-list-lg);
+  min-width: 0;
+  color: var(--np-color-foreground);
+}
+
+.np-clinic-staff-clinic-heading h3 {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--np-text-body);
+  font-weight: 600;
+  line-height: var(--np-leading-body);
+}
+
+.np-clinic-staff-count {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--np-color-muted-foreground);
+  font-size: var(--np-text-support-sm);
+}
+
+.np-clinic-staff-list {
+  display: grid;
+  gap: var(--np-space-list);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.np-clinic-staff-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--np-space-related);
+  min-width: 0;
+  padding: var(--np-space-card);
+  border: 1px solid var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-background);
+}
+
+.np-clinic-staff-person {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--np-space-related);
+  min-width: 0;
+}
+
+.np-clinic-staff-avatar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--np-space-control);
+  height: var(--np-space-control);
+  border-radius: 50%;
+  background: var(--np-color-secondary);
+  color: var(--np-color-secondary-foreground);
+}
+
+.np-clinic-staff-person-copy {
+  display: grid;
+  gap: var(--np-space-list);
+  min-width: 0;
+}
+
+.np-clinic-staff-name,
+.np-clinic-staff-email {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.np-clinic-staff-name {
+  color: var(--np-color-foreground);
+  font-size: var(--np-text-body-sm);
+  font-weight: 600;
+  line-height: var(--np-leading-body-sm);
+}
+
+.np-clinic-staff-email {
+  color: var(--np-color-muted-foreground);
+  font-size: var(--np-text-support-sm);
+  line-height: var(--np-leading-support-sm);
+}
+
+.np-clinic-staff-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--np-space-list);
+}
+
+.np-clinic-staff-role {
+  color: var(--np-color-muted-foreground);
+  font-size: var(--np-text-support-sm);
+  line-height: var(--np-leading-support-sm);
+}
+
+.np-clinic-staff-role + .np-clinic-staff-role::before {
+  content: "·";
+  margin-right: var(--np-space-list);
+}
+
+.np-clinic-staff-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--np-space-list-lg);
+}
+
+.np-clinic-staff-status {
+  border-color: var(--np-color-border);
+  color: var(--np-color-foreground);
+  font-size: var(--np-text-support-sm);
+}
+
+.np-clinic-staff-status--active {
+  border-color: var(--np-color-accent);
+  background: var(--np-color-accent);
+  color: var(--np-color-chart-3);
+}
+
+.np-clinic-staff-status--pending,
+.np-clinic-staff-status--suspended {
+  border-color: var(--np-color-border);
+  background: var(--np-color-muted);
+  color: var(--np-color-muted-foreground);
+}
+
+.np-clinic-staff-status--revoked {
+  border-color: var(--np-color-border);
+  background: var(--np-color-secondary);
+  color: var(--np-color-secondary-foreground);
+}
+
+.np-foundations .np-clinic-staff-button {
+  display: inline-flex;
+  min-height: var(--np-space-control);
+  align-items: center;
+  justify-content: center;
+  gap: var(--np-space-list);
+  padding: var(--np-space-list) var(--np-space-related-lg);
+  border: 1px solid transparent;
+  border-radius: var(--np-radius);
+  font-family: var(--np-font-sans);
+  font-size: var(--np-text-support);
+  font-weight: 600;
+  line-height: var(--np-leading-support);
+  text-align: center;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.np-foundations .np-clinic-staff-button--destructive {
+  border-color: var(--np-color-destructive);
+  background: var(--np-color-destructive);
+  color: var(--np-color-destructive-foreground);
+}
+
+.np-foundations .np-clinic-staff-button--destructive:hover {
+  background: var(--np-color-destructive);
+  filter: brightness(0.95);
+}
+
+.np-foundations .np-clinic-staff-button--outline {
+  border-color: var(--np-color-border);
+  background: var(--np-color-card);
+  color: var(--np-color-foreground);
+}
+
+.np-foundations .np-clinic-staff-button--outline:hover {
+  background: var(--np-color-muted);
+  color: var(--np-color-foreground);
+}
+
+.np-foundations .np-clinic-staff-button:focus-visible {
+  outline: 2px solid var(--np-color-ring);
+  outline-offset: 2px;
+}
+
+.np-foundations .np-clinic-staff-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.np-clinic-staff-self-note,
+.np-clinic-staff-empty {
+  color: var(--np-color-muted-foreground);
+  font-size: var(--np-text-support-sm);
+  line-height: var(--np-leading-support-sm);
+}
+
+.np-clinic-staff-empty {
+  margin: 0;
+  padding: var(--np-space-related);
+}
+
+.np-clinic-staff-message,
+.np-clinic-staff-error {
+  margin: 0;
+  padding: var(--np-space-related);
+  border-radius: var(--np-radius);
+  font-size: var(--np-text-support);
+  line-height: var(--np-leading-support);
+}
+
+.np-clinic-staff-message {
+  background: var(--np-color-accent);
+  color: var(--np-color-chart-3);
+}
+
+.np-clinic-staff-error {
+  border-left: 4px solid var(--np-color-destructive);
+  background: var(--np-color-muted);
+  color: var(--np-color-foreground);
+}
+
+.np-clinic-staff-dialog {
+  border-color: var(--np-color-border);
+  border-radius: calc(var(--np-radius) + 4px);
+  background: var(--np-color-card);
+  color: var(--np-color-card-foreground);
+  box-shadow: var(--np-shadow-floating);
+}
+
+.np-clinic-staff-dialog-title {
+  color: var(--np-color-foreground);
+  font-family: var(--np-font-display);
+  font-size: var(--np-text-card-title);
+  line-height: var(--np-leading-card-title);
+}
+
+.np-clinic-staff-dialog-description {
+  color: var(--np-color-muted-foreground);
+  font-size: var(--np-text-body-sm);
+  line-height: var(--np-leading-body-sm);
+}
+
+@media (max-width: 767px) {
+  .np-clinic-staff-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .np-clinic-staff-row-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .np-clinic-staff-count {
+    font-size: var(--np-text-support-sm);
+  }
+}

@@ -8,6 +8,41 @@
 import * as zod from 'zod';
 
 
+/**
+ * @summary List staff in clinics administered by the signed-in clinician
+ */
+export const ListManagedClinicStaffResponse = zod.object({
+  "clinics": zod.array(zod.object({
+  "clinicId": zod.string(),
+  "clinicName": zod.string(),
+  "staff": zod.array(zod.object({
+  "userId": zod.string(),
+  "displayName": zod.string(),
+  "email": zod.string().nullable(),
+  "roles": zod.array(zod.enum(['clinic_admin', 'clinical_supervisor', 'treating_clinician'])),
+  "status": zod.enum(['active', 'pending', 'suspended', 'revoked']),
+  "membershipCreatedAt": zod.coerce.date()
+}))
+}))
+})
+
+
+/**
+ * @summary Revoke a clinician's access within an administered clinic
+ */
+export const RevokeClinicStaffAccessParams = zod.object({
+  "clinicId": zod.coerce.string(),
+  "staffUserId": zod.coerce.string()
+})
+
+export const RevokeClinicStaffAccessResponse = zod.object({
+  "ok": zod.literal(true),
+  "membershipsRevoked": zod.number().int(),
+  "assignmentsRevoked": zod.number().int(),
+  "legacyChildrenBlocked": zod.number().int()
+})
+
+
 export const GetCareTeamActivityLibraryResponseItem = zod.object({
   "id": zod.string(),
   "childId": zod.string(),
@@ -2772,7 +2807,8 @@ export const GetParentSharedSupportResponse = zod.object({
   "shared": zod.boolean(),
   "reviewed": zod.boolean(),
   "createdAt": zod.coerce.date()
-}))
+})),
+  "accountLink": zod.enum(['parent', 'family', 'none']).describe('The verified parent or family relationship available to the clinician.')
 })
 
 
@@ -2880,7 +2916,8 @@ export const UpdateSharedSupportActivityVersionResponse = zod.object({
   "shared": zod.boolean(),
   "reviewed": zod.boolean(),
   "createdAt": zod.coerce.date()
-}))
+})),
+  "accountLink": zod.enum(['parent', 'family', 'none']).describe('The verified parent or family relationship available to the clinician.')
 })
 
 

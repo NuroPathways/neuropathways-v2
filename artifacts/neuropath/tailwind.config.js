@@ -1,9 +1,23 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ["class"],
-  content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"],
+  content: [
+    "./index.html",
+    "./src/**/*.{js,jsx,ts,tsx}",
+    "../neuropathways-foundations/src/components/ui/{alert-dialog,badge,button,card}.tsx",
+  ],
   theme: {
     extend: {
+      fontSize: {
+        support: ["var(--np-text-support)", { lineHeight: "var(--np-leading-support)" }],
+        "support-sm": ["var(--np-text-support-sm)", { lineHeight: "var(--np-leading-support-sm)" }],
+      },
+      spacing: {
+        control: "var(--np-space-control)",
+      },
+      boxShadow: {
+        raised: "var(--np-shadow-raised)",
+      },
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",

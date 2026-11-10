@@ -16,7 +16,64 @@ tags:
     description: Parent account, child, and support operations
   - name: clinic-link
     description: Parent and clinician linking operations
+  - name: clinic-management
+    description: Clinic-scoped staff access management
 paths:
+  /clinic-management/staff:
+    get:
+      operationId: listManagedClinicStaff
+      tags: [clinic-management]
+      summary: List staff in clinics administered by the signed-in clinician
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      responses:
+        "200":
+          description: Staff membership directory for the caller's active administrator memberships
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagedClinicStaffResponse"
+        "401":
+          description: Authentication required
+        "500":
+          description: Staff directory could not be loaded
+  /clinic-management/{clinicId}/staff/{staffUserId}/revoke:
+    parameters:
+      - name: clinicId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: staffUserId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: revokeClinicStaffAccess
+      tags: [clinic-management]
+      summary: Revoke a clinician's access within an administered clinic
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      responses:
+        "200":
+          description: Clinic-scoped staff access was revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicStaffRevocationResult"
+        "401":
+          description: Authentication required
+        "403":
+          description: Active clinic administrator permission required
+        "404":
+          description: Clinician membership not found
+        "409":
+          description: The final clinic administrator cannot be removed
+        "500":
+          description: Staff access could not be revoked
   /care-team/activity-library:
     get:
       operationId: getCareTeamActivityLibrary
@@ -2719,3 +2776,61 @@ components:
           minLength: 8
           maxLength: 128
       required: [token, newPassword]
+    ClinicStaffRole:
+      type: string
+      enum: [clinic_admin, clinical_supervisor, treating_clinician]
+    ClinicStaffStatus:
+      type: string
+      enum: [active, pending, suspended, revoked]
+    ManagedClinicStaffMember:
+      type: object
+      properties:
+        userId:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: [string, "null"]
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClinicStaffRole"
+        status:
+          $ref: "#/components/schemas/ClinicStaffStatus"
+        membershipCreatedAt:
+          type: string
+          format: date-time
+      required: [userId, displayName, email, roles, status, membershipCreatedAt]
+    ManagedClinicStaffClinic:
+      type: object
+      properties:
+        clinicId:
+          type: string
+        clinicName:
+          type: string
+        staff:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManagedClinicStaffMember"
+      required: [clinicId, clinicName, staff]
+    ManagedClinicStaffResponse:
+      type: object
+      properties:
+        clinics:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManagedClinicStaffClinic"
+      required: [clinics]
+    ClinicStaffRevocationResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+        membershipsRevoked:
+          type: integer
+        assignmentsRevoked:
+          type: integer
+        legacyChildrenBlocked:
+          type: integer
+      required: [ok, membershipsRevoked, assignmentsRevoked, legacyChildrenBlocked]

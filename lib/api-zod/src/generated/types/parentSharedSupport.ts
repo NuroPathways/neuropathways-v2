@@ -6,11 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ParentDocument } from './parentDocument';
+import type { ParentSharedSupportAccountLink } from './parentSharedSupportAccountLink';
 import type { SupportCard } from './supportCard';
 
 export interface ParentSharedSupport {
   childName: string;
   supportCards: SupportCard[];
   documents: ParentDocument[];
-  accountLink: 'parent' | 'family' | 'none';
+  /** The verified parent or family relationship available to the clinician. */
+  accountLink: ParentSharedSupportAccountLink;
 }
