@@ -8,6 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:parent-document-delete": "bash ../../scripts/test-parent-document-delete.sh",
     "seed:mock": "tsx src/seed-mock.ts"
   },
   "dependencies": {

@@ -111,3 +111,34 @@ Before tests will pass on Replit, ensure:
 | `test-suite.sh` | Bash API test suite (120+ assertions) |
 | `artifacts/neuropath/public/test-runner.html` | Browser frontend test runner (50+ tests) |
 | `test-scenarios.md` | Full scenario list including manual UI tests |
+
+## Isolated parent-document deletion regression
+
+This route-level integration test uses the real parent-session authorization, document routes, PostgreSQL rows, and audit writer. It does not use the Replit app database or uploads. Storage is an in-memory fake explicitly limited to the test process; this is not a cloud-storage integration test.
+
+Create a temporary PostgreSQL cluster and bind it only to loopback:
+
+```bash
+PG_BIN="$(dirname "$(command -v pg_ctl)")"
+TEST_ROOT="$(mktemp -d /tmp/np-parent-doc-delete.XXXXXX)"
+mkdir -m 700 "$TEST_ROOT/socket"
+"$PG_BIN/initdb" --auth-local=trust --auth-host=trust --username=runner -D "$TEST_ROOT/pgdata"
+"$PG_BIN/pg_ctl" -D "$TEST_ROOT/pgdata" -l "$TEST_ROOT/postgres.log" \
+  -o "-h 127.0.0.1 -p 55490 -k $TEST_ROOT/socket -c listen_addresses=127.0.0.1" start
+"$PG_BIN/createdb" -h 127.0.0.1 -p 55490 -U runner np_parent_document_delete_test
+export PARENT_DOCUMENT_DELETE_TEST_DATABASE_URL='postgres://runner@127.0.0.1:55490/np_parent_document_delete_test'
+pnpm --filter @workspace/api-server run test:parent-document-delete
+```
+
+The runner rejects non-loopback hosts or any database name other than `np_parent_document_delete_test`, applies the schema only to that database, inserts fictional family fixtures, runs the route test, and removes only its fixture rows. It disables connectors and never calls live AI or cloud storage. A successful run ends with `tests 1`, `pass 1`, `fail 0`.
+
+Afterward, remove only this disposable database and cluster:
+
+```bash
+"$PG_BIN/dropdb" -h 127.0.0.1 -p 55490 -U runner np_parent_document_delete_test
+"$PG_BIN/pg_ctl" -D "$TEST_ROOT/pgdata" -m fast stop
+rm -rf -- "$TEST_ROOT"
+unset PARENT_DOCUMENT_DELETE_TEST_DATABASE_URL
+```
+
+Run these cleanup commands only for the `TEST_ROOT` created above. Never point the runner at an app, development, or production database. The test's storage fake is in memory and disappears when the test process exits.
