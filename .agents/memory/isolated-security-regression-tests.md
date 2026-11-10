@@ -10,3 +10,9 @@ Third-party security kits are often calibrated to one code snapshot. Independent
 **Why:** Fixture seeders can delete and reinsert rows by fixture ID, and may also copy source files or binaries into the app tree. A test database URL alone does not isolate those filesystem writes. A kit run against newer code can also produce misleading failures when its expected commit, environment, or accepted denial statuses are stale. In this Nix environment, a temporary PostgreSQL server may need its Unix socket directed to a writable temporary directory.
 
 **How to apply:** Generate and validate synthetic data under `/tmp`, start PostgreSQL bound to loopback with an explicitly named test database, point the app, seed module, uploads, and object storage at private test locations, then verify cleanup. If a Node test changes to a temporary working directory and TSX resolution fails in its worker, run it with an absolute `tsx/dist/loader.mjs` path in `NODE_OPTIONS` rather than weakening the test.
+
+For browser E2E, do not treat a missing DevTools response event as proof that an action failed. Correlate the signed-in UI action with sanitized server request/status logs and the isolated database and object-storage state.
+
+**Why:** Some generated file-view requests completed and were audited even though the browser harness did not associate their response with the triggering click; relying on the harness alone would have reported false failures.
+
+**How to apply:** Keep the browser action, server-side request/status evidence, and durable test-state checks separate in the report; preserve the raw harness output and explain any reconciliation.
