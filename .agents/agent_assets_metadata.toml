@@ -742,3 +742,17 @@ mtime_ms = 1794346824889
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/d7421beb-7b15-4cf8-9409-038584656123/3c78c6e9-0713-44b4-893c-1e9dbbbeecca"
 storage_version_token = "1794346865066566"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "8VcPZH50ZWIRIuuLJ-ERl"
+uri = "file://.local/verification/NeuroPathways-document-delete-and-ai-simulation-20261110T225659Z.zip"
+type = "unspecified"
+title = "NeuroPathways verification evidence"
+description = "Timestamped package: document-delete regression evidence, isolated fake-AI scan results, audit rows, captured requests, cleanup records, and limitations."
+logical_id = "efc0dad3-1405-485f-bd05-44562066f268"
+content_hash = "sha256:198d95225b9d13ba333432a434997da78e48d393661dedb7b4a7e15666b3d749"
+size = 63568
+mtime_ms = 1794351508977
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/efc0dad3-1405-485f-bd05-44562066f268/982dbc26-9ff0-4515-95be-775e614bc3e5"
+storage_version_token = "1794351552025194"
+content_type = "application/octet-stream"
