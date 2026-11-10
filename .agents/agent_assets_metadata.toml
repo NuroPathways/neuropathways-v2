@@ -700,3 +700,17 @@ mtime_ms = 1794326286128
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/9e41b8cb-42f0-4823-be18-702bc34041f7/5b2fa684-0763-4011-aafc-e4b682c6b319"
 storage_version_token = "1794326413456210"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "0a5e1W1iBGuZPpTVZs9Oj"
+uri = "file://.local/verification/neuro-diagnostic-20261110T194018Z/exports/NeuroPathways-Diagnostic-20261110T194018Z.zip"
+type = "unspecified"
+title = "NeuroPathways diagnostic evidence"
+description = "Sanitized caregiver, document, and AI test results for commit 11c9f738, including audit records, screenshots, case mapping, and checksums."
+logical_id = "dfedbfc1-dd68-4e11-bdcf-a1bd2db6a3f9"
+content_hash = "sha256:59044858ee16b72b05d2b76278b2abba8f24c2f49e109a56ac15da50ef9ca92a"
+size = 270343
+mtime_ms = 1794343814305
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/dfedbfc1-dd68-4e11-bdcf-a1bd2db6a3f9/804babb0-c9e4-486d-8d6a-3bd380ff89d9"
+storage_version_token = "1794343847364633"
+content_type = "application/octet-stream"

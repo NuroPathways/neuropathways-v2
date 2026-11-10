@@ -20,3 +20,9 @@ Separately displayed plan goals require their own consent provenance when they u
 **Why:** A private plan goal can accompany public reviewed guidance. Clearing the explicit plan-goal field is insufficient if its text also enters merged related-goal lists or conflict messages.
 
 **How to apply:** Track all contributing goal sources and clear goal text and references unless all sources are visible to the clinician. Do not merge private losing-card auxiliary text into public winning guidance without its provenance.
+
+Do not equate a retained derived-profile database row with an access leak. On source unshare or clinic-link revocation, remove that source from active clinician projections and AI context, but do not physically purge retained clinical history unless the retention policy explicitly requires it.
+
+**Why:** The corrected November kit expects a derived profile row to be deleted after revocation, while the approved permissions guidance requires revoked information to disappear from active views and AI without indiscriminately deleting legitimately retained clinical records.
+
+**How to apply:** Verify former-clinician and later-clinician API projections and model-request context after revocation. If those deny the source but a derived row remains, report the row-retention rule as `NEEDS_DECISION` until an explicit purge/deactivation policy is approved.
