@@ -672,3 +672,17 @@ mtime_ms = 1794280998553
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/a812b70e-7d71-41d7-ac26-99c301f0d020/7beeec37-caf1-4c28-b5ae-24eab541e959"
 storage_version_token = "1794281017980185"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "PmwZt3gcD1wNsSvqz0qxR"
+uri = "file://.local/verification/clinic-staff-management-20261110/runs/20261110T034602Z/neuropathways-staff-rerun-20261110T034602Z-5e4d25d.zip"
+type = "unspecified"
+title = "NeuroPathways staff-management rerun evidence"
+description = "Timestamped isolated rerun at commit 5e4d25d: completed 20/20 checks, genuine audit records, six screenshots, attempt history, and verified SHA-256 manifest."
+logical_id = "9ef29f53-0d9c-4ba4-a42b-98ca9f72e7c7"
+content_hash = "sha256:19dfdd63e805084fb2f84793d7a4a16054a79bfd50bfc56e47e0451b0f00eb75"
+size = 465517
+mtime_ms = 1794282501084
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/9ef29f53-0d9c-4ba4-a42b-98ca9f72e7c7/3db16e79-2993-47db-a0c8-7053df41cd60"
+storage_version_token = "1794282555660784"
+content_type = "application/octet-stream"
