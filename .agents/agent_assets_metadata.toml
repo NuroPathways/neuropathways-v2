@@ -658,3 +658,17 @@ mtime_ms = 1792699083841
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/73a675cd-bbf5-47c0-81d6-a94b36d04bee/05f9ce91-6591-4ece-805a-7e62ecc09493"
 storage_version_token = "1792699107495241"
 content_type = "image/png"
+
+[[outputs]]
+id = "zZFCiVKADya5Vc7lrO658"
+uri = "file://.local/verification/clinic-staff-management-20261110/deliverables/neuropathways-clinic-staff-evidence-f95a71b.zip"
+type = "unspecified"
+title = "NeuroPathways clinic staff evidence"
+description = "Sanitized report for commit f95a71b, 20 passing end-to-end checks, five genuine isolated audit records, six screenshots, and a SHA-256 manifest."
+logical_id = "a812b70e-7d71-41d7-ac26-99c301f0d020"
+content_hash = "sha256:a4b0d7e44d68b7220439144e66841785d660337ab3041face00d5bfb6ae26125"
+size = 466554
+mtime_ms = 1794280998553
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/a812b70e-7d71-41d7-ac26-99c301f0d020/7beeec37-caf1-4c28-b5ae-24eab541e959"
+storage_version_token = "1794281017980185"
+content_type = "application/octet-stream"
