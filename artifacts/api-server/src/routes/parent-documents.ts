@@ -48,6 +48,27 @@ function parentId(req: any): string {
   return req.parentAccount.id;
 }
 
+async function auditDeniedParentDocumentDelete(
+  req: any,
+  documentId: string,
+  childId: string,
+  reason: string,
+): Promise<void> {
+  await writeAuditEventBestEffort({
+    userId: parentId(req),
+    userRole: "parent",
+    tenantId: req.parentAccount.workspaceId ?? null,
+    action: "document_delete_denied",
+    targetType: "document",
+    targetId: documentId,
+    success: false,
+    reason,
+    metadata: { child_id: childId },
+    ipAddress: req.ip,
+    requestId: req.id,
+  });
+}
+
 function safeFilename(value: string): string {
   return path.basename(value.replace(/\\/g, "/"))
     .replace(/[\u0000-\u001f\u007f]/g, "")
@@ -122,9 +143,19 @@ router.delete(
     const ownerId = parentId(req);
     const { childId, documentId } = req.params;
     try {
-      const visibleDocuments = await listParentDocuments(ownerId, childId);
+      let visibleDocuments;
+      try {
+        visibleDocuments = await listParentDocuments(ownerId, childId);
+      } catch (error) {
+        if (error instanceof Error && error.message === "Child not found") {
+          await auditDeniedParentDocumentDelete(req, documentId, childId, "child_outside_parent_scope");
+          return res.status(404).json({ error: "Parent-uploaded document not found" });
+        }
+        throw error;
+      }
       const target = visibleDocuments.find((document) => document.id === documentId);
       if (!target || target.uploadedBy !== "parent") {
+        await auditDeniedParentDocumentDelete(req, documentId, childId, "document_not_found_or_not_parent_uploaded");
         return res.status(404).json({ error: "Parent-uploaded document not found" });
       }
 
@@ -138,6 +169,7 @@ router.delete(
         eq(documentsTable.childId, childId),
       ));
       if (!document || (!metadata && document.uploadedBy !== `client:${childId}`)) {
+        await auditDeniedParentDocumentDelete(req, documentId, childId, "document_not_parent_owned");
         return res.status(404).json({ error: "Parent-uploaded document not found" });
       }
 

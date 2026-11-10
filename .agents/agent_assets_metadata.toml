@@ -714,3 +714,17 @@ mtime_ms = 1794343814305
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/dfedbfc1-dd68-4e11-bdcf-a1bd2db6a3f9/804babb0-c9e4-486d-8d6a-3bd380ff89d9"
 storage_version_token = "1794343847364633"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Qzu0l8Phsj806rZQtj6UK"
+uri = "file://.local/verification/neuro-delete-denial-repair-20261110T205900Z/exports/NeuroPathways-Delete-Denial-Repair-20261110T211107Z.zip"
+type = "unspecified"
+title = "Updated document delete repair evidence"
+description = "Final isolated results, audit evidence, exact patch, cleanup status, workflow restart result, and checksums."
+logical_id = "bf663b25-0222-470c-8c17-22ed360db960"
+content_hash = "sha256:8cee2ab0f4d54f955731f776adcb58c2fc639fff53c3fb72b9863222131fa6ed"
+size = 24737
+mtime_ms = 1794345624614
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/bf663b25-0222-470c-8c17-22ed360db960/5f49bc79-2bcd-4976-949c-f05a4c1d1558"
+storage_version_token = "1794345653466276"
+content_type = "application/octet-stream"
