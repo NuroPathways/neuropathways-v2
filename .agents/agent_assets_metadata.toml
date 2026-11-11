@@ -756,3 +756,17 @@ mtime_ms = 1794351508977
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/efc0dad3-1405-485f-bd05-44562066f268/982dbc26-9ff0-4515-95be-775e614bc3e5"
 storage_version_token = "1794351552025194"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "ACtuPZagV76BcFcgdFoAi"
+uri = "file://.local/verification/evidence-packages/neuro-caregiver-doc-ai-20261111T012251Z.zip"
+type = "unspecified"
+title = "NeuroPathways isolated verification evidence"
+description = "Sanitized browser/API results, genuine audit records, screenshots, scope notes, and cleanup details for commit a00f91146c76751c3cdfee7701848c16c3517e89."
+logical_id = "6accb5ad-0fd9-483f-a69f-ea5d844c50ee"
+content_hash = "sha256:8745b0f02a8197fdc67e36141273c599911fbbf1fad1ea197b69a7c4ac47c904"
+size = 1466448
+mtime_ms = 1794360319041
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/6accb5ad-0fd9-483f-a69f-ea5d844c50ee/85a0f753-60ea-4a7d-90e4-1a230139a1de"
+storage_version_token = "1794360341042185"
+content_type = "application/octet-stream"
