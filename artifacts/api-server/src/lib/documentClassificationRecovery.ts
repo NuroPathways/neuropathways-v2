@@ -51,8 +51,9 @@ export async function recoverDocumentClassifications(
   content: any[],
   signal?: AbortSignal,
   actorId?: string | null,
+  audit?: Parameters<typeof readDocumentClassificationResponse>[3],
 ): Promise<unknown[]> {
-  const response = await readDocumentClassificationResponse(content, signal, actorId);
+  const response = await readDocumentClassificationResponse(content, signal, actorId, audit);
   const tool = response.content.find(block => block.type === "tool_use");
   const records = tool?.type === "tool_use"
     ? (tool.input as { document_extractions?: unknown }).document_extractions

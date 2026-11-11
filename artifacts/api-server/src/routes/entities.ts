@@ -2694,6 +2694,16 @@ Example: do not write only "${childName} will complete a graduated exposure hier
           includedDocIds.flatMap(id => documentContentById.get(id) || []),
           res.locals?.documentScanSignal,
           aiActorId,
+          {
+            userId: aiAuditActorId,
+            userRole: aiActorRole,
+            tenantId: req.parentAccount?.workspaceId ?? req.familyParent?.workspaceId ?? child.tenantId,
+            requestId: req.id,
+            childId: child_id,
+            documentIds: includedDocIds,
+            feature: "document_scan",
+            operation: "classification_recovery",
+          },
         );
       } catch {
         req.log.warn("Focused document classification recovery did not complete");

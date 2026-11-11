@@ -840,3 +840,73 @@ mtime_ms = 1794389383875
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/2c2e4e60-ae84-4447-b465-55ba4220802d/357fb8c4-4c90-4635-8f61-26dddafae025"
 storage_version_token = "1794389397180971"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "IAtkgUFxXPSJXC8r4IVh5"
+uri = "file://.local/verification/neuro-ai-remaining-20261111T111917Z/NeuroPathways-AI-verification-20261111T135845Z.zip"
+type = "unspecified"
+title = "NeuroPathways AI verification evidence"
+description = "Updated report, 768-scenario closure table, isolated test results, genuine audit records, and four signed-in browser screenshots. No credentials or test database files."
+logical_id = "716a71f8-13be-4be4-95d9-870c40a72ea2"
+content_hash = "sha256:eb083a582ed1704fb6ae30ffb1958c7f4f84dc72c83f9a65f9a4ab969864f6e3"
+size = 603212
+mtime_ms = 1794405526663
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/716a71f8-13be-4be4-95d9-870c40a72ea2/e357a854-19d3-4ed4-bffb-7328386c8e19"
+storage_version_token = "1794405579914141"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "xd8IdVMqVKTVPKjou5prm"
+uri = "file://.local/verification/neuro-ai-remaining-20261111T111917Z/browser-rerun-13/desktop-chat-mira.png"
+type = "image"
+title = "Parent chat — selected child"
+description = "Signed-in fictional caregiver chat showing child-scoped source context."
+logical_id = "c7079dcf-fbad-48c2-a333-b3f8c56f7c83"
+content_hash = "sha256:a58052c60eeff2649a92a60f655b8ea8aaba4f09fb7adc6677cc6ada212c1f16"
+size = 142890
+mtime_ms = 1794405178307
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/c7079dcf-fbad-48c2-a333-b3f8c56f7c83/c67c5ec1-16d0-4222-ac56-1ba6ab7e6182"
+storage_version_token = "1794405580781894"
+content_type = "image/png"
+
+[[outputs]]
+id = "YJKoRAiEt3vgROM80T24r"
+uri = "file://.local/verification/neuro-ai-remaining-20261111T111917Z/browser-rerun-13/desktop-child-switch-noah.png"
+type = "image"
+title = "Child switch — Noah context"
+description = "After switching, the chat shows Noah’s response and no prior Mira response."
+logical_id = "c63a7ca8-50b9-4a79-b4c7-6933684e1aad"
+content_hash = "sha256:0254dfb18672a2a08326665ccd498919a9236da82f2aec4e31d8eb86cec08461"
+size = 144518
+mtime_ms = 1794405179615
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/c63a7ca8-50b9-4a79-b4c7-6933684e1aad/4b16a0b0-6faf-47d3-94f0-2604e36e3c5d"
+storage_version_token = "1794405581837724"
+content_type = "image/png"
+
+[[outputs]]
+id = "iINtde_L4co-habFXgEeu"
+uri = "file://.local/verification/neuro-ai-remaining-20261111T111917Z/browser-rerun-13/desktop-crisis-guidance.png"
+type = "image"
+title = "Crisis guidance — web chat"
+description = "The visible crisis answer includes 911 and 988 guidance."
+logical_id = "d14368b9-7b4a-43fa-b793-6e3a386a10a6"
+content_hash = "sha256:9a32728a1df9b6aa3c233e4c63d4c888146856b770f5abd91c8a619b7e5d7ee3"
+size = 147742
+mtime_ms = 1794405180163
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/d14368b9-7b4a-43fa-b793-6e3a386a10a6/cbd19f0b-ba63-4dc5-afcc-e3bf4e101219"
+storage_version_token = "1794405582470670"
+content_type = "image/png"
+
+[[outputs]]
+id = "ImHgb0hTPK9I8v02SoRqH"
+uri = "file://.local/verification/neuro-ai-remaining-20261111T111917Z/browser-rerun-13/mobile-chat-390x844.png"
+type = "image"
+title = "Parent chat — mobile web size"
+description = "390×844 mobile-sized web screenshot; native mobile was not tested."
+logical_id = "01fd1570-f12a-4c7e-be07-a730c04cf89d"
+content_hash = "sha256:18cf9940c5077a921b52189b7053fb0a24ee876c31c09c975f5009cc9217a4f5"
+size = 76042
+mtime_ms = 1794405184083
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/01fd1570-f12a-4c7e-be07-a730c04cf89d/6ec59ee0-e8b1-4159-bbc7-ef79e0693523"
+storage_version_token = "1794405583115168"
+content_type = "image/png"
