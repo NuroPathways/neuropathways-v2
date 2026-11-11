@@ -25,7 +25,8 @@ import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
 import { documentScanJobs } from "../lib/documentScanJobs";
 import { recoverDocumentClassifications, readDocumentClassificationResponse } from "../lib/documentClassificationRecovery";
 import { requestDocumentAi, requireCompleteDocumentAiResponse } from "../lib/documentAi";
-import { decryptBuffer } from "./upload";
+import { decryptDocumentBuffer } from "./upload";
+import { auditDocumentIntegrityFailure } from "../lib/documentIntegrityAudit";
 import { splitDocumentTextForAi } from "../lib/documentTextChunks";
 import { allSourceDocumentsVisible, legacyVisibleDocuments, isParentOwnedChild, isParentOwnedDocument, familyHasParentOwnedChildren } from "../lib/documentVisibility";
 import {
@@ -2369,12 +2370,13 @@ router.post("/build-client-profile", async (req: any, res) => {
           failedDocs.push({ id: doc.id, reason: "The file could not be found on the server." });
           continue;
         }
-        try {
-          fileContent = decryptBuffer(raw);
-        } catch {
-          failedDocs.push({ id: doc.id, reason: "The stored file could not be decrypted. Upload the document again." });
+        const decryptedContent = decryptDocumentBuffer(doc, safePath, raw);
+        if (!decryptedContent) {
+          failedDocs.push({ id: doc.id, reason: "The stored file failed its integrity check. Upload it again." });
+          await auditDocumentIntegrityFailure(req, doc, "scan");
           continue;
         }
+        fileContent = decryptedContent;
       }
       const extractionSource = extractionSourceById.get(doc.id)!;
       extractionSource.documentVersion = crypto.createHash("sha256").update(fileContent).digest("hex");
