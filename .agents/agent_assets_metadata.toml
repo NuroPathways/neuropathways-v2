@@ -952,3 +952,17 @@ mtime_ms = 1794418301542
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/ffefbc75-e846-4f7b-9df4-3dfe02f1ab50/592d8f06-08e0-45f2-8e95-23d5086dcae0"
 storage_version_token = "1794418315238102"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "fVzdURRVDVexRHe7j4ymN"
+uri = "file://.local/verification/neuro-current-p0-20261111T190000Z/NeuroPathways-P0-Evidence-20261111T215500Z.zip"
+type = "unspecified"
+title = "NeuroPathways P0 verification evidence"
+description = "Sanitized test results, browser screenshots, genuine isolated audit events, closure table, and manifest for commit 4a00e0b."
+logical_id = "eaabdf1b-8b9f-4e60-aabb-d96afff42b54"
+content_hash = "sha256:1c0205addd8df61b238e5fa4e577a51dc68e34fb8a19af0eddb395f3fd4357a1"
+size = 5705469
+mtime_ms = 1794434384560
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/eaabdf1b-8b9f-4e60-aabb-d96afff42b54/68cf3d75-7ac5-4a21-912d-2b73991ef9c3"
+storage_version_token = "1794434404682236"
+content_type = "application/octet-stream"
