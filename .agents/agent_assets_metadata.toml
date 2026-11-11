@@ -798,3 +798,17 @@ mtime_ms = 1794370901698
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/020992f9-c8b1-4842-a303-c085790e520a/701cba9e-b8e1-4455-bec2-fed47808c74e"
 storage_version_token = "1794370928673563"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Ekyc2znymrEB5wxQb4z9i"
+uri = "file://.local/verification/neuro-support-review-20261111T061931Z.zip"
+type = "unspecified"
+title = "NeuroPathways verification evidence"
+description = "Consolidated isolated browser, API, simulation, audit, screenshot and remaining-coverage report."
+logical_id = "9ec94299-6e7d-4003-85cb-f5ee81a8b844"
+content_hash = "sha256:480876d99fbb55ae0f4caf64c657093c659d59007677689a0d5a6d2818985e24"
+size = 1086274
+mtime_ms = 1794377972424
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/9ec94299-6e7d-4003-85cb-f5ee81a8b844/172a8d9a-a749-487b-9124-13b52fecccdf"
+storage_version_token = "1794378033264206"
+content_type = "application/octet-stream"
