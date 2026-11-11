@@ -5,6 +5,7 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import { db, childrenTable, documentsTable, userProfilesTable } from "@workspace/db";
 import { writeAuditEventBestEffort } from "../lib/auditEvents";
+import { auditDocumentIntegrityFailure } from "../lib/documentIntegrityAudit";
 import { eq } from "drizzle-orm";
 import { requireMobileAuth } from "./mobile";
 import { validateClientSession, sessionMayAccessChild } from "./entities-helpers";
@@ -145,6 +146,16 @@ function isNewEncryptedDocumentFile(document: typeof documentsTable.$inferSelect
   const isPriorMobileEncryptedFile = extension.toLowerCase() === ".enc";
   return (isSupportedUpload || isPriorMobileEncryptedFile) &&
     filename.slice(0, -extension.length).toLowerCase() === document.id.toLowerCase();
+}
+
+export function decryptDocumentBuffer(
+  document: typeof documentsTable.$inferSelect,
+  filePath: string,
+  stored: Buffer,
+): Buffer | null {
+  return isNewEncryptedDocumentFile(document, filePath)
+    ? decryptBufferStrict(stored)
+    : decryptBuffer(stored);
 }
 
 const secureDocumentUpload = multer({
@@ -437,10 +448,11 @@ router.get("/mobile/documents/:id/content", requireDocumentAuth, async (req: any
     let content: Buffer;
     try {
       const stored = fs.readFileSync(filePath);
-      const decrypted = isNewEncryptedDocumentFile(document, filePath)
-        ? decryptBufferStrict(stored)
-        : decryptBuffer(stored);
-      if (!decrypted) return res.status(404).json({ error: "Document content is unreadable" });
+      const decrypted = decryptDocumentBuffer(document, filePath, stored);
+      if (!decrypted) {
+        await auditDocumentIntegrityFailure(req, document, "download");
+        return res.status(404).json({ error: "Document content is unreadable" });
+      }
       content = decrypted;
     } catch {
       return res.status(404).json({ error: "Document content not found" });
@@ -547,13 +559,14 @@ router.use("/uploads", (req: any, res: Response) => {
     return;
   }
 
-  const serveFile = (registeredDocument?: typeof documentsTable.$inferSelect) => {
+  const serveFile = async (registeredDocument?: typeof documentsTable.$inferSelect) => {
     try {
       const encrypted = fs.readFileSync(filePath);
-      const plain = registeredDocument && isNewEncryptedDocumentFile(registeredDocument, filePath)
-        ? decryptBufferStrict(encrypted)
+      const plain = registeredDocument
+        ? decryptDocumentBuffer(registeredDocument, filePath, encrypted)
         : decryptBuffer(encrypted);
       if (!plain) {
+        if (registeredDocument) await auditDocumentIntegrityFailure(req, registeredDocument, "download");
         res.status(404).json({ error: "Document content is unreadable" });
         return;
       }
@@ -636,7 +649,7 @@ router.use("/uploads", (req: any, res: Response) => {
           metadata: { child_id: registeredDocument.childId },
           requestId: req.id,
         });
-        serveFile(registeredDocument);
+        await serveFile(registeredDocument);
       };
       if (req.user?.id) {
         await checkDocumentAccess();

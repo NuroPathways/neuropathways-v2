@@ -4206,7 +4206,7 @@ function checkSignupRate(ip: string): boolean {
 }
 
 router.post("/parent-signup", async (req, res) => {
-  const ip = req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.ip || "unknown";
+  const ip = req.ip || "unknown";
   if (!checkSignupRate(ip)) {
     return res.status(429).json({ error: "Too many signup attempts. Please try again later." });
   }
