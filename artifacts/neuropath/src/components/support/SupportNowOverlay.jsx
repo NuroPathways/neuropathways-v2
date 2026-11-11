@@ -452,7 +452,7 @@ export default function SupportNowOverlay({
   return (
     <AnimatePresence>
       <motion.div
-        initial={reduceMotion ? false : { opacity: 0 }}
+        initial={false}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
           className="np-help-overlay-shell fixed inset-0 z-50 flex justify-center pointer-events-none"
@@ -468,7 +468,7 @@ export default function SupportNowOverlay({
         {/* Dark backdrop — blocks background taps/clicks, sits behind the modal */}
         <div className="absolute inset-0 bg-black/50 pointer-events-auto" style={{ zIndex: 0 }} />
         <motion.div
-          initial={reduceMotion ? false : { y: 60, opacity: 0 }}
+          initial={false}
           animate={{ y: 0, opacity: 1 }}
           exit={reduceMotion ? { opacity: 0 } : { y: 60, opacity: 0 }}
           transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 30 }}
