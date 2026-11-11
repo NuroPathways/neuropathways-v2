@@ -452,8 +452,8 @@ test("AI chat uses server-controlled prompts, authorized context, and sanitized 
         }, { familyToken: familyOwnerToken });
         assert.equal(family.response.status, 200);
         const familyProviderRequest = capturedProviderRequests.at(-1)!;
-        assert.match(familyProviderRequest.userContent, /FAMILY_SIBLING_PLAN_SENTINEL/);
-        assert.doesNotMatch(familyProviderRequest.userContent, /ANCHOR_CHILD_ONLY_PLAN_SENTINEL/);
+        assert.match(familyProviderRequest.userContent, /Fictional Family Sibling/);
+        assert.doesNotMatch(familyProviderRequest.userContent, /Fictional Child A/);
         const familyAudit = await auditFor(family.requestId);
         assert.equal(familyAudit?.userId, `legacy-family:${familyId}`);
         assert.equal(familyAudit?.userRole, "parent");
@@ -518,7 +518,7 @@ test("AI chat uses server-controlled prompts, authorized context, and sanitized 
         assert.equal(response.status, 200);
         assert.equal(body.outcome, "safety_fallback");
         assert.match(body.answer, /Do not use restraint/);
-        assert.match(body.answer, /call 911/);
+        assert.match(body.answer, /contact 911 or local emergency services/);
         assert.equal(capturedProviderRequests.length, before);
         const audit = await auditFor(requestId);
         assert.equal(audit?.success, true);

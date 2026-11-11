@@ -826,3 +826,17 @@ mtime_ms = 1794379240132
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/1728ce57-8077-4f89-b095-e75aceccbd6e/b9fe6129-93ac-489e-b56d-21af0b85d628"
 storage_version_token = "1794379274905556"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "vZ98B1NducFjQK1ada-uw"
+uri = "file://.local/verification/neuro-ai-chat-security-20261111T092501Z.zip"
+type = "unspecified"
+title = "NeuroPathways AI chat verification evidence"
+description = "Sanitized test results, audit evidence, updated November closure table, and rerun guide. Fake AI only; no live provider or browser checks."
+logical_id = "2c2e4e60-ae84-4447-b465-55ba4220802d"
+content_hash = "sha256:60fbf7d52b04771abdac445fbea32976cbb1ea844efc00b6c2f37c163940190f"
+size = 86184
+mtime_ms = 1794389383875
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/2c2e4e60-ae84-4447-b465-55ba4220802d/357fb8c4-4c90-4635-8f61-26dddafae025"
+storage_version_token = "1794389397180971"
+content_type = "application/octet-stream"
