@@ -910,3 +910,17 @@ mtime_ms = 1794405184083
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/01fd1570-f12a-4c7e-be07-a730c04cf89d/6ec59ee0-e8b1-4159-bbc7-ef79e0693523"
 storage_version_token = "1794405583115168"
 content_type = "image/png"
+
+[[outputs]]
+id = "8xV_FW_G212jPmfa_w9Cj"
+uri = "file://.local/verification/neuro-parent-scan-closeout-20261111T144000Z.zip"
+type = "unspecified"
+title = "NeuroPathways verification evidence"
+description = "Updated closure table, isolated parent-upload scan audit results, crisis checks, screenshots, and sanitized audit evidence."
+logical_id = "cd56cbbd-5cee-4b91-acc2-a5b74cc63624"
+content_hash = "sha256:b57eb0afa61f5a28f7f4e5623caa9803dc926e98a1a1773418305b0f1369fd53"
+size = 337237
+mtime_ms = 1794408564147
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/cd56cbbd-5cee-4b91-acc2-a5b74cc63624/17050010-15ce-4287-9cae-79ed7cc5c37b"
+storage_version_token = "1794408604142450"
+content_type = "application/octet-stream"
