@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   clientAccessCodeResetsTable,
   clientSessionsTable,
+  childrenTable,
   familiesTable,
   mobileTokensTable,
   auditLogsTable,
@@ -72,6 +73,9 @@ test("family access revocation removes credentials, preserves clinical records, 
     clientAccessCodeResetsTable,
   ]);
   assert.deepEqual(updates, [{
+    table: childrenTable,
+    values: { username: null, accessCode: null },
+  }, {
     table: familiesTable,
     values: { inviteToken: null, inviteStatus: "revoked" },
   }]);
@@ -81,6 +85,7 @@ test("family access revocation removes credentials, preserves clinical records, 
   assert.deepEqual(inserts[0].values.metadata, {
     child_count: 2,
     active_sessions_revoked: true,
+    legacy_login_fields_cleared: true,
     invalidated_reset_link_count: 0,
     clinical_history_retained: true,
     request_id: "request-synthetic",

@@ -924,3 +924,17 @@ mtime_ms = 1794408564147
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/cd56cbbd-5cee-4b91-acc2-a5b74cc63624/17050010-15ce-4287-9cae-79ed7cc5c37b"
 storage_version_token = "1794408604142450"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "t3lpC_7iPXqJ3u8HszCph"
+uri = "file://.local/verification/neuro-p0-remediation-20261111T150603Z/neuro-p0-evidence-20261111T155440Z.zip"
+type = "unspecified"
+title = "NeuroPathways P0 verification evidence"
+description = "Updated P0 closure table, isolated test results, genuine audit events, regression diff, and prior fictional-account crisis screenshots."
+logical_id = "362a0216-8e89-4ce1-a489-bc4f8a152eb3"
+content_hash = "sha256:b3f6ef516577346e3c61db60516aa7241772c81f9622a4efe42fd05212b0d03f"
+size = 338492
+mtime_ms = 1794412480318
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/362a0216-8e89-4ce1-a489-bc4f8a152eb3/b131421b-a607-47ef-bb4a-4ab524d49cd6"
+storage_version_token = "1794412535381605"
+content_type = "application/octet-stream"

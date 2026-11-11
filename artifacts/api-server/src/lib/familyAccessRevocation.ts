@@ -1,5 +1,5 @@
-import { and, eq, gt, isNull } from "drizzle-orm";
-import { clientAccessCodeResetsTable, familiesTable } from "@workspace/db";
+import { and, eq, gt, inArray, isNull } from "drizzle-orm";
+import { childrenTable, clientAccessCodeResetsTable, familiesTable } from "@workspace/db";
 import { writeAuditEvent } from "./auditEvents";
 import { accessCodeResetAuditTargetId } from "./accessCodeResetAudit";
 import { revokeClientSessionsForChildren } from "./clientSessionRevocation";
@@ -19,6 +19,9 @@ type RevokeFamilyAccessInput = {
  */
 export async function revokeFamilyAccess(tx: any, input: RevokeFamilyAccessInput): Promise<void> {
   await revokeClientSessionsForChildren(tx, input.childIds);
+  await tx.update(childrenTable)
+    .set({ username: null, accessCode: null })
+    .where(inArray(childrenTable.id, input.childIds));
   const now = new Date();
   const pendingResetLinks = await tx.select({
     childId: clientAccessCodeResetsTable.childId,
@@ -59,6 +62,7 @@ export async function revokeFamilyAccess(tx: any, input: RevokeFamilyAccessInput
     metadata: {
       child_count: input.childIds.length,
       active_sessions_revoked: true,
+      legacy_login_fields_cleared: true,
       invalidated_reset_link_count: pendingResetLinks.length,
       clinical_history_retained: true,
     },

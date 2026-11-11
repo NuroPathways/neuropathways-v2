@@ -560,6 +560,35 @@ type EntityActorScope = {
   familyIds: string[];
 };
 
+async function auditDeniedEntityScope(
+  req: any,
+  scope: EntityActorScope,
+  path: string,
+  row: any,
+  operation: "update" | "delete",
+) {
+  const childId = typeof row.childId === "string" ? row.childId : undefined;
+  const targetChildId = childId ?? (path === "/children" ? String(row.id) : undefined);
+  const targetTenantId = row.tenantId ??
+    (targetChildId ? await clinicalRecordClinicId(targetChildId) : null);
+  await auditLog({
+    userId: scope.userId,
+    userRole: scope.role,
+    action: "cross_tenant_access_attempt",
+    targetType: path.replace(/^\//, ""),
+    targetId: String(row.id),
+    success: false,
+    reason: `Entity ${operation} denied outside the actor's authorized record scope.`,
+    metadata: {
+      operation,
+      ...(targetChildId ? { child_id: targetChildId } : {}),
+    },
+    tenantId: targetTenantId ?? undefined,
+    ip: req.ip,
+    requestId: String(req.id ?? ""),
+  });
+}
+
 async function resolveEntityActorScope(req: any): Promise<EntityActorScope | null> {
   const userId = typeof req.user?.id === "string" ? req.user.id : "";
   if (!userId) return null;
@@ -860,7 +889,10 @@ function makeCrud(path: string, table: any) {
       if (!scope) return res.status(403).json({ error: "This account cannot modify this data." });
       const [existing] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!existing) return res.status(404).json({ error: "Not found" });
-      if (!(await actorCanReadEntityRow(scope, table, existing))) return res.status(403).json({ error: "Access denied" });
+      if (!(await actorCanReadEntityRow(scope, table, existing))) {
+        await auditDeniedEntityScope(req, scope, path, existing, "update");
+        return res.status(403).json({ error: "Access denied" });
+      }
       if (table === clientProfilesTable) {
         return res.status(409).json({ error: "Use secure document processing to update this profile." });
       }
@@ -997,8 +1029,7 @@ function makeCrud(path: string, table: any) {
             ipAddress: req.ip,
             requestId: req.id,
           });
-        }
-        if (table === rewardTokensTable) {
+        } else if (table === rewardTokensTable) {
           await auditGoalDeletionDenied(req, {
             userId: scope.userId,
             userRole: scope.role,
@@ -1007,6 +1038,8 @@ function makeCrud(path: string, table: any) {
             childId: existing.childId,
             reason: "goal_outside_authorized_scope",
           });
+        } else {
+          await auditDeniedEntityScope(req, scope, path, existing, "delete");
         }
         return res.status(403).json({ error: "Access denied" });
       }
@@ -1345,16 +1378,24 @@ router.post("/client-portal-data", async (req, res) => {
   // Require a valid client-session token (new DB-backed or legacy cs_ format).
   const csession = await validateClientSession(invite_token);
   if (!csession) return res.status(401).json({ error: "Authentication required" });
-  const auditDeniedChildAccess = async (reason: string) => auditLog({
-    userRole: "client",
-    action: "cross_tenant_access_attempt",
-    targetType: "child",
-    targetId: typeof child_id === "string" ? child_id.slice(0, 128) : "invalid",
-    success: false,
-    reason,
-    metadata: { session_child_id: csession.childId },
-    requestId: String(req.id ?? ""),
-  });
+  const auditDeniedChildAccess = async (reason: string) => {
+    const [sessionChild] = await db.select({
+      tenantId: childrenTable.tenantId,
+      clinicianId: childrenTable.clinicianId,
+    }).from(childrenTable).where(eq(childrenTable.id, csession.childId));
+    return auditLog({
+      userId: csession.childId,
+      userRole: "client",
+      tenantId: sessionChild?.tenantId ?? sessionChild?.clinicianId ?? undefined,
+      action: "cross_tenant_access_attempt",
+      targetType: "child",
+      targetId: typeof child_id === "string" ? child_id.slice(0, 128) : "invalid",
+      success: false,
+      reason,
+      metadata: { session_child_id: csession.childId },
+      requestId: String(req.id ?? ""),
+    });
+  };
 
   // The caller may read their own child or any sibling in the same family AND same clinician.
   // If the family is later split across clinicians, access is denied to the cross-tenant sibling.
@@ -3728,7 +3769,16 @@ router.post("/client-session/change-access-code", async (req, res) => {
       primary_contact: family?.primaryContact ?? null,
       children: serialize(siblings),
     };
-    await auditLog({ action: "access_code_changed", targetType: "child", targetId: child.id, success: true });
+    await auditLog({
+      userId: child.id,
+      userRole: "client",
+      tenantId: child.tenantId ?? child.clinicianId ?? undefined,
+      action: "access_code_changed",
+      targetType: "child",
+      targetId: child.id,
+      success: true,
+      requestId: String(req.id ?? ""),
+    });
     return res.json({ ok: true, session });
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "client-session-change-code");
