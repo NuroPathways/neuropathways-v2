@@ -8,6 +8,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { pendingClinicianAccessGuard } from "./middlewares/pendingClinicianAccessGuard";
+import { writeAuditEventBestEffort } from "./lib/auditEvents";
 
 const app: Express = express();
 
@@ -39,6 +40,24 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many login attempts, please try again later" },
   skip: () => RATE_LIMIT_DISABLED,
+  handler: async (req, res, _next, options) => {
+    const requestPath = req.originalUrl?.split("?")[0] || req.path;
+    await writeAuditEventBestEffort({
+      userRole: "anonymous",
+      action: "login_rate_limited",
+      targetType: "auth_route",
+      targetId: requestPath,
+      success: false,
+      reason: "Login request rate limit exceeded.",
+      metadata: {
+        request_path: requestPath,
+        limit: options.limit,
+        window_ms: options.windowMs,
+      },
+      ipAddress: req.ip,
+    });
+    res.status(options.statusCode).json(options.message);
+  },
 });
 const accessCodeResetRequestLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

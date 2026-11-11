@@ -547,6 +547,42 @@ async function auditGoalDeletionDenied(
   });
 }
 
+async function auditClientScopeDenied(
+  req: any,
+  input: {
+    actorChildId: string;
+    targetChildId: string | null;
+    operation: string;
+    targetType?: string;
+    targetId?: string;
+  },
+) {
+  const [actor] = await db.select({
+    tenantId: childrenTable.tenantId,
+    clinicianId: childrenTable.clinicianId,
+  }).from(childrenTable).where(eq(childrenTable.id, input.actorChildId));
+  const [target] = input.targetChildId
+    ? await db.select({ id: childrenTable.id })
+      .from(childrenTable).where(eq(childrenTable.id, input.targetChildId))
+    : [];
+  await auditLog({
+    userId: input.actorChildId,
+    userRole: "client",
+    action: "cross_tenant_access_attempt",
+    targetType: input.targetType ?? "child",
+    targetId: input.targetId ?? target?.id,
+    success: false,
+    reason: "Client session attempted an operation outside its authorized family scope.",
+    metadata: {
+      operation: input.operation,
+      ...(target ? { child_id: target.id } : {}),
+    },
+    tenantId: actor?.tenantId ?? actor?.clinicianId ?? undefined,
+    ip: req.ip,
+    requestId: String(req.id ?? ""),
+  });
+}
+
 // ──────────────────────────────────────────────
 // Generic CRUD factory (protected by auth)
 // Automatically scopes list queries by clinicianId for clinician users
@@ -1994,6 +2030,11 @@ router.post("/build-client-profile", async (req: any, res) => {
       const csession = await validateClientSession(invite_token);
       if (!csession) return res.status(401).json({ error: "Authentication required" });
       if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+        await auditClientScopeDenied(req, {
+          actorChildId: csession.childId,
+          targetChildId: child_id,
+          operation: "build_client_profile",
+        });
         return res.status(403).json({ error: "Access denied" });
       }
       aiActorId = `client:${crypto.createHash("sha256").update(String(invite_token)).digest("hex")}`;
@@ -3517,6 +3558,11 @@ router.post("/manage-client-goal", async (req: any, res) => {
           return res.status(403).json({ error: "Access denied" });
         }
         if (!clinicianId && !(await clientMayAccessChild(targetChildId))) {
+          await auditClientScopeDenied(req, {
+            actorChildId: authChildId!,
+            targetChildId,
+            operation: "manage_client_goal.create",
+          });
           return res.status(403).json({ error: "Access denied" });
         }
         const values: any = { ...bodyToCamel(data || {}), childId: targetChildId };
@@ -3559,9 +3605,29 @@ router.post("/manage-client-goal", async (req: any, res) => {
         const [existing] = await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.id, entityId));
         if (!existing) return res.status(404).json({ error: "Not found" });
         if (!clinicianId && !clientMayDeleteGoal(existing, authChildId)) {
+          if (!(await clientMayAccessChild(existing.childId))) {
+            await auditClientScopeDenied(req, {
+              actorChildId: authChildId!,
+              targetChildId: existing.childId,
+              operation: "manage_client_goal.update",
+              targetType: "goal",
+              targetId: existing.id,
+            });
+          }
           return res.status(403).json({ error: "Only a parent-owned goal can be deleted from this account." });
         }
-        if (!(await canAccessRow(existing))) return res.status(403).json({ error: "Access denied" });
+        if (!(await canAccessRow(existing))) {
+          if (!clinicianId && !(await clientMayAccessChild(existing.childId))) {
+            await auditClientScopeDenied(req, {
+              actorChildId: authChildId!,
+              targetChildId: existing.childId,
+              operation: "manage_client_goal.update",
+              targetType: "goal",
+              targetId: existing.id,
+            });
+          }
+          return res.status(403).json({ error: "Access denied" });
+        }
         if (existing.source === "care_team") return res.status(409).json({ error: "Use Goals & Activities to edit this goal." });
         const patch = bodyToCamel(data || {});
         // Never allow ownership/identity fields to be reassigned via the request body.
@@ -3852,6 +3918,11 @@ router.post("/client-upload-document", async (req: any, res) => {
     if (!child_id) return res.status(400).json({ error: "child_id required" });
 
     if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+      await auditClientScopeDenied(req, {
+        actorChildId: csession.childId,
+        targetChildId: child_id,
+        operation: "client_upload_document",
+      });
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -4028,6 +4099,11 @@ router.post("/client-send-message", async (req, res) => {
   if (!csession) return res.status(401).json({ error: "Authentication required" });
 
   if (!(await sessionMayAccessChild(csession.childId, child_id))) {
+    await auditClientScopeDenied(req, {
+      actorChildId: csession.childId,
+      targetChildId: child_id,
+      operation: "client_send_message",
+    });
     return res.status(403).json({ error: "Access denied" });
   }
 

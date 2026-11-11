@@ -11,6 +11,7 @@ import { validateClientSession, sessionMayAccessChild } from "./entities-helpers
 import { isParentDocument, canReadParentDocument, readParentDocumentBytes } from "../lib/parentDocuments";
 import { isValidFileEncryptionKey } from "../lib/documentEncryptionPolicy";
 import { clinicianCanAccessChild } from "../lib/clinicAuthorization";
+import { documentAccessRolesPermit } from "../lib/documentVisibility";
 
 const router = Router();
 
@@ -306,7 +307,8 @@ async function canReadDocument(
   if (req.mobileUser?.childId) {
     if (document.childId !== req.mobileUser.childId) return false;
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
-    return Boolean(child);
+    const viewerRole = req.mobileUser.experience === "parent" ? "parent" : "client";
+    return Boolean(child && documentAccessRolesPermit(document.accessRoles, viewerRole));
   }
   const legacyClientToken = typeof req.headers["x-client-token"] === "string"
     ? req.headers["x-client-token"]
@@ -315,7 +317,11 @@ async function canReadDocument(
       : undefined;
   if (allowLegacyInviteToken && legacyClientToken && document.childId) {
     const session = await validateClientSession(legacyClientToken);
-    return Boolean(session && await sessionMayAccessChild(session.childId, document.childId));
+    return Boolean(
+      session &&
+      await sessionMayAccessChild(session.childId, document.childId) &&
+      documentAccessRolesPermit(document.accessRoles, "client"),
+    );
   }
   return false;
 }

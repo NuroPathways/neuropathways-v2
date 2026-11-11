@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   auditLogsTable,
   behaviorLogsTable,
@@ -8,6 +10,9 @@ import {
   clientAccessCodeResetsTable,
   clientProfilesTable,
   clientSessionsTable,
+  clinicMembershipsTable,
+  clinicsTable,
+  clinicalAssignmentsTable,
   clinicianCredentialsTable,
   consentEventsTable,
   dailyCheckInsTable,
@@ -22,6 +27,7 @@ import {
   parentAccountsTable,
   parentChildSettingsTable,
   parentClinicInvitesTable,
+  parentClinicConsentsTable,
   parentDocumentsTable,
   parentFamilyToolsTable,
   parentLogsTable,
@@ -36,6 +42,7 @@ import {
 } from "@workspace/db";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { makeStarterCard } from "../src/lib/parentStarterLibrary";
+import { clinicianCanAccessChild } from "../src/lib/clinicAuthorization";
 
 type Auth =
   | { kind: "clinician"; token: string }
@@ -72,6 +79,7 @@ const testIpSuffix = crypto.randomInt(1, 255);
 const emailPrefix = `parent-link-${runKey}`;
 const fixture = {
   userIds: [] as string[],
+  clinicIds: [] as string[],
   clinicianTokens: [] as string[],
   parentTokens: [] as string[],
   familyIds: [] as string[],
@@ -83,12 +91,15 @@ const fixture = {
 
 let checks = 0;
 const failures: string[] = [];
+const checkResults: Array<{ name: string; status: "PASS" | "FAIL" }> = [];
 
 function check(name: string, condition: unknown, details = ""): void {
   checks += 1;
   if (condition) {
+    checkResults.push({ name, status: "PASS" });
     console.log(`PASS ${name}`);
   } else {
+    checkResults.push({ name, status: "FAIL" });
     const failure = details ? `${name}: ${details}` : name;
     failures.push(failure);
     console.error(`FAIL ${failure}`);
@@ -112,7 +123,7 @@ function required<T>(value: T | null | undefined, label: string): T {
 
 async function requestWithHeaders(
   path: string,
-  method: "GET" | "POST" | "PATCH",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   headers: Record<string, string> = {},
   body?: unknown,
 ): Promise<ApiResult> {
@@ -156,21 +167,61 @@ async function patch(path: string, auth: Auth, body: unknown): Promise<ApiResult
   return requestWithHeaders(path, "PATCH", headers, body);
 }
 
-async function registerClinician(label: string): Promise<{ id: string; auth: Auth }> {
+async function remove(path: string, auth: Auth): Promise<ApiResult> {
+  const headers: Record<string, string> = {};
+  if (auth.kind === "clinician") headers.Authorization = `Bearer ${auth.token}`;
+  if (auth.kind === "parent") headers["X-Parent-Token"] = auth.token;
+  return requestWithHeaders(path, "DELETE", headers);
+}
+
+async function seedActiveClinician(label: string): Promise<{ id: string; auth: Auth }> {
   const email = `${emailPrefix}-${label}@example.test`;
-  const response = await post("/mobile/clinician/register", undefined, {
+  const id = crypto.randomUUID();
+  const token = crypto.randomBytes(32).toString("hex");
+  const clinicId = crypto.randomUUID();
+  await db.insert(usersTable).values({
+    id,
     email,
-    password: "Fixture-Clinician-Password-44!",
     firstName: `Fixture ${label}`,
     lastName: "Clinician",
-    accountHolderType: "clinician",
-    accountHolderAgeGroup: "18_plus",
-    adultOrGuardianConfirmed: true,
   });
-  assert.equal(response.status, 201, `Clinician fixture registration failed: ${JSON.stringify(response.body)}`);
-  const id = required(response.body?.clinician?.id, `clinician ${label} id`);
-  const token = required(response.body?.token, `clinician ${label} session token`);
+  await db.insert(userProfilesTable).values({
+    id,
+    appRole: "clinician",
+    accountType: "clinician",
+    tenantId: id,
+    displayName: `Fixture ${label} Clinician`,
+  });
+  await db.insert(clinicsTable).values({
+    id: clinicId,
+    displayName: `Fixture ${label} Clinic`,
+    legacyTenantId: id,
+    status: "active",
+    createdBy: id,
+  });
+  await db.insert(clinicMembershipsTable).values({
+    clinicId,
+    userId: id,
+    role: "treating_clinician",
+    status: "active",
+    createdBy: id,
+  });
+  await db.insert(sessionsTable).values({
+    sid: token,
+    sess: {
+      user: {
+        id,
+        email,
+        firstName: `Fixture ${label}`,
+        lastName: "Clinician",
+        appRole: "clinician",
+      },
+      access_token: "synthetic-isolated-session",
+    },
+    expire: new Date(Date.now() + 60 * 60 * 1000),
+  });
   fixture.userIds.push(id);
+  fixture.clinicIds.push(clinicId);
   fixture.clinicianTokens.push(token);
   return { id, auth: { kind: "clinician", token } };
 }
@@ -325,9 +376,23 @@ async function cleanup(): Promise<void> {
   const documentIds = [...new Set(fixture.documentIds)];
   const userIds = [...new Set(fixture.userIds)];
   const inviteHashes = [...new Set(fixture.inviteHashes)];
+  const clinicIds = [...new Set(fixture.clinicIds)];
   const sessionIds = [...new Set(fixture.clinicianTokens)];
   try {
     await db.transaction(async (tx) => {
+      if (inviteHashes.length) {
+        await tx.delete(parentClinicInvitesTable).where(inArray(parentClinicInvitesTable.tokenHash, inviteHashes));
+      }
+      if (childIds.length || userIds.length) {
+        await tx.delete(clinicalAssignmentsTable).where(or(
+          childIds.length ? inArray(clinicalAssignmentsTable.clientId, childIds) : undefined,
+          userIds.length ? inArray(clinicalAssignmentsTable.userId, userIds) : undefined,
+        ));
+        await tx.delete(parentClinicConsentsTable).where(or(
+          childIds.length ? inArray(parentClinicConsentsTable.childId, childIds) : undefined,
+          userIds.length ? inArray(parentClinicConsentsTable.clinicianId, userIds) : undefined,
+        ));
+      }
       if (childIds.length) {
         await tx.delete(parentLogsTable).where(inArray(parentLogsTable.childId, childIds));
         await tx.delete(behaviorLogsTable).where(inArray(behaviorLogsTable.childId, childIds));
@@ -354,6 +419,13 @@ async function cleanup(): Promise<void> {
         await tx.delete(parentDocumentsTable).where(inArray(parentDocumentsTable.documentId, documentIds));
         await tx.delete(documentsTable).where(inArray(documentsTable.id, documentIds));
       }
+      if (clinicIds.length) {
+        await tx.delete(clinicMembershipsTable).where(inArray(clinicMembershipsTable.clinicId, clinicIds));
+        await tx.delete(clinicsTable).where(inArray(clinicsTable.id, clinicIds));
+      }
+      if (sessionIds.length) {
+        await tx.delete(sessionsTable).where(inArray(sessionsTable.sid, sessionIds));
+      }
       if (userIds.length) {
         await tx.delete(auditLogsTable).where(or(
           inArray(auditLogsTable.userId, userIds),
@@ -368,12 +440,6 @@ async function cleanup(): Promise<void> {
       }
       if (fixture.familyIds.length) {
         await tx.delete(familiesTable).where(inArray(familiesTable.id, [...new Set(fixture.familyIds)]));
-      }
-      if (sessionIds.length) {
-        await tx.delete(sessionsTable).where(inArray(sessionsTable.sid, sessionIds));
-      }
-      if (inviteHashes.length) {
-        await tx.delete(parentClinicInvitesTable).where(inArray(parentClinicInvitesTable.tokenHash, inviteHashes));
       }
     });
   } catch (error) {
@@ -393,8 +459,8 @@ async function run(): Promise<void> {
   });
   expectStatus(unauthenticatedAi, 401, "AI invocation rejects unauthenticated callers before handling file references");
 
-  const clinicianA = await registerClinician("clinic-a");
-  const clinicianB = await registerClinician("clinic-b");
+  const clinicianA = await seedActiveClinician("clinic-a");
+  const clinicianB = await seedActiveClinician("clinic-b");
   const parentA = await registerParent("parent-a", `Parent A ${runKey}`);
   const parentB = await registerParent("parent-b", `Parent B ${runKey}`);
   const unapprovedAiFile = await post("/ai/invoke-llm", parentA.auth, {
@@ -1073,6 +1139,125 @@ async function run(): Promise<void> {
   check("Settings-owner rejection never transfers or rewrites the other parent's settings", settingsAfter?.parentId === parentB.id && settingsAfter?.workspaceId === parentB.workspaceId);
   check("Settings-owner rejection leaves the requesting parent child unlinked", settingsSourceAfter?.clinicianId == null && settingsSourceAfter?.parentId === parentA.id);
 
+  const transferFamilyB = await createFamily(clinicianB.auth, `Transfer Family B ${runKey}`, parentA.email);
+  const transferChild = await createParentChild(parentA.auth, `Transfer Child ${runKey}`);
+  const transferDocumentId = await attachParentDocument(
+    parentA.id,
+    parentA.workspaceId,
+    transferChild.id,
+    `transfer-${runKey}`,
+  );
+  const inviteFromClinicA = await createInvite(clinicianA.auth, familyA, parentA.email);
+  const initialLink = await connect(parentA.auth, transferChild.id, inviteFromClinicA.inviteToken, "all");
+  expectStatus(initialLink, 200, "Parent approves initial clinic A connection and document sharing");
+  const [initialTransferMetadata] = await db.select().from(parentDocumentsTable)
+    .where(eq(parentDocumentsTable.documentId, transferDocumentId));
+  check("Clinic A receives only the document sharing the parent approved",
+    initialTransferMetadata?.sharedClinicianId === clinicianA.id);
+  check("Clinic A has active access before the parent disconnects",
+    await clinicianCanAccessChild(clinicianA.id, transferChild.id));
+
+  const disconnect = await remove(`/parent/children/${transferChild.id}/clinic-link`, parentA.auth);
+  expectStatus(disconnect, 200, "Parent can revoke the old clinic link");
+  const [disconnectedChild] = await db.select().from(childrenTable)
+    .where(eq(childrenTable.id, transferChild.id));
+  const [disconnectedDocument] = await db.select().from(documentsTable)
+    .where(eq(documentsTable.id, transferDocumentId));
+  const [disconnectedDocumentMetadata] = await db.select().from(parentDocumentsTable)
+    .where(eq(parentDocumentsTable.documentId, transferDocumentId));
+  const [revokedConsent] = await db.select().from(parentClinicConsentsTable).where(and(
+    eq(parentClinicConsentsTable.parentId, parentA.id),
+    eq(parentClinicConsentsTable.childId, transferChild.id),
+  ));
+  check("Disconnect removes old clinician and family linkage but preserves the child record",
+    disconnectedChild?.clinicianId == null && disconnectedChild?.familyId == null &&
+    disconnectedChild?.id === transferChild.id);
+  check("Disconnect revokes old document sharing without deleting its record or file reference",
+    disconnectedDocumentMetadata?.sharedClinicianId == null &&
+    disconnectedDocument?.tenantId === parentA.workspaceId &&
+    disconnectedDocument?.fileUrl === `fixture-only://${transferDocumentId}`);
+  check("Disconnect revokes parent consent for clinic A",
+    revokedConsent?.clinicianId === clinicianA.id &&
+    revokedConsent.revokedAt instanceof Date &&
+    revokedConsent.scopes.length === 0);
+  check("Former clinic loses access immediately after disconnect",
+    !(await clinicianCanAccessChild(clinicianA.id, transferChild.id)));
+
+  const inviteFromClinicB = await createInvite(clinicianB.auth, transferFamilyB, parentA.email);
+  check("New clinic cannot access the child before the parent approves its invitation",
+    !(await clinicianCanAccessChild(clinicianB.id, transferChild.id)));
+  const reconnectPreview = await linkPreview(parentA.auth, transferChild.id, inviteFromClinicB.inviteToken);
+  expectStatus(reconnectPreview, 200, "Parent can review the new clinic invitation");
+  const reconnect = await connect(parentA.auth, transferChild.id, inviteFromClinicB.inviteToken, "none");
+  expectStatus(reconnect, 200, "Parent can approve a new clinic connection without sharing documents");
+  const [reconnectedDocument] = await db.select().from(documentsTable)
+    .where(eq(documentsTable.id, transferDocumentId));
+  const [reconnectedMetadata] = await db.select().from(parentDocumentsTable)
+    .where(eq(parentDocumentsTable.documentId, transferDocumentId));
+  const [reconnectedConsent] = await db.select().from(parentClinicConsentsTable).where(and(
+    eq(parentClinicConsentsTable.parentId, parentA.id),
+    eq(parentClinicConsentsTable.childId, transferChild.id),
+  ));
+  check("After reconnection only clinic B has clinical access",
+    await clinicianCanAccessChild(clinicianB.id, transferChild.id) &&
+    !(await clinicianCanAccessChild(clinicianA.id, transferChild.id)));
+  check("Old document remains private after reconnecting with no sharing",
+    reconnectedMetadata?.sharedClinicianId == null &&
+    reconnectedDocument?.tenantId === parentA.workspaceId &&
+    reconnectedConsent?.clinicianId === clinicianB.id &&
+    reconnectedConsent.scopes.length === 0 &&
+    reconnectedConsent.revokedAt == null);
+
+  const transferAudits = await db.select().from(auditLogsTable).where(and(
+    eq(auditLogsTable.userId, parentA.id),
+    eq(auditLogsTable.targetId, transferChild.id),
+  ));
+  const transferAuditRows = transferAudits.filter((row) => [
+    "parent_clinic_link_revoked",
+    "parent_clinic_linked",
+    "parent_clinic_document_sharing_consent",
+  ].includes(row.action));
+  const revokeAudit = transferAuditRows.find((row) => row.action === "parent_clinic_link_revoked");
+  const clinicALinkAudit = transferAuditRows.find((row) =>
+    row.action === "parent_clinic_linked" &&
+    (row.metadata as any)?.clinicianId === clinicianA.id);
+  const clinicBLinkAudit = transferAuditRows.find((row) =>
+    row.action === "parent_clinic_linked" &&
+    (row.metadata as any)?.clinicianId === clinicianB.id);
+  check("Transfer produces genuine revoke and reconnect audit events naming both clinics",
+    revokeAudit?.success === true &&
+    (revokeAudit.metadata as any)?.clinicianId === clinicianA.id &&
+    clinicALinkAudit?.userId === parentA.id &&
+    clinicBLinkAudit?.userId === parentA.id);
+  check("Transfer audit timestamps are real and recent",
+    transferAuditRows.length >= 4 && transferAuditRows.every((row) =>
+      row.createdDate instanceof Date && Math.abs(Date.now() - row.createdDate.getTime()) < 60_000));
+  const transferAuditFile = process.env.NP_TEST_EVIDENCE_DIR;
+  if (transferAuditFile) {
+    await fs.writeFile(
+      path.join(transferAuditFile, "clinic-transfer-genuine-audit-events.json"),
+      `${JSON.stringify(transferAuditRows.map((row) => ({
+        id: row.id,
+        createdAt: row.createdDate instanceof Date ? row.createdDate.toISOString() : row.createdDate,
+        actorId: row.userId,
+        actorRole: row.userRole,
+        tenantId: row.tenantId,
+        action: row.action,
+        targetType: row.targetType,
+        targetId: row.targetId,
+        success: row.success,
+        reason: row.reason,
+        metadata: {
+          clinicianId: (row.metadata as any)?.clinicianId ?? null,
+          familyId: (row.metadata as any)?.familyId ?? null,
+          sharing: (row.metadata as any)?.sharing ?? null,
+          request_id: (row.metadata as any)?.request_id ?? null,
+        },
+      })), null, 2)}\n`,
+      { mode: 0o600 },
+    );
+  }
+
   const consentAudits = await db.select().from(auditLogsTable).where(and(
     eq(auditLogsTable.userId, parentA.id),
     eq(auditLogsTable.action, "parent_clinic_document_sharing_consent"),
@@ -1081,6 +1266,52 @@ async function run(): Promise<void> {
   check("Consent audit records include all/selected/none choices", ["all", "selected", "none"].every((mode) =>
     consentAudits.some((row) => (row.metadata as any)?.sharing === mode),
   ));
+  const evidenceDir = process.env.NP_TEST_EVIDENCE_DIR;
+  if (evidenceDir) {
+    await fs.mkdir(evidenceDir, { recursive: true, mode: 0o700 });
+    await fs.writeFile(
+      path.join(evidenceDir, "parent-link-consent-results.json"),
+      `${JSON.stringify({
+        recordedAt: new Date().toISOString(),
+        integration: "actual local API + isolated PostgreSQL",
+        apiHost: apiOrigin,
+        checks: checkResults,
+        totals: {
+          passed: checkResults.filter((item) => item.status === "PASS").length,
+          failed: checkResults.filter((item) => item.status === "FAIL").length,
+        },
+        consentModes: ["all", "selected", "none"].map((mode) => ({
+          mode,
+          auditCount: consentAudits.filter((row) => (row.metadata as any)?.sharing === mode).length,
+        })),
+      }, null, 2)}\n`,
+      { mode: 0o600 },
+    );
+    const sanitizedAudits = consentAudits.map((row) => ({
+      id: row.id,
+      createdAt: row.createdDate instanceof Date ? row.createdDate.toISOString() : row.createdDate,
+      actorId: row.userId,
+      actorRole: row.userRole,
+      tenantId: row.tenantId,
+      action: row.action,
+      targetType: row.targetType,
+      targetId: row.targetId,
+      success: row.success,
+      reason: row.reason,
+      metadata: {
+        sharing: (row.metadata as any)?.sharing,
+        request_id: (row.metadata as any)?.request_id,
+        child_id: (row.metadata as any)?.child_id,
+        clinician_id: (row.metadata as any)?.clinician_id,
+        document_count: (row.metadata as any)?.document_count,
+      },
+    }));
+    await fs.writeFile(
+      path.join(evidenceDir, "parent-link-consent-genuine-audit-events.json"),
+      `${JSON.stringify(sanitizedAudits, null, 2)}\n`,
+      { mode: 0o600 },
+    );
+  }
 
   const inviteRows = fixture.inviteHashes.length
     ? await db.select().from(parentClinicInvitesTable).where(inArray(parentClinicInvitesTable.tokenHash, fixture.inviteHashes))
@@ -1088,6 +1319,26 @@ async function run(): Promise<void> {
   check("New invite tokens are stored only as hashes", inviteRows.every((row) =>
     !fixture.inviteTokens.includes(row.tokenHash) && /^[a-f0-9]{64}$/.test(row.tokenHash),
   ));
+  if (evidenceDir) {
+    await fs.writeFile(
+      path.join(evidenceDir, "parent-link-consent-results.json"),
+      `${JSON.stringify({
+        recordedAt: new Date().toISOString(),
+        integration: "actual local API + isolated PostgreSQL",
+        apiHost: apiOrigin,
+        checks: checkResults,
+        totals: {
+          passed: checkResults.filter((item) => item.status === "PASS").length,
+          failed: checkResults.filter((item) => item.status === "FAIL").length,
+        },
+        consentModes: ["all", "selected", "none"].map((mode) => ({
+          mode,
+          auditCount: consentAudits.filter((row) => (row.metadata as any)?.sharing === mode).length,
+        })),
+      }, null, 2)}\n`,
+      { mode: 0o600 },
+    );
+  }
 
   assert.equal(failures.length, 0, `${failures.length} parent-link integration regression(s) failed`);
 }
