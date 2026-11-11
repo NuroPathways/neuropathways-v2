@@ -26,6 +26,7 @@ import type {
 
 import type {
   ActivityRecommendationReviewInput,
+  AiChatInput,
   CareActivity,
   CareAssignmentInput,
   CareGoal,
@@ -4243,6 +4244,95 @@ export const useParentChat = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getParentChatMutationOptions(options), queryClient);
+    }
+
+export const getAiChatUrl = () => {
+
+
+
+
+  return `/api/ai/chat`
+}
+
+/**
+ * Accepts only the target child, current message, bounded prior chat text, and a server-interpreted chat mode. System prompts, actor roles, document IDs, and conversation IDs are not client inputs.
+ * @summary Ask a question using server-authorized child context
+ */
+export const aiChat = async (aiChatInput: AiChatInput, options?: Parameters<typeof customFetch>[1]): Promise<ParentChatResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ParentChatResult>(getAiChatUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(aiChatInput)
+  }
+);}
+
+
+
+
+
+export const getAiChatMutationKey = () => ['aiChat'] as const;
+
+export const getAiChatMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiChat>>, TError,AiChatMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof aiChat>>, TError,AiChatMutationVariables, TContext> => {
+
+const mutationKey = getAiChatMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof aiChat>>, AiChatMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  aiChat(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AiChatMutationResult = NonNullable<Awaited<ReturnType<typeof aiChat>>>
+    export type AiChatMutationBody = BodyType<AiChatInput>
+    export type AiChatMutationError = ErrorType<void>
+    export type AiChatMutationVariables = {data: BodyType<AiChatInput>}
+
+    /**
+ * @summary Ask a question using server-authorized child context
+ */
+export const useAiChat = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiChat>>, TError,AiChatMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof aiChat>>,
+        TError,
+        AiChatMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAiChatMutationOptions(options), queryClient);
     }
 
 export const getCreateParentClinicInviteUrl = () => {

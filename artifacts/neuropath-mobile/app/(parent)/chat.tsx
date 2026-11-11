@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View } from "react-native";
-import { parentChat } from "@workspace/api-client-react";
+import { aiChat } from "@workspace/api-client-react";
 import type { ParentChatResult } from "@workspace/api-client-react";
 import { Btn, Card, ErrorBox, Field, H, Screen, T, msg } from "@/components/ParentUi";
 import { useParent } from "@/context/ParentContext";
@@ -21,7 +21,10 @@ export default function Chat() {
     if (!message || !child) return;
     setBusy(true); setError("");
     try {
-      const a = await parentChat(child.id, { message }, opts);
+      const priorMessages = turns.slice(0, 4).reverse()
+        .flatMap((turn) => [turn.q, turn.a?.answer].filter((value): value is string => Boolean(value)))
+        .slice(-8);
+      const a = await aiChat({ childId: child.id, message, priorMessages, mode: "chat" }, opts);
       setTurns((t) => [{ q: message, a }, ...t]);
       setText("");
     } catch (e) { setError(msg(e, "The answer could not load.")); } finally { setBusy(false); }

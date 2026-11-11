@@ -1381,15 +1381,66 @@ export interface ParentDocumentSharingInput {
   shared: boolean;
 }
 
+export type ParentChatInputMode = typeof ParentChatInputMode[keyof typeof ParentChatInputMode];
+
+
+export const ParentChatInputMode = {
+  chat: 'chat',
+  help_now: 'help_now',
+} as const;
+
 export interface ParentChatInput {
   /** @minLength 1 */
   message: string;
+  /**
+     * @maxItems 8
+     * @items.maxLength 2000
+     */
+  priorMessages?: string[];
+  mode?: ParentChatInputMode;
 }
+
+export type AiChatInputMode = typeof AiChatInputMode[keyof typeof AiChatInputMode];
+
+
+export const AiChatInputMode = {
+  chat: 'chat',
+  help_now: 'help_now',
+} as const;
+
+export interface AiChatInput {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  childId: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  message: string;
+  /**
+     * @maxItems 8
+     * @items.maxLength 2000
+     */
+  priorMessages?: string[];
+  mode?: AiChatInputMode;
+}
+
+export type ParentChatResultOutcome = typeof ParentChatResultOutcome[keyof typeof ParentChatResultOutcome];
+
+
+export const ParentChatResultOutcome = {
+  success: 'success',
+  safety_fallback: 'safety_fallback',
+  service_fallback: 'service_fallback',
+} as const;
 
 export interface ParentChatResult {
   answer: string;
   sourceReferences: SourceReference[];
   disclaimer: string;
+  outcome: ParentChatResultOutcome;
 }
 
 export interface ParentClinicInviteInput {

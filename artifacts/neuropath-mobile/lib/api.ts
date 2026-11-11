@@ -96,12 +96,16 @@ for (const [name, path] of Object.entries(MOBILE_PATHS)) {
   };
 }
 
-export async function invokeAI(prompt: string, childId: string): Promise<string> {
-  const result = await apiFetch("/ai/invoke-llm", {
+export async function chatSupport(
+  childId: string,
+  message: string,
+  priorMessages: string[] = [],
+  mode: "chat" | "help_now" = "chat",
+): Promise<{ answer: string; sourceReferences: any[]; disclaimer: string; outcome: string }> {
+  return apiFetch("/ai/chat", {
     method: "POST",
-    body: JSON.stringify({ prompt, model: "claude-opus-4-5", child_id: childId }),
+    body: JSON.stringify({ childId, message, priorMessages, mode }),
   });
-  return result?.content?.[0]?.text ?? result?.text ?? JSON.stringify(result);
 }
 
 export async function storeToken(token: string) {

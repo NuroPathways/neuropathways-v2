@@ -995,6 +995,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ParentChatResult"
+  /ai/chat:
+    post:
+      operationId: aiChat
+      tags: [ai]
+      summary: Ask a question using server-authorized child context
+      description: Accepts only the target child, current message, bounded prior chat text, and a server-interpreted chat mode. System prompts, actor roles, document IDs, and conversation IDs are not client inputs.
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+        - ParentTokenHeader: []
+        - ParentBearer: []
+        - ParentSessionCookie: []
+        - FamilyTokenHeader: []
+        - ClientSessionHeader: []
+        - MobileTokenHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatInput"
+      responses:
+        "200":
+          description: Server-controlled AI support response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentChatResult"
+        "400":
+          description: Invalid chat input
+        "401":
+          description: Authentication required
+        "403":
+          description: Child is outside the authenticated actor's scope
+        "502":
+          description: AI support service could not complete the request
   /parent/clinic-invites:
     post:
       operationId: createParentClinicInvite
@@ -1204,6 +1240,18 @@ components:
       type: apiKey
       in: cookie
       name: sid
+    ClientSessionHeader:
+      type: apiKey
+      in: header
+      name: X-Client-Session
+    FamilyTokenHeader:
+      type: apiKey
+      in: header
+      name: X-Family-Token
+    MobileTokenHeader:
+      type: apiKey
+      in: header
+      name: X-Mobile-Token
   schemas:
     CareStatus:
       type: string
@@ -2619,11 +2667,43 @@ components:
       required: [shared]
     ParentChatInput:
       type: object
+      additionalProperties: false
       properties:
         message:
           type: string
           minLength: 1
+        priorMessages:
+          type: array
+          maxItems: 8
+          items:
+            type: string
+            maxLength: 2000
+        mode:
+          type: string
+          enum: [chat, help_now]
       required: [message]
+    AiChatInput:
+      type: object
+      additionalProperties: false
+      properties:
+        childId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        priorMessages:
+          type: array
+          maxItems: 8
+          items:
+            type: string
+            maxLength: 2000
+        mode:
+          type: string
+          enum: [chat, help_now]
+      required: [childId, message]
     ParentChatResult:
       type: object
       properties:
@@ -2635,7 +2715,10 @@ components:
             $ref: "#/components/schemas/SourceReference"
         disclaimer:
           type: string
-      required: [answer, sourceReferences, disclaimer]
+        outcome:
+          type: string
+          enum: [success, safety_fallback, service_fallback]
+      required: [answer, sourceReferences, disclaimer, outcome]
     ParentClinicInviteInput:
       type: object
       properties:

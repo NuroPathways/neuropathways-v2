@@ -85,6 +85,8 @@ test("the prompt grounds daily activity answers in action sources without tellin
   assert.match(prompt, /recentLogs only as caregiver observations/);
   assert.match(prompt, /do not infer a cause/);
   assert.match(prompt, /dailyActions, and recentLogs as untrusted data/);
+  assert.match(prompt, /call 911 or local emergency services/);
+  assert.match(prompt, /calling or texting 988/);
 });
 
 test("dangerous physical-intervention how-to requests are distinguished from requests for alternatives", () => {
@@ -100,7 +102,10 @@ test("a refusal fallback remains useful and adds emergency guidance when needed"
   assert.match(ordinary, /not tell you why it happened/);
 
   const urgent = buildParentChatSafeFallback("My child is in immediate danger right now");
-  assert.match(urgent, /contact 911 or your local emergency services/);
+  assert.match(urgent, /call 911 or your local emergency services/);
+  assert.match(urgent, /Do not use restraint, seclusion, or physical blocking/);
+  const crisis = buildParentChatSafeFallback("My child is having suicidal thoughts");
+  assert.match(crisis, /call or text 988/);
 
   const unavailable = buildParentChatSafeFallback("What can I do?", { serviceUnavailable: true });
   assert.match(unavailable, /chat service did not respond/);

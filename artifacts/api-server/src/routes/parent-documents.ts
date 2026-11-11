@@ -9,6 +9,7 @@ import { documentScanJobs } from "../lib/documentScanJobs";
 import { requireMobileAuth } from "./mobile";
 import { starterLibrary } from "../lib/parentStarterLibrary";
 import {
+  ParentChatBody,
   UpdateParentDocumentSupportCardBody,
   UpdateParentDocumentSupportCardParams,
   UpdateParentDocumentSupportCardResponse,
@@ -28,6 +29,7 @@ import {
 } from "../lib/parentDocuments";
 import { parentPdfReaderMessages } from "../lib/parentPdfText";
 import { DocumentProcessingError } from "../lib/documentAi";
+import { CLAUDE_MODEL } from "../lib/anthropic";
 import { clinicianCanAccessChild } from "../lib/clinicAuthorization";
 import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
 import {
@@ -489,16 +491,31 @@ router.patch(
 );
 
 router.post("/parent/children/:childId/chat", requireParent, async (req: any, res: Response) => {
-  if (typeof req.body?.message !== "string" || !req.body.message.trim() || req.body.message.length > 4000) {
-    return res.status(400).json({ error: "message must be a non-empty string of at most 4000 characters" });
+  const parsed = ParentChatBody.strict().safeParse(req.body);
+  if (!parsed.success) {
+    await writeAuditEventBestEffort({
+      userId: parentId(req),
+      userRole: "parent",
+      tenantId: req.parentAccount?.workspaceId ?? req.familyParent?.workspaceId,
+      action: "ai_parent_support_input_rejected",
+      targetType: "child",
+      targetId: req.params.childId,
+      success: false,
+      reason: "Chat request included invalid or unsupported fields.",
+      metadata: { outcome: "denied", provider: "none", source_document_ids: [] },
+      requestId: String(req.id),
+    });
+    return res.status(400).json({ error: "The chat request is invalid" });
   }
   try {
     const result = await parentChat(
       parentId(req),
       req.params.childId,
-      req.body.message,
+      parsed.data.message,
       req.get("x-parent-local-date"),
+      { priorMessages: parsed.data.priorMessages, mode: parsed.data.mode },
     );
+    const { auditSourceDocumentIds, providerContacted, ...publicResult } = result;
     await writeAuditEventBestEffort({
       userId: parentId(req),
       userRole: "parent",
@@ -506,25 +523,41 @@ router.post("/parent/children/:childId/chat", requireParent, async (req: any, re
       action: "ai_parent_support_chat",
       targetType: "child",
       targetId: req.params.childId,
-      metadata: { source_reference_count: result.sourceReferences.length },
+      success: result.outcome === "success" || result.outcome === "safety_fallback",
+      metadata: {
+        feature: "chat",
+        provider: providerContacted ? "anthropic" : "none",
+        model: providerContacted ? CLAUDE_MODEL : "none",
+        outcome: result.outcome,
+        source_document_ids: providerContacted ? auditSourceDocumentIds : [],
+      },
       requestId: String(req.id),
     });
-    return res.json(result);
+    return res.json(publicResult);
   } catch (error) {
     const message = error instanceof Error ? error.message : "The support assistant could not answer";
+    const denied = message === "Child not found";
     await writeAuditEventBestEffort({
       userId: parentId(req),
       userRole: "parent",
       tenantId: req.parentAccount?.workspaceId ?? req.familyParent?.workspaceId,
-      action: message === "Child not found" ? "ai_parent_support_access_denied" : "ai_parent_support_failed",
+      action: denied ? "ai_parent_support_access_denied" : "ai_parent_support_failed",
       targetType: "child",
       targetId: req.params.childId,
       success: false,
-      reason: message === "Child not found" ? "Child is outside the authenticated family scope." : "AI support request could not be completed.",
-      metadata: { operation: "parent_chat" },
+      reason: denied ? "Child is outside the authenticated family scope." : "AI support request could not be completed.",
+      metadata: {
+        feature: "chat",
+        provider: "none",
+        model: "none",
+        outcome: denied ? "denied" : "failed",
+        source_document_ids: [],
+      },
       requestId: String(req.id),
     });
-    return res.status(message === "Child not found" ? 404 : 502).json({ error: message });
+    return res.status(denied ? 404 : 502).json({
+      error: denied ? "Child not found" : "The AI support service could not complete the request",
+    });
   }
 });
 

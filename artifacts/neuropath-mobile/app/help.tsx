@@ -13,8 +13,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
-import { entities, invokeAI } from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
+import { chatSupport } from "@/lib/api";
 
 const QUICK_BEHAVIORS = [
   "Aggression",
@@ -35,12 +34,6 @@ export default function HelpScreen() {
   const [guidance, setGuidance] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { data: plans = [] } = useQuery({
-    queryKey: ["behavior-plans", childId],
-    queryFn: () => entities.BehaviorPlan.filter({ childId }).catch(() => []),
-    enabled: !!childId,
-  });
-
   const getHelp = async (behavior: string) => {
     setSelected(behavior);
     setGuidance(null);
@@ -49,32 +42,13 @@ export default function HelpScreen() {
 
     try {
       if (!childId) throw new Error("The signed-in client could not be verified.");
-      const planContext =
-        plans.length > 0
-          ? `\n\nBehavior plans for ${user?.child_name ?? "this client"}:\n${plans
-              .slice(0, 3)
-              .map(
-                (p: any) =>
-                  `- ${p.behaviorName ?? p.behavior_name ?? "Plan"}: strategies: ${
-                    p.interventionStrategies ?? p.intervention_strategies ?? "none"
-                  }`
-              )
-              .join("\n")}`
-          : "";
-
-      const prompt = `You are NeuroPath AI, an emergency behavioral support assistant. The client ${
-        user?.child_name ?? ""
-      } is currently experiencing ${behavior}.${planContext}
-
-Provide immediate, step-by-step guidance for this situation. Format as:
-1. Immediate steps (2-3 bullet points)
-2. De-escalation strategies (2-3 bullet points)  
-3. When to seek additional help
-
-Keep it concise, practical, and calming.`;
-
-      const reply = await invokeAI(prompt, childId);
-      setGuidance(reply);
+      const result = await chatSupport(
+        childId,
+        `I need help now with ${behavior}. What is one safe next step?`,
+        [],
+        "help_now",
+      );
+      setGuidance(result.answer);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       setGuidance("Unable to load guidance right now. Please contact your clinician directly.");

@@ -5,8 +5,15 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ParentChatInputMode } from './parentChatInputMode';
 
 export interface ParentChatInput {
   /** @minLength 1 */
   message: string;
+  /**
+     * @maxItems 8
+     * @items.maxLength 2000
+     */
+  priorMessages?: string[];
+  mode?: ParentChatInputMode;
 }

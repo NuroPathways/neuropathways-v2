@@ -401,14 +401,14 @@ async function run(): Promise<void> {
     prompt: "test",
     file_urls: ["/api/uploads/private-document.pdf"],
   });
-  expectStatus(unapprovedAiFile, 400, "AI invocation refuses unverified file paths for an authenticated parent");
+  expectStatus(unapprovedAiFile, 410, "The retired generic AI endpoint refuses browser-supplied file references");
   const independentChild = await createParentChild(parentA.auth, `Independent ${runKey}`);
-  const unscopedAiPrompt = await post("/ai/invoke-llm", parentA.auth, {
-    prompt: "Use information from any client record I mention.",
-    child_id: independentChild.id,
-    source_document_ids: [crypto.randomUUID()],
+  const forgedAiDocumentScope = await post("/ai/chat", parentA.auth, {
+    childId: independentChild.id,
+    message: "Summarize the authorized plan.",
+    sourceDocumentIds: [crypto.randomUUID()],
   });
-  expectStatus(unscopedAiPrompt, 403, "AI invocation refuses a source document outside the selected child's authorized scope");
+  expectStatus(forgedAiDocumentScope, 400, "Scoped AI chat rejects browser-supplied document IDs");
   const parentOwnedGoalId = crypto.randomUUID();
   await db.insert(rewardTokensTable).values({
     id: parentOwnedGoalId,

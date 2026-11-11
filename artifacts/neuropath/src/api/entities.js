@@ -149,11 +149,17 @@ export const auth = {
 
 export const integrations = {
   Core: {
-    InvokeLLM: async ({ prompt, model, invite_token, child_id, source_document_ids }) =>
-      apiFetch("/ai/invoke-llm", {
+    Chat: async ({ child_id, message, prior_messages = [], client_session_token, client_session_type, mode = "chat" }) => {
+      const familySessionTypes = new Set(["legacy_family", "family", "parent_family", "parent", "caregiver", "independent"]);
+      const sessionHeader = familySessionTypes.has(client_session_type)
+        ? "X-Family-Token"
+        : "X-Client-Session";
+      return apiFetch("/ai/chat", {
         method: "POST",
-        body: JSON.stringify({ prompt, model, invite_token, child_id, source_document_ids }),
-      }),
+        headers: client_session_token ? { [sessionHeader]: client_session_token } : {},
+        body: JSON.stringify({ childId: child_id, message, priorMessages: prior_messages, mode }),
+      });
+    },
     UploadFile: async ({ file }) => {
       const formData = new FormData();
       formData.append("file", file);

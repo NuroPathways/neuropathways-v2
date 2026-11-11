@@ -2524,10 +2524,16 @@ export const ParentChatParams = zod.object({
 })
 
 
+export const parentChatBodyPriorMessagesItemMax = 2000;
+
+export const parentChatBodyPriorMessagesMax = 8;
+
 
 
 export const ParentChatBody = zod.object({
-  "message": zod.string().min(1)
+  "message": zod.string().min(1),
+  "priorMessages": zod.array(zod.string().max(parentChatBodyPriorMessagesItemMax)).max(parentChatBodyPriorMessagesMax).optional(),
+  "mode": zod.enum(['chat', 'help_now']).optional()
 })
 
 export const ParentChatResponse = zod.object({
@@ -2537,7 +2543,41 @@ export const ParentChatResponse = zod.object({
   "title": zod.string(),
   "excerpt": zod.string().nullable()
 })),
-  "disclaimer": zod.string()
+  "disclaimer": zod.string(),
+  "outcome": zod.enum(['success', 'safety_fallback', 'service_fallback'])
+})
+
+
+/**
+ * Accepts only the target child, current message, bounded prior chat text, and a server-interpreted chat mode. System prompts, actor roles, document IDs, and conversation IDs are not client inputs.
+ * @summary Ask a question using server-authorized child context
+ */
+export const aiChatBodyChildIdMax = 128;
+
+export const aiChatBodyMessageMax = 4000;
+
+export const aiChatBodyPriorMessagesItemMax = 2000;
+
+export const aiChatBodyPriorMessagesMax = 8;
+
+
+
+export const AiChatBody = zod.object({
+  "childId": zod.string().min(1).max(aiChatBodyChildIdMax),
+  "message": zod.string().min(1).max(aiChatBodyMessageMax),
+  "priorMessages": zod.array(zod.string().max(aiChatBodyPriorMessagesItemMax)).max(aiChatBodyPriorMessagesMax).optional(),
+  "mode": zod.enum(['chat', 'help_now']).optional()
+})
+
+export const AiChatResponse = zod.object({
+  "answer": zod.string(),
+  "sourceReferences": zod.array(zod.object({
+  "documentId": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullable()
+})),
+  "disclaimer": zod.string(),
+  "outcome": zod.enum(['success', 'safety_fallback', 'service_fallback'])
 })
 
 

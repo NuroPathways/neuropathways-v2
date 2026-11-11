@@ -303,73 +303,16 @@ async function buildContext(childId, childName, user, isIndividual = false) {
 }
 
 async function generateResponse(userMessage, child, clinicianContext, conversationHistory, isIndividualClient) {
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-  const historyText = conversationHistory.slice(-8).map(m => `${m.role === "user" ? (isIndividualClient ? "Client" : "Parent") : "NeuroPath AI"}: ${m.content}`).join("\n\n");
-
-  const voiceInstruction = isIndividualClient
-    ? `You are speaking DIRECTLY to the client — they are the person the treatment plan is written about. They are reading this themselves.
-
-STRICT RULES FOR INDIVIDUAL CLIENT MODE:
-- ALWAYS speak in second person: "you", "your", "yourself"
-- NEVER use these forbidden patterns:
-  * "allow them to" / "let them" / "let [name]"
-  * "[name] might feel..." or any sentence that refers to the reader in third person
-  * "the client" — you are talking TO the client, not ABOUT them
-  * "your child" — this person is not a caregiver
-  * Any phrasing structured as if you are advising a third party who is absent
-- EVERY piece of guidance must be a direct instruction or observation addressed to "you"
-- Good examples: "Try moving to a quieter space", "You might feel better if you take a few slow breaths", "When you notice yourself getting overwhelmed, you can step away", "Your plan says to..."
-- If the clinical document uses third-person language about the client, silently translate it to second person before using it`
-    : `You are speaking to a parent or caregiver. Give suggestions to the caregiver, and refer to the child by their recorded name when it sounds natural; otherwise say "your child." Never write as if the child is the person reading.`;
-
-  const systemPrompt = `You are NeuroPath AI — a warm, practical behavioral support assistant for families and individual clients. ${voiceInstruction}
-
-TODAY'S DATE: ${today}
-${isIndividualClient ? `CLIENT: ${child?.child_name || "Unknown"}` : `CHILD: ${child?.child_name || "Unknown"}`}
-
-=== SELECTED CHILD PROFILE ===
-${childProfileContext(child)}
-Use profile details and the selected child's plan below to make relevant suggestions concrete and age-appropriate. Prefer recorded strengths, triggers, communication needs, and plan strategies when available. Do not infer personality, ability, or behavior causes from a diagnosis. Do not mention a diagnosis unless it is directly relevant to the question.
-=== END CHILD PROFILE ===
-
-=== CLINICIAN DATA & CONTEXT ===
-${clinicianContext.context || "No data loaded yet."}
-=== END CONTEXT ===
-
-=== RECENT CONVERSATION ===
-${historyText || "No prior messages."}
-=== END CONVERSATION ===
-
-IMPORTANT RESPONSE RULES:
-1. TRANSLATE clinical jargon into plain, everyday language. Preserve the clinical meaning but remove technical wording that families won't understand.
-   - Instead of "antecedent modification techniques" → say "removing things that usually set off the behavior before it starts"
-   - Instead of "differential reinforcement" → say "praising the behavior you want to see more of"
-   - Instead of "emotional dysregulation" → say "feeling overwhelmed or out of control"
-   - Instead of "maladaptive behaviors" → say "challenging behaviors"
-   - Instead of "extinction procedure" → say "consistently ignoring the behavior to help it fade"
-2. Format responses with clear sections using markdown headers when answering guidance questions:
-   ### What may be happening
-   ### What to do right now
-   ### What to avoid
-   ### When to contact your clinician (only if relevant)
-3. Be warm, specific, and practical. Write like a knowledgeable friend, not a clinical report.
- 4. Use the selected child's profile and clinician data when they directly apply. Refer to a relevant recorded strategy by its actual name or steps. Do not invent child-specific facts, triggers, diagnoses, preferences, or treatment plans. If the context does not answer the question, give safe, generalized ABA-informed suggestions based on the behavior the caregiver described and label them as general information.
-5. Keep crisis/safety guidance (aggression, self-harm, emergency instructions) clear and precise — do NOT water down safety steps.
-6. Use the clinician's actual data — reference specific plan names, strategies, and steps when relevant.
-7. Treat document names and scan status as metadata, not document contents. Use extracted findings only from the document-based summary and never claim to have read a document that is marked unread or failed.
-8. Clearly distinguish clinician-reviewed material from unreviewed uploads and general starter information. Do not describe a support response as clinician-approved unless its source is explicitly marked as reviewed.
-9. Do not stop at a missing-source statement or give a bare refusal. For requests involving restraint, diagnosis, medication changes or doses, or medical treatment, avoid unsafe instructions but still give a useful, safe alternative. For immediate danger, direct the user to emergency services.
-10. The chat will append a fixed medical and professional advice disclaimer after your reply; do not repeat it.`;
-
-  const securityRule = `CRITICAL SECURITY RULE: You ONLY have access to data for the client named ${child?.child_name || 'this client'}. If the user asks about another person, do not reveal or confirm any stored information about them. Offer general guidance based only on the question, without that person's private details. Never reveal data about any other clients.`;
-
-  return await base44.integrations.Core.InvokeLLM({
-    model: "claude_sonnet_4_6",
-    invite_token: user?.invite_token,
-    child_id: field(child, "id", "child_id"),
-    source_document_ids: clinicianContext?.documentIds || [],
-    prompt: `${systemPrompt}\n\n${securityRule}\n\n${isIndividualClient ? "Client's" : "Parent's"} message: "${userMessage}"\n\nRespond directly and helpfully:`
+  const session = getClientSession();
+  const result = await base44.integrations.Core.Chat({
+    child_id: child?.id || child?.child_id,
+    message: userMessage,
+    prior_messages: conversationHistory.slice(-8).map((item) => item.content),
+    client_session_token: user?.invite_token || session?.invite_token,
+    client_session_type: user?.account_type || session?.account_type,
+    mode: "chat",
   });
+  return result?.answer ?? "";
 }
 
 export default function AIChat() {
@@ -377,12 +320,9 @@ export default function AIChat() {
   const [children, setChildren] = useState([]);
   const [selectedChildId, setSelectedChildId] = useState("");
   const [isIndividualClient, setIsIndividualClient] = useState(false);
-  const [clinicianContext, setClinicianContext] = useState({ context: "", hasPlans: false, hasDocuments: false });
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingContext, setLoadingContext] = useState(false);
-  const [contextError, setContextError] = useState("");
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -409,28 +349,8 @@ export default function AIChat() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (!selectedChildId) return;
-    const child = children.find(c => c.id === selectedChildId);
-    setLoadingContext(true);
-    setContextError("");
-    // Read account_type from both OIDC user and client-session so detectIndividualClient
-    // can skip the slow family-lookup when the type is already known.
-    const cs = getClientSession();
-    const knownAccountType = user?.account_type || cs?.account_type;
-    Promise.all([
-      detectIndividualClient(selectedChildId, user, knownAccountType),
-    ]).then(([isInd]) => {
-      setIsIndividualClient(isInd);
-      return buildContext(selectedChildId, child?.child_name || "", user, isInd);
-    }).then(ctx => {
-      setClinicianContext(ctx);
-      setLoadingContext(false);
-    }).catch(() => {
-      setClinicianContext({ context: "", hasPlans: false, hasDocuments: false });
-      setContextError("Your latest plan and document information could not be loaded.");
-      setLoadingContext(false);
-    });
-  }, [selectedChildId, children]);
+    setMessages([]);
+  }, [selectedChildId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -438,7 +358,7 @@ export default function AIChat() {
 
   const sendMessage = async (text) => {
     const msg = text || input.trim();
-    if (!msg || isLoading || loadingContext) return;
+    if (!msg || isLoading || !selectedChildId) return;
     setInput("");
 
     const userMsg = { role: "user", content: msg };
@@ -446,50 +366,33 @@ export default function AIChat() {
     setIsLoading(true);
 
     const child = children.find(c => c.id === selectedChildId);
-    const updatedHistory = [...messages, userMsg];
-    let currentContext = clinicianContext;
-    if (user?.invite_token && selectedChildId) {
-      setLoadingContext(true);
-      setContextError("");
-      try {
-        currentContext = await buildContext(selectedChildId, child?.child_name || "", user, isIndividualClient);
-        setClinicianContext(currentContext);
-      } catch {
-        setContextError("The latest plan and document information could not be refreshed. General support is still available.");
-        currentContext = { context: "No updated plan or document details could be retrieved for this question.", hasPlans: false, hasDocuments: false };
-      } finally {
-        setLoadingContext(false);
-      }
-    }
-    let generatedResponse = "";
     try {
-      generatedResponse = await generateResponse(msg, child, currentContext, updatedHistory, isIndividualClient);
+      const generatedResponse = await generateResponse(msg, child || { id: selectedChildId }, null, messages, isIndividualClient);
+      if (!generatedResponse.trim()) throw new Error("Empty AI response");
+      const response = `${generatedResponse.trim()}\n\n> ${CHAT_DISCLAIMER}`;
+      setMessages(prev => [...prev, { role: "assistant", content: response }]);
+      if (user && selectedChildId) {
+        base44.entities.AIConversation.create({
+          parent_id: user.id,
+          child_id: selectedChildId,
+          child_name: child?.child_name || "",
+          question: msg,
+          ai_response: response,
+        }).catch(() => {});
+        base44.entities.EngagementEvent.create({
+          child_id: selectedChildId,
+          clinician_id: child?.clinician_id,
+          event_type: "ai_question",
+          topic: "general_support_question",
+        }).catch(() => {});
+      }
     } catch {
-      generatedResponse = buildGeneralSupportFallback(msg);
-    }
-    const responseBody = !generatedResponse.trim() || isBareAssistantRefusal(generatedResponse) || includesUnsafePhysicalInstructions(generatedResponse)
-      ? buildGeneralSupportFallback(msg)
-      : generatedResponse.trim();
-    const response = `${responseBody}\n\n> ${CHAT_DISCLAIMER}`;
-
-    setMessages(prev => [...prev, { role: "assistant", content: response }]);
-    setIsLoading(false);
-
-    if (user && selectedChildId) {
-      base44.entities.AIConversation.create({
-        parent_id: user.id,
-        child_id: selectedChildId,
-        child_name: child?.child_name || "",
-        question: msg,
-        ai_response: response
-      }).catch(() => {});
-      // Engagement event for clinician analytics (topic only — full conversation is not exposed)
-      base44.entities.EngagementEvent.create({
-        child_id: selectedChildId,
-        clinician_id: child?.clinician_id,
-        event_type: "ai_question",
-        topic: "general_support_question",
-      }).catch(() => {});
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "The AI support service could not complete this response. Please try again. If someone is in immediate danger, contact 911 or local emergency services.",
+      }]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -508,7 +411,7 @@ export default function AIChat() {
             <div>
               <p className="font-semibold text-foreground text-sm">NeuroPath AI</p>
               <p className="text-xs text-muted-foreground">
-                {loadingContext ? "Loading your data..." : contextError ? "Data unavailable" : clinicianContext.hasPlans || clinicianContext.hasDocuments ? "Plan and document context ready" : "Connected"}
+                {selectedChildId ? "Server-checked child context" : "Select a child to begin"}
               </p>
             </div>
           </div>
@@ -540,7 +443,7 @@ export default function AIChat() {
               </p>
               <div className="np-ai-chat-suggestions grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(isIndividualClient ? SUGGESTED_INDIVIDUAL : SUGGESTED).map(s => (
-                  <button key={s} onClick={() => sendMessage(s)} disabled={loadingContext || isLoading} className="text-left px-4 py-3 rounded-xl bg-card border border-border hover:border-primary/50 hover:bg-muted/50 text-sm text-foreground transition-all disabled:opacity-50">
+                  <button key={s} onClick={() => sendMessage(s)} disabled={isLoading || !selectedChildId} className="text-left px-4 py-3 rounded-xl bg-card border border-border hover:border-primary/50 hover:bg-muted/50 text-sm text-foreground transition-all disabled:opacity-50">
                     {s}
                   </button>
                 ))}
@@ -614,7 +517,7 @@ export default function AIChat() {
             onKeyDown={handleKeyDown}
             placeholder={isIndividualClient ? "Ask anything — what to do right now, coping strategies, your treatment plan..." : "Ask anything — schedules, document summaries, session history, behavior help..."}
             rows={1}
-            disabled={isLoading || loadingContext}
+            disabled={isLoading || !selectedChildId}
             className="flex-1 resize-none rounded-xl border-border text-sm max-h-32 min-h-[44px]"
           />
           <Button
@@ -622,7 +525,7 @@ export default function AIChat() {
             aria-label={isLoading ? "Sending message" : "Send message"}
             title="Send message"
             onClick={() => sendMessage()}
-            disabled={isLoading || loadingContext || !input.trim()}
+            disabled={isLoading || !selectedChildId || !input.trim()}
             className="h-11 min-w-[84px] px-3 gap-2 rounded-xl bg-primary hover:bg-primary/90 flex-shrink-0"
           >
             <Send className="w-4 h-4" aria-hidden="true" />
@@ -631,8 +534,8 @@ export default function AIChat() {
         </div>
         <p className="text-center text-[11px] leading-relaxed text-muted-foreground mt-2 max-w-2xl mx-auto">
           {isIndividualClient
-            ? "AI uses your clinician's documents and support plan. It can make mistakes and does not diagnose, provide treatment, or replace your clinician."
-            : "AI uses available documents, support plans, and session history. It can make mistakes and does not diagnose, provide treatment, or replace your clinician."}
+            ? "AI uses only information the server verifies for your account and selected profile. It can make mistakes and does not replace your clinician."
+            : "AI uses only information the server verifies for your account and selected child. It can make mistakes and does not replace your clinician."}
           {" "}If there is immediate danger, call 911 or your local emergency services.
         </p>
       </div>

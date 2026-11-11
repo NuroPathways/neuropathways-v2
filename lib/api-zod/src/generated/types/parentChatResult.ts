@@ -5,10 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ParentChatResultOutcome } from './parentChatResultOutcome';
 import type { SourceReference } from './sourceReference';
 
 export interface ParentChatResult {
   answer: string;
   sourceReferences: SourceReference[];
   disclaimer: string;
+  outcome: ParentChatResultOutcome;
 }

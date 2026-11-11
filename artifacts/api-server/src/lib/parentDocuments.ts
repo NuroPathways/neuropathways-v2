@@ -4,6 +4,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { db } from "@workspace/db";
 import { writeAuditEvent } from "./auditEvents";
+import { logger } from "./logger";
 import {
   auditLogsTable,
   childrenTable,
@@ -34,6 +35,7 @@ import {
   PARENT_CHAT_DISCLAIMER,
   relevantParentChatDocumentIds,
 } from "./parentChatPolicy";
+import { serializeUntrustedAiChatInput } from "./aiChatPolicy";
 import { ownedParentChild, parentBehaviorsFromSettings } from "./parentAuth";
 import {
   classifyFamilyAccount,
@@ -123,7 +125,6 @@ import {
   type ParentDocumentSupportCardWire,
   verifiedSupportConcernRecords,
 } from "./documentSupportConcernCards";
-import { logger } from "./logger";
 import { batchProcessParentSupport } from "./parentSupportBatch";
 import {
   canReuseParentScan,
@@ -2648,7 +2649,15 @@ export async function parentChat(
   childId: string,
   question: string,
   requestedActionDate?: string | null,
-): Promise<{ answer: string; sourceReferences: SourceReference[]; disclaimer: string }> {
+  options: { priorMessages?: string[]; mode?: "chat" | "help_now" } = {},
+): Promise<{
+  answer: string;
+  sourceReferences: SourceReference[];
+  disclaimer: string;
+  outcome: "success" | "safety_fallback" | "service_fallback";
+  auditSourceDocumentIds: string[];
+  providerContacted: boolean;
+}> {
   const child = await ownedChild(parentId, childId);
   const message = question.trim().slice(0, 4000);
   if (!message) throw new Error("Enter a question");
@@ -2657,6 +2666,9 @@ export async function parentChat(
       answer: buildParentChatSafeFallback(message),
       sourceReferences: [],
       disclaimer: `This is generalized ABA-informed information because physical-intervention instructions are not provided. ${SUPPORT_DISCLAIMER}`,
+      outcome: "safety_fallback",
+      auditSourceDocumentIds: [],
+      providerContacted: false,
     };
   }
 
@@ -2752,29 +2764,59 @@ export async function parentChat(
       })),
     ],
   };
+  const modelContext = {
+    ...serverContext,
+    supportCards: serverContext.supportCards.map(({
+      sourceDocumentIds: _sourceDocumentIds,
+      sourceReferences: _sourceReferences,
+      ...card
+    }) => card),
+    dailyActions: serverContext.dailyActions.map(({ sourceDocumentId: _sourceDocumentId, ...action }) => action),
+    sourceDocuments: serverContext.sourceDocuments.map(({ documentId: _documentId, ...document }) => document),
+  };
+  const auditSourceDocumentIds = serverContext.sourceDocuments
+    .map((source) => source.documentId)
+    .filter((id, index, ids) => ids.indexOf(id) === index)
+    .slice(0, 20);
+  const priorMessages = Array.isArray(options.priorMessages)
+    ? options.priorMessages.filter((value): value is string => typeof value === "string")
+      .slice(-8).map((value) => value.slice(0, 2000))
+    : [];
 
   let answer = "";
+  let providerContacted = false;
   try {
     const anthropic = await getAnthropicClient();
-    const response = await requestDocumentAi((requestOptions) => anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 8192,
-      system: `${buildParentChatSystemPrompt(serverContext.sourceDocuments.length > 0)}
-
-Server context:
-${JSON.stringify(serverContext)}`,
-      messages: [{ role: "user", content: message }],
-    }, requestOptions), { actorId: `parent:${parentId}` });
+    const response = await requestDocumentAi((requestOptions) => {
+      const pendingResponse = anthropic.messages.create({
+        model: CLAUDE_MODEL,
+        max_tokens: 8192,
+        system: buildParentChatSystemPrompt(serverContext.sourceDocuments.length > 0, options.mode),
+        messages: [{
+          role: "user",
+          content: serializeUntrustedAiChatInput({
+            serverContext: modelContext,
+            priorMessages,
+            message,
+          }),
+        }],
+      }, requestOptions);
+      providerContacted = true;
+      return pendingResponse;
+    }, { actorId: `parent:${parentId}` });
     answer = response.content
       .filter((block: any) => block.type === "text")
       .map((block: any) => block.text)
       .join("\n").trim();
   } catch {
-    console.error("[parentChat] AI generation failed; returning general safety guidance.");
+    logger.warn({ ai_error_code: "provider_unavailable" }, "Parent AI chat provider failed");
     return {
       answer: buildParentChatSafeFallback(message, { serviceUnavailable: true }),
       sourceReferences: [],
       disclaimer: `This is generalized ABA-informed information and is not based on your uploaded documents. ${SUPPORT_DISCLAIMER}`,
+      outcome: "service_fallback",
+      auditSourceDocumentIds,
+      providerContacted,
     };
   }
 
@@ -2787,6 +2829,9 @@ ${JSON.stringify(serverContext)}`,
       answer,
       sourceReferences: [],
       disclaimer: `This is generalized ABA-informed information because no specific source was used in the response. ${SUPPORT_DISCLAIMER}`,
+      outcome: "safety_fallback",
+      auditSourceDocumentIds,
+      providerContacted,
     };
   }
 
@@ -2809,6 +2854,9 @@ ${JSON.stringify(serverContext)}`,
   return {
     answer,
     sourceReferences: citedReferences,
+    outcome: "success",
+    auditSourceDocumentIds,
+    providerContacted,
     disclaimer: [
       generalized
         ? "This response provides generalized ABA-informed information because no specific source was cited."
