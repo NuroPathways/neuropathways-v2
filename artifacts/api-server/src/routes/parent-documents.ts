@@ -369,7 +369,7 @@ router.post(
         if (!collector) return;
         res = collector;
       }
-      const scanned = await scanParentDocument(parentId(req), req.params.childId, req.params.documentId);
+      const scanned = await scanParentDocument(parentId(req), req.params.childId, req.params.documentId, req.id);
       await writeAuditEventBestEffort({
         userId: parentId(req),
         userRole: "parent",

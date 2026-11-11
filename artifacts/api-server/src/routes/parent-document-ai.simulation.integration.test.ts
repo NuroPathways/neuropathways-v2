@@ -743,7 +743,7 @@ test("document scan route completes safely with a deterministic loopback AI prov
   const requestStrings = capturedRequests.map(({ path: requestPath, body }) => ({
     path: requestPath,
     toolName: body.tool_choice?.name || body.tools?.[0]?.name || null,
-    body,
+    model: body.model || null,
   }));
   await fs.writeFile(
     path.join(evidenceDir, "fake-ai-requests.json"),
@@ -780,6 +780,9 @@ test("document scan route completes safely with a deterministic loopback AI prov
     row.action === "ai_document_access_denied" &&
     row.success === false,
   );
+  const providerCallAudits = sanitizedAuditRows.filter((row) =>
+    row.action === "ai_document_provider_call",
+  );
   const expectedSuccessfulRequests = new Set([
     `ai-success-${suffix}`,
     `ai-repeat-${suffix}`,
@@ -795,6 +798,27 @@ test("document scan route completes safely with a deterministic loopback AI prov
     assert.equal(row.tenantId, tenantId);
     assert.equal(row.success, true);
     assert.ok(expectedSuccessfulRequests.has(String((row.metadata as any)?.request_id)));
+  }
+  assert.equal(
+    providerCallAudits.length,
+    capturedRequests.length,
+    "Every document-AI provider request must have one genuine provider-call audit row.",
+  );
+  for (const row of providerCallAudits) {
+    const metadata = row.metadata as Record<string, unknown>;
+    assert.equal(row.actorId, clinicianAId);
+    assert.equal(row.actorRole, "clinician");
+    assert.equal(row.tenantId, tenantId);
+    assert.equal(row.targetType, "child");
+    assert.equal(row.targetId, childAId);
+    assert.equal(metadata.feature, "document_scan");
+    assert.equal(metadata.provider, "anthropic");
+    assert.equal(metadata.model, "claude-sonnet-4-5");
+    assert.ok(["success", "failed"].includes(String(metadata.outcome)));
+    assert.ok(Array.isArray(metadata.source_document_ids));
+    assert.ok((metadata.source_document_ids as string[]).includes(activeDocumentId));
+    assert.ok(typeof metadata.operation === "string");
+    assert.ok(Number.isFinite(Date.parse(row.createdAt)));
   }
 
   const expectedDenials = new Map([
@@ -813,6 +837,9 @@ test("document scan route completes safely with a deterministic loopback AI prov
     assert.equal(row.success, false);
   }
   assert.ok(sanitizedAuditRows.every((row) => Number.isFinite(Date.parse(row.createdAt))));
-  assert.doesNotMatch(JSON.stringify(sanitizedAuditRows), /token_hash|session_cookie|raw_token/i);
+  const serializedAudit = JSON.stringify(sanitizedAuditRows);
+  assert.doesNotMatch(serializedAudit, /token_hash|session_cookie|raw_token/i);
+  assert.doesNotMatch(serializedAudit, new RegExp(activeSourceExcerpt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(serializedAudit, /prompt|response_text|document_text|diagnosis/i);
   assert.ok(capturedRequests.length >= 6, "Expected requests to the fake AI provider across success, repeat, and retry");
 });

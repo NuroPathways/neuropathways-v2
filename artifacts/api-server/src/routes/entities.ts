@@ -2567,6 +2567,16 @@ Example: do not write only "${childName} will complete a graduated exposure hier
           includedDocIds.flatMap(id => documentContentById.get(id) || []),
           res.locals?.documentScanSignal,
           aiActorId,
+          {
+            userId: aiAuditActorId,
+            userRole: aiActorRole,
+            tenantId: req.parentAccount?.workspaceId ?? req.familyParent?.workspaceId ?? child.tenantId,
+            requestId: req.id,
+            childId: child_id,
+            documentIds: includedDocIds,
+            feature: "document_scan",
+            operation: "document_classification",
+          },
         );
       } else {
         const anthropic = await getAnthropicClient();
@@ -2576,7 +2586,19 @@ Example: do not write only "${childName} will complete a graduated exposure hier
           tools: [profileTool],
           tool_choice: { type: "tool", name: "save_behavioral_profile" },
           messages: [{ role: "user", content: contentParts }],
-        }, requestOptions), { actorId: aiActorId });
+        }, requestOptions), {
+          actorId: aiActorId,
+          audit: {
+            userId: aiAuditActorId,
+            userRole: aiActorRole,
+            tenantId: req.parentAccount?.workspaceId ?? req.familyParent?.workspaceId ?? child.tenantId,
+            childId: child_id,
+            documentIds: includedDocIds,
+            feature: "document_scan",
+            operation: "behavioral_profile_extraction",
+            requestId: req.id,
+          },
+        });
       }
       requireCompleteDocumentAiResponse(message);
     } catch (ex: any) {
@@ -2748,7 +2770,19 @@ Example: do not write only "${childName} will complete a graduated exposure hier
             }],
           }, { ...requestOptions, timeout: 60_000, maxRetries: 0, signal: AbortSignal.any([
             requestOptions.signal, AbortSignal.timeout(60_000), ...(res.locals?.documentScanSignal ? [res.locals.documentScanSignal] : []),
-          ]) }), { actorId: aiActorId });
+          ]) }), {
+            actorId: aiActorId,
+            audit: {
+              userId: aiAuditActorId,
+              userRole: aiActorRole,
+              tenantId: req.parentAccount?.workspaceId ?? req.familyParent?.workspaceId ?? child.tenantId,
+              childId: child_id,
+              documentIds: [...new Set(batch.map((record) => record.documentId))],
+              feature: "document_scan",
+              operation: "support_area_candidates",
+              requestId: req.id,
+            },
+          });
           requireCompleteDocumentAiResponse(candidateResponse);
           const candidateResult = candidateResponse.content.find((block: any) => block.type === "tool_use") as any;
           if (!Array.isArray(candidateResult?.input?.cards)) {
@@ -2805,7 +2839,19 @@ Example: do not write only "${childName} will complete a graduated exposure hier
             }],
           }, { ...requestOptions, timeout: 60_000, maxRetries: 0, signal: AbortSignal.any([
             requestOptions.signal, AbortSignal.timeout(60_000), ...(res.locals?.documentScanSignal ? [res.locals.documentScanSignal] : []),
-          ]) }), { actorId: aiActorId });
+          ]) }), {
+            actorId: aiActorId,
+            audit: {
+              userId: aiAuditActorId,
+              userRole: aiActorRole,
+              tenantId: req.parentAccount?.workspaceId ?? req.familyParent?.workspaceId ?? child.tenantId,
+              childId: child_id,
+              documentIds: batchSourceDocumentIds,
+              feature: "document_scan",
+              operation: "support_card_generation",
+              requestId: req.id,
+            },
+          });
           requireCompleteDocumentAiResponse(suggestionResponse);
           const suggestionResult = suggestionResponse.content.find((block: any) => block.type === "tool_use") as any;
           if (!Array.isArray(suggestionResult?.input?.cards)) {

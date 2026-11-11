@@ -1,6 +1,7 @@
 import { getAnthropicClient, CLAUDE_MODEL } from "./anthropic";
 import { requestDocumentAi, requireCompleteDocumentAiResponse } from "./documentAi";
 import { DOCUMENT_EXTRACTION_SYSTEM_GUIDANCE, documentExtractionsToolProperty } from "./documentExtractions";
+import type { AuditEvent } from "./auditEvents";
 
 /** Recover an omitted classification field from the real source, not fabricated
  * placeholders. Keep the already-read support profile separate from this pass.
@@ -9,6 +10,12 @@ export async function readDocumentClassificationResponse(
   content: any[],
   signal?: AbortSignal,
   actorId?: string | null,
+  audit?: Pick<AuditEvent, "userId" | "userRole" | "tenantId" | "requestId"> & {
+    childId: string;
+    documentIds: string[];
+    feature: string;
+    operation: string;
+  },
 ) {
   const anthropic = await getAnthropicClient();
   const response = await requestDocumentAi(options => anthropic.messages.create({
@@ -28,7 +35,14 @@ export async function readDocumentClassificationResponse(
     messages: [{ role: "user", content }],
   }, { ...options, timeout: 120_000, maxRetries: 1, signal: AbortSignal.any([
     options.signal, AbortSignal.timeout(180_000), ...(signal ? [signal] : []),
-  ]) }), { actorId });
+  ]) }), {
+    actorId,
+    audit: audit ? {
+      ...audit,
+      childId: audit.childId,
+      documentIds: audit.documentIds,
+    } : undefined,
+  });
   requireCompleteDocumentAiResponse(response);
   return response;
 }

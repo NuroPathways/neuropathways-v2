@@ -809,13 +809,14 @@ export async function scanParentDocument(
   parentId: string,
   childId: string,
   documentId: string,
+  requestId?: string | number,
 ): Promise<ParentScanResult> {
   // Same-account duplicate requests (including another device) wait for the
   // existing read rather than sending the same plan to the model twice.
   const key = JSON.stringify([parentId, childId, documentId]);
   const existing = activeDocumentScans.get(key);
   if (existing) return existing;
-  const reading = readParentDocument(parentId, childId, documentId);
+  const reading = readParentDocument(parentId, childId, documentId, requestId);
   activeDocumentScans.set(key, reading);
   try {
     return await reading;
@@ -828,6 +829,7 @@ async function readParentDocument(
   parentId: string,
   childId: string,
   documentId: string,
+  requestId?: string | number,
 ): Promise<ParentScanResult> {
   const child = await ownedChild(parentId, childId);
   const [metadata] = await db.select().from(parentDocumentsTable).where(and(
@@ -987,7 +989,19 @@ async function readParentDocument(
         role: "user",
         content: buildParentDocumentDiscoveryContent(generationDocuments, allowedIds),
       }],
-    }, requestOptions), { actorId: `parent:${parentId}` });
+    }, requestOptions), {
+      actorId: `parent:${parentId}`,
+      audit: {
+        userId: parentId,
+        userRole: "parent",
+        tenantId: metadata.workspaceId,
+        childId,
+        documentIds: allowedIds,
+        feature: "document_scan",
+        operation: "parent_document_discovery",
+        requestId,
+      },
+    });
     requireCompleteDocumentAiResponse(discoveryResponse);
     const discoveryResult = discoveryResponse.content.find((block: any) => block.type === "tool_use") as any;
     if (!discoveryResult?.input || typeof discoveryResult.input !== "object" ||
@@ -1038,7 +1052,19 @@ async function readParentDocument(
               role: "user",
               content: buildSupportConcernCandidatePrompt(batch),
             }],
-          }, requestOptions), { actorId: `parent:${parentId}` });
+          }, requestOptions), {
+            actorId: `parent:${parentId}`,
+            audit: {
+              userId: parentId,
+              userRole: "parent",
+              tenantId: metadata.workspaceId,
+              childId,
+              documentIds: batch.map((record) => record.documentId),
+              feature: "document_scan",
+              operation: "support_area_candidates",
+              requestId,
+            },
+          });
           requireCompleteDocumentAiResponse(candidateResponse);
           const candidateResult = candidateResponse.content.find((block: any) => block.type === "tool_use") as any;
           if (!Array.isArray(candidateResult?.input?.cards)) {
@@ -1160,7 +1186,19 @@ async function readParentDocument(
               role: "user",
               content: buildSupportConcernGenerationContent(batchSourceDocumentIds, sourceDocuments, prompt),
             }],
-          }, requestOptions), { actorId: `parent:${parentId}` });
+          }, requestOptions), {
+            actorId: `parent:${parentId}`,
+            audit: {
+              userId: parentId,
+              userRole: "parent",
+              tenantId: metadata.workspaceId,
+              childId,
+              documentIds: batchSourceDocumentIds,
+              feature: "document_scan",
+              operation: "support_card_generation",
+              requestId,
+            },
+          });
           requireCompleteDocumentAiResponse(concernResponse);
           const concernResult = concernResponse.content.find((block: any) => block.type === "tool_use") as any;
           if (!Array.isArray(concernResult?.input?.cards)) {
@@ -1350,7 +1388,19 @@ async function readParentDocument(
         tools: [toolSchema() as any],
         tool_choice: { type: "tool", name: "save_parent_support" },
         messages: [{ role: "user", content }],
-      }, requestOptions), { actorId: `parent:${parentId}` });
+      }, requestOptions), {
+        actorId: `parent:${parentId}`,
+        audit: {
+          userId: parentId,
+          userRole: "parent",
+          tenantId: metadata.workspaceId,
+          childId,
+          documentIds: allowedIds,
+          feature: "document_scan",
+          operation: "behavior_support_generation",
+          requestId,
+        },
+      });
       requireCompleteDocumentAiResponse(response);
       const result = response.content.find((block: any) => block.type === "tool_use") as any;
       if (!result?.input || typeof result.input !== "object") throw new Error("The AI returned an unreadable result. Please try scanning again.");

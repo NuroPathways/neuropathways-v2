@@ -1,4 +1,17 @@
 import { aiOperationalControls, AiOperationalError } from "./aiOperationalControls";
+import { CLAUDE_MODEL } from "./anthropic";
+import { writeAuditEventBestEffort } from "./auditEvents";
+
+type DocumentAiAuditContext = {
+  userId?: string | null;
+  userRole?: string | null;
+  tenantId?: string | null;
+  childId?: string | null;
+  documentIds?: string[];
+  feature?: string;
+  operation?: string;
+  requestId?: string | number | null;
+};
 
 /** Public errors never contain provider payloads, document text or credentials. */
 export class DocumentProcessingError extends Error {
@@ -66,16 +79,52 @@ export function documentAiError(error: unknown): DocumentProcessingError {
 
 export async function requestDocumentAi<T>(
   request: (options: DocumentAiRequestOptions) => Promise<T>,
-  context: { actorId?: string | null } = {},
+  context: { actorId?: string | null; audit?: DocumentAiAuditContext } = {},
 ): Promise<T> {
+  const recordProviderCall = async (success: boolean) => {
+    const audit = context.audit;
+    if (!audit?.childId || !audit.feature || !audit.requestId) return;
+    const documentIds = [...new Set((audit.documentIds || [])
+      .filter((id): id is string => typeof id === "string" && id.length > 0))]
+      .slice(0, 20);
+    await writeAuditEventBestEffort({
+      userId: audit.userId,
+      userRole: audit.userRole,
+      tenantId: audit.tenantId,
+      action: "ai_document_provider_call",
+      targetType: "child",
+      targetId: audit.childId,
+      success,
+      reason: success ? null : "The document AI provider call did not complete.",
+      metadata: {
+        feature: audit.feature,
+        operation: audit.operation || "document_processing",
+        child_id: audit.childId,
+        provider: "anthropic",
+        model: CLAUDE_MODEL,
+        outcome: success ? "success" : "failed",
+        source_document_ids: documentIds,
+      },
+      requestId: audit.requestId,
+    });
+  };
   try {
     // Let the SDK retry connection errors, 408/409/429 and 5xx responses.
     // One deadline includes all retries/backoff, so requests cannot run forever.
-    return await aiOperationalControls.run(context.actorId, () => request({
-      timeout: 240_000,
-      maxRetries: 2,
-      signal: AbortSignal.timeout(300_000),
-    }));
+    return await aiOperationalControls.run(context.actorId, async () => {
+      try {
+        const response = await request({
+          timeout: 240_000,
+          maxRetries: 2,
+          signal: AbortSignal.timeout(300_000),
+        });
+        await recordProviderCall(true);
+        return response;
+      } catch (error) {
+        await recordProviderCall(false);
+        throw error;
+      }
+    });
   } catch (error) {
     throw documentAiError(error);
   }
