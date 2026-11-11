@@ -784,3 +784,17 @@ mtime_ms = 1794367175452
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/f0dcc706-a611-4cac-8732-9e0940be57d6/21e38841-a890-4b58-ace7-43a8461b3775"
 storage_version_token = "1794367195534532"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "u8i9bhR4E9kl_AVJnq0Y-"
+uri = "file://.local/verification/evidence-packages/neuro-document-support-browser-followup-20261111T041436Z.zip"
+type = "unspecified"
+title = "NeuroPathways Help Now browser evidence"
+description = "Isolated run: 7 passed, 1 failed, 5 not run. Includes audit evidence, screenshots, diagnostics, cleanup, and prior attempts."
+logical_id = "020992f9-c8b1-4842-a303-c085790e520a"
+content_hash = "sha256:c45a6363edd0a826a791c1aea0e9aac07811bd8ab2942a5b49cd52dc434cfe9f"
+size = 1464096
+mtime_ms = 1794370901698
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/020992f9-c8b1-4842-a303-c085790e520a/701cba9e-b8e1-4455-bec2-fed47808c74e"
+storage_version_token = "1794370928673563"
+content_type = "application/octet-stream"
