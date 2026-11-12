@@ -1008,3 +1008,17 @@ mtime_ms = 1794458400009
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/3eac9bb8-6993-4162-b711-8aa22db52846/dacac65b-908d-4b8b-b089-77c882caa50d"
 storage_version_token = "1794458426824762"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Tw2uWK5rbteeEv_sqAWpL"
+uri = "file://.local/verification/NeuroPathways-GESEC099-GEACC097-20261112T044814Z/NeuroPathways-GESEC099-GEACC097-20261112T055947Z.zip"
+type = "unspecified"
+title = "NeuroPathways mobile privacy evidence"
+description = "Isolated GE-SEC-099 and GE-ACC-097 verification: 8 API tests, 4 API tests, 9 signed-in responsive-browser passes, five browser checks not run, and native UI blocked. No live AI or deployment."
+logical_id = "16f2d28d-d093-4aad-b3b9-99df148dd4ec"
+content_hash = "sha256:dc8f85d6aa0528a7d21cac02ffce7e4d6b811f145bf2b2521ec9ad08f5560f34"
+size = 356163
+mtime_ms = 1794463187976
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/16f2d28d-d093-4aad-b3b9-99df148dd4ec/cfea489a-0755-4775-b6a3-d08da1968e04"
+storage_version_token = "1794463236950675"
+content_type = "application/octet-stream"
