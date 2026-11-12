@@ -829,7 +829,7 @@ async function run() {
     assert.equal(row.length, 1);
     assert.equal(await setInput('form input[type="email"]', row[0].email), true);
     assert.equal(await setInput('form input[type="password"]', "Fictional-Password-842!"), true);
-    await cdp!.evaluate(`document.querySelector('form button[type="submit"]')?.click()`);
+    await cdp!.evaluate(`document.querySelector('form button')?.click()`);
     try {
       await waitFor(() => cdp!.evaluate(`Boolean(document.querySelector('[data-testid="select-navigation-child-desktop"]'))`), Boolean, "Signed-in parent dashboard did not load.");
     } catch {
