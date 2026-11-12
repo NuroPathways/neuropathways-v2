@@ -834,6 +834,12 @@ async function run(): Promise<void> {
   );
 
   const expiredChild = await createParentChild(parentA.auth, `Expired Child ${runKey}`);
+  const expiredDocumentId = await attachParentDocument(
+    parentA.id,
+    parentA.workspaceId,
+    expiredChild.id,
+    `expired-invite-document-${runKey}`,
+  );
   const expiredToken = crypto.randomBytes(32).toString("base64url");
   const expiredHash = crypto.createHash("sha256").update(expiredToken).digest("hex");
   fixture.inviteTokens.push(expiredToken);
@@ -845,10 +851,74 @@ async function run(): Promise<void> {
     invitedEmail: parentA.email,
     expiresAt: new Date(Date.now() - 60_000),
   });
+  const [expiredInviteRow] = await db.select().from(parentClinicInvitesTable)
+    .where(eq(parentClinicInvitesTable.tokenHash, expiredHash));
+  check("Expired invite fixture is stored by ID without exposing its token", Boolean(expiredInviteRow?.id));
   const expiredPreview = await linkPreview(parentA.auth, expiredChild.id, expiredToken);
   expectStatus(expiredPreview, 410, "Preview rejects expired invites");
   const expiredConnect = await connect(parentA.auth, expiredChild.id, expiredToken, "none");
   expectStatus(expiredConnect, 410, "Connect rejects expired invites");
+  const [expiredChildAfterConnect] = await db.select().from(childrenTable)
+    .where(eq(childrenTable.id, expiredChild.id));
+  check(
+    "Expired acceptance creates no clinic relationship",
+    expiredChildAfterConnect?.parentId === parentA.id &&
+      expiredChildAfterConnect?.clinicianId == null &&
+      expiredChildAfterConnect?.familyId === parentA.workspaceId,
+  );
+  const expiredChildConsents = await db.select().from(parentClinicConsentsTable).where(and(
+    eq(parentClinicConsentsTable.parentId, parentA.id),
+    eq(parentClinicConsentsTable.childId, expiredChild.id),
+  ));
+  check("Expired acceptance creates no clinic consent", expiredChildConsents.length === 0);
+  const [expiredDocumentMetadata] = await db.select().from(parentDocumentsTable)
+    .where(eq(parentDocumentsTable.documentId, expiredDocumentId));
+  check(
+    "Expired acceptance leaves the parent document private and unchanged",
+    expiredDocumentMetadata?.parentId === parentA.id &&
+      expiredDocumentMetadata?.childId === expiredChild.id &&
+      expiredDocumentMetadata?.workspaceId === parentA.workspaceId &&
+      expiredDocumentMetadata?.sharedClinicianId == null,
+  );
+  const expiredSupportAccess = await api(
+    `/parent/children/${expiredChild.id}/shared-support`,
+    clinicianA.auth,
+  );
+  check(
+    "Expired acceptance grants no clinician support or document context",
+    expiredSupportAccess.status === 403 &&
+      !JSON.stringify(expiredSupportAccess.body).includes(expiredDocumentId) &&
+      !JSON.stringify(expiredSupportAccess.body).includes(`expired-invite-document-${runKey}`),
+  );
+  const expiredDocumentDownload = await api(
+    `/parent/documents/${expiredDocumentId}/content`,
+    clinicianA.auth,
+  );
+  check(
+    "Expired acceptance does not authorize clinician document download",
+    expiredDocumentDownload.status === 403 &&
+      !JSON.stringify(expiredDocumentDownload.body).includes(expiredDocumentId) &&
+      !JSON.stringify(expiredDocumentDownload.body).includes(`expired-invite-document-${runKey}`),
+  );
+  const expiredAcceptanceAudits = await db.select().from(auditLogsTable).where(and(
+    eq(auditLogsTable.userId, parentA.id),
+    eq(auditLogsTable.action, "parent_clinic_invite_accept_denied"),
+    eq(auditLogsTable.targetId, expiredInviteRow?.id ?? ""),
+  ));
+  check(
+    "Expired acceptance creates a genuine denied audit without invite token material",
+    expiredAcceptanceAudits.some((event) =>
+      event.userRole === "parent" &&
+      event.tenantId === parentA.workspaceId &&
+      event.success === false &&
+      event.reason === "expired" &&
+      (event.metadata as any)?.child_id === expiredChild.id &&
+      (event.metadata as any)?.invite_id === expiredInviteRow?.id &&
+      (event.metadata as any)?.request_id &&
+      !JSON.stringify(event).includes(expiredToken) &&
+      !JSON.stringify(event).includes(expiredHash),
+    ),
+  );
 
   const reuseProbe = await createParentChild(parentA.auth, `Reuse Probe ${runKey}`);
   const reusedInvite = await connect(parentA.auth, reuseProbe.id, inviteForA.inviteToken, "none");
@@ -1269,6 +1339,29 @@ async function run(): Promise<void> {
   const evidenceDir = process.env.NP_TEST_EVIDENCE_DIR;
   if (evidenceDir) {
     await fs.mkdir(evidenceDir, { recursive: true, mode: 0o700 });
+    await fs.writeFile(
+      path.join(evidenceDir, "expired-invite-genuine-audit-events.json"),
+      `${JSON.stringify(expiredAcceptanceAudits.map((row) => ({
+        id: row.id,
+        createdAt: row.createdDate instanceof Date ? row.createdDate.toISOString() : row.createdDate,
+        actorId: row.userId,
+        actorRole: row.userRole,
+        tenantId: row.tenantId,
+        action: row.action,
+        targetType: row.targetType,
+        targetId: row.targetId,
+        success: row.success,
+        reason: row.reason,
+        metadata: {
+          child_id: (row.metadata as any)?.child_id,
+          invite_id: (row.metadata as any)?.invite_id,
+          outcome: (row.metadata as any)?.outcome,
+          reason: (row.metadata as any)?.reason,
+          request_id: (row.metadata as any)?.request_id,
+        },
+      })), null, 2)}\n`,
+      { mode: 0o600 },
+    );
     await fs.writeFile(
       path.join(evidenceDir, "parent-link-consent-results.json"),
       `${JSON.stringify({

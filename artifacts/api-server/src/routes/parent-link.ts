@@ -47,6 +47,20 @@ type InviteRecord = {
   legacy: boolean;
 };
 
+function expiredInviteError(
+  invite: InviteRecord,
+  reason = "expired",
+  message = "This invite has expired",
+): Error & {
+  status: number;
+  inviteAuditContext: { inviteId: string; reason: string; legacy: boolean };
+} {
+  return Object.assign(new Error(message), {
+    status: 410,
+    inviteAuditContext: { inviteId: invite.id, reason, legacy: invite.legacy },
+  });
+}
+
 const normalizeEmail = normalizeParentEmail;
 
 function hashToken(token: string): string {
@@ -117,7 +131,7 @@ async function resolveInvite(tokenValue: unknown, emailValue: unknown): Promise<
   if (!invite) throw Object.assign(new Error("Invalid or expired invite"), { status: 400 });
   if (invite.usedAt) throw Object.assign(new Error("This invite has already been used"), { status: 410 });
   if (!invite.expiresAt || invite.expiresAt <= new Date()) {
-    throw Object.assign(new Error("This invite has expired"), { status: 410 });
+    throw expiredInviteError(invite);
   }
   if (normalizeEmail(invite.invitedEmail) !== email) {
     throw Object.assign(new Error("This invite was sent to a different email address"), { status: 403 });
@@ -158,6 +172,8 @@ async function logAudit(
     tenantId?: string | null;
     metadata?: Record<string, unknown>;
     requestId?: string | number;
+    success?: boolean;
+    reason?: string | null;
   },
 ) {
   const { requestId, ...row } = values;
@@ -167,7 +183,8 @@ async function logAudit(
       ...(values.metadata ?? {}),
       ...(requestId === undefined ? {} : { request_id: String(requestId) }),
     },
-    success: true,
+    success: values.success ?? true,
+    reason: values.reason ?? null,
   });
 }
 
@@ -528,7 +545,9 @@ router.post("/parent/children/:childId/connect", requireParent, async (req: any,
           eq(invitationsTable.familyId, invite.familyId),
           gt(invitationsTable.expiresAt, now),
         )).returning({ id: invitationsTable.id });
-        if (!claimedLegacy) throw Object.assign(new Error("This invite is expired or has already been used"), { status: 410 });
+        if (!claimedLegacy) {
+          throw expiredInviteError(invite, "expired_or_already_used", "This invite is expired or has already been used");
+        }
       } else {
         const [claimed] = await tx.update(parentClinicInvitesTable).set({
           usedAt: now,
@@ -538,7 +557,9 @@ router.post("/parent/children/:childId/connect", requireParent, async (req: any,
           eq(parentClinicInvitesTable.invitedEmail, email),
           gt(parentClinicInvitesTable.expiresAt, now),
         )).returning({ id: parentClinicInvitesTable.id });
-        if (!claimed) throw Object.assign(new Error("This invite is expired or has already been used"), { status: 410 });
+        if (!claimed) {
+          throw expiredInviteError(invite, "expired_or_already_used", "This invite is expired or has already been used");
+        }
       }
 
       if (duplicateChild) {
@@ -705,6 +726,32 @@ router.post("/parent/children/:childId/connect", requireParent, async (req: any,
     });
   } catch (error: any) {
     const status = Number.isInteger(error?.status) ? error.status : 500;
+    if (status === 410 && error?.inviteAuditContext && parentId) {
+      try {
+        await db.transaction(async (tx: any) => logAudit(tx, {
+          userId: parentId,
+          userRole: "parent",
+          action: "parent_clinic_invite_accept_denied",
+          targetType: error.inviteAuditContext.legacy ? "invitation" : "parent_clinic_invite",
+          targetId: error.inviteAuditContext.inviteId,
+          tenantId: req.parentAccount?.workspaceId ?? null,
+          success: false,
+          reason: error.inviteAuditContext.reason,
+          metadata: {
+            child_id: req.params.childId,
+            invite_id: error.inviteAuditContext.inviteId,
+            outcome: "denied",
+            reason: error.inviteAuditContext.reason,
+          },
+          requestId: req.id,
+        }));
+      } catch (auditError) {
+        req.log?.error({
+          error_name: auditError instanceof Error ? auditError.name : "UnknownError",
+        }, "Expired clinic invitation denial audit failed");
+        return res.status(500).json({ error: "Unable to connect to clinic" });
+      }
+    }
     return res.status(status).json({
       error: status === 500 ? "Unable to connect to clinic" : error.message,
     });

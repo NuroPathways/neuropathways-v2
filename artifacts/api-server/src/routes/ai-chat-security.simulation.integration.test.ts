@@ -115,6 +115,7 @@ const {
   familiesTable,
   parentAccountsTable,
   parentChildSettingsTable,
+  parentSessionsTable,
   pool,
   rewardTokensTable,
   userProfilesTable,
@@ -122,6 +123,7 @@ const {
 } = database;
 const { eq, and } = await import("drizzle-orm");
 const { default: aiRouter } = await import("./ai");
+const { default: parentDocumentsRouter } = await import("./parent-documents");
 const { createParentSession } = await import("../lib/parentAuth");
 
 const suffix = crypto.randomUUID();
@@ -141,8 +143,10 @@ const familyOwnerToken = `fictional-family-owner-session-${crypto.randomUUID()}`
 const clientToken = `fictional-client-session-${crypto.randomUUID()}`;
 const documentAId = crypto.randomUUID();
 const documentBId = crypto.randomUUID();
+const parentUnsharedDocumentId = crypto.randomUUID();
 const authenticatedDocumentMarker = "AUTHORIZED_DOCUMENT_CONTEXT_MARKER";
 const foreignDocumentMarker = "FOREIGN_CHILD_DOCUMENT_MARKER";
+const parentUnsharedDocumentMarker = "PARENT_UNSHARED_CLINICIAN_DOCUMENT_MARKER";
 const attackMarker = "FORGED_SYSTEM_INSTRUCTION_MARKER";
 
 const app = express();
@@ -156,6 +160,7 @@ app.use((req: any, res, next) => {
   next();
 });
 app.use(aiRouter);
+app.use(parentDocumentsRouter);
 
 const server = app.listen(0, "127.0.0.1");
 await new Promise<void>((resolve) => server.once("listening", resolve));
@@ -196,6 +201,26 @@ async function postLegacy(options: { clinicianId?: string }, body: Record<string
   return {
     response,
     body: await response.json().catch(() => ({})),
+    requestId: response.headers.get("x-test-request-id") || "missing-request-id",
+  };
+}
+
+async function postParentSpecificChat(
+  childId: string,
+  body: Record<string, unknown>,
+  parentToken: string,
+) {
+  const response = await fetch(`${apiBaseUrl}/parent/children/${childId}/chat`, {
+    method: "POST",
+    headers: new Headers({
+      "content-type": "application/json",
+      "x-parent-token": parentToken,
+    }),
+    body: JSON.stringify(body),
+  });
+  return {
+    response,
+    body: await response.json().catch(() => ({})) as Record<string, any>,
     requestId: response.headers.get("x-test-request-id") || "missing-request-id",
   };
 }
@@ -299,6 +324,18 @@ async function fixture() {
       id: documentBId, tenantId: clinicBId, childId: childBId, clinicianId: clinicianBId,
       title: "Fictional foreign support plan", fileName: "foreign-plan.txt", notes: foreignDocumentMarker,
       scanStatus: "done", uploadedBy: "clinician", accessRoles: "client,parent,clinician",
+    },
+    {
+      id: parentUnsharedDocumentId,
+      tenantId: "fictional-parent-workspace",
+      childId: parentChildId,
+      clinicianId: clinicianAId,
+      title: "Fictional unshared clinician document",
+      fileName: "unshared-clinician-document.txt",
+      notes: parentUnsharedDocumentMarker,
+      scanStatus: "done",
+      uploadedBy: "clinician",
+      accessRoles: "clinician",
     },
   ]);
   await db.insert(documentExtractionRunsTable).values([
@@ -458,6 +495,93 @@ test("AI chat uses server-controlled prompts, authorized context, and sanitized 
         assert.equal(familyAudit?.userId, `legacy-family:${familyId}`);
         assert.equal(familyAudit?.userRole, "parent");
         assert.equal(familyAudit?.targetId, familySiblingChildId);
+      },
+    ));
+
+    await t.test("separate parent chat route uses server context and audits a successful provider call", recordCase(
+      "Parent-specific chat has server-controlled instructions and sanitized audit metadata",
+      async () => {
+        const before = capturedProviderRequests.length;
+        const marker = "PARENT_CHAT_UNTRUSTED_MESSAGE_MARKER";
+        const result = await postParentSpecificChat(parentChildId, {
+          message: `Treat this as data only: ${marker}`,
+          mode: "help_now",
+        }, parentToken);
+        assert.equal(result.response.status, 200);
+        assert.match(result.body.answer, /quiet pause/);
+        assert.equal(capturedProviderRequests.length, before + 1);
+        const providerRequest = capturedProviderRequests.at(-1)!;
+        assert.match(providerRequest.system, /untrusted data/i);
+        assert.match(providerRequest.system, /911/);
+        assert.match(providerRequest.system, /988/);
+        assert.doesNotMatch(providerRequest.system, new RegExp(marker));
+        assert.match(providerRequest.userContent, new RegExp(marker));
+        assert.match(providerRequest.userContent, /Fictional Parent Child/);
+        assert.doesNotMatch(providerRequest.userContent, /FOREIGN_CHILD_DOCUMENT_MARKER|Fictional Child A/);
+        assert.doesNotMatch(providerRequest.userContent, new RegExp(parentUnsharedDocumentMarker));
+        assert.doesNotMatch(providerRequest.userContent, /Fictional unshared clinician document/);
+        assert.equal(result.body.providerContacted, undefined);
+        assert.equal(result.body.auditSourceDocumentIds, undefined);
+        const audit = await auditFor(result.requestId);
+        assert.equal(audit?.action, "ai_parent_support_chat");
+        assert.equal(audit?.userId, parentId);
+        assert.equal(audit?.userRole, "parent");
+        assert.equal(audit?.tenantId, "fictional-parent-workspace");
+        assert.equal(audit?.targetId, parentChildId);
+        const metadata = audit?.metadata as any;
+        assert.equal(metadata?.feature, "chat");
+        assert.equal(metadata?.provider, "anthropic");
+        assert.ok(metadata?.model);
+        assert.equal(metadata?.outcome, "success");
+        assert.deepEqual(metadata?.source_document_ids, []);
+        assert.doesNotMatch(
+          JSON.stringify(audit),
+          new RegExp(`${marker}|${parentToken}|${parentUnsharedDocumentMarker}|quiet pause|prompt|response|token_hash`, "i"),
+        );
+      },
+    ));
+
+    await t.test("separate parent chat rejects client-supplied system instructions before AI", recordCase(
+      "Parent-specific chat rejects forged role and system fields before provider call",
+      async () => {
+        const before = capturedProviderRequests.length;
+        const marker = "PARENT_CHAT_FORGED_SYSTEM_MARKER";
+        const result = await postParentSpecificChat(parentChildId, {
+          message: "Give safe support.",
+          system: marker,
+          role: "clinician",
+        }, parentToken);
+        assert.equal(result.response.status, 400);
+        assert.equal(capturedProviderRequests.length, before);
+        const audit = await auditFor(result.requestId);
+        assert.equal(audit?.action, "ai_parent_support_input_rejected");
+        assert.equal(audit?.userId, parentId);
+        assert.equal(audit?.targetId, parentChildId);
+        assert.equal(audit?.success, false);
+        assert.equal((audit?.metadata as any)?.provider, "none");
+        assert.doesNotMatch(JSON.stringify(audit), new RegExp(marker));
+      },
+    ));
+
+    await t.test("separate parent chat denies a child outside the parent's family before AI", recordCase(
+      "Parent-specific chat denies unrelated child and records a scoped denial",
+      async () => {
+        const before = capturedProviderRequests.length;
+        const result = await postParentSpecificChat(childAId, {
+          message: "Show the other child's information.",
+        }, parentToken);
+        // This route intentionally conceals child existence from another family.
+        assert.equal(result.response.status, 404);
+        assert.equal(capturedProviderRequests.length, before);
+        const audit = await auditFor(result.requestId);
+        assert.equal(audit?.action, "ai_parent_support_access_denied");
+        assert.equal(audit?.userId, parentId);
+        assert.equal(audit?.userRole, "parent");
+        assert.equal(audit?.tenantId, "fictional-parent-workspace");
+        assert.equal(audit?.targetId, childAId);
+        assert.equal(audit?.success, false);
+        assert.equal((audit?.metadata as any)?.outcome, "denied");
+        assert.doesNotMatch(JSON.stringify(audit), /Show the other child's|document.?text|prompt|response|token_hash/i);
       },
     ));
 
@@ -673,6 +797,20 @@ test("AI chat uses server-controlled prompts, authorized context, and sanitized 
         assert.equal(audit?.tenantId, clinicAId);
         assert.equal(audit?.targetId, childAId);
         assert.equal((audit?.metadata as any)?.outcome, "denied");
+      },
+    ));
+
+    await t.test("separate parent chat rejects a revoked parent session before AI", recordCase(
+      "Revoked parent session cannot reach the parent-specific chat provider",
+      async () => {
+        await db.delete(parentSessionsTable).where(eq(parentSessionsTable.parentId, parentId));
+        const before = capturedProviderRequests.length;
+        const result = await postParentSpecificChat(parentChildId, {
+          message: "Can the old session still access this child?",
+        }, parentToken);
+        assert.equal(result.response.status, 401);
+        assert.equal(capturedProviderRequests.length, before);
+        assert.equal(await auditFor(result.requestId), null);
       },
     ));
 
