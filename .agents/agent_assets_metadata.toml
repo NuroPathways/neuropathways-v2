@@ -980,3 +980,17 @@ mtime_ms = 1794446779141
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/e6113718-e1cf-4200-beb6-784273dc9064/cef0ac8e-8bf0-49ac-aa5e-e4871b246b96"
 storage_version_token = "1794446787647109"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "VLROAgfZBIRwfhCpCcVeG"
+uri = "file://.local/verification/neuro-r01-reconciliation-20261112T033618Z/REPORT.md"
+type = "text"
+title = "NeuroPathways R01 reconciliation"
+description = "Read-only evidence review: current code identity, validated evidence packages, corrected scenario statuses, and remaining app versus AWS work."
+logical_id = "9bbded23-2f25-4fd4-98fb-af23cab31fc1"
+content_hash = "sha256:f1957bfab8d43c97c0222415ccf77a0d89c9d8b3aa9209d768d7833091fef355"
+size = 22800
+mtime_ms = 1794454836682
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/9bbded23-2f25-4fd4-98fb-af23cab31fc1/978f43e4-a882-44b2-b7b3-53d45d112844"
+storage_version_token = "1794454840536970"
+content_type = "text/markdown"
