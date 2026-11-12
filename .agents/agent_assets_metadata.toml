@@ -1036,3 +1036,17 @@ mtime_ms = 1794470230913
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/aea7353a-9679-431f-a190-8ce79157bd81/a4e08cf3-9b00-41eb-977c-bcc98ea393ed"
 storage_version_token = "1794470255093022"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Y-g7o-ag8qCQylLpZofRk"
+uri = "file://.local/verification/neuro-document-access-audit-20261112T083451Z/neuro-document-access-audit-20261112T083451Z.zip"
+type = "unspecified"
+title = "NeuroPathways document audit evidence"
+description = "Isolated fictional-data verification: 5 API checks passed, typecheck passed, with baseline findings and genuine sanitized audit events."
+logical_id = "de3f54c0-e95f-4c2e-a1c1-9f37bf87c582"
+content_hash = "sha256:128d62182728d8b1493a6c778c1d9637df634dea42c4f2996202088a8d93c315"
+size = 66578
+mtime_ms = 1794473612673
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/de3f54c0-e95f-4c2e-a1c1-9f37bf87c582/7944e84d-9b8a-4792-a732-35b597684c50"
+storage_version_token = "1794473639338580"
+content_type = "application/octet-stream"
