@@ -526,7 +526,9 @@ test("a synthetic clinician can sign in below the account threshold and is throt
     const passwordChangeThresholdBody = await passwordChangeThreshold.text();
     const auditRows = await db.select().from(auditLogsTable)
       .where(eq(auditLogsTable.action, "credential_account_rate_limited"));
-    const auditPayload = JSON.stringify(auditRows);
+    const failedLoginRows = await db.select().from(auditLogsTable)
+      .where(eq(auditLogsTable.action, "failed_login"));
+    const auditPayload = JSON.stringify([...auditRows, ...failedLoginRows]);
     Object.assign(evidence, {
       wrongPasswordStatuses: statuses,
       knownVsUnknownInvalidLoginResponseSame:
@@ -717,6 +719,229 @@ test("family username aliases share a normalized account budget while valid sign
     assert.equal(evidence.auditContainsCredential, false);
     assert.equal(evidence.auditContainsMobileCredential, false);
   } finally {
+    await close(server);
+  }
+});
+
+test("GE-SEC-099 mobile family login applies the normalized account budget across aliases and expires", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setInterval"] });
+  const { server, origin } = await listen();
+  const suffix = crypto.randomUUID();
+  const familyId = crypto.randomUUID();
+  const childId = crypto.randomUUID();
+  const separateFamilyId = crypto.randomUUID();
+  const separateChildId = crypto.randomUUID();
+  const username = `synthetic-mobile-threshold-${suffix}`;
+  const accessCode = `Fictional-${suffix}-4827`;
+  const separateUsername = `synthetic-mobile-separate-${suffix}`;
+  const separateAccessCode = `Separate-${suffix}-5291`;
+  const aliases = [
+    "/api/mobile/auth/login",
+    "/api/client-session/login",
+    "/api/verify-client-credentials",
+  ];
+  const request = async (
+    route: string,
+    ip: string,
+    loginName: string,
+    loginCode: string,
+  ) => fetch(`${origin}${route}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-forwarded-for": `192.0.2.199, ${ip}`,
+    },
+    body: JSON.stringify({ username: loginName, access_code: loginCode }),
+  });
+  const evidence: Record<string, unknown> = {};
+
+  try {
+    await db.insert(familiesTable).values([
+      {
+        id: familyId,
+        familyName: "Fictional mobile login family",
+        accountType: "independent",
+      },
+      {
+        id: separateFamilyId,
+        familyName: "Fictional separate mobile family",
+        accountType: "independent",
+      },
+    ]);
+    await db.insert(childrenTable).values([
+      {
+        id: childId,
+        familyId,
+        childName: "Fictional mobile login child",
+        username,
+        accessCode: await hashClientAccessCode(accessCode),
+        accountType: "independent",
+        status: "active",
+      },
+      {
+        id: separateChildId,
+        familyId: separateFamilyId,
+        childName: "Fictional separate mobile child",
+        username: separateUsername,
+        accessCode: await hashClientAccessCode(separateAccessCode),
+        accountType: "independent",
+        status: "active",
+      },
+    ]);
+
+    const accountStatuses: number[] = [];
+    const accountBodies: string[] = [];
+    for (let index = 0; index < 10; index += 1) {
+      const route = aliases[index % aliases.length];
+      const accountName = index % 2 === 0 ? username.toUpperCase() : `  ${username}  `;
+      const response = await request(
+        route,
+        `203.0.113.${101 + index}`,
+        accountName,
+        "wrong-fictional-access-code",
+      );
+      accountStatuses.push(response.status);
+      accountBodies.push(await response.text());
+    }
+
+    const separateAccount = await request(
+      "/api/mobile/auth/login",
+      "203.0.113.120",
+      separateUsername,
+      separateAccessCode,
+    );
+    const separateAccountBody = await separateAccount.text();
+    const separateAccountJson = JSON.parse(separateAccountBody) as {
+      child?: { id?: string };
+      token?: string;
+    };
+    const thresholdResponse = await request(
+      "/api/mobile/auth/login",
+      "203.0.113.121",
+      ` ${username.toUpperCase()} `,
+      accessCode,
+    );
+    const thresholdBody = await thresholdResponse.text();
+
+    const unknownAccountStatuses: number[] = [];
+    const unknownAccountBodies: string[] = [];
+    const unknownUsername = `synthetic-mobile-unknown-${suffix}`;
+    for (let index = 0; index < 10; index += 1) {
+      const response = await request(
+        "/api/mobile/auth/login",
+        `198.51.100.${101 + index}`,
+        unknownUsername.toUpperCase(),
+        "wrong-fictional-access-code",
+      );
+      unknownAccountStatuses.push(response.status);
+      unknownAccountBodies.push(await response.text());
+    }
+    const unknownThreshold = await request(
+      "/api/mobile/auth/login",
+      "198.51.100.111",
+      unknownUsername,
+      "wrong-fictional-access-code",
+    );
+    const unknownThresholdBody = await unknownThreshold.text();
+
+    const rotatingAccountStatuses: number[] = [];
+    for (let index = 0; index < 11; index += 1) {
+      const response = await request(
+        "/api/mobile/auth/login",
+        "192.0.2.221",
+        `synthetic-ip-rotation-${index}-${suffix}`,
+        "wrong-fictional-access-code",
+      );
+      rotatingAccountStatuses.push(response.status);
+      await response.arrayBuffer();
+    }
+
+    const auditRows = await db.select().from(auditLogsTable)
+      .where(eq(auditLogsTable.action, "credential_account_rate_limited"));
+    const failedLoginRows = await db.select().from(auditLogsTable)
+      .where(eq(auditLogsTable.action, "failed_login"));
+    const auditPayload = JSON.stringify([...auditRows, ...failedLoginRows]);
+    const accountAuditPaths = auditRows
+      .map((row) => (row.metadata as Record<string, unknown> | null)?.request_path)
+      .filter((value): value is string => typeof value === "string");
+    const genericResponse = '{"error":"Too many attempts. Please try again later."}';
+
+    t.mock.timers.tick(15 * 60 * 1000 + 1);
+    const afterWindow = await request(
+      "/api/mobile/auth/login",
+      "192.0.2.250",
+      ` ${username.toUpperCase()} `,
+      accessCode,
+    );
+    const afterWindowBody = await afterWindow.json() as { child?: { id?: string }; token?: string };
+
+    Object.assign(evidence, {
+      scenario: "GE-SEC-099",
+      accountAttemptStatuses: accountStatuses,
+      accountAttemptsReturnedGenericDenial: accountBodies.every((body) => {
+        const payload = JSON.parse(body) as Record<string, unknown>;
+        return typeof payload.error === "string" &&
+          !("session" in payload) &&
+          !("token" in payload);
+      }),
+      accountAliasRoutesExercised: aliases,
+      accountAliasInputsNormalized: true,
+      accountThresholdStatus: thresholdResponse.status,
+      genericAccountThresholdResponse: thresholdBody === genericResponse,
+      separateAccountStatus: separateAccount.status,
+      separateAccountReceivedItsOwnToken: Boolean(separateAccountJson.token),
+      separateAccountMatchedFixture: separateAccountJson.child?.id === separateChildId,
+      unknownAccountAttemptStatuses: unknownAccountStatuses,
+      knownAndUnknownFirstResponseBodiesMatch: accountBodies[0] === unknownAccountBodies[0],
+      unknownThresholdStatus: unknownThreshold.status,
+      knownAndUnknownThresholdBodiesMatch: thresholdBody === unknownThresholdBody,
+      rotatingAccountStatuses,
+      ipThresholdStatus: rotatingAccountStatuses[10],
+      afterWindowStatus: afterWindow.status,
+      afterWindowMatchedFixture: afterWindowBody.child?.id === childId,
+      afterWindowIssuedToken: Boolean(afterWindowBody.token),
+      auditedRequestPaths: [...new Set(accountAuditPaths)],
+      auditContainsAccountOrCredential: auditPayload.includes(username) ||
+        auditPayload.includes(accessCode) ||
+        auditPayload.includes(separateUsername) ||
+        auditPayload.includes(separateAccessCode) ||
+        auditPayload.includes(unknownUsername),
+      rateLimitedAuditEventCount: auditRows.length,
+      failedLoginAuditEventCount: failedLoginRows.length,
+    });
+
+    const evidenceDir = process.env.P0_ACCESS_EVIDENCE_DIR;
+    if (evidenceDir) {
+      await fs.writeFile(
+        `${evidenceDir}/mobile-login-account-threshold-results.json`,
+        `${JSON.stringify(evidence, null, 2)}\n`,
+        { mode: 0o600 },
+      );
+    }
+
+    assert.equal(evidence.accountAttemptsReturnedGenericDenial, true,
+      "all aliases must return a denial body without issuing a session or token");
+    assert.deepEqual(accountStatuses, [401, 401, 200, 401, 401, 200, 401, 401, 200, 401],
+      "the legacy verification alias uses HTTP 200 for a generic invalid-credential error response");
+    assert.equal(thresholdResponse.status, 429);
+    assert.equal(evidence.genericAccountThresholdResponse, true);
+    assert.equal(evidence.separateAccountStatus, 200, "a different family account must have an independent counter");
+    assert.equal(evidence.separateAccountReceivedItsOwnToken, true);
+    assert.equal(evidence.separateAccountMatchedFixture, true);
+    assert.deepEqual(unknownAccountStatuses, Array(10).fill(401));
+    assert.equal(accountBodies[0], unknownAccountBodies[0], "known and unknown accounts must have indistinguishable invalid-login responses");
+    assert.equal(unknownThreshold.status, 429);
+    assert.equal(thresholdBody, unknownThresholdBody, "known and unknown account throttles must use the same generic response");
+    assert.deepEqual(rotatingAccountStatuses.slice(0, 10), Array(10).fill(401));
+    assert.equal(rotatingAccountStatuses[10], 429, "IP throttling must remain effective while an attacker rotates account names");
+    assert.equal(afterWindow.status, 200, "a legitimate login must work after the configured account/IP window expires");
+    assert.equal(evidence.afterWindowMatchedFixture, true);
+    assert.equal(evidence.afterWindowIssuedToken, true);
+    assert.ok(accountAuditPaths.includes("/api/mobile/auth/login"), "the mobile threshold must create a route-specific audit event");
+    assert.equal(evidence.auditContainsAccountOrCredential, false);
+    assert.ok(Number(evidence.rateLimitedAuditEventCount) >= 3);
+  } finally {
+    t.mock.timers.reset();
     await close(server);
   }
 });

@@ -3745,7 +3745,14 @@ router.post("/verify-client-credentials", async (req, res) => {
       }
     }
     if (!child) {
-      await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username: cleanUsername }, requestId: String(req.id) });
+      await auditLog({
+        action: "failed_login",
+        targetType: "child",
+        success: false,
+        reason: "invalid credentials",
+        metadata: { auth_method: "family_username_access_code" },
+        requestId: String(req.id),
+      });
       return res.json({ error: "Invalid username or access code" });
     }
     if (!(await childCanUseClientLogin(child))) {
@@ -3873,7 +3880,14 @@ router.post("/client-session/login", async (req, res) => {
       }
     }
     if (!child) {
-      await auditLog({ action: "failed_login", targetType: "child", success: false, reason: "invalid credentials", metadata: { username: cleanUsername }, requestId: String(req.id) });
+      await auditLog({
+        action: "failed_login",
+        targetType: "child",
+        success: false,
+        reason: "invalid credentials",
+        metadata: { auth_method: "family_username_access_code" },
+        requestId: String(req.id),
+      });
       return res.status(401).json({ error: "Invalid credentials" });
     }
     if (!(await childCanUseClientLogin(child))) {
