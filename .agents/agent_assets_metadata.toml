@@ -994,3 +994,17 @@ mtime_ms = 1794454836682
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/9bbded23-2f25-4fd4-98fb-af23cab31fc1/978f43e4-a882-44b2-b7b3-53d45d112844"
 storage_version_token = "1794454840536970"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "mkZ0d8ThKoHrFk9nhZC1R"
+uri = "file://.local/verification/NeuroPathways-P0-SEC099-ACC070-20261112T043928Z.zip"
+type = "unspecified"
+title = "NeuroPathways P0 verification evidence"
+description = "26 isolated checks passed; includes the route matrix, before/after runs, and genuine audit evidence."
+logical_id = "3eac9bb8-6993-4162-b711-8aa22db52846"
+content_hash = "sha256:8878659dcfbe8d3e49587b1d1501d36e6661b2edbaa5f14a7a22219bec55019c"
+size = 250808
+mtime_ms = 1794458400009
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/3eac9bb8-6993-4162-b711-8aa22db52846/dacac65b-908d-4b8b-b089-77c882caa50d"
+storage_version_token = "1794458426824762"
+content_type = "application/octet-stream"
