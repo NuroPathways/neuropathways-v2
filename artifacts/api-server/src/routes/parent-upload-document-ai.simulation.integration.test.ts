@@ -991,14 +991,15 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
         assert.equal(postDeleteContext.hasDocumentId, false);
         assert.ok(postDeleteContext.hasPlanGoal, "The retained source-derived goal remains available to the parent chat.");
 
-        const deletionAuditRows = await db.select().from(auditLogsTable).where(and(
-          eq(auditLogsTable.targetId, documentAId),
-          inArray(auditLogsTable.action, [
-            "document_deleted",
-            "document_file_cleanup_queued",
-            "document_file_cleanup_completed",
-          ]),
-        ));
+        const deletionAuditRows = (await db.select().from(auditLogsTable)).filter((row) => {
+          const metadata = row.metadata as Record<string, unknown> | null;
+          const requestId = metadata?.request_id;
+          return (
+            (row.action === "document_deleted" && row.targetId === documentAId) ||
+            (["document_file_cleanup_queued", "document_file_cleanup_completed"].includes(row.action) &&
+              requestId === deleteRequestId)
+          );
+        });
         const deletedEvent = deletionAuditRows.find((row) => row.action === "document_deleted");
         assert.ok(deletedEvent);
         assert.equal(deletedEvent.userId, parentAId);
@@ -1006,8 +1007,22 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
         assert.equal(deletedEvent.tenantId, workspaceA);
         assert.equal(deletedEvent.success, true);
         assert.equal((deletedEvent.metadata as any)?.request_id, deleteRequestId);
-        assert.ok(deletionAuditRows.some((row) => row.action === "document_file_cleanup_queued"));
-        assert.ok(deletionAuditRows.some((row) => row.action === "document_file_cleanup_completed"));
+        const cleanupQueuedEvent = deletionAuditRows.find((row) => row.action === "document_file_cleanup_queued");
+        const cleanupCompletedEvent = deletionAuditRows.find((row) => row.action === "document_file_cleanup_completed");
+        assert.ok(cleanupQueuedEvent && cleanupCompletedEvent);
+        for (const row of [cleanupQueuedEvent, cleanupCompletedEvent]) {
+          const metadata = row.metadata as Record<string, unknown>;
+          assert.equal(row.userId, parentAId);
+          assert.equal(row.userRole, "parent");
+          assert.equal(row.tenantId, workspaceA);
+          assert.equal(row.targetType, "document_cleanup_job");
+          assert.equal(row.success, true);
+          assert.ok(typeof row.targetId === "string" && row.targetId.length > 0);
+          assert.equal(metadata.document_id, documentAId);
+          assert.equal(metadata.child_id, childAId);
+          assert.equal(metadata.request_id, deleteRequestId);
+          assert.ok(Number.isFinite(Date.parse(row.createdDate.toISOString())));
+        }
         const chatAuditRows = await db.select().from(auditLogsTable).where(and(
           eq(auditLogsTable.action, "ai_parent_support_chat"),
           eq(auditLogsTable.targetId, childAId),
@@ -1178,10 +1193,14 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
     if (apiServer.listening) await new Promise<void>((resolve) => apiServer.close(() => resolve()));
   }
 
-  const auditRows = await db.select().from(auditLogsTable).where(inArray(
-    auditLogsTable.targetId,
-    [...uploadedDocumentIds, ...childIds],
-  ));
+  const relevantTargets = new Set<string>([...uploadedDocumentIds, ...childIds]);
+  const auditRows = (await db.select().from(auditLogsTable)).filter((row) => {
+    const metadata = row.metadata as Record<string, unknown> | null;
+    const requestId = metadata?.request_id;
+    const targetId = row.targetId;
+    return (targetId !== null && relevantTargets.has(targetId)) ||
+      (typeof requestId === "string" && requestId.startsWith(requestPrefix));
+  });
   const sanitizedAudit = auditRows.map((row) => ({
     createdAt: row.createdDate.toISOString(),
     actorId: row.userId,
@@ -1192,7 +1211,12 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
     targetId: row.targetId,
     success: row.success,
     reason: row.reason,
-    metadata: row.metadata,
+    metadata: (() => {
+      const metadata = { ...((row.metadata as Record<string, unknown> | null) ?? {}) };
+      // Cleanup uses an encrypted storage reference internally; omit it from portable evidence.
+      delete metadata.storage_path;
+      return metadata;
+    })(),
   }));
   const providerAudits = sanitizedAudit.filter((row) => row.action === "ai_document_provider_call");
   const scanAudits = sanitizedAudit.filter((row) => row.action === "document_scan_requested");
