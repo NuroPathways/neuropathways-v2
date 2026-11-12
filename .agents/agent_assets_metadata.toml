@@ -1050,3 +1050,17 @@ mtime_ms = 1794473612673
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/de3f54c0-e95f-4c2e-a1c1-9f37bf87c582/7944e84d-9b8a-4792-a732-35b597684c50"
 storage_version_token = "1794473639338580"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "MleJu6i24YwdCCbgnwrxE"
+uri = "file://.local/verification/neuro-parent-document-deletion-package-20261112T183425Z.zip"
+type = "unspecified"
+title = "Document deletion verification evidence"
+description = "Isolated fictional-data API verification, before-and-after deletion state, audit records, test results, and preserved failed attempts."
+logical_id = "3feddf59-1c58-4861-b11d-1a988dbef181"
+content_hash = "sha256:466afb3e863618b640419d36f36686385652ee9f8ed6ba114cf4a70607581038"
+size = 98369
+mtime_ms = 1794508548790
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/3feddf59-1c58-4861-b11d-1a988dbef181/664bd43d-13f1-4ff3-afd0-d5d6fa252a2c"
+storage_version_token = "1794508560801849"
+content_type = "application/octet-stream"
