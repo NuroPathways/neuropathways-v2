@@ -1607,6 +1607,7 @@ async function readParentDocument(
           progress: 0,
           target: Math.max(1, milestones.length),
           source: "parent_document",
+          sourceDocumentId: documentId,
           milestoneNotes,
           createdByClinician: false,
         });
@@ -1633,6 +1634,7 @@ async function readParentDocument(
           progress: 0,
           target: Math.max(1, extractedGoal.milestones.length),
           source: "parent_document",
+          sourceDocumentId: documentId,
           milestoneNotes,
           createdByClinician: false,
         });
@@ -2723,13 +2725,15 @@ export async function parentChat(
   }
 
   const settings = (await ownedParentChild(parentId, childId))?.settings;
-  const [cards, storedLogs, planGoals] = await Promise.all([
+    const visibleDocuments = await listParentDocuments(parentId, childId);
+    const visibleSourceDocumentIds = visibleDocuments.map((document) => document.id);
+    const [cards, storedLogs, planGoals] = await Promise.all([
     getParentSupportCards(parentId, childId),
     db.select().from(parentLogsTable)
       .where(and(eq(parentLogsTable.parentId, parentId), eq(parentLogsTable.childId, childId)))
       .orderBy(desc(parentLogsTable.createdAt))
       .limit(20),
-    getParentPlanGoals(childId, parentId),
+      getParentPlanGoals(childId, parentId, visibleSourceDocumentIds),
   ]);
   const selectedBehaviors = parentBehaviorsFromSettings(settings);
   const actionDate = normalizeParentActionDate(requestedActionDate);
@@ -2772,17 +2776,40 @@ export async function parentChat(
     childName: child.childName || child.firstName || "your child",
     selectedBehaviors,
     supportCards: cards,
-    dailyActions: dailyActions.map((action) => ({
-      kind: action.kind,
-      title: action.title,
-      description: action.description,
-      steps: action.steps,
-      behaviorName: action.behaviorName,
-      sourceType: action.sourceType,
-      sourceDocumentId: action.sourceDocumentId,
-      status: action.status,
-      estimatedMinutes: action.estimatedMinutes,
-    })),
+    planGoals: planGoals.map((goal) => goal.sourceStatus === "available"
+      ? {
+          title: goal.title,
+          description: goal.description,
+          milestones: goal.milestones,
+          sourceType: goal.sourceType,
+          sourceStatus: goal.sourceStatus,
+        }
+      : {
+          sourceType: goal.sourceType,
+          sourceStatus: goal.sourceStatus,
+        }),
+    dailyActions: dailyActions.map((action) => {
+      const sourceStatus = action.sourceDocumentId
+        ? visibleSourceDocumentIds.includes(action.sourceDocumentId) ? "available" as const : "unavailable" as const
+        : ["parent_uploaded_plan", "clinician_uploaded_plan", "clinician_reviewed"].includes(action.sourceType)
+          ? "unknown" as const
+          : null;
+      const documentDerived = ["parent_uploaded_plan", "clinician_uploaded_plan", "clinician_reviewed"].includes(action.sourceType);
+      if (documentDerived && sourceStatus !== "available") {
+        return { sourceType: action.sourceType, sourceStatus, status: action.status };
+      }
+      return {
+        kind: action.kind,
+        title: action.title,
+        description: action.description,
+        steps: action.steps,
+        behaviorName: action.behaviorName,
+        sourceType: action.sourceType,
+        sourceStatus,
+        status: action.status,
+        estimatedMinutes: action.estimatedMinutes,
+      };
+    }),
     recentLogs: storedLogs.map((log) => ({
       behaviorKey: log.behaviorKey,
       behaviorName: log.customBehavior || selectedBehaviors.find((behavior) =>
@@ -2821,7 +2848,6 @@ export async function parentChat(
       sourceReferences: _sourceReferences,
       ...card
     }) => card),
-    dailyActions: serverContext.dailyActions.map(({ sourceDocumentId: _sourceDocumentId, ...action }) => action),
     sourceDocuments: serverContext.sourceDocuments.map(({ documentId: _documentId, ...document }) => document),
   };
   const auditSourceDocumentIds = serverContext.sourceDocuments

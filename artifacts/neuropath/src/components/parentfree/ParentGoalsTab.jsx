@@ -26,6 +26,14 @@ const RATINGS = [
   { value: "needs_support", label: "Needs support", Icon: ThumbsDown },
 ];
 
+function planGoalSourceLabel(goal, card) {
+  const origin = goal.sourceType === "clinician_uploaded_plan" || card?.source === "clinician_document"
+    ? "Clinician-uploaded document"
+    : "Self-uploaded document";
+  if (goal.sourceStatus === "available") return origin;
+  return `${origin} · ${goal.sourceStatus === "unavailable" ? "source unavailable" : "source not linked"}`;
+}
+
 function lastCheckInLabel(value) {
   if (!value) return "";
   const parsed = new Date(value);
@@ -131,9 +139,7 @@ function PlanProgressCard({
   const progress = Math.min(target, Math.max(0, Number(goal.progress) || 0));
   const percent = Math.round((progress / target) * 100);
   const description = goal.description || card?.goalDescription || "";
-  const sourceLabel = goal.sourceType === "clinician_uploaded_plan" || card?.source === "clinician_document"
-    ? "Clinician-uploaded document"
-    : "Self-uploaded document";
+  const sourceLabel = planGoalSourceLabel(goal, card);
   const detailsId = `plan-goal-details-${goal.id || card?.id || testId}`;
   const trackable = Boolean(goal.id);
 
@@ -257,6 +263,8 @@ export default function ParentGoalsTab({
       description: card.goalDescription || "",
       milestones: [],
       sourceType: card.source === "clinician_document" ? "clinician_uploaded_plan" : "parent_uploaded_plan",
+      sourceStatus: "available",
+      sourceDocumentId: card.planGoalSourceDocumentIds?.[0] || card.planGoalSourceReferences?.[0]?.documentId || null,
       progress: 0,
       target: 10,
       card,
@@ -477,7 +485,7 @@ export default function ParentGoalsTab({
         careGoalDetails={(careGoal) => {
           const linkedPlan = planGoals.find((goal) => goal.id === careGoal.id);
           return linkedPlan ? <section aria-label="Linked plan source" data-testid={`linked-plan-${linkedPlan.id}`}>
-            <p className="np-goal-source-line"><span className="pf-tag">{linkedPlan.sourceType === "clinician_uploaded_plan" ? "Clinician-uploaded document" : "Self-uploaded document"}</span></p>
+            <p className="np-goal-source-line"><span className="pf-tag">{planGoalSourceLabel(linkedPlan)}</span></p>
             {linkedPlan.description && linkedPlan.description !== careGoal.description && <p className="np-goal-desc">{linkedPlan.description}</p>}
             <PlanGoalMilestones goal={linkedPlan} dailyActions={dailyActions} childId={child?.id} />
           </section> : null;

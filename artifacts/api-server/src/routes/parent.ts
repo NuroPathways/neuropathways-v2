@@ -461,16 +461,17 @@ function serializeParentLog(log: typeof parentLogsTable.$inferSelect) {
 export async function getParentDashboardData(parentId: string, childId: string, actionDate = new Date().toISOString().slice(0, 10)) {
   const owned = await ownedParentChild(parentId, childId);
   if (!owned) return null;
-  const [supportCards, documentSupportData, documents, storedLogs, planGoals] = await Promise.all([
+  const documents = await listParentDocuments(parentId, childId);
+  const visibleSourceDocumentIds = documents.map((document) => document.id);
+  const [supportCards, documentSupportData, storedLogs, planGoals] = await Promise.all([
     getParentSupportCards(parentId, childId),
     getParentDocumentSupportData(parentId, childId),
-    listParentDocuments(parentId, childId),
     db
       .select()
       .from(parentLogsTable)
       .where(and(eq(parentLogsTable.parentId, parentId), eq(parentLogsTable.childId, childId)))
       .orderBy(desc(parentLogsTable.createdAt)),
-    getParentPlanGoals(childId, parentId),
+    getParentPlanGoals(childId, parentId, visibleSourceDocumentIds),
   ]);
   const historical = await db.select().from(behaviorLogsTable).where(and(
     eq(behaviorLogsTable.childId, childId),
@@ -501,6 +502,7 @@ export async function getParentDashboardData(parentId: string, childId: string, 
   const activityGoals = [...planGoals, ...manualGoals.map(g => ({
     id: g.id, title: g.goalTitle || g.goalName || "Practice goal", description: g.goalDescription || "",
     milestones: [] as string[], sourceType: "selected_behavior" as const,
+    sourceStatus: null, sourceDocumentId: null,
   }))];
   const selectedBehaviors = parentBehaviorsFromSettings(owned.settings);
   const dailyActions = await getOrCreateParentDailyActions({

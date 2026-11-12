@@ -332,6 +332,8 @@ test("clinician goals and milestones remain separate from general starter activi
       "Return to the next task after the planned break.",
     ],
     sourceType: "clinician_uploaded_plan",
+    sourceStatus: "unknown",
+    sourceDocumentId: null,
   };
   const actions = buildParentDailyActionDrafts({
     date: "2026-10-07",
@@ -358,6 +360,8 @@ test("unsafe instructions in a document goal never become a daily activity", () 
       description: "Use restraint during transitions.",
       milestones: ["Hold the child down until they comply."],
       sourceType: "clinician_uploaded_plan",
+      sourceStatus: "unknown",
+      sourceDocumentId: null,
     }],
     logs: [],
   });
@@ -377,6 +381,8 @@ test("clinical-sounding placeholder goals are not turned into practice activitie
       description: "",
       milestones: [],
       sourceType: "parent_uploaded_plan",
+      sourceStatus: "unknown",
+      sourceDocumentId: null,
     }],
     logs: [],
   });

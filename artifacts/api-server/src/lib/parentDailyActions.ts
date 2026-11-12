@@ -49,6 +49,8 @@ export type ParentPlanGoal = {
   description: string;
   milestones: string[];
   sourceType: "clinician_uploaded_plan" | "parent_uploaded_plan" | "selected_behavior";
+  sourceStatus: "available" | "unavailable" | "unknown" | null;
+  sourceDocumentId: string | null;
   progress?: number;
   target?: number;
 };
@@ -284,11 +286,16 @@ function parseGoalMilestones(notes: string | null | undefined): string[] {
     .slice(0, 8);
 }
 
-export async function getParentPlanGoals(childId: string, ownerId?: string): Promise<ParentPlanGoal[]> {
+export async function getParentPlanGoals(
+  childId: string,
+  ownerId: string | undefined,
+  visibleSourceDocumentIds: readonly string[],
+): Promise<ParentPlanGoal[]> {
   const rows = await db.select().from(rewardTokensTable).where(and(
     eq(rewardTokensTable.childId, childId),
     inArray(rewardTokensTable.source, ["document", "parent_document"]),
   )).orderBy(desc(rewardTokensTable.createdDate));
+  const visibleDocumentIds = new Set(visibleSourceDocumentIds);
   const seen = new Set<string>();
   return rows.flatMap((row) => {
     if (ownerId?.startsWith("legacy-family:") && row.source === "parent_document" && row.parentId !== ownerId) return [];
@@ -296,6 +303,10 @@ export async function getParentPlanGoals(childId: string, ownerId?: string): Pro
     const key = title.normalize("NFKC").toLowerCase().replace(/\s+/g, " ");
     if (!title || seen.has(key)) return [];
     seen.add(key);
+    const storedSourceDocumentId = row.sourceDocumentId || null;
+    const sourceStatus = storedSourceDocumentId
+      ? visibleDocumentIds.has(storedSourceDocumentId) ? "available" as const : "unavailable" as const
+      : "unknown" as const;
     return [{
       id: row.id,
       title,
@@ -304,6 +315,9 @@ export async function getParentPlanGoals(childId: string, ownerId?: string): Pro
         : row.goalDescription?.trim().slice(0, 3000) || "",
       milestones: parseGoalMilestones(row.milestoneNotes),
       sourceType: row.source === "document" ? "clinician_uploaded_plan" as const : "parent_uploaded_plan" as const,
+      sourceStatus,
+      // Do not expose an inaccessible/deleted source identifier to the caregiver.
+      sourceDocumentId: sourceStatus === "available" ? storedSourceDocumentId : null,
       progress: Math.max(0, Number(row.tokensEarned) || 0),
       target: Math.max(1, Number(row.tokensGoal) || 10),
     }];

@@ -3085,6 +3085,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
               progress: 0,
               target: Math.max(1, milestones.length),
               source: goalSource,
+              sourceDocumentId: source_document_id,
               milestoneNotes: milestones.length
                 ? `Plan milestones:\n${milestones.map((milestone) => `• ${milestone}`).join("\n")}`
                 : "",
@@ -3159,6 +3160,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
               : "",
             milestones,
             source: familyUploadedDocumentIds.has(record.documentId) ? "parent_document" : "document",
+            sourceDocumentId: record.documentId,
           };
         });
       const existingGoals = await db.select().from(rewardTokensTable)
@@ -3191,6 +3193,7 @@ Example: do not write only "${childName} will complete a graduated exposure hier
           progress: 0,
           target: Math.max(1, goal.milestones.length),
           source: goal.source,
+          sourceDocumentId: goal.sourceDocumentId,
           milestoneNotes,
           createdByClinician: goal.source === "document",
         });

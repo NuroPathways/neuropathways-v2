@@ -1195,6 +1195,8 @@ export const GetParentGoalsResponseItem = zod.object({
   "progress": zod.number().int(),
   "target": zod.number().int(),
   "source": zod.string(),
+  "sourceStatus": zod.union([zod.literal('available'),zod.literal('unavailable'),zod.literal('unknown'),zod.literal(null)]).nullable(),
+  "sourceDocumentId": zod.string().nullable(),
   "createdByClinician": zod.boolean(),
   "canEdit": zod.boolean(),
   "canDelete": zod.boolean()
@@ -1228,6 +1230,8 @@ export const CreateParentGoalResponse = zod.object({
   "progress": zod.number().int(),
   "target": zod.number().int(),
   "source": zod.string(),
+  "sourceStatus": zod.union([zod.literal('available'),zod.literal('unavailable'),zod.literal('unknown'),zod.literal(null)]).nullable(),
+  "sourceDocumentId": zod.string().nullable(),
   "createdByClinician": zod.boolean(),
   "canEdit": zod.boolean(),
   "canDelete": zod.boolean()
@@ -1265,6 +1269,8 @@ export const UpdateParentGoalResponse = zod.object({
   "progress": zod.number().int(),
   "target": zod.number().int(),
   "source": zod.string(),
+  "sourceStatus": zod.union([zod.literal('available'),zod.literal('unavailable'),zod.literal('unknown'),zod.literal(null)]).nullable(),
+  "sourceDocumentId": zod.string().nullable(),
   "createdByClinician": zod.boolean(),
   "canEdit": zod.boolean(),
   "canDelete": zod.boolean()
@@ -1975,7 +1981,9 @@ export const GetParentDashboardResponse = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "milestones": zod.array(zod.string()),
-  "sourceType": zod.enum(['clinician_uploaded_plan', 'parent_uploaded_plan', 'selected_behavior'])
+  "sourceType": zod.enum(['clinician_uploaded_plan', 'parent_uploaded_plan', 'selected_behavior']),
+  "sourceStatus": zod.union([zod.literal('available'),zod.literal('unavailable'),zod.literal('unknown'),zod.literal(null)]).nullable(),
+  "sourceDocumentId": zod.string().nullable()
 }))
 })
 

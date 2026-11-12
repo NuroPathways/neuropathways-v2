@@ -14,16 +14,27 @@ SOCKET_DIR="$TEST_ROOT/socket"
 mkdir -m 700 "$SOCKET_DIR"
 PG_BIN="$(dirname "$(command -v pg_ctl)")"
 APP_SOURCE_FILES=(
+  "lib/api-spec/openapi.yaml"
+  "lib/api-client-react/src/generated/api.schemas.ts"
+  "lib/api-zod/src/generated/types/parentGoal.ts"
+  "lib/api-zod/src/generated/types/parentPlanGoal.ts"
   "lib/db/src/schema/entities.ts"
+  "lib/db/migrations/20261112_reward_token_source_document_id.sql"
   "artifacts/api-server/src/lib/documentAi.ts"
   "artifacts/api-server/src/lib/parentDocuments.ts"
   "artifacts/api-server/src/lib/parentDailyActions.ts"
+  "artifacts/api-server/src/lib/parentDailyActions.test.ts"
+  "artifacts/api-server/src/lib/parentChatPolicy.ts"
   "artifacts/api-server/src/lib/documentClassificationRecovery.ts"
   "artifacts/api-server/src/routes/parent.ts"
+  "artifacts/api-server/src/routes/parent-family-data.ts"
   "artifacts/api-server/src/routes/entities.ts"
   "artifacts/api-server/src/routes/parent-documents.ts"
+  "artifacts/api-server/src/routes/parent-upload-document-ai.simulation.integration.test.ts"
   "artifacts/neuropath/src/pages/ParentHome.jsx"
+  "artifacts/neuropath/src/pages/GoalsMilestones.jsx"
   "artifacts/neuropath/src/components/parentfree/ParentGoalsTab.jsx"
+  "artifacts/neuropath/src/components/parentfree/ParentGoalsTab.test.jsx"
   "artifacts/neuropath/src/components/parentfree/DocsPanel.jsx"
 )
 sha256sum "${APP_SOURCE_FILES[@]}" >"$EVIDENCE_DIR/app-source-manifest.sha256"
@@ -86,6 +97,36 @@ unset AI_INTEGRATIONS_ANTHROPIC_API_KEY AI_INTEGRATIONS_ANTHROPIC_BASE_URL \
   AI_INTEGRATIONS_OPENAI_API_KEY AI_INTEGRATIONS_GEMINI_API_KEY || true
 
 {
+  printf 'Migration compatibility test started UTC: %s\n' "$(date -u +%FT%TZ)"
+  "$PG_BIN/psql" "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
+    "CREATE TABLE reward_tokens (id varchar PRIMARY KEY DEFAULT gen_random_uuid(), child_id varchar, source varchar, goal_title varchar);
+     INSERT INTO reward_tokens (id, child_id, source, goal_title)
+       VALUES ('migration-preservation-fixture', 'fictional-legacy-child', 'parent_document', 'Legacy fictional goal');"
+  BEFORE_ROW="$("$PG_BIN/psql" "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
+    "SELECT jsonb_build_object('id', id, 'child_id', child_id, 'source', source, 'goal_title', goal_title)::text
+       FROM reward_tokens WHERE id = 'migration-preservation-fixture';")"
+  "$PG_BIN/psql" "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+    -f "$ROOT/lib/db/migrations/20261112_reward_token_source_document_id.sql"
+  AFTER_ROW="$("$PG_BIN/psql" "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
+    "SELECT jsonb_build_object('id', id, 'child_id', child_id, 'source', source, 'goal_title', goal_title,
+       'source_document_id', source_document_id)::text
+       FROM reward_tokens WHERE id = 'migration-preservation-fixture';")"
+  printf '%s\n' "$AFTER_ROW" | jq -e '
+    .id == "migration-preservation-fixture" and
+    .child_id == "fictional-legacy-child" and
+    .source == "parent_document" and
+    .goal_title == "Legacy fictional goal" and
+    .source_document_id == null
+  ' >/dev/null
+  jq -n --arg before "$BEFORE_ROW" --arg after "$AFTER_ROW" '{
+    status: "PASS",
+    before: ($before | fromjson),
+    after: ($after | fromjson),
+    existingGoalPreserved: true,
+    newSourceDocumentIdDefaultsToNull: true,
+    foreignKeyAdded: false
+  }' >"$EVIDENCE_DIR/migration-compatibility.json"
+  printf 'Migration compatibility test completed UTC: %s\n' "$(date -u +%FT%TZ)"
   printf 'Schema push started UTC: %s\n' "$(date -u +%FT%TZ)"
   pnpm --filter @workspace/db run push
   printf 'Schema push completed UTC: %s\n' "$(date -u +%FT%TZ)"

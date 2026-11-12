@@ -1501,10 +1501,15 @@ components:
         progress: { type: integer }
         target: { type: integer }
         source: { type: string }
+        sourceStatus:
+          type: [string, "null"]
+          enum: [available, unavailable, unknown, null]
+        sourceDocumentId:
+          type: [string, "null"]
         createdByClinician: { type: boolean }
         canEdit: { type: boolean }
         canDelete: { type: boolean }
-      required: [id, childId, title, description, progress, target, source, createdByClinician, canEdit, canDelete]
+      required: [id, childId, title, description, progress, target, source, sourceStatus, sourceDocumentId, createdByClinician, canEdit, canDelete]
     ParentGoalInput:
       type: object
       properties:
@@ -2129,7 +2134,12 @@ components:
         sourceType:
           type: string
           enum: [clinician_uploaded_plan, parent_uploaded_plan, selected_behavior]
-      required: [id, title, description, milestones, sourceType]
+        sourceStatus:
+          type: [string, "null"]
+          enum: [available, unavailable, unknown, null]
+        sourceDocumentId:
+          type: [string, "null"]
+      required: [id, title, description, milestones, sourceType, sourceStatus, sourceDocumentId]
     ParentDashboard:
       type: object
       properties:

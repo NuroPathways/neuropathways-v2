@@ -52,10 +52,14 @@ type ChatContextSummary = {
   hasDocumentId: boolean;
   hasSupportStep: boolean;
   hasPlanGoal: boolean;
+  hasAvailableGoalSourceStatus: boolean;
+  hasUnavailableGoalSourceStatus: boolean;
+  hasUnknownGoalSourceStatus: boolean;
 };
 
 let providerMode: ProviderMode = "valid";
 let activeDocumentId = "";
+let linkedGoalTitle = "";
 let chatCapturePhase: ChatContextSummary["phase"] | null = null;
 let activeSourceText = "";
 let foreignSourceText = "";
@@ -110,6 +114,21 @@ function extractionIdsFrom(body: Record<string, any>): string[] {
   };
   const text = collectText(body.messages ?? []).join("\n");
   return [...new Set([...text.matchAll(/"extraction_id"\s*:\s*"([^"]+)"/g)].map((match) => match[1]))];
+}
+
+function authorizedChatContextFrom(body: Record<string, any>): Record<string, any> {
+  const userMessage = Array.isArray(body.messages)
+    ? body.messages.find((message: any) => message?.role === "user" && typeof message.content === "string")
+    : undefined;
+  if (!userMessage) return {};
+  try {
+    const parsed = JSON.parse(userMessage.content);
+    return parsed && typeof parsed.authorized_context === "object" && parsed.authorized_context
+      ? parsed.authorized_context
+      : {};
+  } catch {
+    return {};
+  }
 }
 
 const behaviorExcerpt = "Kai needs help beginning a worksheet with several steps.";
@@ -250,14 +269,24 @@ const provider = http.createServer((request, response) => {
       const serialized = JSON.stringify(body);
       if (!Array.isArray(body.tools) || body.tools.length === 0) {
         if (chatCapturePhase) {
+          const context = authorizedChatContextFrom(body);
+          const contextText = JSON.stringify(context);
+          const planGoals = Array.isArray(context.planGoals) ? context.planGoals : [];
+          const dailyActions = Array.isArray(context.dailyActions) ? context.dailyActions : [];
+          const sourceStatuses = [...planGoals, ...dailyActions]
+            .map((item) => item?.sourceStatus)
+            .filter((status): status is string => typeof status === "string");
           chatContextSummaries.push({
             phase: chatCapturePhase,
-            hasRawSourceMarker: serialized.includes(sourceMarker),
-            hasSourceExcerpt: serialized.includes(behaviorExcerpt) || serialized.includes(observationExcerpt),
-            hasDocumentTitle: serialized.includes("Synthetic plan"),
-            hasDocumentId: serialized.includes(activeDocumentId),
-            hasSupportStep: serialized.includes("Place the break card beside the worksheet"),
-            hasPlanGoal: serialized.includes("Show the break card before leaving the table"),
+            hasRawSourceMarker: contextText.includes(sourceMarker),
+            hasSourceExcerpt: contextText.includes(behaviorExcerpt) || contextText.includes(observationExcerpt),
+            hasDocumentTitle: contextText.includes("Synthetic plan"),
+            hasDocumentId: contextText.includes(activeDocumentId),
+            hasSupportStep: contextText.includes("Place the break card beside the worksheet"),
+            hasPlanGoal: Boolean(linkedGoalTitle) && planGoals.some((goal: any) => goal?.title === linkedGoalTitle),
+            hasAvailableGoalSourceStatus: sourceStatuses.includes("available"),
+            hasUnavailableGoalSourceStatus: sourceStatuses.includes("unavailable"),
+            hasUnknownGoalSourceStatus: sourceStatuses.includes("unknown"),
           });
         }
         response.writeHead(200, { "content-type": "application/json" });
@@ -728,6 +757,27 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
         );
         assert.ok(linkedGoal, "The existing parent document scan flow must create its source-derived goal record.");
         linkedGoalId = linkedGoal.id;
+        linkedGoalTitle = linkedGoal.goalTitle || "";
+        assert.ok(linkedGoalTitle);
+        assert.equal(linkedGoal.sourceDocumentId, documentAId, "New document-derived goals must persist the exact server-validated source document ID.");
+        await db.insert(rewardTokensTable).values({
+          childId: childAId,
+          parentId: parentAId,
+          tenantId: workspaceA,
+          goalTitle: "Legacy unlinked fictional goal",
+          goalDescription: "Historical derived goal without a reliable source ID.",
+          source: "parent_document",
+          sourceDocumentId: null,
+          createdByClinician: false,
+        });
+
+        const dashboardWithSource = await dashboardFor(tokenA, childAId, `${requestPrefix}-dashboard-source-status`);
+        const linkedGoalWire = dashboardWithSource.planGoals.find((goal: any) => goal.id === linkedGoalId);
+        const legacyGoalWire = dashboardWithSource.planGoals.find((goal: any) => goal.title === "Legacy unlinked fictional goal");
+        assert.equal(linkedGoalWire?.sourceStatus, "available");
+        assert.equal(linkedGoalWire?.sourceDocumentId, documentAId);
+        assert.equal(legacyGoalWire?.sourceStatus, "unknown");
+        assert.equal(legacyGoalWire?.sourceDocumentId, null);
 
         const listResponse = await fetch(
           `${apiBase}/parent/children/${childAId}/documents`,
@@ -769,6 +819,12 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
         const [beforeSettings] = await db.select().from(parentChildSettingsTable)
           .where(eq(parentChildSettingsTable.childId, childAId));
         const beforeCards = (beforeSettings.supportCards as Array<Record<string, any>>).map((card) => card.id).sort();
+        const beforeDocumentGoals = await db.select().from(rewardTokensTable).where(and(
+          eq(rewardTokensTable.childId, childAId),
+          eq(rewardTokensTable.sourceDocumentId, documentAId),
+        ));
+        const beforeDocumentGoalIds = beforeDocumentGoals.map((goal) => goal.id).sort();
+        assert.ok(beforeDocumentGoalIds.includes(linkedGoalId));
         const requestId = `${requestPrefix}-repeat-scan`;
         scanRequestIds.push(requestId);
         const response = await scanDocument(tokenA, childAId, documentAId, requestId);
@@ -786,6 +842,16 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
           (afterMetadata.extractedSupport as any)?.supportConcernCards?.map((card: any) => card.id).sort(),
           (beforeMetadata.extractedSupport as any)?.supportConcernCards?.map((card: any) => card.id).sort(),
         );
+        const rescannedGoals = await db.select().from(rewardTokensTable).where(and(
+          eq(rewardTokensTable.childId, childAId),
+          eq(rewardTokensTable.sourceDocumentId, documentAId),
+        ));
+        assert.deepEqual(
+          rescannedGoals.map((goal) => goal.id).sort(),
+          beforeDocumentGoalIds,
+          "A repeat scan must not duplicate or replace goals linked to the same source document.",
+        );
+        assert.ok(rescannedGoals.every((goal) => goal.sourceDocumentId === documentAId));
       }),
     );
 
@@ -837,6 +903,9 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
           card.sourceReferences?.some((reference: any) => reference.documentId === documentAId),
         ));
         assert.ok(dashboardBefore.planGoals.some((goal: any) => goal.id === linkedGoalId));
+        const linkedGoalBefore = dashboardBefore.planGoals.find((goal: any) => goal.id === linkedGoalId);
+        assert.equal(linkedGoalBefore?.sourceStatus, "available");
+        assert.equal(linkedGoalBefore?.sourceDocumentId, documentAId);
         assert.ok(goalsBefore.some((goal: any) => goal.id === linkedGoalId && goal.source === "parent_document"));
         assert.ok(goalsBefore.some((goal: any) => goal.id === independentGoalId && goal.source === "manual"));
 
@@ -856,6 +925,9 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
         assert.ok(preDeleteContext?.hasSourceExcerpt);
         assert.ok(preDeleteContext?.hasSupportStep);
         assert.ok(preDeleteContext?.hasPlanGoal);
+        assert.ok(preDeleteContext?.hasAvailableGoalSourceStatus);
+        assert.ok(preDeleteContext?.hasUnknownGoalSourceStatus);
+        assert.equal(preDeleteContext?.hasUnavailableGoalSourceStatus, false);
 
         const beforeDeniedState = await documentStateFor(documentAId, childAId, parentAId);
         const beforeUnrelatedDoc = await documentStateFor(unrelatedDocumentId, childAId, parentAId);
@@ -963,6 +1035,12 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
         assert.ok(goalsAfter.some((goal: any) =>
           goal.id === linkedGoalId && goal.source === "parent_document",
         ));
+        const linkedGoalAfter = dashboardAfter.planGoals.find((goal: any) => goal.id === linkedGoalId);
+        const linkedGoalGoalsWire = goalsAfter.find((goal: any) => goal.id === linkedGoalId);
+        assert.equal(linkedGoalAfter?.sourceStatus, "unavailable");
+        assert.equal(linkedGoalAfter?.sourceDocumentId, null);
+        assert.equal(linkedGoalGoalsWire?.sourceStatus, "unavailable");
+        assert.equal(linkedGoalGoalsWire?.sourceDocumentId, null);
         assert.ok(goalsAfter.some((goal: any) =>
           goal.id === independentGoalId && goal.source === "manual",
         ));
@@ -989,7 +1067,10 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
         assert.equal(postDeleteContext.hasSourceExcerpt, false);
         assert.equal(postDeleteContext.hasDocumentTitle, false);
         assert.equal(postDeleteContext.hasDocumentId, false);
-        assert.ok(postDeleteContext.hasPlanGoal, "The retained source-derived goal remains available to the parent chat.");
+        assert.equal(postDeleteContext.hasPlanGoal, false, "Deleted-source goal details are not fed back into AI context.");
+        assert.equal(postDeleteContext.hasAvailableGoalSourceStatus, false);
+        assert.ok(postDeleteContext.hasUnavailableGoalSourceStatus);
+        assert.ok(postDeleteContext.hasUnknownGoalSourceStatus);
 
         const deletionAuditRows = (await db.select().from(auditLogsTable)).filter((row) => {
           const metadata = row.metadata as Record<string, unknown> | null;
@@ -1090,6 +1171,10 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
             ),
             sourceLinkedGoalVisible: goalsAfter.some((goal: any) => goal.id === linkedGoalId),
             sourceLinkedGoalSourceType: goalsAfter.find((goal: any) => goal.id === linkedGoalId)?.source,
+            sourceLinkedGoalDocumentIdRetainedInDatabase: (await db.select().from(rewardTokensTable)
+              .where(eq(rewardTokensTable.id, linkedGoalId)))[0]?.sourceDocumentId === documentAId,
+            caregiverSourceStatus: linkedGoalAfter?.sourceStatus,
+            caregiverSourceDocumentId: linkedGoalAfter?.sourceDocumentId,
             independentGoalVisible: goalsAfter.some((goal: any) => goal.id === independentGoalId),
             unrelatedDocumentStillVisible: dashboardAfter.documents.some((item: any) => item.id === unrelatedDocumentId),
             fakeAiContext: postDeleteContext,
@@ -1116,6 +1201,22 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
         documentBId = uploaded.id;
         uploadedDocumentIds.push(documentBId);
         assert.equal(uploaded.childId, childBId);
+
+        const crossFamilyLinkedGoal = await db.insert(rewardTokensTable).values({
+          childId: childAId,
+          parentId: parentAId,
+          tenantId: workspaceA,
+          goalTitle: "Fictional inaccessible-source goal",
+          goalDescription: "This synthetic association points at a different family's document.",
+          source: "parent_document",
+          sourceDocumentId: documentBId,
+          createdByClinician: false,
+        }).returning();
+        const scopedGoalWires = await goalsFor(tokenA, childAId, `${requestPrefix}-cross-family-goal-source`);
+        const inaccessibleSourceGoal = scopedGoalWires.find((goal: any) => goal.id === crossFamilyLinkedGoal[0].id);
+        assert.equal(inaccessibleSourceGoal?.sourceStatus, "unavailable");
+        assert.equal(inaccessibleSourceGoal?.sourceDocumentId, null);
+        assert.doesNotMatch(JSON.stringify(inaccessibleSourceGoal), /Riley|Synthetic plan|foreign/i);
 
         const beforeRequests = capturedRequests.length;
         const requestId = `${requestPrefix}-cross-family`;

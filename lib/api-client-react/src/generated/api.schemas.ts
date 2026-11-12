@@ -412,6 +412,18 @@ export interface CareTeamWorkspace {
   activitySafetyEvidence?: ActivityRecommendationEvidence[];
 }
 
+/**
+ * @nullable
+ */
+export type ParentGoalSourceStatus = typeof ParentGoalSourceStatus[keyof typeof ParentGoalSourceStatus] | null;
+
+
+export const ParentGoalSourceStatus = {
+  available: 'available',
+  unavailable: 'unavailable',
+  unknown: 'unknown',
+} as const;
+
 export interface ParentGoal {
   id: string;
   childId: string;
@@ -420,6 +432,10 @@ export interface ParentGoal {
   progress: number;
   target: number;
   source: string;
+  /** @nullable */
+  sourceStatus: ParentGoalSourceStatus;
+  /** @nullable */
+  sourceDocumentId: string | null;
   createdByClinician: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -910,12 +926,28 @@ export const ParentPlanGoalSourceType = {
   selected_behavior: 'selected_behavior',
 } as const;
 
+/**
+ * @nullable
+ */
+export type ParentPlanGoalSourceStatus = typeof ParentPlanGoalSourceStatus[keyof typeof ParentPlanGoalSourceStatus] | null;
+
+
+export const ParentPlanGoalSourceStatus = {
+  available: 'available',
+  unavailable: 'unavailable',
+  unknown: 'unknown',
+} as const;
+
 export interface ParentPlanGoal {
   id: string;
   title: string;
   description: string;
   milestones: string[];
   sourceType: ParentPlanGoalSourceType;
+  /** @nullable */
+  sourceStatus: ParentPlanGoalSourceStatus;
+  /** @nullable */
+  sourceDocumentId: string | null;
 }
 
 export type ParentDocumentSupportCardReviewStatus = typeof ParentDocumentSupportCardReviewStatus[keyof typeof ParentDocumentSupportCardReviewStatus];

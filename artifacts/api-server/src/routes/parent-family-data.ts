@@ -6,6 +6,7 @@ import { ownedParentChild, parentActor, requireParent } from "../lib/parentAuth"
 import { parentGoalOwnerIds } from "../lib/familyParentAuth";
 import { readableGoalTitle } from "../lib/careTeam";
 import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
+import { listParentDocuments } from "../lib/parentDocuments";
 
 const router = Router();
 async function childScope(req: Request, res: Response) {
@@ -18,12 +19,25 @@ async function childScope(req: Request, res: Response) {
 function editable(goal: typeof rewardTokensTable.$inferSelect, owners: string[]) {
   return !goal.createdByClinician && goal.source === "manual" && Boolean(goal.parentId && owners.includes(goal.parentId));
 }
-function goalWire(goal: typeof rewardTokensTable.$inferSelect, owners: string[]) {
+function goalWire(
+  goal: typeof rewardTokensTable.$inferSelect,
+  owners: string[],
+  visibleSourceDocumentIds: ReadonlySet<string>,
+) {
   const title = readableGoalTitle(goal);
+  const isDocumentGoal = ["document", "parent_document"].includes(goal.source || "");
+  const storedSourceDocumentId = goal.sourceDocumentId || null;
+  const sourceStatus = !isDocumentGoal
+    ? null
+    : !storedSourceDocumentId
+      ? "unknown"
+      : visibleSourceDocumentIds.has(storedSourceDocumentId) ? "available" : "unavailable";
   return {
     id: goal.id, childId: goal.childId!, title: title || "Practice goal",
     description: goal.goalDescription || goal.notes || "", progress: goal.progress ?? goal.tokensEarned ?? 0,
     target: goal.target || goal.tokensGoal || 10, source: goal.source || "manual",
+    sourceStatus,
+    sourceDocumentId: sourceStatus === "available" ? storedSourceDocumentId : null,
     createdByClinician: Boolean(goal.createdByClinician || goal.source === "document"),
     canEdit: editable(goal, owners), canDelete: editable(goal, owners),
   };
@@ -33,13 +47,15 @@ router.get("/parent/children/:childId/goals", requireParent, async (req, res) =>
   if (!child) return;
   const owner = parentActor(req).id;
   const owners = await parentGoalOwnerIds(owner);
+  const visibleDocuments = await listParentDocuments(owner, child.id);
+  const visibleSourceDocumentIds = new Set(visibleDocuments.map((document) => document.id));
   const rows = await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.childId, child.id)).orderBy(desc(rewardTokensTable.createdDate));
   // Parent-document findings from another account are not made public simply
   // because legacy credentials can access the clinical child.
   res.json(rows.filter(g => !g.source?.includes("parent_document") || g.parentId === owner)
     .filter(g => !g.createdByClinician || g.clinicianId === child.clinicianId)
     .filter(g => !g.createdByClinician || g.publicationStatus === "published")
-    .map(g => goalWire(g, owners)));
+    .map(g => goalWire(g, owners, visibleSourceDocumentIds)));
 });
 router.post("/parent/children/:childId/goals", requireParent, async (req, res) => {
   const child = await childScope(req, res);
@@ -68,7 +84,7 @@ router.post("/parent/children/:childId/goals", requireParent, async (req, res) =
     }
     return [created];
   });
-  return res.status(201).json(goalWire(row, [owner]));
+  return res.status(201).json(goalWire(row, [owner], new Set()));
 });
 router.patch("/parent/children/:childId/goals/:goalId", requireParent, async (req, res) => {
   const child = await childScope(req, res);
@@ -90,7 +106,7 @@ router.patch("/parent/children/:childId/goals/:goalId", requireParent, async (re
     ...(input.progress !== undefined ? { progress: input.progress, tokensEarned: input.progress } : {}),
   }).where(and(condition, inArray(rewardTokensTable.parentId, owners), eq(rewardTokensTable.createdByClinician, false), eq(rewardTokensTable.source, "manual"))).returning();
   if (!updated) return res.status(409).json({ error: "Goal permissions changed. Reload before editing." });
-  return res.json(goalWire(updated, owners));
+  return res.json(goalWire(updated, owners, new Set()));
 });
 router.delete("/parent/children/:childId/goals/:goalId", requireParent, async (req, res) => {
   const child = await childScope(req, res);

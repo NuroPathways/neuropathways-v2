@@ -79,6 +79,24 @@ function caseResult(name: string, status: CaseStatus, detail?: string) {
   cases.push({ name, status, ...(detail ? { detail } : {}) });
 }
 
+function authorizedContextForLastChatRequest(): Record<string, any> {
+  const requestText = providerRequests.at(-1)?.content;
+  if (!requestText) return {};
+  try {
+    const messages = JSON.parse(requestText);
+    const message = Array.isArray(messages)
+      ? messages.find((entry: any) => entry?.role === "user" && typeof entry.content === "string")
+      : undefined;
+    if (!message) return {};
+    const serializedInput = JSON.parse(message.content);
+    return serializedInput?.authorized_context && typeof serializedInput.authorized_context === "object"
+      ? serializedInput.authorized_context
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 async function check(name: string, action: () => Promise<void>) {
   try {
     await action();
@@ -467,6 +485,7 @@ async function seedData() {
     db: testDb,
     parentAccountsTable,
     parentSessionsTable: database.parentSessionsTable,
+    parentChildSettingsTable,
     auditLogsTable: database.auditLogsTable,
     rewardTokensTable,
     eq,
@@ -1018,15 +1037,60 @@ async function run() {
       row.goalTitle === generatedGoalTitle && row.source === "parent_document",
     );
     assert.ok(generatedGoal, "The real parent scan route should create the source-derived goal.");
+    assert.equal(generatedGoal.sourceDocumentId, goalSourceDocumentId);
     const goalId = generatedGoal.id;
-    const goalDetails = (generatedGoal.goalDetails || {}) as Record<string, unknown>;
-    const hasSpecificDocumentAssociation = Boolean(
-      (generatedGoal as any).sourceDocumentId ||
-      (generatedGoal as any).sourceDocumentIds ||
-      goalDetails.sourceDocumentId ||
-      goalDetails.sourceDocumentIds,
+    const oldUnlinkedGoal = await seed.db.insert(seed.rewardTokensTable).values({
+      childId: childMira,
+      parentId,
+      tenantId: workspaceId,
+      goalTitle: "Fictional legacy goal without a source link",
+      goalDescription: "This older goal has no reliable document association.",
+      source: "parent_document",
+      sourceDocumentId: null,
+      createdByClinician: false,
+    }).returning();
+    const dashboardBeforeScanRepeat = await cdp!.evaluate(`(async () => {
+      const response = await fetch("/api/parent/children/${childMira}/dashboard", {
+        headers: { "X-Parent-Token": localStorage.getItem("np_parent_token") || "" }
+      });
+      return { status: response.status, body: await response.json() };
+    })()`);
+    assert.equal(dashboardBeforeScanRepeat.status, 200);
+    const linkedGoalWireBeforeRepeat = dashboardBeforeScanRepeat.body.planGoals.find((goal: any) => goal.id === goalId);
+    const legacyGoalWire = dashboardBeforeScanRepeat.body.planGoals.find((goal: any) => goal.id === oldUnlinkedGoal[0].id);
+    assert.equal(linkedGoalWireBeforeRepeat?.sourceStatus, "available");
+    assert.equal(linkedGoalWireBeforeRepeat?.sourceDocumentId, goalSourceDocumentId);
+    assert.equal(legacyGoalWire?.sourceStatus, "unknown");
+    assert.equal(legacyGoalWire?.sourceDocumentId, null);
+
+    const [settingsBeforeRepeat] = await seed.db.select().from(seed.parentChildSettingsTable)
+      .where(apiRequire("drizzle-orm").eq(seed.parentChildSettingsTable.childId, childMira));
+    const linkedCardIdsBeforeRepeat = (settingsBeforeRepeat.supportCards as any[])
+      .filter((card) => card.sourceDocumentIds?.includes(goalSourceDocumentId))
+      .map((card) => card.id).sort();
+    const repeatedScan = await cdp!.evaluate(`(async () => {
+      const response = await fetch("/api/parent/children/${childMira}/documents/${goalSourceDocumentId}/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Parent-Token": localStorage.getItem("np_parent_token") || "" },
+        body: JSON.stringify({})
+      });
+      return { status: response.status, body: await response.json() };
+    })()`);
+    assert.equal(repeatedScan.status, 200);
+    const repeatedGoalRows = await seed.db.select().from(seed.rewardTokensTable)
+      .where(apiRequire("drizzle-orm").eq(seed.rewardTokensTable.childId, childMira));
+    const sameGoalRows = repeatedGoalRows.filter((row: any) =>
+      row.goalTitle === generatedGoalTitle && row.source === "parent_document",
     );
-    assert.equal(hasSpecificDocumentAssociation, false);
+    assert.equal(sameGoalRows.length, 1);
+    assert.equal(sameGoalRows[0].id, goalId);
+    assert.equal(sameGoalRows[0].sourceDocumentId, goalSourceDocumentId);
+    const [settingsAfterRepeat] = await seed.db.select().from(seed.parentChildSettingsTable)
+      .where(apiRequire("drizzle-orm").eq(seed.parentChildSettingsTable.childId, childMira));
+    const linkedCardIdsAfterRepeat = (settingsAfterRepeat.supportCards as any[])
+      .filter((card) => card.sourceDocumentIds?.includes(goalSourceDocumentId))
+      .map((card) => card.id).sort();
+    assert.deepEqual(linkedCardIdsAfterRepeat, linkedCardIdsBeforeRepeat);
 
     const goalUrl = `${browserBase}/ParentHome?tab=edit&section=goals&child_id=${encodeURIComponent(childMira)}`;
     await cdp!.navigate(goalUrl);
@@ -1050,6 +1114,22 @@ async function run() {
     assert.ok(before.text.includes(generatedGoalTitle));
     assert.equal(before.sourceLinks.length, 0, "The source badge is plain text, not a link to the document.");
     await cdp!.screenshot(path.join(evidenceDir!, "goal-source-before-delete.png"));
+    const chatBeforeDelete = await cdp!.evaluate(`(async () => {
+      const response = await fetch("/api/parent/children/${childMira}/chat", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "X-Parent-Token": localStorage.getItem("np_parent_token") || ""
+        },
+        body: JSON.stringify({ message: "Please explain my saved homework goal." })
+      });
+      return { status: response.status };
+    })()`);
+    assert.equal(chatBeforeDelete.status, 200);
+    const beforeDeleteAiContext = authorizedContextForLastChatRequest();
+    const sourceGoalBeforeChat = beforeDeleteAiContext.planGoals?.find((goal: any) => goal.title === generatedGoalTitle);
+    assert.equal(sourceGoalBeforeChat?.sourceStatus, "available");
+    assert.ok(beforeDeleteAiContext.planGoals?.some((goal: any) => goal.sourceStatus === "unknown"));
 
     await cdp!.navigate(`${browserBase}/ParentHome?tab=docs&child_id=${encodeURIComponent(childMira)}`);
     const deleteSelector = `[data-testid="button-delete-document-${goalSourceDocumentId}"]`;
@@ -1073,16 +1153,52 @@ async function run() {
     await cdp!.navigate(goalUrl);
     await waitFor(() => readVisibleGoal(), (state) => state.visible, "Retained goal did not return after document deletion.");
     const after = await readVisibleGoal();
-    assert.equal(after.sourceLabel, "Self-uploaded document");
+    assert.equal(after.sourceLabel, "Self-uploaded document · source unavailable");
     assert.equal(after.sourceLinks.length, 0, "No broken document link is rendered.");
     assert.equal(after.text.includes("Mira generated goal plan"), false);
     assert.equal(after.visible, true);
     await cdp!.screenshot(path.join(evidenceDir!, "goal-source-after-delete.png"));
 
+    const dashboardAfterDelete = await cdp!.evaluate(`(async () => {
+      const response = await fetch("/api/parent/children/${childMira}/dashboard", {
+        headers: { "X-Parent-Token": localStorage.getItem("np_parent_token") || "" }
+      });
+      return { status: response.status, body: await response.json() };
+    })()`);
+    assert.equal(dashboardAfterDelete.status, 200);
+    const linkedGoalAfterDelete = dashboardAfterDelete.body.planGoals.find((goal: any) => goal.id === goalId);
+    assert.equal(linkedGoalAfterDelete?.sourceStatus, "unavailable");
+    assert.equal(linkedGoalAfterDelete?.sourceDocumentId, null);
+    const legacyGoalAfterDelete = dashboardAfterDelete.body.planGoals.find((goal: any) => goal.id === oldUnlinkedGoal[0].id);
+    assert.equal(legacyGoalAfterDelete?.sourceStatus, "unknown");
+    assert.equal(legacyGoalAfterDelete?.sourceDocumentId, null);
+
+    const chatAfterDelete = await cdp!.evaluate(`(async () => {
+      const response = await fetch("/api/parent/children/${childMira}/chat", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "X-Parent-Token": localStorage.getItem("np_parent_token") || ""
+        },
+        body: JSON.stringify({ message: "Please explain my saved homework goal." })
+      });
+      return { status: response.status };
+    })()`);
+    assert.equal(chatAfterDelete.status, 200);
+    const afterDeleteAiContext = authorizedContextForLastChatRequest();
+    assert.equal(afterDeleteAiContext.planGoals?.some((goal: any) => goal.sourceStatus === "unavailable"), true);
+    assert.equal(afterDeleteAiContext.planGoals?.some((goal: any) => goal.sourceStatus === "unknown"), true);
+    assert.equal(afterDeleteAiContext.planGoals?.some((goal: any) => goal.title === generatedGoalTitle), false);
+    assert.doesNotMatch(JSON.stringify(afterDeleteAiContext), new RegExp(goalSourceDocumentId));
+    assert.doesNotMatch(JSON.stringify(afterDeleteAiContext), new RegExp(generatedGoalTitle));
+    assert.doesNotMatch(JSON.stringify(afterDeleteAiContext), /Fictional legacy goal without a source link/);
+    assert.doesNotMatch(JSON.stringify(afterDeleteAiContext), /Mira generated goal plan/);
+
     const goalAfter = (await seed.db.select().from(seed.rewardTokensTable)
       .where(eq(seed.rewardTokensTable.id, goalId)))[0];
     assert.ok(goalAfter);
     assert.equal(goalAfter.source, "parent_document");
+    assert.equal(goalAfter.sourceDocumentId, goalSourceDocumentId, "Deletion preserves the exact ID as provenance without retaining the source file.");
     const evidence = {
       testedCommit: expectedCommit,
       uploadStatus: upload.status,
@@ -1093,8 +1209,14 @@ async function run() {
       goalTitle: generatedGoalTitle,
       goalSourceTypeBefore: generatedGoal.source,
       goalSourceTypeAfter: goalAfter.source,
-      goalHasSpecificSourceDocumentId: hasSpecificDocumentAssociation,
-      goalDetailsKeys: Object.keys(goalDetails),
+      goalHasSpecificSourceDocumentId: goalAfter.sourceDocumentId === goalSourceDocumentId,
+      goalSourceStatusBeforeDelete: linkedGoalWireBeforeRepeat?.sourceStatus,
+      goalSourceStatusAfterDelete: linkedGoalAfterDelete?.sourceStatus,
+      legacyUnlinkedGoalStatus: legacyGoalAfterDelete?.sourceStatus,
+      repeatedScanGoalCount: sameGoalRows.length,
+      repeatedScanCardIdsUnchanged: JSON.stringify(linkedCardIdsBeforeRepeat) === JSON.stringify(linkedCardIdsAfterRepeat),
+      aiSourceStatusBeforeDelete: sourceGoalBeforeChat?.sourceStatus || "missing",
+      aiSourceStatusAfterDelete: afterDeleteAiContext.planGoals?.find((goal: any) => goal.sourceStatus === "unavailable")?.sourceStatus || "missing",
       before: {
         sourceLabel: before.sourceLabel,
         visible: before.visible,

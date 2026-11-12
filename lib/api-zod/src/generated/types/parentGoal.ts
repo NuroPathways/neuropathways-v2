@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ParentGoalSourceStatus } from './parentGoalSourceStatus';
 
 export interface ParentGoal {
   id: string;
@@ -14,6 +15,10 @@ export interface ParentGoal {
   progress: number;
   target: number;
   source: string;
+  /** @nullable */
+  sourceStatus: ParentGoalSourceStatus;
+  /** @nullable */
+  sourceDocumentId: string | null;
   createdByClinician: boolean;
   canEdit: boolean;
   canDelete: boolean;

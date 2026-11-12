@@ -271,6 +271,9 @@ export default function GoalsMilestones({ embedded = false }) {
                       {documentGoal && (
                         <span className="ml-7 mt-1 inline-block text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                             {rawGoal.source === "parent_document" ? "Self-uploaded document" : "Clinician-uploaded document"}
+                            {rawGoal.sourceStatus === "available"
+                              ? ""
+                              : ` · ${rawGoal.sourceStatus === "unavailable" ? "source unavailable" : "source not linked"}`}
                         </span>
                       )}
                        {createdByClinician && !documentGoal && (

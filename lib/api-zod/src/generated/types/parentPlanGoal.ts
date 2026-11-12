@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ParentPlanGoalSourceStatus } from './parentPlanGoalSourceStatus';
 import type { ParentPlanGoalSourceType } from './parentPlanGoalSourceType';
 
 export interface ParentPlanGoal {
@@ -13,4 +14,8 @@ export interface ParentPlanGoal {
   description: string;
   milestones: string[];
   sourceType: ParentPlanGoalSourceType;
+  /** @nullable */
+  sourceStatus: ParentPlanGoalSourceStatus;
+  /** @nullable */
+  sourceDocumentId: string | null;
 }

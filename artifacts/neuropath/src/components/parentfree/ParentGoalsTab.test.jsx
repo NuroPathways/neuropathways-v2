@@ -79,7 +79,7 @@ describe("ParentGoalsTab", () => {
     expect(screen.queryByTestId("plan-goal-shared")).toBeNull();
     expect(screen.queryByTestId("goals-found-in-plan")).toBeNull();
     expect(screen.getByTestId("linked-plan-shared")).toBeTruthy();
-    expect(screen.getByText("Clinician-uploaded document")).toBeTruthy();
+    expect(screen.getByText("Clinician-uploaded document · source not linked")).toBeTruthy();
   });
   it("shows per-goal thumbs check-ins and records the selected caregiver rating", () => {
     render(
@@ -179,7 +179,7 @@ describe("ParentGoalsTab", () => {
 
     expect(screen.getByTestId("plan-goal-report-goal-1")).toBeTruthy();
     fireEvent.click(within(screen.getByTestId("plan-goal-report-goal-1")).getByRole("button", { name: /view goal/i }));
-    expect(screen.getByText("Clinician-uploaded document")).toBeTruthy();
+    expect(screen.getByText("Clinician-uploaded document · source not linked")).toBeTruthy();
     expect(screen.getByText("Use the break card before the first homework task.")).toBeTruthy();
     expect(screen.getByText("Return to the next task after the planned break.")).toBeTruthy();
     expect(screen.getByText("Practice: Use the break card")).toBeTruthy();
@@ -215,7 +215,7 @@ describe("ParentGoalsTab", () => {
     expect(screen.getByRole("heading", { name: "Goals & Milestones" })).toBeTruthy();
     expect(screen.getByText("Viewing progress for")).toBeTruthy();
     expect(screen.getByTestId("select-parent-goals-child")).toBeTruthy();
-    expect(screen.getByText("Self-uploaded document")).toBeTruthy();
+    expect(screen.getByText("Self-uploaded document · source not linked")).toBeTruthy();
     expect(screen.getByText("4 of 10 practice steps logged")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Log one practice step for Use the break card during homework" }));
@@ -226,5 +226,32 @@ describe("ParentGoalsTab", () => {
       });
       expect(screen.getByText("5 of 10 practice steps logged")).toBeTruthy();
     });
+  });
+
+  it("distinguishes available, deleted/inaccessible, and legacy-unlinked goal sources", () => {
+    const makeGoal = (id, title, sourceStatus) => ({
+      id, title, description: "", milestones: [], sourceType: "parent_uploaded_plan", sourceStatus,
+    });
+    render(
+      <ParentGoalsTab
+        child={{ id: "child-1", name: "Sam" }}
+        behaviors={[]}
+        allCards={[]}
+        dailyActions={[]}
+        planGoals={[
+          makeGoal("available-goal", "Available source goal", "available"),
+          makeGoal("unavailable-goal", "Unavailable source goal", "unavailable"),
+          makeGoal("unknown-goal", "Unlinked source goal", "unknown"),
+          {
+            ...makeGoal("clinician-unavailable", "Clinician source unavailable", "unavailable"),
+            sourceType: "clinician_uploaded_plan",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Self-uploaded document")).toBeTruthy();
+    expect(screen.getByText("Self-uploaded document · source unavailable")).toBeTruthy();
+    expect(screen.getByText("Self-uploaded document · source not linked")).toBeTruthy();
+    expect(screen.getByText("Clinician-uploaded document · source unavailable")).toBeTruthy();
   });
 });
