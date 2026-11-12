@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import { once } from "node:events";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import { Storage } from "@google-cloud/storage";
 import { test } from "node:test";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { and, eq, inArray } from "drizzle-orm";
 
@@ -63,6 +65,7 @@ const {
   childrenTable,
   db,
   documentsTable,
+  documentExtractionRunsTable,
   parentAccountsTable,
   parentChildSettingsTable,
   parentDocumentsTable,
@@ -90,12 +93,14 @@ test("parent document DELETE denies cross-family access without disclosure and p
   const familyBWorkspace = `delete-test-workspace-b-${suffix}`;
   const childAId = randomUUID();
   const childBId = randomUUID();
+  const syntheticClinicianId = `delete-test-clinician-${suffix}`;
   const tokenA = `fictional-parent-a-${suffix}`;
   const tokenB = `fictional-parent-b-${suffix}`;
   const requestPrefix = `delete-regression-${suffix}`;
   const fixtureParentIds = [familyAId, familyBId];
   const fixtureChildIds = [childAId, childBId];
   let documentId: string | undefined;
+  let hiddenDocumentId: string | undefined;
   let storagePath: string | undefined;
   let server: ReturnType<express.Application["listen"]> | undefined;
 
@@ -129,6 +134,7 @@ test("parent document DELETE denies cross-family access without disclosure and p
       {
         id: childAId,
         tenantId: familyAWorkspace,
+        clinicianId: syntheticClinicianId,
         parentId: familyAId,
         childName: "Fictional child A",
         accountType: "parent_free",
@@ -189,12 +195,92 @@ test("parent document DELETE denies cross-family access without disclosure and p
     const uploadedDocument = await uploadResponse.json() as { id?: string };
     assert.ok(uploadedDocument.id);
     documentId = uploadedDocument.id!;
+    hiddenDocumentId = randomUUID();
+    await db.insert(documentsTable).values({
+      id: hiddenDocumentId,
+      childId: childAId,
+      tenantId: familyAWorkspace,
+      clinicianId: syntheticClinicianId,
+      title: "Synthetic clinician-only record",
+      fileName: "clinician-only-test.txt",
+      fileUrl: `/api/uploads/${randomUUID()}.txt`,
+      uploadedBy: syntheticClinicianId,
+      accessRoles: "clinician",
+      scanStatus: "done",
+    });
 
     const [initialMetadata] = await db.select().from(parentDocumentsTable)
       .where(eq(parentDocumentsTable.documentId, documentId));
     assert.ok(initialMetadata);
     storagePath = initialMetadata.storagePath;
     assert.ok(storedObjects.has(storagePath!), "The explicitly labeled fake storage must contain the uploaded object");
+
+    const accessRequestIds = {
+      signedOutRead: `${requestPrefix}-signed-out-read`,
+      familyBRead: `${requestPrefix}-family-b-read`,
+      familyBDownload: `${requestPrefix}-family-b-download`,
+      familyBScan: `${requestPrefix}-family-b-scan`,
+      parentClinicianOnlyRead: `${requestPrefix}-parent-clinician-only-read`,
+      parentClinicianOnlyScan: `${requestPrefix}-parent-clinician-only-scan`,
+      ownerRead: `${requestPrefix}-owner-read`,
+    };
+    const documentsBeforeAccess = await db.select().from(documentsTable)
+      .where(inArray(documentsTable.id, [documentId, hiddenDocumentId!]));
+    const extractionBeforeAccess = await db.select().from(documentExtractionRunsTable)
+      .where(inArray(documentExtractionRunsTable.documentId, [documentId, hiddenDocumentId!]));
+
+    const signedOutReadResponse = await fetch(
+      `${baseUrl}/current/parent/documents/${documentId}/content`,
+      { headers: { "x-test-request-id": accessRequestIds.signedOutRead } },
+    );
+    const signedOutReadBody = await signedOutReadResponse.text();
+
+    const foreignReadResponse = await fetch(
+      `${baseUrl}/current/parent/documents/${documentId}/content`,
+      { headers: { "x-parent-token": tokenB, "x-test-request-id": accessRequestIds.familyBRead } },
+    );
+    const foreignReadBody = await foreignReadResponse.text();
+    const foreignDownloadResponse = await fetch(
+      `${baseUrl}/current/parent/documents/${documentId}/content`,
+      { headers: { "x-parent-token": tokenB, "x-test-request-id": accessRequestIds.familyBDownload } },
+    );
+    const foreignDownloadBody = await foreignDownloadResponse.text();
+    const foreignScanResponse = await fetch(
+      `${baseUrl}/current/parent/children/${childAId}/documents/${documentId}/scan`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-parent-token": tokenB,
+          "x-test-request-id": accessRequestIds.familyBScan,
+        },
+        body: JSON.stringify({ async_scan: true }),
+      },
+    );
+    const foreignScanBody = await foreignScanResponse.text();
+
+    const clinicianOnlyReadResponse = await fetch(
+      `${baseUrl}/current/parent/documents/${hiddenDocumentId}/content`,
+      { headers: { "x-parent-token": tokenA, "x-test-request-id": accessRequestIds.parentClinicianOnlyRead } },
+    );
+    const clinicianOnlyReadBody = await clinicianOnlyReadResponse.text();
+    const clinicianOnlyScanResponse = await fetch(
+      `${baseUrl}/current/parent/children/${childAId}/documents/${hiddenDocumentId}/scan`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-parent-token": tokenA,
+          "x-test-request-id": accessRequestIds.parentClinicianOnlyScan,
+        },
+        body: JSON.stringify({ async_scan: true }),
+      },
+    );
+    const clinicianOnlyScanBody = await clinicianOnlyScanResponse.text();
+    const documentsAfterDeniedAccess = await db.select().from(documentsTable)
+      .where(inArray(documentsTable.id, [documentId, hiddenDocumentId!]));
+    const extractionAfterDeniedAccess = await db.select().from(documentExtractionRunsTable)
+      .where(inArray(documentExtractionRunsTable.documentId, [documentId, hiddenDocumentId!]));
 
     const foreignRequestId = `${requestPrefix}-family-b-delete`;
     const foreignResponse = await fetch(
@@ -254,7 +340,7 @@ test("parent document DELETE denies cross-family access without disclosure and p
     const listedDocuments = await listResponse.json() as Array<Record<string, unknown>>;
 
     const viewResponse = await fetch(`${baseUrl}/current/parent/documents/${documentId}/content`, {
-      headers: { "x-parent-token": tokenA, "x-test-request-id": `${requestPrefix}-view` },
+      headers: { "x-parent-token": tokenA, "x-test-request-id": accessRequestIds.ownerRead },
     });
     const viewedBytes = Buffer.from(await viewResponse.arrayBuffer());
 
@@ -270,6 +356,152 @@ test("parent document DELETE denies cross-family access without disclosure and p
       .where(eq(documentsTable.id, documentId));
     const metadataAfterOwnerDelete = await db.select().from(parentDocumentsTable)
       .where(eq(parentDocumentsTable.documentId, documentId));
+    const allAuditRows = await db.select().from(auditLogsTable);
+    const requestIds = new Set([
+      ...Object.values(accessRequestIds),
+      foreignRequestId,
+    ]);
+    const relevantAuditRows = allAuditRows.filter((row) =>
+      requestIds.has(String((row.metadata as Record<string, unknown> | null)?.request_id ?? "")),
+    );
+    const auditEvents = relevantAuditRows.map((row) => ({
+      id: row.id,
+      occurredAt: row.createdDate instanceof Date ? row.createdDate.toISOString() : String(row.createdDate),
+      actorId: row.userId,
+      actorRole: row.userRole,
+      tenantId: row.tenantId,
+      action: row.action,
+      targetType: row.targetType,
+      targetId: row.targetId,
+      success: row.success,
+      reason: row.reason,
+      requestId: (row.metadata as Record<string, unknown> | null)?.request_id,
+      childId: (row.metadata as Record<string, unknown> | null)?.child_id,
+      metadataKeys: Object.keys((row.metadata as Record<string, unknown> | null) ?? {}).sort(),
+    }));
+    const fullAuditRows = JSON.stringify(relevantAuditRows);
+    const auditExportContainsSensitiveValues = fullAuditRows.includes(sourceBytes.toString("utf8")) ||
+      JSON.stringify(auditEvents).includes(tokenA) ||
+      JSON.stringify(auditEvents).includes(tokenB) ||
+      fullAuditRows.includes(tokenA) ||
+      fullAuditRows.includes(tokenB) ||
+      fullAuditRows.includes("fictional-support.txt") ||
+      fullAuditRows.includes("clinician-only-test.txt") ||
+      relevantAuditRows.some((row) =>
+        Object.keys((row.metadata as Record<string, unknown> | null) ?? {}).some((key) =>
+          /password|access.?code|secret|credential|authorization|cookie|document.?text|excerpt|prompt|response|file.?contents|clinical.?content|^body$|^notes?$/i.test(key),
+        ),
+      );
+    const auditCountFor = (requestId: string, action: string) =>
+      auditEvents.filter((event) => event.requestId === requestId && event.action === action).length;
+    const auditAttributionMatches = (
+      requestId: string,
+      action: string,
+      actorId: string,
+      tenantId: string,
+      targetId: string,
+      success: boolean,
+    ) => {
+      const matches = relevantAuditRows.filter((row) =>
+        (row.metadata as Record<string, unknown> | null)?.request_id === requestId && row.action === action,
+      );
+      return matches.length === 1 &&
+        matches[0].userId === actorId &&
+        matches[0].userRole === "parent" &&
+        matches[0].tenantId === tenantId &&
+        matches[0].targetId === targetId &&
+        matches[0].targetType === "document" &&
+        matches[0].success === success &&
+        matches[0].createdDate instanceof Date &&
+        Number.isFinite(matches[0].createdDate.getTime());
+    };
+    const accessAuditResults = {
+      signedOut: {
+        status: signedOutReadResponse.status,
+        body: signedOutReadBody,
+        privateContentDisclosed: signedOutReadBody.includes(sourceBytes.toString("utf8")) ||
+          signedOutReadBody.includes("fictional-support.txt"),
+        auditEventCount: auditEvents.filter((event) => event.requestId === accessRequestIds.signedOutRead).length,
+      },
+      foreignFamilyRead: {
+        status: foreignReadResponse.status,
+        privateContentDisclosed: foreignReadBody.includes(sourceBytes.toString("utf8")) ||
+          foreignReadBody.includes("fictional-support.txt"),
+        denialAuditCount: auditCountFor(accessRequestIds.familyBRead, "document_download_denied"),
+        auditAttributionMatches: auditAttributionMatches(
+          accessRequestIds.familyBRead, "document_download_denied", familyBId, familyBWorkspace, documentId, false,
+        ),
+      },
+      foreignFamilyDownload: {
+        status: foreignDownloadResponse.status,
+        privateContentDisclosed: foreignDownloadBody.includes(sourceBytes.toString("utf8")) ||
+          foreignDownloadBody.includes("fictional-support.txt"),
+        denialAuditCount: auditCountFor(accessRequestIds.familyBDownload, "document_download_denied"),
+        auditAttributionMatches: auditAttributionMatches(
+          accessRequestIds.familyBDownload, "document_download_denied", familyBId, familyBWorkspace, documentId, false,
+        ),
+      },
+      foreignFamilyScan: {
+        status: foreignScanResponse.status,
+        privateContentDisclosed: foreignScanBody.includes(sourceBytes.toString("utf8")) ||
+          foreignScanBody.includes("fictional-support.txt"),
+        denialAuditCount: auditCountFor(accessRequestIds.familyBScan, "document_scan_requested"),
+        auditAttributionMatches: auditAttributionMatches(
+          accessRequestIds.familyBScan, "document_scan_requested", familyBId, familyBWorkspace, documentId, false,
+        ),
+      },
+      parentClinicianOnlyRead: {
+        status: clinicianOnlyReadResponse.status,
+        privateContentDisclosed: clinicianOnlyReadBody.includes("clinician-only-test.txt"),
+        denialAuditCount: auditCountFor(accessRequestIds.parentClinicianOnlyRead, "document_download_denied"),
+        auditAttributionMatches: auditAttributionMatches(
+          accessRequestIds.parentClinicianOnlyRead, "document_download_denied", familyAId, familyAWorkspace, hiddenDocumentId!, false,
+        ),
+      },
+      parentClinicianOnlyScan: {
+        status: clinicianOnlyScanResponse.status,
+        privateContentDisclosed: clinicianOnlyScanBody.includes("clinician-only-test.txt"),
+        denialAuditCount: auditCountFor(accessRequestIds.parentClinicianOnlyScan, "document_scan_requested"),
+        auditAttributionMatches: auditAttributionMatches(
+          accessRequestIds.parentClinicianOnlyScan, "document_scan_requested", familyAId, familyAWorkspace, hiddenDocumentId!, false,
+        ),
+      },
+      deniedDelete: {
+        status: foreignResponse.status,
+        denialAuditCount: auditCountFor(foreignRequestId, "document_delete_denied"),
+        auditAttributionMatches: auditAttributionMatches(
+          foreignRequestId, "document_delete_denied", familyBId, familyBWorkspace, documentId, false,
+        ),
+      },
+      authorizedOwnerRead: {
+        status: viewResponse.status,
+        contentMatches: viewedBytes.equals(sourceBytes),
+        successAuditCount: auditCountFor(accessRequestIds.ownerRead, "document_downloaded"),
+        auditAttributionMatches: auditAttributionMatches(
+          accessRequestIds.ownerRead, "document_downloaded", familyAId, familyAWorkspace, documentId, true,
+        ),
+      },
+      noUnauthorizedMutation: {
+        documentRowsUnchanged: JSON.stringify(documentsBeforeAccess) === JSON.stringify(documentsAfterDeniedAccess),
+        extractionRowsUnchanged: JSON.stringify(extractionBeforeAccess) === JSON.stringify(extractionAfterDeniedAccess),
+        storedSourceRemains: storedObjectRemainsAfterDenial,
+      },
+      auditExportContainsSensitiveValues,
+      auditEvents,
+    };
+    const evidenceDirectory = process.env.PARENT_DOCUMENT_DELETE_EVIDENCE_DIR;
+    if (evidenceDirectory) {
+      await fs.mkdir(evidenceDirectory, { recursive: true, mode: 0o700 });
+      await fs.writeFile(path.join(evidenceDirectory, "document-access-audit-results.json"),
+        `${JSON.stringify(accessAuditResults, null, 2)}\n`, { mode: 0o600 });
+      await fs.writeFile(path.join(evidenceDirectory, "document-access-genuine-audit-events.json"),
+        `${JSON.stringify(auditEvents, null, 2)}\n`, { mode: 0o600 });
+    }
+    console.log(`Document access audit evidence: ${JSON.stringify({
+      ...accessAuditResults,
+      auditEvents: auditEvents.map(({ id, occurredAt, actorId, actorRole, tenantId, action, targetType, targetId, success, requestId, childId }) =>
+        ({ id, occurredAt, actorId, actorRole, tenantId, action, targetType, targetId, success, requestId, childId })),
+    })}`);
 
     const actual = {
       foreignDelete: {
@@ -351,6 +583,41 @@ test("parent document DELETE denies cross-family access without disclosure and p
         storedObjectRemoved: true,
       },
     });
+    assert.equal(accessAuditResults.signedOut.status, 401, "Signed-out reads must remain denied");
+    assert.equal(accessAuditResults.signedOut.privateContentDisclosed, false);
+    assert.equal(accessAuditResults.foreignFamilyRead.status, 403);
+    assert.equal(accessAuditResults.foreignFamilyRead.privateContentDisclosed, false);
+    assert.equal(accessAuditResults.foreignFamilyRead.denialAuditCount, 1);
+    assert.equal(accessAuditResults.foreignFamilyRead.auditAttributionMatches, true);
+    assert.equal(accessAuditResults.foreignFamilyDownload.status, 403);
+    assert.equal(accessAuditResults.foreignFamilyDownload.privateContentDisclosed, false);
+    assert.equal(accessAuditResults.foreignFamilyDownload.denialAuditCount, 1);
+    assert.equal(accessAuditResults.foreignFamilyDownload.auditAttributionMatches, true);
+    assert.equal(accessAuditResults.foreignFamilyScan.status, 404);
+    assert.equal(accessAuditResults.foreignFamilyScan.privateContentDisclosed, false);
+    assert.equal(accessAuditResults.foreignFamilyScan.denialAuditCount, 1);
+    assert.equal(accessAuditResults.foreignFamilyScan.auditAttributionMatches, true);
+    assert.equal(accessAuditResults.parentClinicianOnlyRead.status, 403);
+    assert.equal(accessAuditResults.parentClinicianOnlyRead.privateContentDisclosed, false);
+    assert.equal(accessAuditResults.parentClinicianOnlyRead.denialAuditCount, 1);
+    assert.equal(accessAuditResults.parentClinicianOnlyRead.auditAttributionMatches, true);
+    assert.equal(accessAuditResults.parentClinicianOnlyScan.status, 404);
+    assert.equal(accessAuditResults.parentClinicianOnlyScan.privateContentDisclosed, false);
+    assert.equal(accessAuditResults.parentClinicianOnlyScan.denialAuditCount, 1);
+    assert.equal(accessAuditResults.parentClinicianOnlyScan.auditAttributionMatches, true);
+    assert.equal(accessAuditResults.deniedDelete.status, 404);
+    assert.equal(accessAuditResults.deniedDelete.denialAuditCount, 1);
+    assert.equal(accessAuditResults.deniedDelete.auditAttributionMatches, true);
+    assert.equal(accessAuditResults.authorizedOwnerRead.status, 200);
+    assert.equal(accessAuditResults.authorizedOwnerRead.contentMatches, true);
+    assert.equal(accessAuditResults.authorizedOwnerRead.successAuditCount, 1);
+    assert.equal(accessAuditResults.authorizedOwnerRead.auditAttributionMatches, true);
+    assert.deepEqual(accessAuditResults.noUnauthorizedMutation, {
+      documentRowsUnchanged: true,
+      extractionRowsUnchanged: true,
+      storedSourceRemains: true,
+    });
+    assert.equal(accessAuditResults.auditExportContainsSensitiveValues, false);
   } finally {
     if (server?.listening) {
       await new Promise<void>((resolve, reject) => {
@@ -359,12 +626,13 @@ test("parent document DELETE denies cross-family access without disclosure and p
     }
     if (documentId) {
       await db.delete(auditLogsTable).where(and(
-        eq(auditLogsTable.targetId, documentId),
+        inArray(auditLogsTable.targetId, [documentId, ...(hiddenDocumentId ? [hiddenDocumentId] : [])]),
         inArray(auditLogsTable.userId, fixtureParentIds),
       ));
       await db.delete(parentDocumentsTable).where(eq(parentDocumentsTable.documentId, documentId));
       await db.delete(documentsTable).where(eq(documentsTable.id, documentId));
     }
+    if (hiddenDocumentId) await db.delete(documentsTable).where(eq(documentsTable.id, hiddenDocumentId));
     await db.delete(parentSessionsTable).where(inArray(parentSessionsTable.parentId, fixtureParentIds));
     await db.delete(parentChildSettingsTable).where(inArray(parentChildSettingsTable.childId, fixtureChildIds));
     await db.delete(childrenTable).where(inArray(childrenTable.id, fixtureChildIds));

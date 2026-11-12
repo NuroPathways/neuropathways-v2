@@ -1,10 +1,11 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import path from "node:path";
-import { db, documentsTable, parentDocumentsTable, userProfilesTable } from "@workspace/db";
+import { db, childrenTable, documentsTable, parentDocumentsTable, userProfilesTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { requireParent, resolveParentActor } from "../lib/parentAuth";
 import { FamilyAccessError } from "../lib/familyParentAuth";
+import { validateClientSession } from "./entities-helpers";
 import { documentScanJobs } from "../lib/documentScanJobs";
 import { requireMobileAuth } from "./mobile";
 import { starterLibrary } from "../lib/parentStarterLibrary";
@@ -69,6 +70,67 @@ async function auditDeniedParentDocumentDelete(
     ipAddress: req.ip,
     requestId: req.id,
   });
+}
+
+async function auditDeniedParentDocumentRead(
+  req: any,
+  documentId: string,
+  childId: string,
+): Promise<void> {
+  try {
+    let actor: { userId: string; userRole: string; tenantId: string | null } | undefined;
+    if (req.parentAccount?.id) {
+      actor = {
+        userId: req.parentAccount.id,
+        userRole: "parent",
+        tenantId: req.parentAccount.workspaceId ?? null,
+      };
+    } else if (req.user?.id) {
+      const [profile] = await db.select({
+        appRole: userProfilesTable.appRole,
+        tenantId: userProfilesTable.tenantId,
+      }).from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
+      actor = {
+        userId: req.user.id,
+        userRole: profile?.appRole || req.user.appRole || "user",
+        tenantId: profile?.tenantId ?? null,
+      };
+    } else if (req.mobileUser?.authenticatedChildId || req.mobileUser?.childId) {
+      const actorChildId = req.mobileUser.authenticatedChildId ?? req.mobileUser.childId;
+      const [actorChild] = await db.select({ tenantId: childrenTable.tenantId })
+        .from(childrenTable).where(eq(childrenTable.id, actorChildId));
+      actor = {
+        userId: actorChildId,
+        userRole: req.mobileUser.experience === "parent" ? "parent" : "client",
+        tenantId: actorChild?.tenantId ?? null,
+      };
+    } else if (typeof req.headers["x-client-token"] === "string") {
+      const session = await validateClientSession(req.headers["x-client-token"]);
+      if (session) {
+        const [actorChild] = await db.select({ tenantId: childrenTable.tenantId })
+          .from(childrenTable).where(eq(childrenTable.id, session.childId));
+        actor = {
+          userId: session.childId,
+          userRole: "client",
+          tenantId: actorChild?.tenantId ?? null,
+        };
+      }
+    }
+    if (!actor) return;
+    await writeAuditEventBestEffort({
+      ...actor,
+      action: "document_download_denied",
+      targetType: "document",
+      targetId: documentId,
+      success: false,
+      reason: "Document access check denied the request.",
+      metadata: { child_id: childId },
+      ipAddress: req.ip,
+      requestId: req.id,
+    });
+  } catch {
+    // Audit is best-effort; a logging failure must not change the established denial response.
+  }
 }
 
 function safeFilename(value: string): string {
@@ -272,7 +334,10 @@ async function sendParentDocumentContent(req: any, res: Response) {
       const [legacy] = await db.select().from(documentsTable).where(eq(documentsTable.id, String(req.params.documentId)));
       if (!legacy?.childId) return res.status(404).json({ error: "Document not found" });
       const visible = await listParentDocuments(req.parentAccount.id, legacy.childId);
-      if (!visible.some(d => d.id === legacy.id)) return res.status(403).json({ error: "Access denied" });
+      if (!visible.some(d => d.id === legacy.id)) {
+        await auditDeniedParentDocumentRead(req, legacy.id, legacy.childId);
+        return res.status(403).json({ error: "Access denied" });
+      }
       const bytes = await readParentDocumentBytes(legacy.id);
        await writeAuditEventBestEffort({
          userId: req.parentAccount.id,
@@ -293,6 +358,7 @@ async function sendParentDocumentContent(req: any, res: Response) {
       return res.send(bytes);
     }
     if (!(await canReadParentDocument(req, metadata))) {
+      await auditDeniedParentDocumentRead(req, metadata.documentId, metadata.childId);
       return res.status(req.parentAccount || req.user || req.mobileUser || req.headers["x-client-token"] ? 403 : 401)
         .json({ error: "Access denied" });
     }
@@ -301,6 +367,7 @@ async function sendParentDocumentContent(req: any, res: Response) {
         .from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
       if (profile?.appRole === "clinician" &&
           !(await clinicianCanAccessChild(req.user.id, metadata.childId))) {
+        await auditDeniedParentDocumentRead(req, metadata.documentId, metadata.childId);
         return res.status(403).json({ error: "Access denied" });
       }
     }
@@ -362,6 +429,19 @@ router.post(
       if (req.body?.async_scan === true) {
         const visible = await listParentDocuments(parentId(req), req.params.childId);
         if (!visible.some(document => document.id === req.params.documentId && document.canScan === true)) {
+          await writeAuditEventBestEffort({
+            userId: parentId(req),
+            userRole: "parent",
+            tenantId: req.parentAccount.workspaceId ?? null,
+            action: "document_scan_requested",
+            targetType: "document",
+            targetId: req.params.documentId,
+            success: false,
+            reason: "Document scan was denied because the source is unavailable to this family.",
+            metadata: { child_id: req.params.childId },
+            ipAddress: req.ip,
+            requestId: req.id,
+          });
           return res.status(404).json({ error: "Parent document not found" });
         }
         const scope = JSON.stringify(["parent", parentId(req), req.params.childId, req.params.documentId]);

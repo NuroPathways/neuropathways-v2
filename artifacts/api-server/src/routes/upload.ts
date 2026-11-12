@@ -337,6 +337,50 @@ async function canReadDocument(
   return false;
 }
 
+async function auditDocumentContentAccess(
+  req: any,
+  document: typeof documentsTable.$inferSelect,
+  allowed: boolean,
+): Promise<void> {
+  try {
+    let actor: { userId: string; userRole: string; tenantId: string | null } | undefined;
+    if (req.user?.id) {
+      const [profile] = await db.select({
+        appRole: userProfilesTable.appRole,
+        tenantId: userProfilesTable.tenantId,
+      }).from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
+      actor = {
+        userId: req.user.id,
+        userRole: profile?.appRole || req.user.appRole || "user",
+        tenantId: profile?.tenantId ?? null,
+      };
+    } else if (req.mobileUser?.authenticatedChildId || req.mobileUser?.childId) {
+      const actorChildId = req.mobileUser.authenticatedChildId ?? req.mobileUser.childId;
+      const [actorChild] = await db.select({ tenantId: childrenTable.tenantId })
+        .from(childrenTable).where(eq(childrenTable.id, actorChildId));
+      actor = {
+        userId: actorChildId,
+        userRole: req.mobileUser.experience === "parent" ? "parent" : "client",
+        tenantId: actorChild?.tenantId ?? null,
+      };
+    }
+    if (!actor) return;
+    await writeAuditEventBestEffort({
+      ...actor,
+      action: allowed ? "document_download_authorized" : "document_download_denied",
+      targetType: "document",
+      targetId: document.id,
+      success: allowed,
+      reason: allowed ? null : "Document access check denied the request.",
+      metadata: { child_id: document.childId },
+      ipAddress: req.ip,
+      requestId: req.id,
+    });
+  } catch {
+    // Audit is best-effort; failures must not change the existing response or access decision.
+  }
+}
+
 router.post(
   "/mobile/documents/upload",
   requireDocumentAuth,
@@ -428,11 +472,15 @@ router.get("/mobile/documents/:id/content", requireDocumentAuth, async (req: any
   try {
     const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, req.params.id));
     if (!document) return res.status(404).json({ error: "Document not found" });
-    if (!(await canReadDocument(document, req))) return res.status(403).json({ error: "Access denied" });
+    if (!(await canReadDocument(document, req))) {
+      await auditDocumentContentAccess(req, document, false);
+      return res.status(403).json({ error: "Access denied" });
+    }
 
     const parentMetadata = await isParentDocument(document.id);
     if (parentMetadata) {
       const content = await readParentDocumentBytes(document.id);
+      await auditDocumentContentAccess(req, document, true);
       res.setHeader("Content-Type", parentMetadata.mimeType);
       res.setHeader("Content-Disposition", contentDispositionFilename(safeDisplayFilename(document.fileName || "document")));
       res.setHeader("Cache-Control", "private, no-store");
@@ -463,6 +511,7 @@ router.get("/mobile/documents/:id/content", requireDocumentAuth, async (req: any
     );
     if (!detected) return res.status(415).json({ error: "Stored document content is unsupported" });
 
+    await auditDocumentContentAccess(req, document, true);
     const filename = safeDisplayFilename(document.fileName || `document${detected.extension}`);
     res.setHeader("Content-Type", detected.mimeType);
     res.setHeader("Content-Disposition", contentDispositionFilename(filename));
