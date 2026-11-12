@@ -492,6 +492,40 @@ test("legacy client session cannot download a clinician-only document by direct 
   const [session] = await db.select().from(clientSessionsTable)
     .where(eq(clientSessionsTable.childId, child.id));
   assert.ok(session?.inviteToken, "The synthetic family session must exist.");
+  const clinicianId = child.clinicianId;
+  const tenantId = child.tenantId;
+  assert.ok(clinicianId && tenantId, "The synthetic child must have a clinician and tenant.");
+  await db.insert(usersTable).values({
+    id: clinicianId,
+    email: `${clinicianId}@example.test`,
+  }).onConflictDoNothing();
+  await db.insert(userProfilesTable).values({
+    id: clinicianId,
+    appRole: "clinician",
+    tenantId,
+    displayName: "Synthetic Authorized Clinician",
+  }).onConflictDoNothing();
+  await db.insert(clinicsTable).values({
+    id: tenantId,
+    displayName: "Synthetic Audit Test Clinic",
+    legacyTenantId: tenantId,
+    status: "active",
+    createdBy: clinicianId,
+  }).onConflictDoNothing();
+  await db.insert(clinicMembershipsTable).values({
+    clinicId: tenantId,
+    userId: clinicianId,
+    role: "treating_clinician",
+    status: "active",
+  }).onConflictDoNothing();
+  await db.insert(clinicalAssignmentsTable).values({
+    clinicId: tenantId,
+    clientId: child.id,
+    userId: clinicianId,
+    role: "treating_clinician",
+    status: "active",
+    assignedBy: clinicianId,
+  }).onConflictDoNothing();
   const mobileToken = `synthetic-mobile-${crypto.randomUUID()}`;
   await db.insert(mobileTokensTable).values({
     token: mobileToken,
@@ -521,6 +555,9 @@ test("legacy client session cannot download a clinician-only document by direct 
         ? "shared-document-direct-download-regression"
         : "clinician-only-direct-download-regression");
     req.isAuthenticated = () => false;
+    if (req.header("x-test-authorized-clinician") === "synthetic") {
+      req.user = { id: clinicianId, appRole: "clinician", tenantId };
+    }
     next();
   });
   app.use(mobileRouter);
@@ -565,6 +602,17 @@ test("legacy client session cannot download a clinician-only document by direct 
       { headers: { "x-mobile-token": mobileToken, "x-test-request-id": mobileContentSharedRequestId } },
     );
     const mobileContentSharedBody = await mobileContentSharedResponse.text();
+    const clinicianContentRequestId = `clinician-content-authorized-${child.id}`;
+    const clinicianContentResponse = await fetch(
+      `http://127.0.0.1:${address.port}/mobile/documents/${encodeURIComponent(document.id)}/content`,
+      {
+        headers: {
+          "x-test-authorized-clinician": "synthetic",
+          "x-test-request-id": clinicianContentRequestId,
+        },
+      },
+    );
+    const clinicianContentBody = await clinicianContentResponse.text();
     const mobileSharedResponse = await fetch(
       `http://127.0.0.1:${address.port}/uploads/shared.txt`,
       { headers: { "x-mobile-token": mobileToken } },
@@ -662,6 +710,12 @@ test("legacy client session cannot download a clinician-only document by direct 
       (row.metadata as Record<string, unknown> | null)?.child_id === child.id &&
       (row.metadata as Record<string, unknown> | null)?.request_id === mobileContentSharedRequestId
     );
+    const clinicianContentAllowedAudits = auditRows.filter((row) =>
+      row.action === "document_download_authorized" && row.targetId === document.id &&
+      row.userId === clinicianId && row.userRole === "clinician" && row.tenantId === tenantId &&
+      (row.metadata as Record<string, unknown> | null)?.child_id === child.id &&
+      (row.metadata as Record<string, unknown> | null)?.request_id === clinicianContentRequestId
+    );
     const profileScanAudit = auditRows.find((row) =>
       row.action === "document_scan_requested" &&
       (row.metadata as Record<string, unknown> | null)?.request_id === "clinician-only-document-ai-context-regression"
@@ -710,6 +764,14 @@ test("legacy client session cannot download a clinician-only document by direct 
       mobileContentSharedStatus: mobileContentSharedResponse.status,
       mobileContentSharedContentReturned: mobileContentSharedBody.includes(sharedMarker),
       mobileContentAuthorizedAuditCount: mobileContentAllowedAudits.length,
+      clinicianContentStatus: clinicianContentResponse.status,
+      clinicianContentPrivateMarkerReturned: clinicianContentBody.includes(marker),
+      clinicianContentAuthorizedAuditCount: clinicianContentAllowedAudits.length,
+      clinicianContentAuditActorMatches: clinicianContentAllowedAudits.length === 1,
+      clinicianContentAuditOutcomeMatches:
+        clinicianContentAllowedAudits.length === 1 && clinicianContentAllowedAudits[0].success === true,
+      clinicianContentAuditContainsSensitiveMarkers:
+        JSON.stringify(clinicianContentAllowedAudits).includes(marker),
       fakeProviderRequests: capturedAiRequests.length,
       fakeProviderErrorStatus: scanStatus,
       aiContextExcludesClinicianOnlyMarker: !serializedAiRequests.includes(marker),
@@ -724,7 +786,7 @@ test("legacy client session cannot download a clinician-only document by direct 
     };
     await fs.writeFile(path.join(evidenceDir, "clinician-only-direct-download-results.json"), `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600 });
     await fs.writeFile(path.join(evidenceDir, "clinician-only-direct-download-genuine-audit-events.json"), `${JSON.stringify(
-      [...denialAudits, ...allowedAudits, ...mobileDenialAudits, ...mobileAllowedAudits, ...mobileContentDenialAudits, ...mobileContentAllowedAudits].map((row) => ({
+      [...denialAudits, ...allowedAudits, ...mobileDenialAudits, ...mobileAllowedAudits, ...mobileContentDenialAudits, ...mobileContentAllowedAudits, ...clinicianContentAllowedAudits].map((row) => ({
         id: row.id,
         createdAt: row.createdDate instanceof Date ? row.createdDate.toISOString() : row.createdDate,
         actorId: row.userId,
@@ -786,6 +848,12 @@ test("legacy client session cannot download a clinician-only document by direct 
     assert.equal(result.mobileContentSharedStatus, 200);
     assert.equal(result.mobileContentSharedContentReturned, true);
     assert.equal(result.mobileContentAuthorizedAuditCount, 1);
+    assert.equal(result.clinicianContentStatus, 200);
+    assert.equal(result.clinicianContentPrivateMarkerReturned, true);
+    assert.equal(result.clinicianContentAuthorizedAuditCount, 1);
+    assert.equal(result.clinicianContentAuditActorMatches, true);
+    assert.equal(result.clinicianContentAuditOutcomeMatches, true);
+    assert.equal(result.clinicianContentAuditContainsSensitiveMarkers, false);
     assert.ok(result.fakeProviderRequests > 0);
     assert.equal(result.aiContextExcludesClinicianOnlyMarker, true);
     assert.equal(result.aiContextIncludesSharedVisibleMarker, true);
