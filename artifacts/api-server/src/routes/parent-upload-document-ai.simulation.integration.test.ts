@@ -382,6 +382,7 @@ const database = await import("@workspace/db");
 const {
   auditLogsTable,
   childrenTable,
+  clientSessionsTable,
   db,
   documentExtractionRunsTable,
   documentsTable,
@@ -397,6 +398,7 @@ const { hashParentSessionToken } = await import("../lib/parentAuth");
 const { default: parentDocumentsRouter } = await import("./parent-documents");
 const { default: parentFamilyDataRouter } = await import("./parent-family-data");
 const { default: parentRouter } = await import("./parent");
+const { default: entitiesRouter } = await import("./entities");
 
 function recordCase(name: string, run: () => Promise<void>) {
   return async () => {
@@ -437,6 +439,7 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
   const childBId = crypto.randomUUID();
   const tokenA = `synthetic-parent-session-a-${suffix}`;
   const tokenB = `synthetic-parent-session-b-${suffix}`;
+  const clientTokenA = crypto.randomBytes(32).toString("hex");
   const requestPrefix = `parent-upload-ai-${suffix}`;
   const parentAEmail = `${suffix}.parent-a@example.test`;
   const parentBEmail = `${suffix}.parent-b@example.test`;
@@ -519,13 +522,29 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
       expiresAt: new Date(Date.now() + 15 * 60_000),
     },
   ]);
+  await db.insert(clientSessionsTable).values({
+    childId: childAId,
+    inviteToken: clientTokenA,
+    username: `synthetic-client-${suffix}`,
+    expiresAt: new Date(Date.now() + 15 * 60_000),
+  });
 
   const app = express();
   app.use((request: any, _response, next) => {
     request.id = request.header("x-test-request-id") || `${requestPrefix}-unlabeled`;
+    const parentId = request.header("x-test-parent-id");
+    if (parentId) {
+      request.user = {
+        id: parentId,
+        email: parentId === parentAId ? parentAEmail : parentBEmail,
+        appRole: "parent",
+        tenantId: parentId === parentAId ? workspaceA : workspaceB,
+      };
+    }
     next();
   });
   app.use(express.json());
+  app.use(entitiesRouter);
   app.use(parentDocumentsRouter);
   app.use(parentFamilyDataRouter);
   app.use(parentRouter);
@@ -598,6 +617,22 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
       token,
       requestId,
     );
+    assert.equal(response.status, 200);
+    return response.json() as Promise<Array<Record<string, any>>>;
+  };
+  const clientPortalDataFor = async (childId: string, inviteToken: string, requestId: string) => {
+    const response = await fetch(`${apiBase}/client-portal-data`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-test-request-id": requestId },
+      body: JSON.stringify({ child_id: childId, invite_token: inviteToken }),
+    });
+    assert.equal(response.status, 200);
+    return response.json() as Promise<Record<string, any>>;
+  };
+  const genericParentGoalsFor = async (parentId: string, requestId: string) => {
+    const response = await fetch(`${apiBase}/reward-tokens`, {
+      headers: { "x-test-parent-id": parentId, "x-test-request-id": requestId },
+    });
     assert.equal(response.status, 200);
     return response.json() as Promise<Array<Record<string, any>>>;
   };
@@ -778,6 +813,94 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
         assert.equal(linkedGoalWire?.sourceDocumentId, documentAId);
         assert.equal(legacyGoalWire?.sourceStatus, "unknown");
         assert.equal(legacyGoalWire?.sourceDocumentId, null);
+        const genericGoalsBefore = await genericParentGoalsFor(parentAId, `${requestPrefix}-generic-goals-before`);
+        const genericLinkedGoalBefore = genericGoalsBefore.find((goal) => goal.id === linkedGoalId);
+        assert.ok(genericLinkedGoalBefore, `The authorized generic goal list omitted the linked goal; returned ${JSON.stringify(genericGoalsBefore.map((goal) => ({ id: goal.id, source: goal.source, source_status: goal.source_status, parent_id: goal.parent_id })))}`);
+        assert.equal(genericLinkedGoalBefore?.source_status, "available");
+        assert.equal(genericLinkedGoalBefore?.source_document_id, documentAId);
+        const clientPortalBefore = await clientPortalDataFor(
+          childAId,
+          clientTokenA,
+          `${requestPrefix}-client-portal-before`,
+        );
+        const clientLinkedGoalBefore = clientPortalBefore.goals.find((goal: any) => goal.id === linkedGoalId);
+        assert.equal(clientLinkedGoalBefore?.source_status, "unavailable");
+        assert.equal(clientLinkedGoalBefore?.source_document_id, null);
+        assert.equal(clientPortalBefore.documents.some((document: any) => document.id === documentAId), false);
+
+        const forgedSourceResponse = await fetch(`${apiBase}/reward-tokens`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-test-parent-id": parentAId,
+            "x-test-request-id": `${requestPrefix}-forged-source-create`,
+          },
+          body: JSON.stringify({
+            childId: childAId,
+            goalTitle: "Fictional manual goal with forged provenance",
+            goalDescription: "The client must not assign document provenance.",
+            target: 4,
+            sourceDocumentId: documentAId,
+          }),
+        });
+        assert.equal(forgedSourceResponse.status, 201);
+        const forgedSourceGoal = await forgedSourceResponse.json() as Record<string, any>;
+        assert.equal(forgedSourceGoal.source, "manual");
+        assert.equal(forgedSourceGoal.source_document_id, null);
+        assert.equal(forgedSourceGoal.source_status, null);
+        const forgedGoalId = String(forgedSourceGoal.id);
+        const forgedSourcePatch = await fetch(`${apiBase}/reward-tokens/${forgedGoalId}`, {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            "x-test-parent-id": parentAId,
+            "x-test-request-id": `${requestPrefix}-forged-source-patch`,
+          },
+          body: JSON.stringify({ sourceDocumentId: "synthetic-forged-document-id" }),
+        });
+        assert.equal(forgedSourcePatch.status, 403);
+        const [forgedGoalAfterPatch] = await db.select().from(rewardTokensTable)
+          .where(eq(rewardTokensTable.id, forgedGoalId));
+        assert.equal(forgedGoalAfterPatch?.sourceDocumentId, null);
+        const clientGoalCreate = await fetch(`${apiBase}/manage-client-goal`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-test-request-id": `${requestPrefix}-client-goal-forged-source-create` },
+          body: JSON.stringify({
+            action: "create",
+            child_id: childAId,
+            invite_token: clientTokenA,
+            data: {
+              goal_title: "Fictional client-owned goal",
+              goal_description: "A client session cannot assign source provenance.",
+              target: 2,
+              source: "parent_document",
+              source_document_id: documentAId,
+            },
+          }),
+        });
+        assert.equal(clientGoalCreate.status, 200);
+        const clientGoalCreateWire = await clientGoalCreate.json() as Record<string, any>;
+        const clientCreatedGoal = clientGoalCreateWire.record as Record<string, any>;
+        assert.equal(clientCreatedGoal.source, "manual");
+        assert.equal(clientCreatedGoal.source_document_id, null);
+        assert.equal(clientCreatedGoal.source_status, null);
+        const clientGoalUpdate = await fetch(`${apiBase}/manage-client-goal`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-test-request-id": `${requestPrefix}-client-goal-forged-source-update` },
+          body: JSON.stringify({
+            action: "update",
+            goal_id: clientCreatedGoal.id,
+            invite_token: clientTokenA,
+            data: {
+              goal_description: "Safe update without source reassignment.",
+              source_document_id: "synthetic-forged-client-document-id",
+            },
+          }),
+        });
+        assert.equal(clientGoalUpdate.status, 200);
+        const clientGoalUpdateWire = await clientGoalUpdate.json() as Record<string, any>;
+        assert.equal(clientGoalUpdateWire.record.source_document_id, null);
+        assert.equal(clientGoalUpdateWire.record.source_status, null);
 
         const listResponse = await fetch(
           `${apiBase}/parent/children/${childAId}/documents`,
@@ -1041,6 +1164,42 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
         assert.equal(linkedGoalAfter?.sourceDocumentId, null);
         assert.equal(linkedGoalGoalsWire?.sourceStatus, "unavailable");
         assert.equal(linkedGoalGoalsWire?.sourceDocumentId, null);
+        const genericGoalsAfter = await genericParentGoalsFor(parentAId, `${requestPrefix}-generic-goals-after`);
+        const genericLinkedGoalAfter = genericGoalsAfter.find((goal) => goal.id === linkedGoalId);
+        assert.equal(genericLinkedGoalAfter?.source_status, "unavailable");
+        assert.equal(genericLinkedGoalAfter?.source_document_id, null);
+        const genericGoalReadAfter = await fetch(`${apiBase}/reward-tokens/${linkedGoalId}`, {
+          headers: {
+            "x-test-parent-id": parentAId,
+            "x-test-request-id": `${requestPrefix}-generic-goal-read-after`,
+          },
+        });
+        assert.equal(genericGoalReadAfter.status, 200);
+        const genericGoalReadWire = await genericGoalReadAfter.json() as Record<string, any>;
+        assert.equal(genericGoalReadWire.source_status, "unavailable");
+        assert.equal(genericGoalReadWire.source_document_id, null);
+        const genericNoopPatchAfter = await fetch(`${apiBase}/reward-tokens/${linkedGoalId}`, {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            "x-test-parent-id": parentAId,
+            "x-test-request-id": `${requestPrefix}-generic-goal-noop-patch-after`,
+          },
+          body: JSON.stringify({ sourceDocumentId: documentAId }),
+        });
+        assert.equal(genericNoopPatchAfter.status, 200);
+        const genericNoopPatchWire = await genericNoopPatchAfter.json() as Record<string, any>;
+        assert.equal(genericNoopPatchWire.source_status, "unavailable");
+        assert.equal(genericNoopPatchWire.source_document_id, null);
+        const clientPortalAfter = await clientPortalDataFor(
+          childAId,
+          clientTokenA,
+          `${requestPrefix}-client-portal-after`,
+        );
+        const clientLinkedGoalAfter = clientPortalAfter.goals.find((goal: any) => goal.id === linkedGoalId);
+        assert.equal(clientLinkedGoalAfter?.source_status, "unavailable");
+        assert.equal(clientLinkedGoalAfter?.source_document_id, null);
+        assert.equal(clientPortalAfter.documents.some((document: any) => document.id === documentAId), false);
         assert.ok(goalsAfter.some((goal: any) =>
           goal.id === independentGoalId && goal.source === "manual",
         ));
@@ -1217,6 +1376,10 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
         assert.equal(inaccessibleSourceGoal?.sourceStatus, "unavailable");
         assert.equal(inaccessibleSourceGoal?.sourceDocumentId, null);
         assert.doesNotMatch(JSON.stringify(inaccessibleSourceGoal), /Riley|Synthetic plan|foreign/i);
+        const genericGoals = await genericParentGoalsFor(parentAId, `${requestPrefix}-generic-cross-family-goal`);
+        const genericInaccessibleGoal = genericGoals.find((goal) => goal.id === crossFamilyLinkedGoal[0].id);
+        assert.equal(genericInaccessibleGoal?.source_status, "unavailable");
+        assert.equal(genericInaccessibleGoal?.source_document_id, null);
 
         const beforeRequests = capturedRequests.length;
         const requestId = `${requestPrefix}-cross-family`;

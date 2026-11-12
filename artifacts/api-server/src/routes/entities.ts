@@ -73,6 +73,7 @@ import { revokeFamilyAccess } from "../lib/familyAccessRevocation";
 import { respondWithInternalError } from "../lib/apiError";
 import { clinicianMayDeleteUploadedDocument } from "../lib/documentDeletionPolicy";
 import { clientMayDeleteGoal } from "../lib/goalDeletionPolicy";
+import { goalSourceAvailability } from "../lib/goalSourceAvailability";
 import {
   hashClientAccessCode as hashAccessCode,
   verifyClientAccessCode as verifyAccessCode,
@@ -597,6 +598,64 @@ type EntityActorScope = {
   familyIds: string[];
 };
 
+async function visibleGoalSourceDocumentIds(
+  childId: string,
+  role: "clinician" | "parent" | "client",
+  userId?: string,
+) {
+  if (role === "parent" && userId) {
+    const documents = await listParentDocuments(userId, childId);
+    return new Set(documents.map((document) => document.id));
+  }
+  const documents = await db.select().from(documentsTable)
+    .where(eq(documentsTable.childId, childId));
+  const visibleDocuments = await legacyVisibleDocuments(
+    documents,
+    role === "clinician" ? userId ?? null : null,
+    role,
+  );
+  return new Set(visibleDocuments.map((document) => document.id));
+}
+
+async function projectRewardTokenForViewer(
+  row: typeof rewardTokensTable.$inferSelect,
+  role: "clinician" | "parent" | "client",
+  userId?: string,
+) {
+  const visibleDocumentIds = row.childId
+    ? await visibleGoalSourceDocumentIds(row.childId, role, userId)
+    : new Set<string>();
+  return {
+    ...row,
+    ...goalSourceAvailability(row.source, row.sourceDocumentId, visibleDocumentIds),
+  };
+}
+
+async function projectRewardTokenRowsForActor(
+  scope: EntityActorScope,
+  rows: Array<typeof rewardTokensTable.$inferSelect>,
+) {
+  const documentGoalChildIds = [...new Set(rows
+    .filter((row) => row.source === "document" || row.source === "parent_document")
+    .map((row) => row.childId)
+    .filter((childId): childId is string => Boolean(childId)))];
+  const visibleDocumentIdsByChild = new Map<string, Set<string>>();
+  await Promise.all(documentGoalChildIds.map(async (childId) => {
+    visibleDocumentIdsByChild.set(
+      childId,
+      await visibleGoalSourceDocumentIds(childId, scope.role, scope.userId),
+    );
+  }));
+  return rows.map((row) => ({
+    ...row,
+    ...goalSourceAvailability(
+      row.source,
+      row.sourceDocumentId,
+      row.childId ? visibleDocumentIdsByChild.get(row.childId) ?? new Set<string>() : new Set<string>(),
+    ),
+  }));
+}
+
 async function auditDeniedEntityScope(
   req: any,
   scope: EntityActorScope,
@@ -768,7 +827,10 @@ function makeCrud(path: string, table: any) {
       for (const row of rows as any[]) {
         if (await actorCanReadEntityRow(scope, table, row)) visibleRows.push(row);
       }
-      res.json(stripSensitive(serialize(visibleRows)));
+      const responseRows = table === rewardTokensTable
+        ? await projectRewardTokenRowsForActor(scope, visibleRows)
+        : visibleRows;
+      res.json(stripSensitive(serialize(responseRows)));
     } catch (e: any) {
       return respondWithInternalError(req, res, e, "entities");
     }
@@ -792,6 +854,7 @@ function makeCrud(path: string, table: any) {
         return res.status(403).json({ error: "Active clinician workspace access is required." });
       }
       const data = bodyToCamel(req.body);
+      if (table === rewardTokensTable) delete data.sourceDocumentId;
       if (table === rewardTokensTable &&
         (data.source === "care_team" || ["publicationStatus", "goalDetails", "goalVersion", "goalVersions"].some(k => k in data))) {
         res.status(409).json({ error: "Use Goals & Activities to manage published clinical goals." });
@@ -898,7 +961,10 @@ function makeCrud(path: string, table: any) {
         })
         : await db.insert(table).values(data).returning() as any[];
       const row = rows[0];
-      res.status(201).json(stripSensitive(serialize(row)));
+      const responseRow = table === rewardTokensTable && row
+        ? (await projectRewardTokenRowsForActor(scope, [row]))[0]
+        : row;
+      res.status(201).json(stripSensitive(serialize(responseRow)));
     } catch (e: any) {
       return respondWithInternalError(req, res, e, "entities");
     }
@@ -914,7 +980,10 @@ function makeCrud(path: string, table: any) {
         await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "record outside authorized child or family scope", requestId: req.id });
         return res.status(403).json({ error: "Access denied" });
       }
-      return res.json(stripSensitive(serialize(row)));
+      const responseRow = table === rewardTokensTable
+        ? (await projectRewardTokenRowsForActor(scope, [row as typeof rewardTokensTable.$inferSelect]))[0]
+        : row;
+      return res.json(stripSensitive(serialize(responseRow)));
     } catch (e: any) {
       return respondWithInternalError(req, res, e, "entities");
     }
@@ -983,6 +1052,7 @@ function makeCrud(path: string, table: any) {
         "goalDetails",
         "goalVersion",
         "goalVersions",
+        "sourceDocumentId",
         "sourceDocIds",
         "scanStatus",
         "reviewStatus",
@@ -997,7 +1067,10 @@ function makeCrud(path: string, table: any) {
         delete update[key];
       }
       if (Object.keys(update).length === 0) {
-        return res.json(stripSensitive(serialize(existing)));
+        const responseRow = table === rewardTokensTable
+          ? (await projectRewardTokenRowsForActor(scope, [existing as typeof rewardTokensTable.$inferSelect]))[0]
+          : existing;
+        return res.json(stripSensitive(serialize(responseRow)));
       }
       if (scope.role === "parent") {
         if (table === rewardTokensTable && existing.createdByClinician) {
@@ -1025,7 +1098,10 @@ function makeCrud(path: string, table: any) {
         .set(update)
         .where(and(eq(table.id, req.params.id), ...(actorScopeClauses(scope, table) || [])))
         .returning();
-      return res.json(stripSensitive(serialize(row)));
+      const responseRow = table === rewardTokensTable && row
+        ? (await projectRewardTokenRowsForActor(scope, [row as typeof rewardTokensTable.$inferSelect]))[0]
+        : row;
+      return res.json(stripSensitive(serialize(responseRow)));
     } catch (e: any) {
       return respondWithInternalError(req, res, e, "entities");
     }
@@ -1494,8 +1570,12 @@ router.post("/client-portal-data", async (req, res) => {
       : (child ? [child] : []);
 
     const visibleDocuments = await legacyVisibleDocuments(documents, clinicianId, "client");
+    const visibleDocumentIds = new Set(visibleDocuments.map((document) => document.id));
     const visibleGoals = goals.filter(g => !g.createdByClinician || (g.publicationStatus === "published" && g.clinicianId === clinicianId))
-      .map(({ goalVersions: _versions, ...goal }) => goal);
+      .map(({ goalVersions: _versions, ...goal }) => ({
+        ...goal,
+        ...goalSourceAvailability(goal.source, goal.sourceDocumentId, visibleDocumentIds),
+      }));
     return res.json(stripSensitive(serialize({ child: child ?? null, siblings, plans, documents: visibleDocuments, interventionPlans, profile, goals: visibleGoals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs, messages })));
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "entities");
@@ -3572,6 +3652,7 @@ router.post("/manage-client-goal", async (req: any, res) => {
         }
         const values: any = { ...bodyToCamel(data || {}), childId: targetChildId };
         delete values.id;
+        delete values.sourceDocumentId;
         for (const key of ["publicationStatus", "goalDetails", "goalVersion", "goalVersions"]) delete values[key];
         if (values.source === "care_team") return res.status(409).json({ error: "Use Goals & Activities for clinician assignments." });
         if (clinicianId) {
@@ -3603,7 +3684,12 @@ router.post("/manage-client-goal", async (req: any, res) => {
           }
           return [created];
         });
-        return res.json(serialize({ record: goal }));
+        const responseGoal = await projectRewardTokenForViewer(
+          goal,
+          clinicianId ? "clinician" : "client",
+          clinicianId ?? undefined,
+        );
+        return res.json(serialize({ record: responseGoal }));
       }
       case "update": {
         if (!entityId) return res.status(400).json({ error: "entity_id required" });
@@ -3637,6 +3723,7 @@ router.post("/manage-client-goal", async (req: any, res) => {
         const patch = bodyToCamel(data || {});
         // Never allow ownership/identity fields to be reassigned via the request body.
         delete patch.id; delete patch.childId; delete patch.clinicianId; delete patch.tenantId; delete patch.parentId;
+        delete patch.sourceDocumentId;
         for (const key of ["publicationStatus", "goalDetails", "goalVersion", "goalVersions", "source", "createdByClinician"]) delete patch[key];
         if (!clinicianId && (existing.source === "document" || existing.source === "parent_document")) {
           for (const key of Object.keys(patch)) {
@@ -3655,7 +3742,12 @@ router.post("/manage-client-goal", async (req: any, res) => {
           .set(patch)
           .where(eq(rewardTokensTable.id, entityId))
           .returning();
-        return res.json(serialize({ record: goal }));
+        const responseGoal = await projectRewardTokenForViewer(
+          goal,
+          clinicianId ? "clinician" : "client",
+          clinicianId ?? undefined,
+        );
+        return res.json(serialize({ record: responseGoal }));
       }
       case "delete": {
         if (!entityId) return res.status(400).json({ error: "entity_id required" });

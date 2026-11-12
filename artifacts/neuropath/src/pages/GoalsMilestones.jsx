@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
 import { readableGoalTitle } from "@/lib/goalTitle";
+import { goalSourceLabel } from "./goalSourceLabel";
 
 const isDocumentGoal = (goal) => ["document", "parent_document"].includes(goal.source);
 const milestoneLines = (value) => String(value || "")
@@ -243,6 +244,7 @@ export default function GoalsMilestones({ embedded = false }) {
               const documentGoal = isDocumentGoal(rawGoal);
               const milestones = milestoneLines(rawGoal.milestone_notes);
               const createdByClinician = Boolean(rawGoal.created_by_clinician ?? rawGoal.createdByClinician);
+              const documentSourceLabel = goalSourceLabel(rawGoal);
               const canLogProgress = rawGoal.source === "manual"
                 ? !createdByClinician
                 : ["document", "parent_document"].includes(rawGoal.source);
@@ -270,10 +272,7 @@ export default function GoalsMilestones({ embedded = false }) {
                        </p>
                       {documentGoal && (
                         <span className="ml-7 mt-1 inline-block text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                            {rawGoal.source === "parent_document" ? "Self-uploaded document" : "Clinician-uploaded document"}
-                            {rawGoal.sourceStatus === "available"
-                              ? ""
-                              : ` · ${rawGoal.sourceStatus === "unavailable" ? "source unavailable" : "source not linked"}`}
+                            {documentSourceLabel}
                         </span>
                       )}
                        {createdByClinician && !documentGoal && (

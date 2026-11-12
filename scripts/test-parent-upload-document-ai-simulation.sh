@@ -82,8 +82,11 @@ export NODE_OPTIONS="--require=$ROOT/scripts/isolated-loopback-network-guard.cjs
 
 sha256sum \
   artifacts/api-server/src/routes/parent-upload-document-ai.simulation.integration.test.ts \
+  artifacts/api-server/src/routes/entities.ts \
   artifacts/api-server/src/routes/parent-documents.ts \
   artifacts/api-server/src/lib/parentDocuments.ts \
+  artifacts/api-server/src/lib/goalSourceAvailability.ts \
+  artifacts/api-server/src/lib/goalSourceAvailability.test.ts \
   artifacts/api-server/src/lib/documentAi.ts \
   artifacts/api-server/src/lib/auditEvents.ts \
   scripts/test-parent-upload-document-ai-simulation.sh \
@@ -96,6 +99,7 @@ chmod 600 "$EVIDENCE_DIR/blocked-egress.jsonl"
 printf 'Test started UTC: %s\n' "$(date -u +%FT%TZ)" | tee "$EVIDENCE_DIR/test-run.log"
 set +e
 pnpm --filter @workspace/api-server exec tsx --test \
+  src/lib/goalSourceAvailability.test.ts \
   src/routes/parent-upload-document-ai.simulation.integration.test.ts \
   2>&1 | tee -a "$EVIDENCE_DIR/test-run.log"
 TEST_STATUS="${PIPESTATUS[0]}"
