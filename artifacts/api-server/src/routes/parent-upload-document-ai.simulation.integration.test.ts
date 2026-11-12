@@ -44,16 +44,28 @@ type CapturedRequest = {
   hasForeignMarker: boolean;
   hasServerInstructions: boolean;
 };
+type ChatContextSummary = {
+  phase: "before_delete" | "after_delete";
+  hasRawSourceMarker: boolean;
+  hasSourceExcerpt: boolean;
+  hasDocumentTitle: boolean;
+  hasDocumentId: boolean;
+  hasSupportStep: boolean;
+  hasPlanGoal: boolean;
+};
 
 let providerMode: ProviderMode = "valid";
 let activeDocumentId = "";
+let chatCapturePhase: ChatContextSummary["phase"] | null = null;
 let activeSourceText = "";
 let foreignSourceText = "";
 let sourceMarker = "";
 let providerSecretMarker = "";
 const capturedRequests: CapturedRequest[] = [];
+const chatContextSummaries: ChatContextSummary[] = [];
 const caseResults: CaseResult[] = [];
 const fakeObjects = new Map<string, Buffer>();
+let deletionLifecycleEvidence: Record<string, unknown> | null = null;
 
 const storagePrototype = Storage.prototype as unknown as {
   bucket: (name: string) => unknown;
@@ -236,6 +248,31 @@ const provider = http.createServer((request, response) => {
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, any>;
       const toolName = toolNameFrom(body);
       const serialized = JSON.stringify(body);
+      if (!Array.isArray(body.tools) || body.tools.length === 0) {
+        if (chatCapturePhase) {
+          chatContextSummaries.push({
+            phase: chatCapturePhase,
+            hasRawSourceMarker: serialized.includes(sourceMarker),
+            hasSourceExcerpt: serialized.includes(behaviorExcerpt) || serialized.includes(observationExcerpt),
+            hasDocumentTitle: serialized.includes("Synthetic plan"),
+            hasDocumentId: serialized.includes(activeDocumentId),
+            hasSupportStep: serialized.includes("Place the break card beside the worksheet"),
+            hasPlanGoal: serialized.includes("Show the break card before leaving the table"),
+          });
+        }
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({
+          id: `msg-parent-chat-${chatContextSummaries.length}`,
+          type: "message",
+          role: "assistant",
+          model: body.model || "claude-sonnet-4-5",
+          content: [{ type: "text", text: "Synthetic test response." }],
+          stop_reason: "end_turn",
+          stop_sequence: null,
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }));
+        return;
+      }
       capturedRequests.push({
         toolName,
         model: typeof body.model === "string" ? body.model : null,
@@ -323,11 +360,14 @@ const {
   parentChildSettingsTable,
   parentDocumentsTable,
   parentSessionsTable,
+  rewardTokensTable,
   pool,
 } = database;
-const { eq, inArray } = await import("drizzle-orm");
+const { and, eq, inArray } = await import("drizzle-orm");
 const { hashParentSessionToken } = await import("../lib/parentAuth");
 const { default: parentDocumentsRouter } = await import("./parent-documents");
+const { default: parentFamilyDataRouter } = await import("./parent-family-data");
+const { default: parentRouter } = await import("./parent");
 
 function recordCase(name: string, run: () => Promise<void>) {
   return async () => {
@@ -458,6 +498,8 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
   });
   app.use(express.json());
   app.use(parentDocumentsRouter);
+  app.use(parentFamilyDataRouter);
+  app.use(parentRouter);
   const apiServer = app.listen(0, "127.0.0.1");
   await once(apiServer, "listening");
   const apiAddress = apiServer.address();
@@ -496,9 +538,94 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
     headers: { ...authHeaders(parentToken, requestId), "content-type": "application/json" },
     body: JSON.stringify({}),
   });
+  const requestJson = async (
+    url: string,
+    token: string,
+    requestId: string,
+    options: { method?: string; body?: unknown } = {},
+  ) => {
+    const headers: Record<string, string> = {
+      ...authHeaders(token, requestId),
+      "content-type": "application/json",
+    };
+    return fetch(url, {
+      method: options.method || "GET",
+      headers,
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+    });
+  };
+  const dashboardFor = async (token: string, childId: string, requestId: string) => {
+    const response = await requestJson(
+      `${apiBase}/parent/children/${childId}/dashboard`,
+      token,
+      requestId,
+    );
+    assert.equal(response.status, 200);
+    return response.json() as Promise<Record<string, any>>;
+  };
+  const goalsFor = async (token: string, childId: string, requestId: string) => {
+    const response = await requestJson(
+      `${apiBase}/parent/children/${childId}/goals`,
+      token,
+      requestId,
+    );
+    assert.equal(response.status, 200);
+    return response.json() as Promise<Array<Record<string, any>>>;
+  };
+  const sha256 = (bytes: Buffer) => crypto.createHash("sha256").update(bytes).digest("hex");
+  const documentStateFor = async (documentId: string, childId: string, parentId: string) => {
+    const [document] = await db.select().from(documentsTable).where(eq(documentsTable.id, documentId));
+    const [metadata] = await db.select().from(parentDocumentsTable)
+      .where(eq(parentDocumentsTable.documentId, documentId));
+    const runs = await db.select().from(documentExtractionRunsTable)
+      .where(eq(documentExtractionRunsTable.documentId, documentId));
+    const [settings] = await db.select().from(parentChildSettingsTable)
+      .where(eq(parentChildSettingsTable.childId, childId));
+    const goals = await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.childId, childId));
+    const rawCards = Array.isArray(settings?.supportCards)
+      ? settings.supportCards as Array<Record<string, any>>
+      : [];
+    const sourceCards = rawCards.filter((card) =>
+      Array.isArray(card.sourceDocumentIds) && card.sourceDocumentIds.includes(documentId),
+    );
+    const concernCards = (metadata?.extractedSupport as any)?.supportConcernCards || [];
+    const sourceFilePresent = Boolean(metadata?.storagePath && fakeObjects.has(metadata.storagePath));
+    const scanOutputStates = runs.map((run) => ({
+      present: Boolean(run.scanOutputPath && fakeObjects.has(run.scanOutputPath)),
+      pathRecorded: Boolean(run.scanOutputPath),
+    }));
+    return {
+      documentRowPresent: Boolean(document),
+      parentMetadataPresent: Boolean(metadata),
+      parentOwnerMatches: metadata?.parentId === parentId,
+      childAssociationMatches: document?.childId === childId && metadata?.childId === childId,
+      sourceFilePresent,
+      sourceFileSha256: metadata?.storagePath && fakeObjects.has(metadata.storagePath)
+        ? sha256(fakeObjects.get(metadata.storagePath)!)
+        : null,
+      extractionRunCount: runs.length,
+      extractionRecordCount: runs.reduce((sum, run) => sum + (Array.isArray(run.records) ? run.records.length : 0), 0),
+      verifiedExtractionRecordCount: runs.reduce((sum, run) => sum + (Array.isArray(run.records)
+        ? run.records.filter((record: any) => record.sourceExcerptVerified === true).length
+        : 0), 0),
+      sourceGoalExtractionCount: runs.reduce((sum, run) => sum + (Array.isArray(run.records)
+        ? run.records.filter((record: any) => record.category === "goal" && record.sourceExcerptVerified === true).length
+        : 0), 0),
+      scanOutputStates,
+      rawParentSupportCardCount: sourceCards.length,
+      rawConcernCardCount: concernCards.length,
+      parentDocumentLinkedGoalCount: goals.filter((goal) =>
+        goal.parentId === parentId && goal.source === "parent_document",
+      ).length,
+    };
+  };
 
   let documentAId = "";
   let documentBId = "";
+  let unrelatedDocumentId = "";
+  let independentGoalId = "";
+  let linkedGoalId = "";
+  let generatedConcernCardId = "";
   let documentARequestStart = 0;
   let successfulCardIds: string[] = [];
   const childIds = [childAId, childBId];
@@ -589,10 +716,18 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
           .where(eq(parentDocumentsTable.documentId, documentAId));
         const concernCards = (concernMetadata.extractedSupport as any)?.supportConcernCards || [];
         assert.ok(concernCards.length > 0, "The document-informed support-card generation branch must run.");
+        generatedConcernCardId = String(concernCards[0].id);
         assert.ok(concernCards.every((candidate: any) =>
           candidate.sourceDocumentIds?.includes(documentAId) &&
           candidate.sourceReferences?.every((reference: any) => reference.documentId === documentAId),
         ));
+        const extractedGoals = await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.childId, childAId));
+        const linkedGoal = extractedGoals.find((goal) =>
+          goal.parentId === parentAId &&
+          goal.source === "parent_document",
+        );
+        assert.ok(linkedGoal, "The existing parent document scan flow must create its source-derived goal record.");
+        linkedGoalId = linkedGoal.id;
 
         const listResponse = await fetch(
           `${apiBase}/parent/children/${childAId}/documents`,
@@ -651,6 +786,303 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
           (afterMetadata.extractedSupport as any)?.supportConcernCards?.map((card: any) => card.id).sort(),
           (beforeMetadata.extractedSupport as any)?.supportConcernCards?.map((card: any) => card.id).sort(),
         );
+      }),
+    );
+
+    await t.test(
+      "authorized source deletion preserves derived history while removing source availability",
+      recordCase("Capture document, files, extraction, source-linked cards/goals, caregiver projections and AI context before/after deletion", async () => {
+        activeDocumentId = documentAId;
+        const unrelatedUpload = await uploadDocument(
+          tokenA,
+          childAId,
+          `Fictional unrelated family note ${crypto.randomUUID()}.`,
+          `${requestPrefix}-upload-unrelated`,
+          `${crypto.randomUUID()}.txt`,
+        );
+        assert.equal(unrelatedUpload.status, 201);
+        const unrelatedWire = await unrelatedUpload.json() as Record<string, any>;
+        unrelatedDocumentId = String(unrelatedWire.id);
+        uploadedDocumentIds.push(unrelatedDocumentId);
+
+        const independentGoalResponse = await requestJson(
+          `${apiBase}/parent/children/${childAId}/goals`,
+          tokenA,
+          `${requestPrefix}-create-independent-goal`,
+          { method: "POST", body: { title: "Independent family practice goal", description: "Not created from a document.", target: 3 } },
+        );
+        assert.equal(independentGoalResponse.status, 201);
+        const independentGoal = await independentGoalResponse.json() as Record<string, any>;
+        independentGoalId = String(independentGoal.id);
+        assert.equal(independentGoal.source, "manual");
+
+        const [metadataBefore] = await db.select().from(parentDocumentsTable)
+          .where(eq(parentDocumentsTable.documentId, documentAId));
+        const [runBefore] = await db.select().from(documentExtractionRunsTable)
+          .where(eq(documentExtractionRunsTable.documentId, documentAId));
+        assert.ok(metadataBefore?.storagePath);
+        assert.ok(runBefore);
+        assert.ok(runBefore.scanOutputPath, "The successful scan must have an encrypted extraction output to verify cleanup.");
+        const sourceKeyBefore = metadataBefore.storagePath;
+        const scanOutputKeyBefore = runBefore.scanOutputPath!;
+        const sourceFileHashBefore = sha256(fakeObjects.get(sourceKeyBefore)!);
+        const scanOutputHashBefore = sha256(fakeObjects.get(scanOutputKeyBefore)!);
+        const dashboardBefore = await dashboardFor(tokenA, childAId, `${requestPrefix}-dashboard-before-delete`);
+        const goalsBefore = await goalsFor(tokenA, childAId, `${requestPrefix}-goals-before-delete`);
+        assert.ok(dashboardBefore.documents.some((item: any) => item.id === documentAId));
+        assert.ok(dashboardBefore.supportCards.some((card: any) =>
+          card.sourceDocumentIds?.includes(documentAId),
+        ));
+        assert.ok(dashboardBefore.documentSupportCards.some((card: any) =>
+          card.sourceReferences?.some((reference: any) => reference.documentId === documentAId),
+        ));
+        assert.ok(dashboardBefore.planGoals.some((goal: any) => goal.id === linkedGoalId));
+        assert.ok(goalsBefore.some((goal: any) => goal.id === linkedGoalId && goal.source === "parent_document"));
+        assert.ok(goalsBefore.some((goal: any) => goal.id === independentGoalId && goal.source === "manual"));
+
+        chatCapturePhase = "before_delete";
+        const chatBefore = await requestJson(
+          `${apiBase}/parent/children/${childAId}/chat`,
+          tokenA,
+          `${requestPrefix}-chat-before-delete`,
+          { method: "POST", body: { message: "How can Kai start a multi-step worksheet?" } },
+        );
+        chatCapturePhase = null;
+        assert.equal(chatBefore.status, 200);
+        const chatBeforeWire = await chatBefore.json() as Record<string, any>;
+        assert.equal(chatBeforeWire.outcome, "success");
+        const preDeleteContext = chatContextSummaries.find((summary) => summary.phase === "before_delete");
+        assert.ok(preDeleteContext?.hasRawSourceMarker);
+        assert.ok(preDeleteContext?.hasSourceExcerpt);
+        assert.ok(preDeleteContext?.hasSupportStep);
+        assert.ok(preDeleteContext?.hasPlanGoal);
+
+        const beforeDeniedState = await documentStateFor(documentAId, childAId, parentAId);
+        const beforeUnrelatedDoc = await documentStateFor(unrelatedDocumentId, childAId, parentAId);
+        const beforeIndependentGoal = await db.select().from(rewardTokensTable)
+          .where(eq(rewardTokensTable.id, independentGoalId));
+        const beforeLinkedGoal = await db.select().from(rewardTokensTable)
+          .where(eq(rewardTokensTable.id, linkedGoalId));
+        const denyDeleteRequestId = `${requestPrefix}-cross-family-delete`;
+        const deniedDelete = await requestJson(
+          `${apiBase}/parent/children/${childAId}/documents/${documentAId}`,
+          tokenB,
+          denyDeleteRequestId,
+          { method: "DELETE" },
+        );
+        const deniedDeleteBody = await deniedDelete.text();
+        assert.equal(deniedDelete.status, 404);
+        assert.doesNotMatch(deniedDeleteBody, /Kai|Synthetic plan|break card|PARENT_UPLOAD_RAW_DOCUMENT_SENTINEL/i);
+
+        const deniedCardEditRequestId = `${requestPrefix}-cross-family-card-edit`;
+        const deniedCardEdit = await requestJson(
+          `${apiBase}/parent/children/${childAId}/document-support-cards/${generatedConcernCardId}`,
+          tokenB,
+          deniedCardEditRequestId,
+          { method: "PATCH", body: { action: "rename", label: "Unauthorized card edit" } },
+        );
+        assert.equal(deniedCardEdit.status, 404);
+        assert.doesNotMatch(await deniedCardEdit.text(), /Kai|Synthetic plan|break card|PARENT_UPLOAD_RAW_DOCUMENT_SENTINEL/i);
+
+        const deniedGoalEditRequestId = `${requestPrefix}-cross-family-goal-edit`;
+        const deniedGoalEdit = await requestJson(
+          `${apiBase}/parent/children/${childAId}/goals/${linkedGoalId}`,
+          tokenB,
+          deniedGoalEditRequestId,
+          { method: "PATCH", body: { title: "Unauthorized linked goal edit" } },
+        );
+        assert.equal(deniedGoalEdit.status, 404);
+        assert.doesNotMatch(await deniedGoalEdit.text(), /Show the break card|Kai|PARENT_UPLOAD_RAW_DOCUMENT_SENTINEL/i);
+
+        assert.deepEqual(await documentStateFor(documentAId, childAId, parentAId), beforeDeniedState);
+        assert.deepEqual(await documentStateFor(unrelatedDocumentId, childAId, parentAId), beforeUnrelatedDoc);
+        assert.deepEqual(await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.id, independentGoalId)), beforeIndependentGoal);
+        assert.deepEqual(await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.id, linkedGoalId)), beforeLinkedGoal);
+        assert.ok(fakeObjects.has(sourceKeyBefore));
+        assert.equal(sha256(fakeObjects.get(sourceKeyBefore)!), sourceFileHashBefore);
+        assert.ok(fakeObjects.has(scanOutputKeyBefore));
+        assert.equal(sha256(fakeObjects.get(scanOutputKeyBefore)!), scanOutputHashBefore);
+
+        const deniedAudit = await db.select().from(auditLogsTable).where(and(
+          eq(auditLogsTable.action, "document_delete_denied"),
+          eq(auditLogsTable.targetId, documentAId),
+        ));
+        const matchingDeniedAudit = deniedAudit.find((row) =>
+          (row.metadata as any)?.request_id === denyDeleteRequestId,
+        );
+        assert.ok(matchingDeniedAudit);
+        assert.equal(matchingDeniedAudit.userId, parentBId);
+        assert.equal(matchingDeniedAudit.userRole, "parent");
+        assert.equal(matchingDeniedAudit.tenantId, workspaceB);
+        assert.equal(matchingDeniedAudit.success, false);
+        assert.equal((matchingDeniedAudit.metadata as any)?.request_id, denyDeleteRequestId);
+
+        const deleteRequestId = `${requestPrefix}-authorized-delete`;
+        const deleted = await requestJson(
+          `${apiBase}/parent/children/${childAId}/documents/${documentAId}`,
+          tokenA,
+          deleteRequestId,
+          { method: "DELETE" },
+        );
+        assert.equal(deleted.status, 200, `Expected authorized deletion to complete, got HTTP ${deleted.status}.`);
+        const deleteBody = await deleted.json() as Record<string, any>;
+        assert.equal(deleteBody.ok, true);
+        assert.equal(deleteBody.cleanupStatus, "complete");
+
+        const afterDocumentState = await documentStateFor(documentAId, childAId, parentAId);
+        const [runAfter] = await db.select().from(documentExtractionRunsTable)
+          .where(eq(documentExtractionRunsTable.documentId, documentAId));
+        const [settingsAfter] = await db.select().from(parentChildSettingsTable)
+          .where(eq(parentChildSettingsTable.childId, childAId));
+        const rawSupportCardsAfter = (settingsAfter.supportCards as Array<Record<string, any>>)
+          .filter((card) => card.sourceDocumentIds?.includes(documentAId));
+        const dashboardAfter = await dashboardFor(tokenA, childAId, `${requestPrefix}-dashboard-after-delete`);
+        const goalsAfter = await goalsFor(tokenA, childAId, `${requestPrefix}-goals-after-delete`);
+        assert.equal(afterDocumentState.documentRowPresent, false);
+        assert.equal(afterDocumentState.parentMetadataPresent, false);
+        assert.equal(afterDocumentState.sourceFilePresent, false);
+        assert.ok(runAfter, "Derived extraction history is retained rather than silently erased.");
+        assert.equal(runAfter.scanOutputPath, null, "Encrypted scan-output file is removed and its path cleared.");
+        assert.ok(runAfter.records.some((record: any) =>
+          record.category === "goal" && record.sourceExcerptVerified === true,
+        ));
+        assert.ok(runAfter.records.some((record: any) =>
+          record.category === "potential_home_activity" && record.sourceExcerptVerified === true,
+        ));
+        assert.equal(fakeObjects.has(sourceKeyBefore), false);
+        assert.equal(fakeObjects.has(scanOutputKeyBefore), false);
+        assert.equal(dashboardAfter.documents.some((item: any) => item.id === documentAId), false);
+        assert.equal(dashboardAfter.documentSupportCards.some((card: any) =>
+          card.sourceReferences?.some((reference: any) => reference.documentId === documentAId),
+        ), false);
+        assert.equal(dashboardAfter.supportCards.some((card: any) =>
+          card.sourceDocumentIds?.includes(documentAId),
+        ), false);
+        assert.ok(rawSupportCardsAfter.length > 0, "Persisted derived support history is not physically erased.");
+        assert.ok(dashboardAfter.planGoals.some((goal: any) => goal.id === linkedGoalId));
+        assert.ok(goalsAfter.some((goal: any) =>
+          goal.id === linkedGoalId && goal.source === "parent_document",
+        ));
+        assert.ok(goalsAfter.some((goal: any) =>
+          goal.id === independentGoalId && goal.source === "manual",
+        ));
+        assert.ok(dashboardAfter.documents.some((item: any) => item.id === unrelatedDocumentId));
+        assert.ok(fakeObjects.has(
+          (await db.select().from(parentDocumentsTable)
+            .where(eq(parentDocumentsTable.documentId, unrelatedDocumentId)))[0].storagePath,
+        ));
+
+        chatCapturePhase = "after_delete";
+        const chatAfter = await requestJson(
+          `${apiBase}/parent/children/${childAId}/chat`,
+          tokenA,
+          `${requestPrefix}-chat-after-delete`,
+          { method: "POST", body: { message: "How can Kai start a multi-step worksheet?" } },
+        );
+        chatCapturePhase = null;
+        assert.equal(chatAfter.status, 200);
+        const chatAfterWire = await chatAfter.json() as Record<string, any>;
+        assert.equal(chatAfterWire.outcome, "success");
+        const postDeleteContext = chatContextSummaries.find((summary) => summary.phase === "after_delete");
+        assert.ok(postDeleteContext);
+        assert.equal(postDeleteContext.hasRawSourceMarker, false);
+        assert.equal(postDeleteContext.hasSourceExcerpt, false);
+        assert.equal(postDeleteContext.hasDocumentTitle, false);
+        assert.equal(postDeleteContext.hasDocumentId, false);
+        assert.ok(postDeleteContext.hasPlanGoal, "The retained source-derived goal remains available to the parent chat.");
+
+        const deletionAuditRows = await db.select().from(auditLogsTable).where(and(
+          eq(auditLogsTable.targetId, documentAId),
+          inArray(auditLogsTable.action, [
+            "document_deleted",
+            "document_file_cleanup_queued",
+            "document_file_cleanup_completed",
+          ]),
+        ));
+        const deletedEvent = deletionAuditRows.find((row) => row.action === "document_deleted");
+        assert.ok(deletedEvent);
+        assert.equal(deletedEvent.userId, parentAId);
+        assert.equal(deletedEvent.userRole, "parent");
+        assert.equal(deletedEvent.tenantId, workspaceA);
+        assert.equal(deletedEvent.success, true);
+        assert.equal((deletedEvent.metadata as any)?.request_id, deleteRequestId);
+        assert.ok(deletionAuditRows.some((row) => row.action === "document_file_cleanup_queued"));
+        assert.ok(deletionAuditRows.some((row) => row.action === "document_file_cleanup_completed"));
+        const chatAuditRows = await db.select().from(auditLogsTable).where(and(
+          eq(auditLogsTable.action, "ai_parent_support_chat"),
+          eq(auditLogsTable.targetId, childAId),
+        ));
+        const beforeChatAudit = chatAuditRows.find((row) =>
+          (row.metadata as any)?.request_id === `${requestPrefix}-chat-before-delete`,
+        );
+        const afterChatAudit = chatAuditRows.find((row) =>
+          (row.metadata as any)?.request_id === `${requestPrefix}-chat-after-delete`,
+        );
+        assert.ok(beforeChatAudit && afterChatAudit);
+        assert.ok((beforeChatAudit.metadata as any).source_document_ids.includes(documentAId));
+        assert.equal((afterChatAudit.metadata as any).source_document_ids.includes(documentAId), false);
+
+        deletionLifecycleEvidence = {
+          documentId: documentAId,
+          childId: childAId,
+          authorizedOwnerId: parentAId,
+          deniedFamilyId: parentBId,
+          before: {
+            documentRowPresent: true,
+            parentMetadataPresent: true,
+            sourceFilePresent: true,
+            sourceFileSha256: sourceFileHashBefore,
+            extractionRunCount: 1,
+            extractionRecordCount: beforeDeniedState.extractionRecordCount,
+            verifiedExtractionRecordCount: beforeDeniedState.verifiedExtractionRecordCount,
+            verifiedGoalExtractions: beforeDeniedState.sourceGoalExtractionCount,
+            scanOutputPresent: true,
+            scanOutputSha256: scanOutputHashBefore,
+            storedSourceLinkedSupportCards: beforeDeniedState.rawParentSupportCardCount,
+            storedConcernCards: beforeDeniedState.rawConcernCardCount,
+            visibleSourceDocument: true,
+            visibleDocumentSupportCards: dashboardBefore.documentSupportCards.filter((card: any) =>
+              card.sourceReferences?.some((reference: any) => reference.documentId === documentAId),
+            ).length,
+            visibleSourceSupportCards: dashboardBefore.supportCards.filter((card: any) =>
+              card.sourceDocumentIds?.includes(documentAId),
+            ).length,
+            visibleSourceLinkedGoal: true,
+            visibleIndependentGoal: true,
+            fakeAiContext: preDeleteContext,
+          },
+          deniedFamilyAttempt: {
+            deleteStatus: deniedDelete.status,
+            supportCardEditStatus: deniedCardEdit.status,
+            linkedGoalEditStatus: deniedGoalEdit.status,
+            sourceAndDerivedRecordsUnchanged: true,
+            fileHashesUnchanged: true,
+            denialAuditAction: matchingDeniedAudit.action,
+            denialAuditActorId: matchingDeniedAudit.userId,
+            denialAuditRequestId: (matchingDeniedAudit.metadata as any)?.request_id,
+          },
+          after: {
+            ...afterDocumentState,
+            extractionRunRetained: true,
+            extractionRecordsRetained: runAfter.records.length,
+            extractionScanOutputPathCleared: runAfter.scanOutputPath === null,
+            rawSourceLinkedSupportCardsRetained: rawSupportCardsAfter.length,
+            sourceLinkedCardVisible: dashboardAfter.supportCards.some((card: any) =>
+              card.sourceDocumentIds?.includes(documentAId),
+            ),
+            documentSupportCardVisible: dashboardAfter.documentSupportCards.some((card: any) =>
+              card.sourceReferences?.some((reference: any) => reference.documentId === documentAId),
+            ),
+            sourceLinkedGoalVisible: goalsAfter.some((goal: any) => goal.id === linkedGoalId),
+            sourceLinkedGoalSourceType: goalsAfter.find((goal: any) => goal.id === linkedGoalId)?.source,
+            independentGoalVisible: goalsAfter.some((goal: any) => goal.id === independentGoalId),
+            unrelatedDocumentStillVisible: dashboardAfter.documents.some((item: any) => item.id === unrelatedDocumentId),
+            fakeAiContext: postDeleteContext,
+          },
+          cleanupStatus: deleteBody.cleanupStatus,
+          deletionAuditEventCount: deletionAuditRows.length,
+          browserWorkflow: "NOT RUN: no signed-in isolated browser harness is configured for this runner; all tested routes were real HTTP requests against the isolated API.",
+        };
       }),
     );
 
@@ -847,9 +1279,19 @@ test("parent-upload document scanning, recovery, access and audit privacy", asyn
   }));
   await fs.writeFile(
     path.join(evidenceDir, "parent-upload-fake-ai-request-summary.json"),
-    `${JSON.stringify(requestSummary, null, 2)}\n`,
+    `${JSON.stringify({
+      documentScanRequests: requestSummary,
+      chatRetrievalContext: chatContextSummaries,
+    }, null, 2)}\n`,
     { mode: 0o600 },
   );
+  if (deletionLifecycleEvidence) {
+    await fs.writeFile(
+      path.join(evidenceDir, "parent-document-deletion-before-after.json"),
+      `${JSON.stringify(deletionLifecycleEvidence, null, 2)}\n`,
+      { mode: 0o600 },
+    );
+  }
   await fs.writeFile(
     path.join(evidenceDir, "parent-upload-genuine-audit-events.json"),
     `${JSON.stringify(sanitizedAudit, null, 2)}\n`,
