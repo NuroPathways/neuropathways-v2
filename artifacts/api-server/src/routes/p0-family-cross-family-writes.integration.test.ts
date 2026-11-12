@@ -54,6 +54,7 @@ const {
 const { eq } = await import("drizzle-orm");
 const { default: entitiesRouter } = await import("./entities");
 const { default: clinicManagementRouter } = await import("./clinic-management");
+const { default: mobileRouter } = await import("./mobile");
 const { default: uploadRouter } = await import("./upload");
 const { hashClientAccessCode } = await import("../lib/clientAccessCode");
 const { clinicianCanAccessChild } = await import("../lib/clinicAuthorization");
@@ -522,12 +523,19 @@ test("legacy client session cannot download a clinician-only document by direct 
     req.isAuthenticated = () => false;
     next();
   });
+  app.use(mobileRouter);
   app.use(uploadRouter);
   const server = app.listen(0, "127.0.0.1");
   try {
     await once(server, "listening");
     const address = server.address();
     assert.ok(address && typeof address !== "string");
+    const mobileListResponse = await fetch(
+      `http://127.0.0.1:${address.port}/mobile/documents`,
+      { headers: { "x-mobile-token": mobileToken } },
+    );
+    const mobileListBody = await mobileListResponse.text();
+    const mobileListDocuments = JSON.parse(mobileListBody) as Array<{ id?: string; title?: string }>;
     const response = await fetch(
       `http://127.0.0.1:${address.port}/uploads/clinician-only.txt?invite_token=${encodeURIComponent(session.inviteToken)}`,
     );
@@ -654,6 +662,10 @@ test("legacy client session cannot download a clinician-only document by direct 
       authorizedAuditOutcomeMatches: allowedAudits.some((row) => row.success === true),
       mobilePrivateDownloadStatus: mobilePrivateResponse.status,
       mobilePrivateMarkerReturned: mobilePrivateBody.includes(marker),
+      mobileDocumentListStatus: mobileListResponse.status,
+      mobileListContainsClinicianOnlyDocument: mobileListDocuments.some((row) => row.id === document.id),
+      mobileListContainsSharedPositiveControl: mobileListDocuments.some((row) => row.id === sharedDocument.id),
+      mobileListDisclosesPrivateMarker: mobileListBody.includes(marker),
       mobileDenialAuditCount: mobileDenialAudits.length,
       mobileSharedDownloadStatus: mobileSharedResponse.status,
       mobileSharedContentReturned: mobileSharedBody.includes(sharedMarker),
@@ -717,6 +729,10 @@ test("legacy client session cannot download a clinician-only document by direct 
     assert.equal(result.authorizedAuditOutcomeMatches, true);
     assert.equal(result.mobilePrivateDownloadStatus, 403);
     assert.equal(result.mobilePrivateMarkerReturned, false);
+    assert.equal(result.mobileDocumentListStatus, 200);
+    assert.equal(result.mobileListContainsClinicianOnlyDocument, false);
+    assert.equal(result.mobileListContainsSharedPositiveControl, true);
+    assert.equal(result.mobileListDisclosesPrivateMarker, false);
     assert.equal(result.mobileDenialAuditCount, 1);
     assert.equal(result.mobileSharedDownloadStatus, 200);
     assert.equal(result.mobileSharedContentReturned, true);

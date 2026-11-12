@@ -71,6 +71,11 @@
 .np-docs-v8 .np-docs-details dt { font-weight: 600; color: var(--np-color-muted-foreground); }
 .np-docs-v8 .np-docs-details dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 @media (max-width: 480px) { .np-docs-v8 .np-docs-details { grid-template-columns: minmax(0, 1fr); } .np-docs-v8 .np-docs-details dd { margin-bottom: var(--np-space-list); } }
+@media (max-width: 480px) {
+  .np-docs-v8 .np-docs-row-head { flex-wrap: wrap; }
+  .np-docs-v8 .np-docs-statuses { flex: 1 1 100%; justify-content: flex-start; }
+  .np-docs-v8 .np-docs-badge { white-space: normal; overflow-wrap: anywhere; }
+}
 
 /* Empty + upload wrapper (UploadBox source untouched) */
 .np-docs-v8 .np-docs-empty { display: grid; gap: var(--np-space-list); padding: var(--np-space-related-lg); border: 1px dashed var(--np-color-border); border-radius: var(--np-radius); color: var(--np-color-muted-foreground); font-size: var(--np-text-body-sm); }
