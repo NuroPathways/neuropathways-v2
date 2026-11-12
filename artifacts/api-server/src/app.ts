@@ -9,6 +9,10 @@ import { logger } from "./lib/logger";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { pendingClinicianAccessGuard } from "./middlewares/pendingClinicianAccessGuard";
 import { writeAuditEventBestEffort } from "./lib/auditEvents";
+import {
+  credentialAccountLimiter,
+  resolveCredentialAccountIdentity,
+} from "./lib/credentialAccountRateLimit";
 
 const app: Express = express();
 
@@ -152,6 +156,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(authMiddleware);
 app.use(pendingClinicianAccessGuard);
+
+// Account-based credential budgets run after request parsing and authentication
+// context are available. Existing per-IP limits remain independent defenses.
+app.use("/api", resolveCredentialAccountIdentity, credentialAccountLimiter);
 
 app.use("/api", router);
 

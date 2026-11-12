@@ -16,6 +16,10 @@ import {
   familiesTable,
 } from "@workspace/db";
 import { classifyFamilyAccount, familyChildrenForOwner, familyOwnerId, isFamilyAccessRevoked } from "../lib/familyParentAuth";
+import {
+  credentialAccountLimiter,
+  resolveCredentialAccountIdentity,
+} from "../lib/credentialAccountRateLimit";
 import { eq, and, gt, isNull, inArray, sql } from "drizzle-orm";
 import { revokeClientSessionsForChildren } from "../lib/clientSessionRevocation";
 import { respondWithInternalError } from "../lib/apiError";
@@ -81,7 +85,12 @@ export async function requireMobileAuth(req: any, res: any, next: any) {
         selected = target;
       }
     }
-    req.mobileUser = { childId: selected.id, authenticatedChildId: anchor.id, experience: classification === "family" ? "parent" : "client" };
+    req.mobileUser = {
+      childId: selected.id,
+      authenticatedChildId: anchor.id,
+      familyId: family.id,
+      experience: classification === "family" ? "parent" : "client",
+    };
     next();
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile");
@@ -149,7 +158,12 @@ router.get("/mobile/session", requireMobileAuth, async (req: any, res) => {
   return res.json({ experience: req.mobileUser.experience, child: { id: child.id, child_name: child.childName, username: child.username } });
 });
 
-router.post("/mobile/auth/change-access-code", requireMobileAuth, async (req: any, res) => {
+router.post(
+  "/mobile/auth/change-access-code",
+  requireMobileAuth,
+  resolveCredentialAccountIdentity,
+  credentialAccountLimiter,
+  async (req: any, res) => {
   const { current_access_code, new_access_code } = req.body ?? {};
   if (typeof current_access_code !== "string" || typeof new_access_code !== "string" ||
       new_access_code.trim().length < 4 || new_access_code.length > 128) {
@@ -187,7 +201,8 @@ router.post("/mobile/auth/change-access-code", requireMobileAuth, async (req: an
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile-access-code-change");
   }
-});
+  },
+);
 
 // ──────────────────────────────────────────────
 // Helper

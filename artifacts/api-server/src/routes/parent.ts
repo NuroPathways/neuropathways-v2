@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { Router, type Request, type Response } from "express";
-import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import rateLimit from "express-rate-limit";
 import { and, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import {
   behaviorLogsTable,
@@ -56,7 +56,10 @@ import {
   getParentSupportCards,
   listParentDocuments,
 } from "../lib/parentDocuments";
-import { parentLoginAccountKey } from "../lib/parentAuthRateLimit";
+import {
+  credentialAccountLimiter,
+  resolveCredentialAccountIdentity,
+} from "../lib/credentialAccountRateLimit";
 import { familyIdForOwner, familyChildrenForOwner, parentGoalOwnerIds, saveFamilySettings } from "../lib/familyParentAuth";
 import {
   hashParentPassword,
@@ -79,25 +82,14 @@ import {
 } from "../lib/parentAuth";
 
 const router = Router();
-// Keep a network-wide abuse ceiling, but scope the tighter sign-in budget to
-// an IP/account pair so one family sharing an IP cannot lock out its neighbors.
+// Keep a broader network-wide ceiling; the separate account limiter applies
+// the same normalized parent-account budget across changing IP addresses.
 const parentLoginIpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 60,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "Too many sign-in requests from this network. Please try again later." },
-  skip: () => process.env.DISABLE_RATE_LIMIT === "true",
-});
-const parentLoginAccountLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: "draft-7",
-  legacyHeaders: false,
-  keyGenerator: (req) => `${ipKeyGenerator(req.ip || "unknown")}:${parentLoginAccountKey(
-    normalizeParentEmail(isRecord(req.body) ? req.body.email : null),
-  )}`,
-  message: { error: "Too many sign-in attempts for this account from this network. Please try again later." },
   skip: () => process.env.DISABLE_RATE_LIMIT === "true",
 });
 const parentRegistrationLimiter = rateLimit({
@@ -735,7 +727,7 @@ router.post("/parent/auth/register", parentRegistrationLimiter, async (req: Requ
   }
 });
 
-router.post("/parent/auth/login", parentLoginIpLimiter, parentLoginAccountLimiter, async (req: Request, res: Response) => {
+router.post("/parent/auth/login", parentLoginIpLimiter, async (req: Request, res: Response) => {
   const body = req.body;
   if (!isRecord(body) || !hasOnlyKeys(body, ["email", "password"])) {
     res.status(400).json({ error: "Invalid login request" });
@@ -832,7 +824,13 @@ router.post("/parent/auth/logout", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/parent/auth/change-password", passwordChangeLimiter, requireParent, async (req: Request, res: Response): Promise<void> => {
+router.post(
+  "/parent/auth/change-password",
+  passwordChangeLimiter,
+  requireParent,
+  resolveCredentialAccountIdentity,
+  credentialAccountLimiter,
+  async (req: Request, res: Response): Promise<void> => {
   if (req.familyParent) { res.status(403).json({ error: "Use your existing family access-code settings" }); return; }
   const parsed = ChangeParentPasswordBody.safeParse(req.body);
   if (!parsed.success || !hasOnlyKeys(req.body, ["currentPassword", "newPassword"])) {
@@ -905,7 +903,8 @@ router.post("/parent/auth/change-password", passwordChangeLimiter, requireParent
     req.log.error({ error }, "Unable to change parent account password");
     res.status(500).json({ error: "Unable to change your password right now." });
   }
-});
+  },
+);
 
 router.get("/parent/session", requireParent, async (req: Request, res: Response) => {
   try {
