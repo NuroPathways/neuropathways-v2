@@ -40,17 +40,23 @@ const {
   clientAccessCodeResetsTable,
   clientSessionsTable,
   childrenTable,
+  clientProfilesTable,
   clinicMembershipsTable,
   clinicsTable,
   clinicalAssignmentsTable,
+  dailyCheckInsTable,
   db,
   documentsTable,
+  engagementEventsTable,
   familiesTable,
   interventionPlansTable,
+  messagesTable,
   mobileTokensTable,
   pool,
+  rewardTokensTable,
   userProfilesTable,
   usersTable,
+  winLogsTable,
 } = database;
 const { eq } = await import("drizzle-orm");
 const { default: entitiesRouter } = await import("./entities");
@@ -114,7 +120,7 @@ test("cross-clinic entity updates and deletion attempts are denied, unchanged, a
   ]);
   await db.insert(familiesTable).values([
     { id: familyA, tenantId: tenantA, clinicianId: clinicianA, familyName: "Synthetic Family A", accountType: "family", inviteToken: oldInviteToken, inviteStatus: "accepted" },
-    { id: familyB, tenantId: tenantB, clinicianId: clinicianB, familyName: "Synthetic Family B", accountType: "family" },
+    { id: familyB, tenantId: tenantB, clinicianId: clinicianB, familyName: `${privateMarker}_FAMILY_B`, accountType: "family" },
   ]);
   await db.insert(childrenTable).values([
     {
@@ -124,7 +130,8 @@ test("cross-clinic entity updates and deletion attempts are denied, unchanged, a
     },
     {
       id: childB, tenantId: tenantB, clinicianId: clinicianB, familyId: familyB,
-      childName: "Synthetic Child B", accountType: "parent_clinician", status: "active",
+      childName: "Synthetic Child B", notes: `${privateMarker}_FAMILY_B`,
+      accountType: "parent_clinician", status: "active",
       username: oldUsernameB, accessCode: await hashClientAccessCode(oldCredentialB),
     },
   ]);
@@ -539,6 +546,20 @@ test("cross-clinic entity updates and deletion attempts are denied, unchanged, a
       requestId: familyDocumentDownloadRequestId,
     });
     const crossFamilyRequestId = `p0-family-cross-child-${suffix}`;
+    const targetFamilySnapshotBefore = {
+      family: await db.select().from(familiesTable).where(eq(familiesTable.id, familyB)),
+      child: await db.select().from(childrenTable).where(eq(childrenTable.id, childB)),
+      profiles: await db.select().from(clientProfilesTable).where(eq(clientProfilesTable.childId, childB)),
+      behaviorPlans: await db.select().from(behaviorPlansTable).where(eq(behaviorPlansTable.childId, childB)),
+      documents: await db.select().from(documentsTable).where(eq(documentsTable.childId, childB)),
+      interventionPlans: await db.select().from(interventionPlansTable).where(eq(interventionPlansTable.childId, childB)),
+      goals: await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.childId, childB)),
+      winLogs: await db.select().from(winLogsTable).where(eq(winLogsTable.childId, childB)),
+      dailyCheckIns: await db.select().from(dailyCheckInsTable).where(eq(dailyCheckInsTable.childId, childB)),
+      engagementEvents: await db.select().from(engagementEventsTable).where(eq(engagementEventsTable.childId, childB)),
+      behaviorLogs: await db.select().from(behaviorLogsTable).where(eq(behaviorLogsTable.childId, childB)),
+      messages: await db.select().from(messagesTable).where(eq(messagesTable.childId, childB)),
+    };
     const crossFamilyResponse = await fetch(`${baseUrl}/client-portal-data`, {
       method: "POST",
       headers: {
@@ -548,6 +569,22 @@ test("cross-clinic entity updates and deletion attempts are denied, unchanged, a
       body: JSON.stringify({ child_id: childB, invite_token: oldWebSession }),
     });
     const crossFamilyBody = await crossFamilyResponse.text();
+    const targetFamilySnapshotAfter = {
+      family: await db.select().from(familiesTable).where(eq(familiesTable.id, familyB)),
+      child: await db.select().from(childrenTable).where(eq(childrenTable.id, childB)),
+      profiles: await db.select().from(clientProfilesTable).where(eq(clientProfilesTable.childId, childB)),
+      behaviorPlans: await db.select().from(behaviorPlansTable).where(eq(behaviorPlansTable.childId, childB)),
+      documents: await db.select().from(documentsTable).where(eq(documentsTable.childId, childB)),
+      interventionPlans: await db.select().from(interventionPlansTable).where(eq(interventionPlansTable.childId, childB)),
+      goals: await db.select().from(rewardTokensTable).where(eq(rewardTokensTable.childId, childB)),
+      winLogs: await db.select().from(winLogsTable).where(eq(winLogsTable.childId, childB)),
+      dailyCheckIns: await db.select().from(dailyCheckInsTable).where(eq(dailyCheckInsTable.childId, childB)),
+      engagementEvents: await db.select().from(engagementEventsTable).where(eq(engagementEventsTable.childId, childB)),
+      behaviorLogs: await db.select().from(behaviorLogsTable).where(eq(behaviorLogsTable.childId, childB)),
+      messages: await db.select().from(messagesTable).where(eq(messagesTable.childId, childB)),
+    };
+    const targetFamilyRecordsUnchanged =
+      JSON.stringify(targetFamilySnapshotBefore) === JSON.stringify(targetFamilySnapshotAfter);
     const crossFamilyAuditRows = (await db.select().from(auditLogsTable).where(eq(auditLogsTable.targetId, childB)))
       .filter((row) => (row.metadata as Record<string, unknown> | null)?.request_id === crossFamilyRequestId);
     clientPortalResults.push({
@@ -563,6 +600,7 @@ test("cross-clinic entity updates and deletion attempts are denied, unchanged, a
       crossFamilyAuditTargetMatches: crossFamilyAuditRows.every((row) => row.targetId === childB && row.targetType === "child"),
       crossFamilyAuditOutcomeMatches: crossFamilyAuditRows.every((row) => row.success === false),
       crossFamilyAuditTimestampValid: crossFamilyAuditRows.every((row) => Number.isFinite(Date.parse(row.createdDate.toISOString()))),
+      targetFamilyRecordsUnchanged,
       requestIds: { ownPortalRequestId, crossFamilyRequestId },
     });
     const initialMobileSessionResponse = await fetch(`${baseUrl}/mobile/session`, {
@@ -910,7 +948,8 @@ test("cross-clinic entity updates and deletion attempts are denied, unchanged, a
       entry.crossFamilyAuditActionMatches !== true ||
       entry.crossFamilyAuditTargetMatches !== true ||
       entry.crossFamilyAuditOutcomeMatches !== true ||
-      entry.crossFamilyAuditTimestampValid !== true
+      entry.crossFamilyAuditTimestampValid !== true ||
+      entry.targetFamilyRecordsUnchanged !== true
     ) {
       failures.push(entry);
     }
