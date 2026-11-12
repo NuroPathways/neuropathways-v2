@@ -1064,3 +1064,17 @@ mtime_ms = 1794508548790
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/3feddf59-1c58-4861-b11d-1a988dbef181/664bd43d-13f1-4ff3-afd0-d5d6fa252a2c"
 storage_version_token = "1794508560801849"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "hepHhSUQO1EAZlnwO3YyA"
+uri = "file://.local/verification/neuro-goal-source-tracking-20261112T211424Z/neuro-goal-source-tracking-evidence.zip"
+type = "unspecified"
+title = "NeuroPathways source-tracking evidence"
+description = "Final-commit verification report, isolated API and signed-in browser results, genuine test audit records, screenshots, and checksums."
+logical_id = "32f48d20-9334-4640-b0ce-3e54c969af63"
+content_hash = "sha256:082c2984dd13d93990a2ea36fb19c241ff125e002ce164a29a89ba8c6d73af25"
+size = 1440282
+mtime_ms = 1794520334434
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/32f48d20-9334-4640-b0ce-3e54c969af63/05309c3c-4392-49d5-aff8-b432234083e2"
+storage_version_token = "1794520346152545"
+content_type = "application/octet-stream"
