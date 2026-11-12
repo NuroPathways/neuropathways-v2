@@ -935,6 +935,9 @@ test("application limits failed client sign-ins and audits rejected credentials 
     await once(server, "listening");
     const address = server.address();
     assert.ok(address && typeof address !== "string");
+    const failedLoginIdsBefore = new Set((await db.select({ id: auditLogsTable.id })
+      .from(auditLogsTable)
+      .where(eq(auditLogsTable.action, "failed_login"))).map((row) => row.id));
     const statuses: number[] = [];
     for (let index = 0; index < 11; index += 1) {
       const response = await fetch(`http://127.0.0.1:${address.port}/api/client-session/login`, {
@@ -950,8 +953,7 @@ test("application limits failed client sign-ins and audits rejected credentials 
     }
     const allAuditRows = await db.select().from(auditLogsTable);
     const failedLoginRows = allAuditRows.filter((row) =>
-      row.action === "failed_login" &&
-      (row.metadata as Record<string, unknown> | null)?.username === username
+      row.action === "failed_login" && !failedLoginIdsBefore.has(row.id)
     );
     const rateLimitRows = allAuditRows.filter((row) =>
       row.action === "login_rate_limited" &&
@@ -967,6 +969,9 @@ test("application limits failed client sign-ins and audits rejected credentials 
       failedCredentialAuditCount: failedLoginRows.length,
       eachRejectedCredentialAttemptAudited: failedLoginRows.length === 10,
       auditEventsExcludeAccessCode: !auditPayload.includes(accessCode),
+      auditEventsExcludeUsername: !auditPayload.includes(username) &&
+        failedLoginRows.every((row) =>
+          !("username" in ((row.metadata as Record<string, unknown> | null) || {}))),
       auditTimestampsValid: failedLoginRows.length === 10 && failedLoginRows.every((row) =>
         row.createdDate instanceof Date && Math.abs(Date.now() - row.createdDate.getTime()) < 10_000
       ),
@@ -1019,6 +1024,7 @@ test("application limits failed client sign-ins and audits rejected credentials 
     assert.equal(result.eleventhAttemptRateLimited, true);
     assert.equal(result.eachRejectedCredentialAttemptAudited, true);
     assert.equal(result.auditEventsExcludeAccessCode, true);
+    assert.equal(result.auditEventsExcludeUsername, true);
     assert.equal(result.auditTimestampsValid, true);
     assert.equal(result.rateLimitedAttemptAuditCount, 1);
     assert.equal(result.rateLimitedAttemptAuditedWithoutCredentials, true);
