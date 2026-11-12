@@ -613,6 +613,17 @@ test("legacy client session cannot download a clinician-only document by direct 
       },
     );
     const clinicianContentBody = await clinicianContentResponse.text();
+    const clinicianGenericDownloadRequestId = `clinician-generic-download-${child.id}`;
+    const clinicianGenericDownloadResponse = await fetch(
+      `http://127.0.0.1:${address.port}/uploads/clinician-only.txt`,
+      {
+        headers: {
+          "x-test-authorized-clinician": "synthetic",
+          "x-test-request-id": clinicianGenericDownloadRequestId,
+        },
+      },
+    );
+    const clinicianGenericDownloadBody = await clinicianGenericDownloadResponse.text();
     const mobileSharedResponse = await fetch(
       `http://127.0.0.1:${address.port}/uploads/shared.txt`,
       { headers: { "x-mobile-token": mobileToken } },
@@ -716,6 +727,13 @@ test("legacy client session cannot download a clinician-only document by direct 
       (row.metadata as Record<string, unknown> | null)?.child_id === child.id &&
       (row.metadata as Record<string, unknown> | null)?.request_id === clinicianContentRequestId
     );
+    const clinicianGenericDownloadAudits = auditRows.filter((row) =>
+      row.action === "document_download_authorized" && row.targetId === document.id &&
+      row.userId === clinicianId && row.userRole === "clinician" && row.tenantId === tenantId &&
+      row.success === true &&
+      (row.metadata as Record<string, unknown> | null)?.child_id === child.id &&
+      (row.metadata as Record<string, unknown> | null)?.request_id === clinicianGenericDownloadRequestId
+    );
     const profileScanAudit = auditRows.find((row) =>
       row.action === "document_scan_requested" &&
       (row.metadata as Record<string, unknown> | null)?.request_id === "clinician-only-document-ai-context-regression"
@@ -772,6 +790,15 @@ test("legacy client session cannot download a clinician-only document by direct 
         clinicianContentAllowedAudits.length === 1 && clinicianContentAllowedAudits[0].success === true,
       clinicianContentAuditContainsSensitiveMarkers:
         JSON.stringify(clinicianContentAllowedAudits).includes(marker),
+      clinicianGenericDownloadStatus: clinicianGenericDownloadResponse.status,
+      clinicianGenericDownloadContentReturned: clinicianGenericDownloadBody.includes(marker),
+      clinicianGenericDownloadAuditCount: clinicianGenericDownloadAudits.length,
+      clinicianGenericDownloadAuditTimestampMatches:
+        clinicianGenericDownloadAudits.length === 1 &&
+        clinicianGenericDownloadAudits[0].createdDate instanceof Date &&
+        Number.isFinite(clinicianGenericDownloadAudits[0].createdDate.getTime()),
+      clinicianGenericDownloadAuditContainsSensitiveMarkers:
+        JSON.stringify(clinicianGenericDownloadAudits).includes(marker),
       fakeProviderRequests: capturedAiRequests.length,
       fakeProviderErrorStatus: scanStatus,
       aiContextExcludesClinicianOnlyMarker: !serializedAiRequests.includes(marker),
@@ -786,7 +813,7 @@ test("legacy client session cannot download a clinician-only document by direct 
     };
     await fs.writeFile(path.join(evidenceDir, "clinician-only-direct-download-results.json"), `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600 });
     await fs.writeFile(path.join(evidenceDir, "clinician-only-direct-download-genuine-audit-events.json"), `${JSON.stringify(
-      [...denialAudits, ...allowedAudits, ...mobileDenialAudits, ...mobileAllowedAudits, ...mobileContentDenialAudits, ...mobileContentAllowedAudits, ...clinicianContentAllowedAudits].map((row) => ({
+      [...denialAudits, ...allowedAudits, ...mobileDenialAudits, ...mobileAllowedAudits, ...mobileContentDenialAudits, ...mobileContentAllowedAudits, ...clinicianContentAllowedAudits, ...clinicianGenericDownloadAudits].map((row) => ({
         id: row.id,
         createdAt: row.createdDate instanceof Date ? row.createdDate.toISOString() : row.createdDate,
         actorId: row.userId,
@@ -854,6 +881,11 @@ test("legacy client session cannot download a clinician-only document by direct 
     assert.equal(result.clinicianContentAuditActorMatches, true);
     assert.equal(result.clinicianContentAuditOutcomeMatches, true);
     assert.equal(result.clinicianContentAuditContainsSensitiveMarkers, false);
+    assert.equal(result.clinicianGenericDownloadStatus, 200);
+    assert.equal(result.clinicianGenericDownloadContentReturned, true);
+    assert.equal(result.clinicianGenericDownloadAuditCount, 1);
+    assert.equal(result.clinicianGenericDownloadAuditTimestampMatches, true);
+    assert.equal(result.clinicianGenericDownloadAuditContainsSensitiveMarkers, false);
     assert.ok(result.fakeProviderRequests > 0);
     assert.equal(result.aiContextExcludesClinicianOnlyMarker, true);
     assert.equal(result.aiContextIncludesSharedVisibleMarker, true);
