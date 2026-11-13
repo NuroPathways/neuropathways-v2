@@ -274,11 +274,12 @@ test("legacy family credentials cannot write across family boundaries", async ()
     assert.ok(loginBody, "successful login should return JSON");
     const session = loginBody as { invite_token: string };
     assert.ok(session.invite_token);
+    const ownPortalReadRequestId = `family-own-portal-read-${suffix}`;
     const ownPortalResponse = await fetch(`${baseUrl}/client-portal-data`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-test-request-id": `family-own-portal-${suffix}`,
+        "x-test-request-id": ownPortalReadRequestId,
       },
       body: JSON.stringify({ child_id: childA, invite_token: session.invite_token }),
     });
@@ -292,6 +293,24 @@ test("legacy family credentials cannot write across family boundaries", async ()
       sharedDocumentVisible: visibleDocumentIds.includes(sharedDocumentId),
       legacyDocumentVisible: visibleDocumentIds.includes(legacyDocumentId),
     };
+    const ownPortalReadAudits = (await db.select().from(auditLogsTable)).filter((row) =>
+      (row.metadata as Record<string, unknown> | null)?.request_id === ownPortalReadRequestId
+    );
+    const ownPortalReadAudit = ownPortalReadAudits[0];
+    assert.equal(ownPortalResponse.status, 200);
+    assert.equal(ownPortalReadAudits.length, 1);
+    assert.equal(ownPortalReadAudit?.userId, childA);
+    assert.equal(ownPortalReadAudit?.userRole, "client");
+    assert.equal(ownPortalReadAudit?.tenantId, tenantId);
+    assert.equal(ownPortalReadAudit?.action, "client_portal_data_viewed");
+    assert.equal(ownPortalReadAudit?.targetType, "child");
+    assert.equal(ownPortalReadAudit?.targetId, childA);
+    assert.equal(ownPortalReadAudit?.success, true);
+    assert.ok(Number.isFinite(Date.parse(String(ownPortalReadAudit?.createdDate))));
+    const serializedPortalAudit = JSON.stringify(ownPortalReadAudit);
+    assert.equal(serializedPortalAudit.includes(privateMarker), false);
+    assert.equal(serializedPortalAudit.includes(session.invite_token), false);
+    assert.equal(serializedPortalAudit.includes(accessCode), false);
     assert.equal(clinicianOnlyVisibility.status, 200);
     assert.equal(clinicianOnlyVisibility.clinicianOnlyHidden, true);
     assert.equal(clinicianOnlyVisibility.sharedDocumentVisible, true);
@@ -446,6 +465,27 @@ test("legacy family credentials cannot write across family boundaries", async ()
       databaseHost: parsedDatabaseUrl.hostname,
       crossFamilyProfileProvider: "not called; request was denied before AI",
       clinicianOnlyDocumentVisibility: clinicianOnlyVisibility,
+      portalDataReadAudit: {
+        count: ownPortalReadAudits.length,
+        actorMatches: ownPortalReadAudit?.userId === childA && ownPortalReadAudit?.userRole === "client",
+        tenantMatches: ownPortalReadAudit?.tenantId === tenantId,
+        targetMatches: ownPortalReadAudit?.targetType === "child" && ownPortalReadAudit?.targetId === childA,
+        outcomeMatches: ownPortalReadAudit?.success === true && ownPortalReadAudit?.action === "client_portal_data_viewed",
+        timestampValid: Number.isFinite(Date.parse(String(ownPortalReadAudit?.createdDate))),
+        metadata: ownPortalReadAudit?.metadata,
+        event: ownPortalReadAudit ? {
+          id: ownPortalReadAudit.id,
+          createdAt: ownPortalReadAudit.createdDate instanceof Date ? ownPortalReadAudit.createdDate.toISOString() : ownPortalReadAudit.createdDate,
+          actorId: ownPortalReadAudit.userId,
+          actorRole: ownPortalReadAudit.userRole,
+          tenantId: ownPortalReadAudit.tenantId,
+          action: ownPortalReadAudit.action,
+          targetType: ownPortalReadAudit.targetType,
+          targetId: ownPortalReadAudit.targetId,
+          success: ownPortalReadAudit.success,
+          metadata: ownPortalReadAudit.metadata,
+        } : null,
+      },
       cases,
       noCredentialValuesRecorded: true,
     };
@@ -532,6 +572,22 @@ test("legacy client session cannot download a clinician-only document by direct 
     childId: child.id,
     expiresAt: new Date(Date.now() + 60_000),
   });
+  const mobileClientId = `scope-mobile-client-${crypto.randomUUID()}`;
+  const mobileClientToken = `synthetic-mobile-client-${crypto.randomUUID()}`;
+  await db.insert(childrenTable).values({
+    id: mobileClientId,
+    tenantId,
+    clinicianId,
+    familyId: child.familyId,
+    childName: "Synthetic Individual Client",
+    accountType: "individual",
+    status: "active",
+  });
+  await db.insert(mobileTokensTable).values({
+    token: mobileClientToken,
+    childId: mobileClientId,
+    expiresAt: new Date(Date.now() + 60_000),
+  });
 
   const marker = "CLINICIAN_ONLY_PRIVATE_TEST_CONTENT";
   const sharedMarker = "AUTHORIZED_SHARED_DOCUMENT_CONTENT";
@@ -573,6 +629,101 @@ test("legacy client session cannot download a clinician-only document by direct 
     );
     const mobileListBody = await mobileListResponse.text();
     const mobileListDocuments = JSON.parse(mobileListBody) as Array<{ id?: string; title?: string }>;
+    const mobileClientReadRequestId = `mobile-client-document-list-${mobileClientId}`;
+    const mobileClientReadResponse = await fetch(
+      `http://127.0.0.1:${address.port}/mobile/documents`,
+      {
+        headers: {
+          "x-mobile-token": mobileClientToken,
+          "x-test-request-id": mobileClientReadRequestId,
+        },
+      },
+    );
+    const mobileClientReadBody = await mobileClientReadResponse.text();
+    const mobileClientReadAudits = (await db.select().from(auditLogsTable)).filter((row) =>
+      (row.metadata as Record<string, unknown> | null)?.request_id === mobileClientReadRequestId
+    );
+    const mobileClientReadAudit = mobileClientReadAudits[0];
+    const mobileClientReadEvidence = {
+      scenarioId: "GE-SEC-025",
+      route: "GET /mobile/documents",
+      status: mobileClientReadResponse.status,
+      emptyDocumentList: JSON.parse(mobileClientReadBody).length === 0,
+      auditCount: mobileClientReadAudits.length,
+      actorMatches: mobileClientReadAudit?.userId === mobileClientId && mobileClientReadAudit?.userRole === "client",
+      tenantMatches: mobileClientReadAudit?.tenantId === tenantId,
+      targetMatches: mobileClientReadAudit?.targetType === "child" && mobileClientReadAudit?.targetId === mobileClientId,
+      outcomeMatches: mobileClientReadAudit?.success === true && mobileClientReadAudit?.action === "mobile_data_viewed",
+      resource: (mobileClientReadAudit?.metadata as Record<string, unknown> | null)?.resource,
+      timestampValid: Number.isFinite(Date.parse(String(mobileClientReadAudit?.createdDate))),
+      auditExcludesToken: !JSON.stringify(mobileClientReadAudit).includes(mobileClientToken),
+    };
+    assert.equal(mobileClientReadResponse.status, 200);
+    assert.deepEqual(JSON.parse(mobileClientReadBody), []);
+    assert.equal(mobileClientReadAudits.length, 1);
+    assert.equal(mobileClientReadEvidence.actorMatches, true);
+    assert.equal(mobileClientReadEvidence.tenantMatches, true);
+    assert.equal(mobileClientReadEvidence.targetMatches, true);
+    assert.equal(mobileClientReadEvidence.outcomeMatches, true);
+    assert.equal(mobileClientReadEvidence.resource, "documents");
+    assert.equal(mobileClientReadEvidence.timestampValid, true);
+    assert.equal(mobileClientReadEvidence.auditExcludesToken, true);
+    const mobileReadRoutes = [
+      ["/mobile/session", "session"],
+      ["/mobile/children", "children"],
+      ["/mobile/behavior-plans", "behavior-plans"],
+      ["/mobile/behavior-logs", "behavior-logs"],
+      ["/mobile/messages", "messages"],
+      ["/mobile/documents", "documents"],
+      ["/mobile/reward-tokens", "goals"],
+      ["/mobile/win-logs", "win-logs"],
+      ["/mobile/daily-check-ins", "daily-check-ins"],
+      ["/mobile/ai-conversations", "ai-conversations"],
+    ] as const;
+    const mobileReadAuditEvidence = [];
+    const mobileReadAuditRows = [];
+    for (const [route, resource] of mobileReadRoutes) {
+      const requestId = `mobile-read-${resource}-${mobileClientId}`;
+      const response = await fetch(`http://127.0.0.1:${address.port}${route}`, {
+        headers: {
+          "x-mobile-token": mobileClientToken,
+          "x-test-request-id": requestId,
+        },
+      });
+      assert.equal(response.status, 200, `${route} must remain a successful authorized read`);
+      await response.arrayBuffer();
+      const rows = (await db.select().from(auditLogsTable)).filter((row) =>
+        (row.metadata as Record<string, unknown> | null)?.request_id === requestId
+      );
+      assert.equal(rows.length, 1, `${route} must write exactly one read event`);
+      const row = rows[0];
+      assert.equal(row.userId, mobileClientId);
+      assert.equal(row.userRole, "client");
+      assert.equal(row.tenantId, tenantId);
+      assert.equal(row.action, "mobile_data_viewed");
+      assert.equal(row.targetType, route === "/mobile/children" ? "family" : "child");
+      assert.equal(row.targetId, route === "/mobile/children" ? child.familyId : mobileClientId);
+      assert.equal(row.success, true);
+      assert.equal((row.metadata as Record<string, unknown>)?.resource, resource);
+      assert.ok(Number.isFinite(Date.parse(String(row.createdDate))));
+      const serializedRow = JSON.stringify(row);
+      assert.equal(serializedRow.includes(mobileClientToken), false);
+      assert.equal(serializedRow.includes(session.inviteToken), false);
+      mobileReadAuditRows.push(row);
+      mobileReadAuditEvidence.push({
+        route,
+        eventId: row.id,
+        actorId: row.userId,
+        actorRole: row.userRole,
+        tenantId: row.tenantId,
+        action: row.action,
+        targetType: row.targetType,
+        targetId: row.targetId,
+        success: row.success,
+        createdAt: row.createdDate instanceof Date ? row.createdDate.toISOString() : row.createdDate,
+        metadata: row.metadata,
+      });
+    }
     const response = await fetch(
       `http://127.0.0.1:${address.port}/uploads/clinician-only.txt?invite_token=${encodeURIComponent(session.inviteToken)}`,
     );
@@ -750,6 +901,9 @@ test("legacy client session cannot download a clinician-only document by direct 
     );
     const result = {
       scenarioId: "GE-ACC-097:direct-download",
+      mobileReadAudit: mobileClientReadEvidence,
+      mobileReadAuditRouteCount: mobileReadAuditEvidence.length,
+      mobileReadAuditRoutes: mobileReadAuditEvidence.map((entry) => entry.route),
       status: response.status,
       privateMarkerReturned: responseBody.includes(marker),
       denialAuditCount: denialAudits.length,
@@ -813,7 +967,7 @@ test("legacy client session cannot download a clinician-only document by direct 
     };
     await fs.writeFile(path.join(evidenceDir, "clinician-only-direct-download-results.json"), `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600 });
     await fs.writeFile(path.join(evidenceDir, "clinician-only-direct-download-genuine-audit-events.json"), `${JSON.stringify(
-      [...denialAudits, ...allowedAudits, ...mobileDenialAudits, ...mobileAllowedAudits, ...mobileContentDenialAudits, ...mobileContentAllowedAudits, ...clinicianContentAllowedAudits, ...clinicianGenericDownloadAudits].map((row) => ({
+      [...denialAudits, ...allowedAudits, ...mobileDenialAudits, ...mobileAllowedAudits, ...mobileContentDenialAudits, ...mobileContentAllowedAudits, ...clinicianContentAllowedAudits, ...clinicianGenericDownloadAudits, ...mobileClientReadAudits, ...mobileReadAuditRows].map((row) => ({
         id: row.id,
         createdAt: row.createdDate instanceof Date ? row.createdDate.toISOString() : row.createdDate,
         actorId: row.userId,

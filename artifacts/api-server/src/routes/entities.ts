@@ -1576,6 +1576,16 @@ router.post("/client-portal-data", async (req, res) => {
         ...goal,
         ...goalSourceAvailability(goal.source, goal.sourceDocumentId, visibleDocumentIds),
       }));
+    await auditLog({
+      userId: csession.childId,
+      userRole: "client",
+      action: "client_portal_data_viewed",
+      targetType: "child",
+      targetId: child_id,
+      tenantId: child?.tenantId ?? child?.clinicianId ?? undefined,
+      metadata: { experience: familyId ? "family" : "individual" },
+      requestId: String(req.id ?? ""),
+    });
     return res.json(stripSensitive(serialize({ child: child ?? null, siblings, plans, documents: visibleDocuments, interventionPlans, profile, goals: visibleGoals, winLogs, dailyCheckIns, engagementEvents, behaviorLogs, messages })));
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "entities");
@@ -1906,7 +1916,15 @@ router.get("/client-detail", requireAuth, async (req: any, res) => {
       ? { username: child.username, access_code_set: !!child.accessCode, email: child.parentEmail }
       : null;
 
-    await auditLog({ userId: req.user.id, userRole: "clinician", action: "client_viewed", targetType: "child", targetId: child_id, tenantId: child.clinicianId ?? undefined });
+    await auditLog({
+      userId: req.user.id,
+      userRole: "clinician",
+      action: "client_viewed",
+      targetType: "child",
+      targetId: child_id,
+      tenantId: child.tenantId ?? child.clinicianId ?? undefined,
+      requestId: String(req.id ?? ""),
+    });
 
     const [visibleDocuments, visibleLogs] = await Promise.all([
       legacyVisibleDocuments(documents, req.user.id),
@@ -1966,7 +1984,15 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
       ? { username: primaryChild.username, access_code_set: !!primaryChild.accessCode, email: family.email }
       : null;
 
-    await auditLog({ userId: req.user.id, userRole: "clinician", action: "client_viewed", targetType: "family", targetId: family_id, tenantId: family.clinicianId ?? undefined });
+    await auditLog({
+      userId: req.user.id,
+      userRole: "clinician",
+      action: "client_viewed",
+      targetType: "family",
+      targetId: family_id,
+      tenantId: family.tenantId ?? family.clinicianId ?? undefined,
+      requestId: String(req.id ?? ""),
+    });
 
     return res.json({
       family: serializeFamily(family),

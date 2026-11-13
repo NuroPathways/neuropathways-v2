@@ -23,6 +23,7 @@ import {
 import { eq, and, gt, isNull, inArray, sql } from "drizzle-orm";
 import { revokeClientSessionsForChildren } from "../lib/clientSessionRevocation";
 import { respondWithInternalError } from "../lib/apiError";
+import { writeAuditEventBestEffort } from "../lib/auditEvents";
 import {
   hashClientAccessCode as hashAccessCode,
   verifyClientAccessCode as verifyAccessCode,
@@ -90,11 +91,32 @@ export async function requireMobileAuth(req: any, res: any, next: any) {
       authenticatedChildId: anchor.id,
       familyId: family.id,
       experience: classification === "family" ? "parent" : "client",
+      tenantId: selected.tenantId ?? selected.clinicianId ?? null,
     };
     next();
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile");
   }
+}
+
+async function auditMobileRead(
+  req: any,
+  resource: string,
+  targetType: "child" | "family" = "child",
+  targetId?: string,
+) {
+  const mobileUser = req.mobileUser;
+  if (!mobileUser?.authenticatedChildId || !mobileUser?.childId) return;
+  await writeAuditEventBestEffort({
+    userId: mobileUser.authenticatedChildId,
+    userRole: mobileUser.experience === "parent" ? "parent" : "client",
+    tenantId: mobileUser.tenantId ?? null,
+    action: "mobile_data_viewed",
+    targetType,
+    targetId: targetId ?? mobileUser.childId,
+    metadata: { resource },
+    requestId: String(req.id ?? ""),
+  });
 }
 
 // ──────────────────────────────────────────────
@@ -155,6 +177,7 @@ router.delete("/mobile/auth/logout", requireMobileAuth, async (req: any, res) =>
 });
 router.get("/mobile/session", requireMobileAuth, async (req: any, res) => {
   const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.authenticatedChildId));
+  await auditMobileRead(req, "session");
   return res.json({ experience: req.mobileUser.experience, child: { id: child.id, child_name: child.childName, username: child.username } });
 });
 
@@ -234,6 +257,7 @@ router.get("/mobile/children", requireMobileAuth, async (req: any, res) => {
       ? await familyChildrenForOwner(familyOwnerId(child.familyId))
       : [child];
     siblings.sort((a, b) => a.id === child.id ? -1 : b.id === child.id ? 1 : (a.childName ?? "").localeCompare(b.childName ?? ""));
+    await auditMobileRead(req, "children", "family", req.mobileUser.familyId);
     return res.json(siblings.map(({ accessCode: _accessCode, ...publicChild }) => publicChild));
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile-children");
@@ -250,6 +274,7 @@ router.get("/mobile/behavior-plans", requireMobileAuth, async (req: any, res) =>
       .select()
       .from(behaviorPlansTable)
       .where(eq(behaviorPlansTable.childId, req.mobileUser.childId));
+    await auditMobileRead(req, "behavior-plans");
     res.json(rows);
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile");
@@ -266,6 +291,7 @@ router.get("/mobile/behavior-logs", requireMobileAuth, async (req: any, res) => 
       .select()
       .from(behaviorLogsTable)
       .where(eq(behaviorLogsTable.childId, req.mobileUser.childId));
+    await auditMobileRead(req, "behavior-logs");
     res.json(rows);
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile");
@@ -302,6 +328,7 @@ router.get("/mobile/messages", requireMobileAuth, async (req: any, res) => {
       .select()
       .from(messagesTable)
       .where(eq(messagesTable.childId, req.mobileUser.childId));
+    await auditMobileRead(req, "messages");
     res.json(rows);
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile");
@@ -339,6 +366,7 @@ router.get("/mobile/documents", requireMobileAuth, async (req: any, res) => {
       .from(documentsTable)
       .where(eq(documentsTable.childId, req.mobileUser.childId));
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
+    await auditMobileRead(req, "documents");
     res.json(await legacyVisibleDocuments(rows, child?.clinicianId ?? null, "client"));
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile");
@@ -355,6 +383,7 @@ router.get("/mobile/reward-tokens", requireMobileAuth, async (req: any, res) => 
       .select()
       .from(rewardTokensTable)
       .where(eq(rewardTokensTable.childId, req.mobileUser.childId));
+    await auditMobileRead(req, "goals");
     res.json(rows.filter(g => !g.createdByClinician || g.publicationStatus === "published")
       .map(({ goalVersions: _versions, ...g }) => g));
   } catch (e: any) {
@@ -372,6 +401,7 @@ router.get("/mobile/win-logs", requireMobileAuth, async (req: any, res) => {
       .select()
       .from(winLogsTable)
       .where(eq(winLogsTable.childId, req.mobileUser.childId));
+    await auditMobileRead(req, "win-logs");
     res.json(rows);
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile");
@@ -408,6 +438,7 @@ router.get("/mobile/daily-check-ins", requireMobileAuth, async (req: any, res) =
       .select()
       .from(dailyCheckInsTable)
       .where(eq(dailyCheckInsTable.childId, req.mobileUser.childId));
+    await auditMobileRead(req, "daily-check-ins");
     res.json(rows);
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile");
@@ -444,6 +475,7 @@ router.get("/mobile/ai-conversations", requireMobileAuth, async (req: any, res) 
       .select()
       .from(aiConversationsTable)
       .where(eq(aiConversationsTable.childId, req.mobileUser.childId));
+    await auditMobileRead(req, "ai-conversations");
     res.json(rows);
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile");

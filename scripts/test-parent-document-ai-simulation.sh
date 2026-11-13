@@ -8,6 +8,8 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 EVIDENCE_DIR="${PARENT_DOCUMENT_AI_EVIDENCE_DIR:-$ROOT/.local/verification/parent-document-ai-$STAMP}"
 mkdir -p "$EVIDENCE_DIR"
 chmod 700 "$EVIDENCE_DIR"
+: >"$EVIDENCE_DIR/blocked-egress.jsonl"
+chmod 600 "$EVIDENCE_DIR/blocked-egress.jsonl"
 
 TEST_ROOT="$(mktemp -d /tmp/np-parent-document-ai.XXXXXX)"
 chmod 700 "$TEST_ROOT"
@@ -60,8 +62,10 @@ export PARENT_DOCUMENT_AI_EVIDENCE_DIR="$EVIDENCE_DIR"
 export NP_APP_COMMIT="$(git rev-parse HEAD)"
 export FILE_ENCRYPTION_KEY="$(printf 'b%.0s' {1..64})"
 export PRIVATE_OBJECT_DIR="np-parent-ai-test/fixture"
+export NP_TEST_EVIDENCE_DIR="$EVIDENCE_DIR"
 export REPLIT_CONNECTORS_ENABLED=false
 export NODE_ENV=test
+export NODE_OPTIONS="--require=$ROOT/scripts/isolated-loopback-network-guard.cjs"
 unset AI_INTEGRATIONS_ANTHROPIC_API_KEY AI_INTEGRATIONS_ANTHROPIC_BASE_URL \
   ANTHROPIC_API_KEY GOOGLE_APPLICATION_CREDENTIALS \
   AI_INTEGRATIONS_OPENAI_API_KEY AI_INTEGRATIONS_GEMINI_API_KEY || true

@@ -295,6 +295,7 @@ const database = await import("@workspace/db");
 const {
   auditLogsTable,
   childrenTable,
+    clientSessionsTable,
   clientProfilesTable,
   clinicMembershipsTable,
   clinicsTable,
@@ -349,15 +350,19 @@ test("document scan route completes safely with a deterministic loopback AI prov
 
   const suffix = crypto.randomUUID();
   const clinicId = `synthetic-clinic-${suffix}`;
+  const clinicBId = `synthetic-clinic-b-${suffix}`;
   const tenantId = `synthetic-tenant-${suffix}`;
+  const tenantBId = `synthetic-tenant-b-${suffix}`;
   const clinicianAId = `synthetic-clinician-a-${suffix}`;
   const clinicianBId = `synthetic-clinician-b-${suffix}`;
+  const clinicianUnassignedId = `synthetic-clinician-unassigned-${suffix}`;
   const familyAId = `synthetic-family-a-${suffix}`;
   const familyBId = `synthetic-family-b-${suffix}`;
   const childAId = crypto.randomUUID();
   const childBId = crypto.randomUUID();
   activeDocumentId = crypto.randomUUID();
   const foreignDocumentId = crypto.randomUUID();
+  const caregiverSessionToken = `synthetic-parent-session-${suffix}`;
   const documentFilename = `${crypto.randomUUID()}.txt`;
   const foreignFilename = `${crypto.randomUUID()}.txt`;
   activeForeignMarker = `FOREIGN_FAMILY_MARKER_${suffix}`;
@@ -382,23 +387,25 @@ test("document scan route completes safely with a deterministic loopback AI prov
   await db.insert(usersTable).values([
     { id: clinicianAId, email: `${suffix}.clinician-a@example.test`, firstName: "Synthetic", lastName: "Clinician A" },
     { id: clinicianBId, email: `${suffix}.clinician-b@example.test`, firstName: "Synthetic", lastName: "Clinician B" },
+    { id: clinicianUnassignedId, email: `${suffix}.clinician-unassigned@example.test`, firstName: "Synthetic", lastName: "Unassigned Clinician" },
   ]);
   await db.insert(userProfilesTable).values([
     { id: clinicianAId, appRole: "clinician", tenantId, accountType: "clinician" },
-    { id: clinicianBId, appRole: "clinician", tenantId, accountType: "clinician" },
+    { id: clinicianBId, appRole: "clinician", tenantId: tenantBId, accountType: "clinician" },
+    { id: clinicianUnassignedId, appRole: "clinician", tenantId, accountType: "clinician" },
   ]);
-  await db.insert(clinicsTable).values({
-    id: clinicId,
-    displayName: "Synthetic Test Clinic",
-    legacyTenantId: tenantId,
-    status: "active",
-  });
+  await db.insert(clinicsTable).values([
+    { id: clinicId, displayName: "Synthetic Test Clinic A", legacyTenantId: tenantId, status: "active" },
+    { id: clinicBId, displayName: "Synthetic Test Clinic B", legacyTenantId: tenantBId, status: "active" },
+  ]);
   await db.insert(clinicMembershipsTable).values([
     { clinicId, userId: clinicianAId, role: "treating_clinician", status: "active" },
+    { clinicId, userId: clinicianUnassignedId, role: "treating_clinician", status: "active" },
+    { clinicId: clinicBId, userId: clinicianBId, role: "treating_clinician", status: "active" },
   ]);
   await db.insert(familiesTable).values([
-    { id: familyAId, tenantId, clinicianId: clinicianAId, familyName: "Synthetic Family A", accountType: "clinic_family" },
-    { id: familyBId, tenantId, clinicianId: clinicianBId, familyName: "Synthetic Family B", accountType: "clinic_family" },
+    { id: familyAId, tenantId, clinicianId: clinicianAId, familyName: "Synthetic Family A", accountType: "family" },
+    { id: familyBId, tenantId: tenantBId, clinicianId: clinicianBId, familyName: "Synthetic Family B", accountType: "family" },
   ]);
   await db.insert(childrenTable).values([
     {
@@ -412,7 +419,7 @@ test("document scan route completes safely with a deterministic loopback AI prov
     },
     {
       id: childBId,
-      tenantId,
+      tenantId: tenantBId,
       clinicianId: clinicianBId,
       familyId: familyBId,
       childName: "Riley Synthetic",
@@ -420,6 +427,12 @@ test("document scan route completes safely with a deterministic loopback AI prov
       status: "active",
     },
   ]);
+  await db.insert(clientSessionsTable).values({
+    childId: childAId,
+    inviteToken: caregiverSessionToken,
+    username: `${suffix}.parent`,
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+  });
   await db.insert(clinicalAssignmentsTable).values({
     clinicId,
     clientId: childAId,
@@ -442,7 +455,7 @@ test("document scan route completes safely with a deterministic loopback AI prov
     },
     {
       id: foreignDocumentId,
-      tenantId,
+      tenantId: tenantBId,
       childId: childBId,
       clinicianId: clinicianBId,
       title: "Synthetic unrelated plan",
@@ -453,6 +466,13 @@ test("document scan route completes safely with a deterministic loopback AI prov
       scanStatus: "pending",
     },
   ]);
+  await db.insert(clinicalAssignmentsTable).values({
+    clinicId: clinicBId,
+    clientId: childBId,
+    userId: clinicianBId,
+    role: "treating_clinician",
+    status: "active",
+  });
 
   const app = express();
   app.use(express.json());
@@ -494,12 +514,18 @@ test("document scan route completes safely with a deterministic loopback AI prov
     await t.test("authorized scan stores source-linked results for only the correct child and document",
       recordCase("Successful scan, derived content ownership, fields, labels, and isolated storage", async () => {
         const start = capturedRequests.length;
-        const response = await callScan(clinicianAId, childAId, { force_rebuild: true }, `ai-success-${suffix}`);
+        const response = await callScan(
+          clinicianAId,
+          childAId,
+          { force_rebuild: true, source_document_id: activeDocumentId },
+          `ai-success-${suffix}`,
+        );
         const body = await response.json() as Record<string, any>;
         assert.equal(response.status, 200, JSON.stringify(body));
         assert.deepEqual(body.scanned, [activeDocumentId]);
         assert.deepEqual(body.failed, []);
-        assert.ok(body.document_extractions.length >= 3);
+        const responseExtractions = body.document_extractions ?? body.documentExtractions;
+        assert.ok(Array.isArray(responseExtractions) && responseExtractions.length >= 3);
 
         const [profile] = await db.select().from(clientProfilesTable)
           .where(eq(clientProfilesTable.childId, childAId));
@@ -550,6 +576,18 @@ test("document scan route completes safely with a deterministic loopback AI prov
         assert.equal(sourceDocument.scanStatus, "done");
         assert.ok(fakeObjects.size > 0, "Encrypted scan output must go only to the in-memory fake object store");
         assert.ok([...fakeObjects.keys()].every((key) => key.startsWith("np-parent-ai-test/fixture/")));
+        const linkedGoalsResponse = await fetch(`${apiBase}/reward-tokens?child_id=${encodeURIComponent(childAId)}`, {
+          headers: { "x-synthetic-clinician": clinicianAId },
+        });
+        const linkedGoals = await linkedGoalsResponse.json() as Array<Record<string, any>>;
+        const sourceGoal = linkedGoals.find((goal) =>
+          (goal.sourceDocumentId ?? goal.source_document_id) === activeDocumentId &&
+          (goal.goalTitle ?? goal.goal_title) === "Request a break with the break card",
+        );
+        assert.equal(linkedGoalsResponse.status, 200);
+        assert.ok(sourceGoal, "The assigned clinician must see the goal derived from the scanned source.");
+        assert.equal(sourceGoal.sourceStatus ?? sourceGoal.source_status, "available");
+        assert.equal(sourceGoal.sourceDocumentId ?? sourceGoal.source_document_id, activeDocumentId);
 
         const currentRunRequests = capturedRequests.slice(start);
         assert.ok(currentRunRequests.some((entry) =>
@@ -564,6 +602,35 @@ test("document scan route completes safely with a deterministic loopback AI prov
         assert.ok(currentRunRequests.every((entry) =>
           !JSON.stringify(entry.body).includes(activeForeignMarker),
         ), "No foreign-family document material may enter any AI request");
+      }));
+
+    await t.test("caregiver portal does not expose a profile derived from clinician-only documents",
+      recordCase("Caregiver profile projection excludes clinician-only source material", async () => {
+        const scanResponse = await callScan(
+          clinicianAId,
+          childAId,
+          { force_rebuild: true },
+          `ai-profile-projection-${suffix}`,
+        );
+        assert.equal(scanResponse.status, 200);
+        const [savedProfile] = await db.select().from(clientProfilesTable)
+          .where(eq(clientProfilesTable.childId, childAId));
+        assert.ok(savedProfile);
+        assert.ok((savedProfile.sourceDocIds as string[]).includes(activeDocumentId));
+
+        const portalResponse = await fetch(`${apiBase}/client-portal-data`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            child_id: childAId,
+            invite_token: caregiverSessionToken,
+          }),
+        });
+        const portalBody = await portalResponse.json() as Record<string, any>;
+        assert.equal(portalResponse.status, 200);
+        assert.equal((portalBody.documents ?? []).some((document: any) => document.id === activeDocumentId), false);
+        assert.equal(portalBody.profile, null, "The portal must hide summaries whose source is not visible to the caregiver.");
+        assert.doesNotMatch(JSON.stringify(portalBody), /multi-step worksheet|break card described in the document/i);
       }));
 
     await t.test("repeated scanning is idempotent for source records and goals",
@@ -601,12 +668,22 @@ test("document scan route completes safely with a deterministic loopback AI prov
         const clinicianResponse = await callScan(
           clinicianBId,
           childAId,
-          { include_cached_extractions: true },
-          `ai-unrelated-clinician-${suffix}`,
+          { include_cached_extractions: true, source_document_id: activeDocumentId },
+          `ai-cross-clinic-clinician-${suffix}`,
         );
         const clinicianBody = await clinicianResponse.text();
         assert.equal(clinicianResponse.status, 403);
         assert.doesNotMatch(clinicianBody, /Kai|multi-step|break card/i);
+
+        const unassignedResponse = await callScan(
+          clinicianUnassignedId,
+          childAId,
+          { include_cached_extractions: true, source_document_id: activeDocumentId },
+          `ai-unassigned-clinician-${suffix}`,
+        );
+        const unassignedBody = await unassignedResponse.text();
+        assert.equal(unassignedResponse.status, 403);
+        assert.doesNotMatch(unassignedBody, /Kai|multi-step|break card/i);
 
         const unauthenticatedResponse = await callScan(
           null,
@@ -685,6 +762,131 @@ test("document scan route completes safely with a deterministic loopback AI prov
         const [recoveredRun] = await db.select().from(documentExtractionRunsTable)
           .where(eq(documentExtractionRunsTable.documentId, activeDocumentId));
         assert.equal(recoveredRun.scanStatus, "completed");
+      }));
+
+    await t.test("clinician document deletion preserves goal provenance and blocks deleted-source extraction retrieval",
+      recordCase("Clinician source goal remains usable but unavailable; deleted-source extraction text is not returned", async () => {
+        const [runBefore] = await db.select().from(documentExtractionRunsTable)
+          .where(eq(documentExtractionRunsTable.documentId, activeDocumentId));
+        assert.ok(runBefore);
+        const sourceRecordIds = runBefore.records.map((record: any) => record.id).sort();
+        const [goalBefore] = await db.select().from(rewardTokensTable).where(and(
+          eq(rewardTokensTable.childId, childAId),
+          eq(rewardTokensTable.sourceDocumentId, activeDocumentId),
+        ));
+        assert.ok(goalBefore);
+        assert.equal(goalBefore.source, "document");
+        const fakeObjectKeysBeforeDelete = [...fakeObjects.keys()];
+        assert.ok(fakeObjectKeysBeforeDelete.length > 0);
+
+        const deleteRequestId = `ai-source-delete-${suffix}`;
+        const deleteResponse = await fetch(`${apiBase}/manage-client-record`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-synthetic-clinician": clinicianAId,
+            "x-test-request-id": deleteRequestId,
+          },
+          body: JSON.stringify({ action: "deleteDocument", entity_id: activeDocumentId }),
+        });
+        const deleteBody = await deleteResponse.json() as Record<string, any>;
+        assert.equal(deleteResponse.status, 200, JSON.stringify(deleteBody));
+        assert.equal(deleteBody.cleanupStatus, "complete");
+        assert.equal((await db.select().from(documentsTable)
+          .where(eq(documentsTable.id, activeDocumentId))).length, 0);
+        assert.equal(
+          await fs.stat(path.join(isolatedUploadDirectory, documentFilename)).then(() => true, () => false),
+          false,
+          "Authorized deletion removes the source file from isolated local storage.",
+        );
+        assert.ok(
+          fakeObjectKeysBeforeDelete.every((key) => !fakeObjects.has(key)),
+          "Deleted-source encrypted scan output is removed from fake storage.",
+        );
+
+        const [runAfter] = await db.select().from(documentExtractionRunsTable)
+          .where(eq(documentExtractionRunsTable.documentId, activeDocumentId));
+        assert.ok(runAfter, "Historical extraction records remain retained.");
+        assert.deepEqual(runAfter.records.map((record: any) => record.id).sort(), sourceRecordIds);
+        const [goalAfter] = await db.select().from(rewardTokensTable)
+          .where(eq(rewardTokensTable.id, goalBefore.id));
+        assert.ok(goalAfter, "The independently stored derived goal remains usable.");
+        assert.equal(goalAfter.sourceDocumentId, activeDocumentId);
+
+        const goalsResponse = await fetch(`${apiBase}/reward-tokens?child_id=${encodeURIComponent(childAId)}`, {
+          headers: { "x-synthetic-clinician": clinicianAId },
+        });
+        const goalsBody = await goalsResponse.json() as Array<Record<string, any>>;
+        const retainedGoal = goalsBody.find((goal) => goal.id === goalBefore.id);
+        assert.equal(goalsResponse.status, 200);
+        assert.ok(retainedGoal);
+        assert.equal(retainedGoal.sourceStatus ?? retainedGoal.source_status, "unavailable");
+        assert.equal(retainedGoal.sourceDocumentId ?? retainedGoal.source_document_id ?? null, null);
+        assert.equal(retainedGoal.source, "document", "Upload origin does not imply clinician review or approval.");
+
+        const profileRead = await fetch(`${apiBase}/client-profiles/${(await db.select().from(clientProfilesTable)
+          .where(eq(clientProfilesTable.childId, childAId)))[0].id}`, {
+          headers: { "x-synthetic-clinician": clinicianAId },
+        });
+        const profileBody = await profileRead.text();
+        assert.equal(profileRead.status, 403);
+        assert.doesNotMatch(profileBody, /Kai|homework|break card/i);
+
+        const providerCallsBeforeCachedRead = capturedRequests.length;
+        const cachedResponse = await callScan(
+          clinicianAId,
+          childAId,
+          { include_cached_extractions: true, source_document_id: activeDocumentId },
+          `ai-deleted-source-cache-${suffix}`,
+        );
+        const cachedBody = await cachedResponse.text();
+        assert.equal(cachedResponse.status, 404);
+        assert.doesNotMatch(cachedBody, /Kai|homework|break card/i);
+        assert.equal(capturedRequests.length, providerCallsBeforeCachedRead, "Deleted-source retrieval does not call the fake AI.");
+
+        const caregiverPortalAfterDelete = await fetch(`${apiBase}/client-portal-data`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            child_id: childAId,
+            invite_token: caregiverSessionToken,
+          }),
+        });
+        const caregiverPortalAfterDeleteBody = await caregiverPortalAfterDelete.json() as Record<string, any>;
+        assert.equal(caregiverPortalAfterDelete.status, 200);
+        assert.equal(caregiverPortalAfterDeleteBody.profile, null);
+        assert.equal(
+          (caregiverPortalAfterDeleteBody.documents ?? []).some((document: any) => document.id === activeDocumentId),
+          false,
+        );
+        assert.doesNotMatch(JSON.stringify(caregiverPortalAfterDeleteBody), /multi-step worksheet|break card described in the document/i);
+
+        for (const [actor, requestId] of [
+          [clinicianBId, `ai-other-clinic-after-delete-${suffix}`],
+          [clinicianUnassignedId, `ai-unassigned-after-delete-${suffix}`],
+        ] as const) {
+          const deniedResponse = await callScan(
+            actor,
+            childAId,
+            { include_cached_extractions: true, source_document_id: activeDocumentId },
+            requestId,
+          );
+          const deniedBody = await deniedResponse.text();
+          assert.equal(deniedResponse.status, 403);
+          assert.doesNotMatch(deniedBody, /Kai|homework|break card/i);
+        }
+
+        const deletionAudit = (await db.select().from(auditLogsTable)).find((row) =>
+          row.action === "document_deleted" &&
+          row.targetId === activeDocumentId &&
+          (row.metadata as Record<string, unknown> | null)?.request_id === deleteRequestId
+        );
+        assert.ok(deletionAudit);
+        assert.equal(deletionAudit.userId, clinicianAId);
+        assert.equal(deletionAudit.userRole, "clinician");
+        assert.equal(deletionAudit.tenantId, tenantId);
+        assert.equal(deletionAudit.success, true);
+        assert.ok(Number.isFinite(deletionAudit.createdDate.getTime()));
       }));
 
     await t.test("revoked clinical access blocks both new scans and cached result retrieval",
@@ -774,7 +976,9 @@ test("document scan route completes safely with a deterministic loopback AI prov
 
   const successfulScanAudits = sanitizedAuditRows.filter((row) =>
     row.action === "document_scan_requested" &&
-    row.targetId === childAId,
+    ["child", "document"].includes(row.targetType ?? "") &&
+    [childAId, activeDocumentId].includes(row.targetId ?? "") &&
+    (row.metadata as Record<string, unknown> | null)?.child_id === childAId,
   );
   const deniedAccessAudits = sanitizedAuditRows.filter((row) =>
     row.action === "ai_document_access_denied" &&
@@ -785,6 +989,7 @@ test("document scan route completes safely with a deterministic loopback AI prov
   );
   const expectedSuccessfulRequests = new Set([
     `ai-success-${suffix}`,
+    `ai-profile-projection-${suffix}`,
     `ai-repeat-${suffix}`,
     `ai-empty-response-${suffix}`,
     `ai-retry-success-${suffix}`,
@@ -823,7 +1028,10 @@ test("document scan route completes safely with a deterministic loopback AI prov
 
   const expectedDenials = new Map([
     [`ai-cross-family-${suffix}`, { actorId: clinicianAId, targetId: childBId }],
-    [`ai-unrelated-clinician-${suffix}`, { actorId: clinicianBId, targetId: childAId }],
+    [`ai-cross-clinic-clinician-${suffix}`, { actorId: clinicianBId, targetId: childAId }],
+    [`ai-unassigned-clinician-${suffix}`, { actorId: clinicianUnassignedId, targetId: childAId }],
+    [`ai-other-clinic-after-delete-${suffix}`, { actorId: clinicianBId, targetId: childAId }],
+    [`ai-unassigned-after-delete-${suffix}`, { actorId: clinicianUnassignedId, targetId: childAId }],
     [`ai-revoked-scan-${suffix}`, { actorId: clinicianAId, targetId: childAId }],
     [`ai-revoked-results-${suffix}`, { actorId: clinicianAId, targetId: childAId }],
   ]);

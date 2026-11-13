@@ -20,6 +20,16 @@ describe("goalSourceLabel", () => {
       .toBe("Clinician-uploaded document · source not linked");
   });
 
+  it("shows clinician upload provenance without implying approval when the source is unavailable", () => {
+    expect(goalSourceLabel({
+      source: "document",
+      sourceStatus: "unavailable",
+      sourceDocumentId: null,
+      createdByClinician: true,
+      publicationStatus: "draft",
+    })).toBe("Clinician-uploaded document · source unavailable");
+  });
+
   it("does not label manual goals as document-derived", () => {
     expect(goalSourceLabel({ source: "manual" })).toBeNull();
   });
