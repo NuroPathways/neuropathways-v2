@@ -1120,3 +1120,17 @@ mtime_ms = 1794695175093
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/439eb350-6e94-45f6-8bbc-4f0924ab9e22/353c0e1d-9543-4760-b167-53ae5c534f29"
 storage_version_token = "1794695186332680"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "f4WCBQdmTh7o40Br30KQy"
+uri = "file://.local/verification/neuro-closure-update-20261114T231500Z.zip"
+type = "unspecified"
+title = "NeuroPathways verification evidence"
+description = "Updated Help Now browser verification, Sanju’s full scenario mapping, the 44-case P0 ledger, migration prerequisites, screenshots, and checksums."
+logical_id = "6088d1a3-9fe0-40f8-92f9-28db3f65f709"
+content_hash = "sha256:b167213d83279cd3f39e88aca4b0ac6d657c1b4d8f04ed4e875b345b5b079ac3"
+size = 2310238
+mtime_ms = 1794698142417
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/6088d1a3-9fe0-40f8-92f9-28db3f65f709/01376107-c93e-42e7-8ad5-d85c74037c51"
+storage_version_token = "1794698182544685"
+content_type = "application/octet-stream"
