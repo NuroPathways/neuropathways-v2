@@ -1092,3 +1092,17 @@ mtime_ms = 1794623160043
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/4c39fe15-e05b-494a-abb5-81f77e34ae87/fe8756b8-8cd3-4f1a-ba46-d4812e405dc7"
 storage_version_token = "1794623164882308"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "rxQuoa6_wAlmcqWlTn-id"
+uri = "file://.local/verification/neuro-shared-support-closure-20261114T212000Z/NeuroPathways-Shared-Support-Privacy-Verification-20261114T212000Z.zip"
+type = "unspecified"
+title = "NeuroPathways caregiver privacy verification"
+description = "Results, scenario closure table, synthetic audit records, screenshots, exact commits, and SHA-256 manifest."
+logical_id = "29959205-5bf9-4ae5-ab05-8491816b3bcc"
+content_hash = "sha256:1c178266305c9faf88b707a3f7dca014bfd34c9f2a9c0a43845c3b4b81094ca7"
+size = 929139
+mtime_ms = 1794691592785
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/29959205-5bf9-4ae5-ab05-8491816b3bcc/d84a4184-8943-48f0-bc8f-dbbda93736b7"
+storage_version_token = "1794691614594216"
+content_type = "application/octet-stream"
