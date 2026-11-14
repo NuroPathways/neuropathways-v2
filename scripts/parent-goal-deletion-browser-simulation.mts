@@ -31,6 +31,8 @@ type CaseStatus = "PASS" | "FAIL" | "BLOCKED" | "NOT RUN";
 const cases: Array<{ name: string; status: CaseStatus; detail?: string }> = [];
 const browserErrors: string[] = [];
 const browserClickEvents: Array<Record<string, unknown>> = [];
+const browserPageExceptions: Array<{ exceptionType: string; urlPath?: string; lineNumber?: number }> = [];
+const browserConsoleErrors: Array<{ source: string; urlPath?: string; lineNumber?: number }> = [];
 const providerRequests: Array<{ system: string; content: string; child: "mira" | "noah" | "foreign" | "unknown" }> = [];
 const apiRequestSummaries: Array<{ method: string; path: string; status?: number }> = [];
 let delayedMiraResponse: (() => void) | null = null;
@@ -156,6 +158,15 @@ function portFromUrl(value: string): number {
   const port = Number(new URL(value).port);
   if (!Number.isInteger(port) || port < 1) throw new Error("Invalid isolated server port.");
   return port;
+}
+
+function safeBrowserPath(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value) return undefined;
+  try {
+    return new URL(value).pathname.slice(0, 180);
+  } catch {
+    return undefined;
+  }
 }
 
 function fakeResponse(body: Record<string, any>, requestNumber: number) {
@@ -587,6 +598,26 @@ class CdpPage {
     this.socket = socket;
     socket.addEventListener("message", (event) => {
       const data = JSON.parse(String(event.data));
+      if (data.method === "Runtime.exceptionThrown") {
+        const details = data.params?.exceptionDetails || {};
+        const className = String(details.exception?.className || "Error");
+        const urlPath = safeBrowserPath(details.url);
+        browserPageExceptions.push({
+          exceptionType: /^[A-Za-z][A-Za-z0-9]*$/.test(className) ? className : "Error",
+          ...(urlPath ? { urlPath } : {}),
+          ...(Number.isInteger(details.lineNumber) ? { lineNumber: details.lineNumber } : {}),
+        });
+      } else if (data.method === "Log.entryAdded") {
+        const entry = data.params?.entry || {};
+        if (entry.level === "error") {
+          const urlPath = safeBrowserPath(entry.url);
+          browserConsoleErrors.push({
+            source: String(entry.source || "unknown").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32) || "unknown",
+            ...(urlPath ? { urlPath } : {}),
+            ...(Number.isInteger(entry.lineNumber) ? { lineNumber: entry.lineNumber } : {}),
+          });
+        }
+      }
       if (typeof data.id !== "number") return;
       const waiter = this.pending.get(data.id);
       if (!waiter) return;
@@ -608,6 +639,7 @@ class CdpPage {
     const page = new CdpPage(socket);
     await page.send("Page.enable");
     await page.send("Runtime.enable");
+    await page.send("Log.enable");
     return page;
   }
 
@@ -1849,6 +1881,11 @@ async function run() {
     browserStderrMessageCount: browserErrors.length,
     browserStderrCategories,
     rawBrowserStderrStored: false,
+    pageExceptionCount: browserPageExceptions.length,
+    pageExceptions: browserPageExceptions,
+    consoleErrorCount: browserConsoleErrors.length,
+    consoleErrors: browserConsoleErrors,
+    rawConsoleMessagesStored: false,
   }, null, 2)}\n`, { mode: 0o600 });
   await fs.writeFile(path.join(evidenceDir!, "browser-api-request-summary.json"), `${JSON.stringify(apiRequestSummaries, null, 2)}\n`, { mode: 0o600 });
   await fs.writeFile(path.join(evidenceDir!, "browser-click-events.json"), `${JSON.stringify(browserClickEvents, null, 2)}\n`, { mode: 0o600 });
