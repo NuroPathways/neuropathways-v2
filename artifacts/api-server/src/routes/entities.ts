@@ -75,6 +75,10 @@ import { clinicianMayDeleteUploadedDocument } from "../lib/documentDeletionPolic
 import { clientMayDeleteGoal } from "../lib/goalDeletionPolicy";
 import { goalSourceAvailability } from "../lib/goalSourceAvailability";
 import {
+  isClientProfileVisibleToCaregiver,
+  projectClientProfileForCaregiver,
+} from "../lib/clientProfileSharing";
+import {
   hashClientAccessCode as hashAccessCode,
   verifyClientAccessCode as verifyAccessCode,
 } from "../lib/clientAccessCode";
@@ -757,24 +761,14 @@ async function actorCanReadEntityRow(
     }
   }
   if (scope.role === "parent" && table === clientProfilesTable) {
-    if (row.sourceDocIds != null &&
-        (!Array.isArray(row.sourceDocIds) ||
-          row.sourceDocIds.some((id: unknown) => typeof id !== "string" || !id))) {
-      return false;
-    }
-    const sourceDocumentIds: string[] = Array.isArray(row.sourceDocIds)
-      ? [...new Set(row.sourceDocIds as string[])]
-      : [];
-    if (sourceDocumentIds.length) {
-      const sourceDocuments = await db.select()
-        .from(documentsTable).where(inArray(documentsTable.id, sourceDocumentIds));
-      if (sourceDocuments.length !== sourceDocumentIds.length ||
-          sourceDocuments.some((document) => document.childId !== row.childId)) {
-        return false;
-      }
-      const visibleSources = await legacyVisibleDocuments(sourceDocuments, child.clinicianId ?? null, "parent");
-      if (!allSourceDocumentsVisible(sourceDocumentIds, visibleSources.map((document) => document.id))) return false;
-    }
+    const childDocuments = await db.select().from(documentsTable)
+      .where(eq(documentsTable.childId, row.childId));
+    const visibleSources = await legacyVisibleDocuments(childDocuments, child.clinicianId ?? null, "parent");
+    return isClientProfileVisibleToCaregiver(
+      row,
+      row.childId,
+      visibleSources.map((document) => document.id),
+    );
   }
   if (scope.role === "clinician") {
     if (table === behaviorLogsTable && row.parentId) {
@@ -856,7 +850,9 @@ function makeCrud(path: string, table: any) {
       }
       const responseRows = table === rewardTokensTable
         ? await projectRewardTokenRowsForActor(scope, visibleRows)
-        : visibleRows;
+        : table === clientProfilesTable && scope.role === "parent"
+          ? visibleRows.map((row) => projectClientProfileForCaregiver(row))
+          : visibleRows;
       res.json(stripSensitive(serialize(responseRows)));
     } catch (e: any) {
       return respondWithInternalError(req, res, e, "entities");
@@ -1033,7 +1029,9 @@ function makeCrud(path: string, table: any) {
       });
       const responseRow = table === rewardTokensTable
         ? (await projectRewardTokenRowsForActor(scope, [row as typeof rewardTokensTable.$inferSelect]))[0]
-        : row;
+        : table === clientProfilesTable && scope.role === "parent"
+          ? projectClientProfileForCaregiver(row)
+          : row;
       return res.json(stripSensitive(serialize(responseRow)));
     } catch (e: any) {
       return respondWithInternalError(req, res, e, "entities");
@@ -1622,16 +1620,9 @@ router.post("/client-portal-data", async (req, res) => {
 
     const visibleDocuments = await legacyVisibleDocuments(documents, clinicianId, "client");
     const visibleDocumentIds = new Set(visibleDocuments.map((document) => document.id));
-    const profileSourceIds = candidateProfile?.sourceDocIds;
-    const validProfileSourceIds = profileSourceIds == null ||
-      (Array.isArray(profileSourceIds) &&
-        profileSourceIds.every((id: unknown) => typeof id === "string" && Boolean(id)));
-    const profileSourceIdsList: string[] = Array.isArray(profileSourceIds)
-      ? [...new Set(profileSourceIds as string[])]
-      : [];
-    const profile = candidateProfile && validProfileSourceIds &&
-      allSourceDocumentsVisible(profileSourceIdsList, [...visibleDocumentIds])
-      ? candidateProfile
+    const profile = candidateProfile &&
+      await isClientProfileVisibleToCaregiver(candidateProfile, child_id, visibleDocumentIds)
+      ? projectClientProfileForCaregiver(candidateProfile)
       : null;
     const visibleGoals = goals.filter(g => !g.createdByClinician || (g.publicationStatus === "published" && g.clinicianId === clinicianId))
       .map(({ goalVersions: _versions, ...goal }) => ({
@@ -3182,6 +3173,8 @@ Example: do not write only "${childName} will complete a graduated exposure hier
       objectives: extracted.objectives || [],
       safetyProcedures: extracted.safety_procedures || [],
       sourceDocIds: includedDocIds,
+      caregiverShareApprovedBy: null,
+      caregiverShareApprovedAt: null,
     };
 
     let profile = existingProfile;
@@ -3567,6 +3560,54 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
           return family;
         });
         return res.json(serialize({ record: serializeFamily(updated) }));
+      }
+      case "setClientProfileCaregiverSharing": {
+        if (!entity_id || typeof data?.approved !== "boolean") {
+          return res.status(400).json({ error: "entity_id and a boolean approved value are required." });
+        }
+        const [profile] = await db.select().from(clientProfilesTable)
+          .where(eq(clientProfilesTable.id, entity_id));
+        if (!profile) return res.status(404).json({ error: "Client profile not found." });
+        if (!profile.childId || !(await clinicianCanAccessChild(req.user.id, profile.childId))) {
+          await writeAuditEventBestEffort({
+            userId: req.user.id,
+            userRole: "clinician",
+            action: "client_profile_caregiver_sharing_denied",
+            targetType: "client_profile",
+            targetId: profile.id,
+            tenantId: profile.tenantId ?? actorTenantId,
+            success: false,
+            reason: "profile_outside_authorized_clinical_scope",
+            metadata: profile.childId ? { child_id: profile.childId } : undefined,
+            ipAddress: req.ip,
+            requestId: req.id,
+          });
+          return res.status(403).json({ error: "The client profile is outside your assigned clinical scope." });
+        }
+        const now = new Date();
+        const [updated] = await db.transaction(async (tx) => {
+          const [row] = await tx.update(clientProfilesTable).set(data.approved
+            ? { caregiverShareApprovedBy: req.user.id, caregiverShareApprovedAt: now }
+            : { caregiverShareApprovedBy: null, caregiverShareApprovedAt: null })
+            .where(eq(clientProfilesTable.id, profile.id))
+            .returning();
+          if (row) {
+            await writeAuditEvent(tx, {
+              userId: req.user.id,
+              userRole: "clinician",
+              action: data.approved
+                ? "client_profile_caregiver_sharing_approved"
+                : "client_profile_caregiver_sharing_revoked",
+              targetType: "client_profile",
+              targetId: row.id,
+              tenantId: row.tenantId ?? actorTenantId,
+              metadata: { child_id: profile.childId, approved: data.approved },
+              requestId: req.id,
+            });
+          }
+          return [row];
+        });
+        return res.json(serialize({ record: updated }));
       }
       case "deleteFamily": {
         if (!entity_id) return res.status(400).json({ error: "entity_id required" });

@@ -296,6 +296,7 @@ process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL = `http://127.0.0.1:${providerAdd
 const database = await import("@workspace/db");
 const {
   auditLogsTable,
+  behaviorLogsTable,
   childrenTable,
     clientSessionsTable,
   clientProfilesTable,
@@ -671,18 +672,37 @@ test("document scan route completes safely with a deterministic loopback AI prov
         assert.doesNotMatch(JSON.stringify(parentProfileReadAudits[0]), /multi-step worksheet|break card described in the document|password|token/i);
       }));
 
-    await t.test("source-less legacy profile visibility is recorded for policy review",
-      recordCase("Observe current caregiver visibility for a profile with no reliable source IDs", async () => {
+    await t.test("source-less legacy profiles stay private until authorized approval",
+      recordCase("Filter caregiver profile lists, direct reads, and safety context until clinician approval", async () => {
         const [profileBefore] = await db.select().from(clientProfilesTable)
           .where(eq(clientProfilesTable.childId, childAId));
         assert.ok(profileBefore);
         const legacyMarker = `LEGACY_UNLINKED_PROFILE_${suffix}`;
-        try {
-          await db.update(clientProfilesTable).set({
-            sourceDocIds: null,
-            strengths: legacyMarker,
-          }).where(eq(clientProfilesTable.childId, childAId));
-          const portalResponse = await fetch(`${apiBase}/client-portal-data`, {
+        const safetyMarker = `LEGACY_SAFETY_PROFILE_${suffix}`;
+        const independentParentNote = `INDEPENDENT_CAREGIVER_NOTE_${suffix}`;
+        const visibleDocumentId = crypto.randomUUID();
+        await db.insert(behaviorLogsTable).values({
+          childId: childAId,
+          parentId: caregiverUserId,
+          tenantId,
+          eventCategory: "behavior",
+          behaviorType: "homework",
+          notes: independentParentNote,
+        });
+        await db.insert(documentsTable).values({
+          id: visibleDocumentId,
+          tenantId,
+          childId: childAId,
+          clinicianId: clinicianAId,
+          title: "Synthetic parent-visible source",
+          fileName: `${visibleDocumentId}.txt`,
+          fileUrl: `/uploads/${visibleDocumentId}.txt`,
+          uploadedBy: `parent:${caregiverUserId}`,
+          accessRoles: "parent",
+          scanStatus: "done",
+        });
+        const portalData = async () => {
+          const response = await fetch(`${apiBase}/client-portal-data`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
@@ -690,33 +710,180 @@ test("document scan route completes safely with a deterministic loopback AI prov
               invite_token: caregiverSessionToken,
             }),
           });
-          const portalBody = await portalResponse.json() as Record<string, any>;
-          assert.equal(portalResponse.status, 200);
-          assert.equal(portalBody.profile?.strengths, legacyMarker);
-          assert.equal((portalBody.documents ?? []).some((document: any) => document.id === activeDocumentId), false);
+          return { response, body: await response.json() as Record<string, any> };
+        };
+        const setApproval = async (actorId: string, approved: boolean) => fetch(`${apiBase}/manage-client-record`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-synthetic-clinician": actorId,
+          },
+          body: JSON.stringify({
+            action: "setClientProfileCaregiverSharing",
+            entity_id: profileBefore.id,
+            data: { approved },
+          }),
+        });
+        try {
+          await db.update(clientProfilesTable).set({
+            sourceDocIds: null,
+            strengths: legacyMarker,
+            safetyProcedures: [safetyMarker],
+            caregiverShareApprovedBy: null,
+            caregiverShareApprovedAt: null,
+          }).where(eq(clientProfilesTable.childId, childAId));
+          const { response: hiddenPortalResponse, body: hiddenPortalBody } = await portalData();
+          assert.equal(hiddenPortalResponse.status, 200);
+          assert.equal(hiddenPortalBody.profile, null);
+          assert.match(JSON.stringify(hiddenPortalBody.child), /Kai Synthetic/,
+            "The authorized child record remains visible.");
+          assert.ok(hiddenPortalBody.behavior_logs?.some((row: any) => row.notes === independentParentNote),
+            "Independent caregiver-entered notes remain visible.");
+          assert.equal((hiddenPortalBody.documents ?? []).some((document: any) => document.id === activeDocumentId), false);
+
+          const listResponse = await fetch(`${apiBase}/client-profiles?childId=${encodeURIComponent(childAId)}`, {
+            headers: { "x-synthetic-parent": caregiverUserId },
+          });
+          assert.equal(listResponse.status, 200);
+          const listBody = await listResponse.json() as any[];
+          assert.equal(listBody.some((row) => row.id === profileBefore.id), false);
 
           const directResponse = await fetch(`${apiBase}/client-profiles/${profileBefore.id}`, {
             headers: { "x-synthetic-parent": caregiverUserId },
           });
           const directBody = await directResponse.text();
-          assert.equal(directResponse.status, 200);
-          assert.match(directBody, new RegExp(legacyMarker));
-          assert.doesNotMatch(directBody, new RegExp(activeDocumentId));
+          assert.equal(directResponse.status, 403);
+          assert.doesNotMatch(directBody, new RegExp(legacyMarker));
+          assert.doesNotMatch(directBody, new RegExp(safetyMarker));
+
+          const clinicianRead = await fetch(`${apiBase}/client-profiles/${profileBefore.id}`, {
+            headers: { "x-synthetic-clinician": clinicianAId },
+          });
+          const clinicianBody = await clinicianRead.text();
+          assert.equal(clinicianRead.status, 200);
+          assert.match(clinicianBody, new RegExp(legacyMarker));
+          assert.match(clinicianBody, new RegExp(safetyMarker));
+
+          const parentApprovalAttempt = await fetch(`${apiBase}/manage-client-record`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-synthetic-parent": caregiverUserId,
+            },
+            body: JSON.stringify({
+              action: "setClientProfileCaregiverSharing",
+              entity_id: profileBefore.id,
+              data: { approved: true },
+            }),
+          });
+          assert.equal(parentApprovalAttempt.status, 403);
+          const unassignedApprovalAttempt = await setApproval(clinicianUnassignedId, true);
+          assert.equal(unassignedApprovalAttempt.status, 403);
+          const stillUnapproved = (await db.select().from(clientProfilesTable)
+            .where(eq(clientProfilesTable.id, profileBefore.id)))[0];
+          assert.equal(stillUnapproved.caregiverShareApprovedBy, null);
+          assert.equal(stillUnapproved.caregiverShareApprovedAt, null);
+
+          // A restored link to the clinician-only source is not itself permission to share.
+          await db.update(clientProfilesTable).set({
+            sourceDocIds: [activeDocumentId],
+          }).where(eq(clientProfilesTable.id, profileBefore.id));
+          const { body: hiddenClinicianSource } = await portalData();
+          assert.equal(hiddenClinicianSource.profile, null);
+
+          // A reliable link to an independently visible parent upload is sufficient.
+          await db.update(clientProfilesTable).set({
+            sourceDocIds: [visibleDocumentId],
+          }).where(eq(clientProfilesTable.id, profileBefore.id));
+          const { body: linkedPortalBody } = await portalData();
+          assert.equal(linkedPortalBody.profile?.strengths, legacyMarker);
+          assert.equal(linkedPortalBody.profile?.sourceDocIds, undefined);
+          assert.equal(linkedPortalBody.profile?.caregiverShareApprovedBy, undefined);
+
+          // Removing the reliable link returns the profile to the explicit approval gate.
+          await db.update(clientProfilesTable).set({ sourceDocIds: null })
+            .where(eq(clientProfilesTable.id, profileBefore.id));
+          const approvalResponse = await setApproval(clinicianAId, true);
+          assert.equal(approvalResponse.status, 200);
+          const approvalBody = await approvalResponse.json() as any;
+          assert.equal(approvalBody.record.caregiver_share_approved_by, clinicianAId);
+          const { body: approvedPortalBody } = await portalData();
+          assert.equal(approvedPortalBody.profile?.strengths, legacyMarker);
+          assert.equal(approvedPortalBody.profile?.source_doc_ids, undefined);
+          assert.equal(approvedPortalBody.profile?.caregiver_share_approved_by, undefined);
+          assert.equal(approvedPortalBody.profile?.caregiver_share_approved_at, undefined);
+          const approvedDirectList = await fetch(`${apiBase}/client-profiles?childId=${encodeURIComponent(childAId)}`, {
+            headers: { "x-synthetic-parent": caregiverUserId },
+          });
+          const approvedListBody = await approvedDirectList.json() as any[];
+          assert.equal(approvedListBody.some((row) => row.id === profileBefore.id && row.strengths === legacyMarker), true);
+          assert.equal(approvedListBody.some((row) =>
+            "source_doc_ids" in row || "caregiver_share_approved_by" in row || "caregiver_share_approved_at" in row), false);
+
+          const parentSupport = await getParentDocumentSupportData(familyOwnerId(familyAId), childAId);
+          const approvedSafetyInstruction = parentSupport.safetyPlan.instructions.find((entry: any) =>
+            entry.contentKind === "clinician_approved_profile" && entry.profileNote === safetyMarker);
+          assert.ok(approvedSafetyInstruction, "Approved source-less safety information appears without invented source linkage.");
+          assert.equal(approvedSafetyInstruction.documentId, null);
+          assert.deepEqual(approvedSafetyInstruction.sourceDocumentIds, []);
+          assert.equal(approvedSafetyInstruction.clinicianApproved, true);
+
+          const revokeResponse = await setApproval(clinicianAId, false);
+          assert.equal(revokeResponse.status, 200);
+          const { body: revokedPortalBody } = await portalData();
+          assert.equal(revokedPortalBody.profile, null);
+          const revokedSafetyPlan = await getParentDocumentSupportData(familyOwnerId(familyAId), childAId);
+          assert.equal(revokedSafetyPlan.safetyPlan.instructions.some((entry: any) =>
+            entry.profileNote === safetyMarker), false);
+
+          const approvalAudit = await db.select().from(auditLogsTable).where(and(
+            eq(auditLogsTable.targetId, profileBefore.id),
+            inArray(auditLogsTable.action, [
+              "client_profile_caregiver_sharing_approved",
+              "client_profile_caregiver_sharing_revoked",
+              "client_profile_caregiver_sharing_denied",
+            ]),
+          ));
+          assert.equal(approvalAudit.some((row) =>
+            row.action === "client_profile_caregiver_sharing_approved" &&
+            row.userId === clinicianAId && row.userRole === "clinician" && row.success === true), true);
+          assert.equal(approvalAudit.some((row) =>
+            row.action === "client_profile_caregiver_sharing_denied" &&
+            row.userId === clinicianUnassignedId && row.success === false), true);
+          assert.equal(approvalAudit.some((row) =>
+            row.action === "client_profile_caregiver_sharing_revoked" &&
+            row.userId === clinicianAId && row.success === true), true);
+          assert.doesNotMatch(JSON.stringify(approvalAudit), /LEGACY_UNLINKED_PROFILE|LEGACY_SAFETY_PROFILE|password|token/i);
 
           await fs.writeFile(path.join(evidenceDir, "legacy-profile-source-less-visibility.json"), JSON.stringify({
-            status: "NEEDS_DECISION",
-            sourceDocumentAssociation: "missing",
-            document: "clinician-only synthetic document remains hidden from caregiver document list",
-            portalRoute: { httpStatus: portalResponse.status, profileReturned: true, markerReturned: true },
-            directProfileRoute: { httpStatus: directResponse.status, profileReturned: true, markerReturned: true },
-            rawDocumentContentReturned: false,
-            recommendation: "Do not infer a source link. Decide whether source-less legacy profiles remain visible, require clinician review, or are hidden until provenance is restored.",
+            status: "PASS",
+            sourceDocumentAssociation: "missing until a reliable link is restored",
+            defaultCaregiverResponse: { portalProfileReturned: false, listContainsProfile: false, directReadStatus: directResponse.status },
+            clinicianDirectRead: { status: clinicianRead.status, profileFieldsPreserved: true },
+            independentCaregiverInformationRemainsVisible: true,
+            parentCannotApprove: parentApprovalAttempt.status === 403,
+            unassignedClinicianCannotApprove: unassignedApprovalAttempt.status === 403,
+            clinicianOnlySourceWithoutApprovalRemainsHidden: hiddenClinicianSource.profile === null,
+            reliableParentVisibleSourceLinkPassesVisibilityCheck: linkedPortalBody.profile?.strengths === legacyMarker,
+            explicitApproval: { status: approvalResponse.status, caregiverProjectionOmitsSourceAndApprovalIds: true },
+            approvedParentSafetyPlan: { contentKind: approvedSafetyInstruction.contentKind, documentId: approvedSafetyInstruction.documentId, sourceDocumentIds: approvedSafetyInstruction.sourceDocumentIds },
+            revocationHidesProfileAgain: revokedPortalBody.profile === null,
+            auditEvents: approvalAudit.map((row) => ({ action: row.action, actor: row.userId, role: row.userRole, success: row.success, createdAt: row.createdDate })),
+            liveAIUsed: false,
           }, null, 2), { mode: 0o600 });
         } finally {
           await db.update(clientProfilesTable).set({
             sourceDocIds: profileBefore.sourceDocIds,
             strengths: profileBefore.strengths,
+            safetyProcedures: profileBefore.safetyProcedures,
+            caregiverShareApprovedBy: profileBefore.caregiverShareApprovedBy,
+            caregiverShareApprovedAt: profileBefore.caregiverShareApprovedAt,
           }).where(eq(clientProfilesTable.childId, childAId));
+          await db.delete(behaviorLogsTable).where(and(
+            eq(behaviorLogsTable.childId, childAId),
+            eq(behaviorLogsTable.notes, independentParentNote),
+          ));
+          await db.delete(documentsTable).where(eq(documentsTable.id, visibleDocumentId));
         }
       }));
 

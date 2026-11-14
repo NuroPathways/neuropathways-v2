@@ -674,6 +674,37 @@ async function selectChild(selector: string, childId: string) {
   assert.equal(success, true, `Expected the visible child selector ${selector}.`);
 }
 
+async function clickVisibleTestId(testId: string) {
+  const point = await cdp!.evaluate<{ x: number; y: number } | null>(`(() => {
+    const element = document.querySelector('[data-testid="${testId}"]');
+    if (!element || element.disabled || element.closest("[hidden], [inert]")) return null;
+    element.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    if (style.display === "none" || style.visibility === "hidden" ||
+        Number(style.opacity) < 0.05 || rect.width <= 0 || rect.height <= 0 ||
+        rect.bottom <= 0 || rect.top >= window.innerHeight ||
+        rect.right <= 0 || rect.left >= window.innerWidth) return null;
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  if (!point) return false;
+  await cdp!.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x: point.x,
+    y: point.y,
+    button: "left",
+    clickCount: 1,
+  });
+  await cdp!.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: point.x,
+    y: point.y,
+    button: "left",
+    clickCount: 1,
+  });
+  return true;
+}
+
 async function openChat(tabSelector = '[data-testid="nav-ask-desktop"]') {
   await cdp!.evaluate(`document.querySelector(${JSON.stringify(tabSelector)})?.click()`);
   await waitFor(() => cdp!.evaluate(`Boolean(document.querySelector('[data-testid="input-chat"]'))`), Boolean, "Chat view did not open.");
@@ -994,11 +1025,62 @@ async function run() {
     await new Promise((resolve) => setTimeout(resolve, 200));
     await cdp!.screenshot(path.join(evidenceDir!, "caregiver-rendered-support-list.png"));
   });
-  caseResult(
-    "Help Now modal interaction through the isolated CDP harness",
-    "BLOCKED",
-    "The rendered Home and support list are verified, but the isolated harness could not open the visible Help Now dialog; earlier checks accidentally matched hidden dialog controls. No application defect is concluded from that harness mismatch.",
-  );
+  await check("The visible Home Help Now button opens the child-specific support menu", async () => {
+    const before = await cdp!.evaluate(`(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      const rect = dialog?.getBoundingClientRect();
+      const style = dialog ? getComputedStyle(dialog) : null;
+      const dialogVisible = Boolean(dialog && rect && rect.width > 0 && rect.height > 0 &&
+        style?.display !== "none" && style?.visibility !== "hidden" && Number(style?.opacity || 0) > 0.05);
+      const trigger = document.querySelector('[data-testid="button-dashboard-help-now"]');
+      const triggerRect = trigger?.getBoundingClientRect();
+      return {
+        dialogVisible,
+        triggerVisible: Boolean(trigger && triggerRect && triggerRect.width > 0 && triggerRect.height > 0),
+        triggerDisabled: Boolean(trigger?.disabled),
+      };
+    })()`);
+    if (!before.dialogVisible) {
+      assert.equal(before.triggerVisible, true, "The rendered Home CTA must be visibly available.");
+      assert.equal(before.triggerDisabled, false);
+      assert.equal(await clickVisibleTestId("button-dashboard-help-now"), true);
+    }
+    await waitFor(() => cdp!.evaluate(`(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      const rect = dialog?.getBoundingClientRect();
+      const style = dialog ? getComputedStyle(dialog) : null;
+      return Boolean(dialog && rect && rect.width > 0 && rect.height > 0 &&
+        style?.display !== "none" && style?.visibility !== "hidden" && Number(style?.opacity || 0) > 0.05 &&
+        dialog.querySelector('[data-testid="button-select-child-${childMira}"]'));
+    })()`), Boolean, "Visible Help Now child selector did not open.", 12_000);
+    assert.equal(await clickVisibleTestId(`button-select-child-${childMira}`), true);
+    await waitFor(() => cdp!.evaluate(`(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      return Boolean(dialog && Array.from(dialog.querySelectorAll("h1,h2,h3"))
+        .some((heading) => heading.textContent?.includes("Need support right now?")) &&
+        dialog.innerText.includes("Mira Fictional") &&
+        dialog.querySelector('[data-testid="button-help-behavior"]'));
+    })()`), Boolean, "Child-specific Help Now options did not render.", 12_000);
+    const menuState = await cdp!.evaluate(`(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      return {
+        heading: dialog?.innerText.includes("Need support right now?"),
+        child: dialog?.innerText.includes("Mira Fictional"),
+        behavior: Boolean(dialog?.querySelector('[data-testid="button-help-behavior"]')),
+        crisis: Boolean(dialog?.querySelector('[data-testid="button-help-crisis"]')),
+        calm: Boolean(dialog?.querySelector('[data-testid="button-help-calm"]')),
+        dismiss: Boolean(dialog?.querySelector('[data-testid="button-help-dashboard"]')),
+        emergency: dialog?.innerText.includes("If there is immediate danger, call 911 or emergency services."),
+      };
+    })()`);
+    assert.deepEqual(menuState, {
+      heading: true, child: true, behavior: true, crisis: true, calm: true, dismiss: true, emergency: true,
+    });
+    await cdp!.screenshot(path.join(evidenceDir!, "help-now-popup-child-specific.png"));
+    assert.equal(await clickVisibleTestId("button-close-support"), true);
+    await waitFor(() => cdp!.evaluate(`!document.querySelector('[role="dialog"]')`), Boolean,
+      "Help Now dialog did not dismiss from its close control.");
+  });
 
   await check("Clinician-only document direct access is denied and audited without document disclosure", async () => {
     const requestId = `clinician-only-parent-read-${crypto.randomUUID()}`;

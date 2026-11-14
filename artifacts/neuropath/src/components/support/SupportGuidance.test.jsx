@@ -846,4 +846,37 @@ describe("support guidance", () => {
     expect(screen.queryByText(/Source excerpt:/)).toBeNull();
     expect(screen.queryByText("Clinician-approved")).toBeNull();
   });
+
+  it("labels an explicitly approved source-less profile without inventing a source document", () => {
+    render(
+      <CrisisPlan
+        child={{ child_name: "Sam" }}
+        profile={{
+          safetyPlan: {
+            hasSafetyPlan: true,
+            documents: [],
+            instructions: [{
+              id: "approved-profile-1-0",
+              contentKind: "clinician_approved_profile",
+              documentId: null,
+              sourceDocumentIds: [],
+              documentTitle: "Clinician-approved profile information",
+              uploadedBy: "clinician",
+              uploadedAt: "2026-11-14T12:00:00.000Z",
+              sourceExcerpt: null,
+              profileNote: "Use the reviewed caregiver contact sequence.",
+              sourceExcerptVerified: false,
+              sourceReviewRequired: false,
+              clinicianApproved: true,
+            }],
+          },
+        }}
+      />,
+    );
+    expect(screen.getByText("Clinician-approved profile")).toBeTruthy();
+    expect(screen.getByText(/Profile information approved for caregiver sharing:/)).toBeTruthy();
+    expect(screen.getByText("Use the reviewed caregiver contact sequence.")).toBeTruthy();
+    expect(screen.queryByText(/Source excerpt:/)).toBeNull();
+    expect(screen.queryByText(/linked original document/)).toBeNull();
+  });
 });

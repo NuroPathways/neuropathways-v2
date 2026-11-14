@@ -239,6 +239,8 @@ export const clientProfilesTable = pgTable("client_profiles", {
   objectives: jsonb("objectives"),
   safetyProcedures: jsonb("safety_procedures"),
   sourceDocIds: jsonb("source_doc_ids"),
+  caregiverShareApprovedBy: varchar("caregiver_share_approved_by"),
+  caregiverShareApprovedAt: timestamp("caregiver_share_approved_at", { withTimezone: true }),
   createdDate: createdAt(),
 });
 

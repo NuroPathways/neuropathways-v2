@@ -26,6 +26,7 @@ import {
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { CLAUDE_MODEL, getAnthropicClient } from "./anthropic";
 import { nextParentClinicConsentScopes } from "./parentSharingPolicy";
+import { isClientProfileVisibleToCaregiver } from "./clientProfileSharing";
 import { clinicalRecordClinicId, clinicianCanAccessChild } from "./clinicAuthorization";
 import { documentAccessRolesPermit } from "./documentVisibility";
 import {
@@ -2159,20 +2160,27 @@ async function parentDocumentConcernContext(parentId: string, childId: string) {
     id: clientProfilesTable.id,
     sourceDocIds: clientProfilesTable.sourceDocIds,
     safetyProcedures: clientProfilesTable.safetyProcedures,
+    caregiverShareApprovedBy: clientProfilesTable.caregiverShareApprovedBy,
+    caregiverShareApprovedAt: clientProfilesTable.caregiverShareApprovedAt,
     createdDate: clientProfilesTable.createdDate,
   }).from(clientProfilesTable).where(eq(clientProfilesTable.childId, childId)).limit(1);
   const legacySourceIds = Array.isArray(legacySafetyProfile?.sourceDocIds)
     ? [...new Set(legacySafetyProfile.sourceDocIds.filter((id): id is string => typeof id === "string"))]
     : [];
   const visibleDocumentById = new Map(visibleDocuments.map((document) => [document.id, document]));
-  const legacySourcesAreVisibleAndScanned = legacySourceIds.length > 0 &&
-    legacySourceIds.every((id) => visibleIds.has(id) && visibleDocumentById.get(id)?.scanStatus === "done");
-  const safeLegacyProfile = legacySafetyProfile && legacySourcesAreVisibleAndScanned
+  const visibleAndScannedIds = [...visibleDocumentById.values()]
+    .filter((document) => document.scanStatus === "done")
+    .map((document) => document.id);
+  const legacyProfileCanBeShared = legacySafetyProfile &&
+    await isClientProfileVisibleToCaregiver(legacySafetyProfile, childId, visibleAndScannedIds);
+  const safeLegacyProfile = legacySafetyProfile && legacyProfileCanBeShared
     ? {
         id: legacySafetyProfile.id,
-        sourceDocumentIds: legacySourceIds,
+        sourceDocumentIds: legacySourceIds.filter((id) => visibleAndScannedIds.includes(id)),
         safetyProcedures: legacySafetyProfile.safetyProcedures,
         createdAt: legacySafetyProfile.createdDate,
+        caregiverShareApprovedBy: legacySafetyProfile.caregiverShareApprovedBy,
+        caregiverShareApprovedAt: legacySafetyProfile.caregiverShareApprovedAt,
       }
     : null;
   const safetyPlan = projectParentSafetyPlan(childId, visibleDocuments.map((document) => ({

@@ -22,6 +22,7 @@ import { aiOperationalControls, AiOperationalError } from "../lib/aiOperationalC
 import { getAnthropicClient, CLAUDE_MODEL } from "../lib/anthropic";
 import { clinicianCanAccessChild } from "../lib/clinicAuthorization";
 import { legacyVisibleDocuments } from "../lib/documentVisibility";
+import { isClientProfileVisibleToCaregiver } from "../lib/clientProfileSharing";
 import { parentChat } from "../lib/parentDocuments";
 import {
   isBareModelRefusal,
@@ -247,7 +248,7 @@ async function loadScopedAiContext(childId: string, scope: AiActorScope): Promis
   const visibleDocuments = await legacyVisibleDocuments(
     allDocuments,
     scope.userRole === "clinician" ? scope.userId : null,
-    scope.userRole === "client" ? "client" : "clinician",
+    scope.userRole === "clinician" ? "clinician" : "client",
   );
   const readableDocuments = visibleDocuments
     .filter((document) => document.scanStatus === "done")
@@ -294,7 +295,10 @@ async function loadScopedAiContext(childId: string, scope: AiActorScope): Promis
     ? profile.sourceDocIds.filter((id): id is string => typeof id === "string")
     : [];
   const profileSourcesAuthorized = profileSourceIds.every((id) => visibleSourceIds.has(id));
-  const profileContext = profile && profileSourcesAuthorized
+  const profileVisibleToActor = profile && (scope.userRole !== "clinician"
+    ? await isClientProfileVisibleToCaregiver(profile, childId, visibleSourceIds)
+    : profileSourcesAuthorized);
+  const profileContext = profile && profileVisibleToActor
     ? {
       strengths: boundedText(profile.strengths, 1200),
       challenges: boundedText(profile.challenges, 1200),
@@ -312,7 +316,7 @@ async function loadScopedAiContext(childId: string, scope: AiActorScope): Promis
   const sourceDocumentIds = sources.map((source) => source.documentId);
   if (profileContext) {
     for (const id of profileSourceIds) {
-      if (!sourceDocumentIds.includes(id)) sourceDocumentIds.push(id);
+      if (visibleSourceIds.has(id) && !sourceDocumentIds.includes(id)) sourceDocumentIds.push(id);
     }
   }
 

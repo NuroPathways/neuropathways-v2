@@ -136,9 +136,11 @@ export default function CrisisPlan({ child, profile, loadingProfile, profileLoad
             {hasSafetyInstructions && (
               <section className="np-help-group" data-testid="section-source-safety-plan">
                 <h3 className="np-help-label">Safety information from current documents</h3>
-                <p className="np-help-muted">Current document versions are shown newest first. Source excerpts are shown as written; older clinician-profile notes are labeled separately and need source verification.</p>
+                <p className="np-help-muted">Source excerpts and profile information show their current review status.</p>
                 {safetyPlanInstructions.map((item) => {
-                  const sourceStatus = item.contentKind === "profile_extraction"
+                  const sourceStatus = item.contentKind === "clinician_approved_profile"
+                    ? "Clinician-approved profile"
+                    : item.contentKind === "profile_extraction"
                     ? "Clinician profile extraction · needs source verification"
                     : item.clinicianApproved
                       ? "Clinician-approved"
@@ -150,6 +152,8 @@ export default function CrisisPlan({ child, profile, loadingProfile, profileLoad
                       <p className="np-help-text np-help-strong">{sourceStatus}</p>
                       {item.contentKind === "profile_extraction" ? (
                         <p className="np-help-text"><strong>Clinician profile note (not an exact source excerpt):</strong> {item.profileNote}</p>
+                      ) : item.contentKind === "clinician_approved_profile" ? (
+                        <p className="np-help-text"><strong>Profile information approved for caregiver sharing:</strong> {item.profileNote}</p>
                       ) : (
                         <p className="np-help-text"><strong>Source excerpt:</strong> {item.sourceExcerpt}</p>
                       )}

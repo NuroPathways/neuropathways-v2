@@ -43,6 +43,7 @@ server.listen(0, "127.0.0.1", () => {
 
 APP_SOURCE_FILES=(
   "artifacts/api-server/src/routes/ai.ts"
+  "artifacts/api-server/src/lib/clientProfileSharing.ts"
   "artifacts/api-server/src/routes/parent-documents.ts"
   "artifacts/api-server/src/lib/parentDocuments.ts"
   "artifacts/api-server/src/lib/parentChatPolicy.ts"
@@ -60,6 +61,7 @@ APP_SOURCE_FILES=(
   "artifacts/neuropath-mobile/app/help.tsx"
   "artifacts/neuropath-mobile/app/(parent)/chat.tsx"
   "lib/api-spec/openapi.yaml"
+  "lib/db/src/schema/entities.ts"
   "lib/api-zod/src/generated/api.ts"
   "lib/api-zod/src/generated/types/index.ts"
   "lib/api-zod/src/generated/types/aiChatInput.ts"

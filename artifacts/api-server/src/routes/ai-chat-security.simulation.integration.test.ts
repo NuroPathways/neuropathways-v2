@@ -290,6 +290,7 @@ async function fixture() {
   ]);
   await db.insert(clinicalAssignmentsTable).values([
     { clinicId: clinicAId, clientId: childAId, userId: clinicianAId, role: "treating_clinician", status: "active" },
+    { clinicId: clinicAId, clientId: legacyProfileChildId, userId: clinicianAId, role: "treating_clinician", status: "active" },
     { clinicId: clinicBId, clientId: childBId, userId: clinicianBId, role: "treating_clinician", status: "active" },
   ]);
   await db.insert(familiesTable).values({
@@ -395,6 +396,14 @@ async function fixture() {
     childId: legacyProfileChildId, clinicianId: clinicianAId, tenantId: clinicAId,
     strengths: "Before the isolated legacy-profile observation.", sourceDocIds: null,
   });
+  await db.insert(clientProfilesTable).values({
+    childId: parentChildId,
+    clinicianId: clinicianAId,
+    tenantId: "fictional-parent-workspace",
+    strengths: "PARENT_SOURCELESS_PROFILE_AI_SENTINEL",
+    safetyProcedures: ["PARENT_SOURCELESS_SAFETY_AI_SENTINEL"],
+    sourceDocIds: null,
+  });
   return parentSession.token;
 }
 
@@ -458,42 +467,120 @@ test("AI chat uses server-controlled prompts, authorized context, and sanitized 
       },
     ));
 
-    await t.test("source-less legacy profile context is observed and flagged for policy review", recordCase(
-      "Record whether generic caregiver AI context includes a legacy profile without source IDs",
-      async () => {
+    await t.test("legacy profile AI context follows source visibility and explicit approval",
+      recordCase("Exclude unlinked fields, allow approved fields, and retain authorized clinician context", async () => {
         const [profileBefore] = await db.select().from(clientProfilesTable)
           .where(eq(clientProfilesTable.childId, legacyProfileChildId));
+        const [legacyChildBefore] = await db.select().from(childrenTable)
+          .where(eq(childrenTable.id, legacyProfileChildId));
         assert.ok(profileBefore);
+        assert.ok(legacyChildBefore);
         const legacyMarker = "LEGACY_UNLINKED_PROFILE_AI_CONTEXT_SENTINEL";
         try {
           await db.update(clientProfilesTable).set({
             sourceDocIds: null,
             strengths: legacyMarker,
+            caregiverShareApprovedBy: null,
+            caregiverShareApprovedAt: null,
           }).where(eq(clientProfilesTable.childId, legacyProfileChildId));
-          const before = capturedProviderRequests.length;
-          const result = await postChat({
+
+          const beforeUnapproved = capturedProviderRequests.length;
+          const unapprovedResult = await postChat({
             childId: legacyProfileChildId,
             message: "What support should I try?",
           }, { clientToken: legacyProfileClientToken });
-          assert.equal(result.response.status, 200);
-          assert.equal(capturedProviderRequests.length, before + 1);
-          const request = capturedProviderRequests.at(-1)!;
-          assert.match(request.userContent, new RegExp(legacyMarker));
-          assert.doesNotMatch(request.system, new RegExp(legacyMarker));
+          assert.equal(unapprovedResult.response.status, 200);
+          assert.equal(capturedProviderRequests.length, beforeUnapproved + 1);
+          const unapprovedAudit = await auditFor(unapprovedResult.requestId);
+          assert.equal(unapprovedAudit?.userRole, "client", "The profile exclusion is checked in the caregiver actor path.");
+          assert.doesNotMatch(capturedProviderRequests.at(-1)!.userContent, new RegExp(legacyMarker));
+
+          await db.update(clientProfilesTable).set({
+            sourceDocIds: [parentUnsharedDocumentId],
+          }).where(eq(clientProfilesTable.childId, legacyProfileChildId));
+          const beforePrivateSource = capturedProviderRequests.length;
+          const privateSourceResult = await postChat({
+            childId: legacyProfileChildId,
+            message: "What is in my plan?",
+          }, { clientToken: legacyProfileClientToken });
+          assert.equal(privateSourceResult.response.status, 200);
+          assert.equal(capturedProviderRequests.length, beforePrivateSource + 1);
+          assert.doesNotMatch(capturedProviderRequests.at(-1)!.userContent, new RegExp(legacyMarker));
+          assert.doesNotMatch(capturedProviderRequests.at(-1)!.userContent, new RegExp(parentUnsharedDocumentMarker));
+
+          await db.update(clientProfilesTable).set({
+            sourceDocIds: null,
+            caregiverShareApprovedBy: clinicianAId,
+            caregiverShareApprovedAt: new Date(),
+          }).where(eq(clientProfilesTable.childId, legacyProfileChildId));
+          const beforeApproved = capturedProviderRequests.length;
+          const approvedResult = await postChat({
+            childId: legacyProfileChildId,
+            message: "What support should I try?",
+          }, { clientToken: legacyProfileClientToken });
+          assert.equal(approvedResult.response.status, 200);
+          assert.equal(capturedProviderRequests.length, beforeApproved + 1);
+          assert.match(capturedProviderRequests.at(-1)!.userContent, new RegExp(legacyMarker));
+
+          const beforeClinician = capturedProviderRequests.length;
+          const clinicianResult = await postChat({
+            childId: legacyProfileChildId,
+            message: "Review this profile.",
+          }, { clinicianId: clinicianAId });
+          assert.equal(clinicianResult.response.status, 200);
+          assert.equal(capturedProviderRequests.length, beforeClinician + 1);
+          assert.match(capturedProviderRequests.at(-1)!.userContent, new RegExp(legacyMarker));
+
+          await db.delete(clinicalAssignmentsTable).where(and(
+            eq(clinicalAssignmentsTable.clientId, legacyProfileChildId),
+            eq(clinicalAssignmentsTable.userId, clinicianAId),
+          ));
+          await db.update(childrenTable).set({ clinicianId: null, tenantId: null })
+            .where(eq(childrenTable.id, legacyProfileChildId));
+          const beforeRevocation = capturedProviderRequests.length;
+          const revokedApproverResult = await postChat({
+            childId: legacyProfileChildId,
+            message: "What support should I try?",
+          }, { clientToken: legacyProfileClientToken });
+          assert.equal(revokedApproverResult.response.status, 200);
+          assert.equal(capturedProviderRequests.length, beforeRevocation + 1);
+          assert.doesNotMatch(capturedProviderRequests.at(-1)!.userContent, new RegExp(legacyMarker));
+
           await fs.writeFile(path.join(evidenceDir, "legacy-profile-ai-context-visibility.json"), JSON.stringify({
-            status: "NEEDS_DECISION",
-            route: "POST /ai/chat",
-            actor: "fictional client account",
-            sourceDocumentAssociation: "missing",
-            profileMarkerIncludedInFakeProviderContext: true,
+            status: "PASS",
+            route: "POST /ai/chat (isolated fake provider)",
+            codeCommit: process.env.NP_APP_COMMIT ?? "not-provided",
+            sourceLessUnapprovedMarkerExcluded: true,
+            clinicianOnlySourceLinkDoesNotShareDocumentOrProfile: true,
+            approvedByCurrentlyAssignedClinicianMarkerIncluded: true,
+            clinicianContextStillIncludesStoredProfile: true,
+            removingApproverAssignmentHidesProfileFromCaregiverAI: true,
             liveAIUsed: false,
-            recommendation: "Do not infer a source link. Decide whether source-less legacy clinical profile fields are excluded from caregiver AI context pending provenance or review.",
+            externalNetworkEnabled: false,
           }, null, 2), { mode: 0o600 });
         } finally {
           await db.update(clientProfilesTable).set({
             sourceDocIds: profileBefore.sourceDocIds,
             strengths: profileBefore.strengths,
+            caregiverShareApprovedBy: profileBefore.caregiverShareApprovedBy,
+            caregiverShareApprovedAt: profileBefore.caregiverShareApprovedAt,
           }).where(eq(clientProfilesTable.childId, legacyProfileChildId));
+          await db.update(childrenTable).set({
+            clinicianId: legacyChildBefore.clinicianId,
+            tenantId: legacyChildBefore.tenantId,
+          }).where(eq(childrenTable.id, legacyProfileChildId));
+          if (!(await db.select().from(clinicalAssignmentsTable).where(and(
+            eq(clinicalAssignmentsTable.clientId, legacyProfileChildId),
+            eq(clinicalAssignmentsTable.userId, clinicianAId),
+          ))).length) {
+            await db.insert(clinicalAssignmentsTable).values({
+              clinicId: clinicAId,
+              clientId: legacyProfileChildId,
+              userId: clinicianAId,
+              role: "treating_clinician",
+              status: "active",
+            });
+          }
         }
       },
     ));
@@ -571,6 +658,7 @@ test("AI chat uses server-controlled prompts, authorized context, and sanitized 
         assert.match(providerRequest.userContent, /Fictional Parent Child/);
         assert.doesNotMatch(providerRequest.userContent, /FOREIGN_CHILD_DOCUMENT_MARKER|Fictional Child A/);
         assert.doesNotMatch(providerRequest.userContent, new RegExp(parentUnsharedDocumentMarker));
+        assert.doesNotMatch(providerRequest.userContent, /PARENT_SOURCELESS_PROFILE_AI_SENTINEL|PARENT_SOURCELESS_SAFETY_AI_SENTINEL/);
         assert.doesNotMatch(providerRequest.userContent, /Fictional unshared clinician document/);
         assert.equal(result.body.providerContacted, undefined);
         assert.equal(result.body.auditSourceDocumentIds, undefined);

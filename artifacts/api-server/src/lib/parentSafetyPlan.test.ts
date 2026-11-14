@@ -175,3 +175,34 @@ test("legacy clinician profile safety notes require current visible source docum
   assert.equal(unscannedSource.hasSafetyPlan, true);
   assert.deepEqual(unscannedSource.instructions, []);
 });
+
+test("explicitly approved source-less profile safety information has no invented document link", () => {
+  const profile: ParentSafetyPlanLegacyProfile = {
+    id: "profile-approved",
+    sourceDocumentIds: [],
+    safetyProcedures: ["Use the clinician-reviewed family contact sequence."],
+    createdAt: "2026-11-14T11:00:00.000Z",
+    caregiverShareApprovedBy: "assigned-clinician",
+    caregiverShareApprovedAt: "2026-11-14T12:00:00.000Z",
+  };
+  const plan = projectParentSafetyPlan("child-1", [], [], profile);
+  assert.equal(plan.hasSafetyPlan, true);
+  assert.equal(plan.documents.length, 0);
+  assert.equal(plan.instructions.length, 1);
+  assert.equal(plan.instructions[0].contentKind, "clinician_approved_profile");
+  assert.equal(plan.instructions[0].documentId, null);
+  assert.deepEqual(plan.instructions[0].sourceDocumentIds, []);
+  assert.equal(plan.instructions[0].documentTitle, "Clinician-approved profile information");
+  assert.equal(plan.instructions[0].profileNote, "Use the clinician-reviewed family contact sequence.");
+  assert.equal(plan.instructions[0].sourceReviewRequired, false);
+  assert.equal(plan.instructions[0].clinicianApproved, true);
+  assert.equal(plan.instructions[0].uploadedAt, "2026-11-14T12:00:00.000Z");
+
+  const unapproved = projectParentSafetyPlan("child-1", [], [], {
+    ...profile,
+    caregiverShareApprovedBy: null,
+    caregiverShareApprovedAt: null,
+  });
+  assert.equal(unapproved.hasSafetyPlan, false);
+  assert.deepEqual(unapproved.instructions, []);
+});

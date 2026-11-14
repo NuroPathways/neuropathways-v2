@@ -32,8 +32,8 @@ export type ParentSafetyPlanWire = {
   }>;
   instructions: Array<{
     id: string;
-    contentKind: "source_excerpt" | "profile_extraction";
-    documentId: string;
+    contentKind: "source_excerpt" | "profile_extraction" | "clinician_approved_profile";
+    documentId: string | null;
     sourceDocumentIds: string[];
     documentTitle: string;
     uploadedBy: "parent" | "clinician";
@@ -53,6 +53,8 @@ export type ParentSafetyPlanLegacyProfile = {
   sourceDocumentIds: string[];
   safetyProcedures: unknown;
   createdAt: string | Date | null;
+  caregiverShareApprovedBy?: string | null;
+  caregiverShareApprovedAt?: string | Date | null;
 };
 
 function profileStepText(value: unknown): string {
@@ -140,7 +142,7 @@ export function projectParentSafetyPlan(
   );
   const profileNotes = profileSteps(legacyProfile?.safetyProcedures);
   const hasCurrentProfileInstruction = instructions.some((instruction) =>
-    legacySourceIds.includes(instruction.documentId),
+    instruction.documentId !== null && legacySourceIds.includes(instruction.documentId),
   );
   if (
     legacyProfile?.id &&
@@ -173,6 +175,36 @@ export function projectParentSafetyPlan(
       });
     }
   }
+  const profileExplicitlyApproved =
+    typeof legacyProfile?.caregiverShareApprovedBy === "string" &&
+    legacyProfile.caregiverShareApprovedBy.length > 0 &&
+    Boolean(legacyProfile.caregiverShareApprovedAt);
+  if (
+    legacyProfile?.id &&
+    legacySourceIds.length === 0 &&
+    profileExplicitlyApproved &&
+    profileNotes.length > 0
+  ) {
+    const approvedAt = legacyProfile.caregiverShareApprovedAt;
+    for (const [index, profileNote] of profileNotes.entries()) {
+      instructions.push({
+        id: `approved-profile-${legacyProfile.id}-${index}`,
+        contentKind: "clinician_approved_profile",
+        documentId: null,
+        sourceDocumentIds: [],
+        documentTitle: "Clinician-approved profile information",
+        uploadedBy: "clinician",
+        uploadedAt: toIsoDate(approvedAt, toIsoDate(legacyProfile.createdAt, new Date(0).toISOString())),
+        sourceExcerpt: null,
+        profileNote,
+        sourceSection: null,
+        sourcePage: null,
+        sourceExcerptVerified: false,
+        sourceReviewRequired: false,
+        clinicianApproved: true,
+      });
+    }
+  }
   const legacySourceIdSet = new Set(
     instructions
       .filter((instruction) => instruction.contentKind === "profile_extraction")
@@ -199,13 +231,13 @@ export function projectParentSafetyPlan(
     }));
   const sortOrder = new Map(documents.map((document, index) => [document.id, index]));
   instructions.sort((left, right) =>
-    (sortOrder.get(left.documentId) ?? Number.MAX_SAFE_INTEGER) -
-      (sortOrder.get(right.documentId) ?? Number.MAX_SAFE_INTEGER) ||
+    (sortOrder.get(left.documentId ?? "") ?? Number.MAX_SAFE_INTEGER) -
+      (sortOrder.get(right.documentId ?? "") ?? Number.MAX_SAFE_INTEGER) ||
     (left.sourcePage ?? 0) - (right.sourcePage ?? 0),
   );
   return {
     childId,
-    hasSafetyPlan: documents.length > 0,
+    hasSafetyPlan: documents.length > 0 || instructions.length > 0,
     documents,
     instructions,
   };

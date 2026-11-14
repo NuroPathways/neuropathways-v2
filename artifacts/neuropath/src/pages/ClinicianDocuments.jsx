@@ -43,6 +43,32 @@ const CATEGORIES = [
 
 const AUTO_SYNC = ["treatment_plan", "behavior_protocol", "reinforcement_plan", "coping_strategy", "session_notes"];
 const LABEL = "text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1";
+const PROFILE_REVIEW_FIELDS = [
+  ["strengths", "Strengths"],
+  ["challenges", "Challenges"],
+  ["communicationStyle", "Communication style"],
+  ["sensoryNeeds", "Sensory needs"],
+  ["preferredStrategies", "Preferred strategies"],
+  ["behaviors", "Behaviors"],
+  ["goals", "Goals"],
+  ["diagnoses", "Diagnoses"],
+  ["objectives", "Objectives"],
+  ["safetyProcedures", "Safety procedures"],
+];
+
+function profileValueText(value) {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) return value.map(profileValueText).filter(Boolean).join("; ");
+  if (value && typeof value === "object") return Object.values(value).map(profileValueText).filter(Boolean).join("; ");
+  return value == null ? "" : String(value);
+}
+
+function profileNeedsExplicitSharingReview(profile) {
+  const sourceIds = profile?.sourceDocIds ?? profile?.source_doc_ids;
+  return !Array.isArray(sourceIds) ||
+    sourceIds.length === 0 ||
+    sourceIds.some((id) => typeof id !== "string" || id.length === 0);
+}
 
 function cleanTitle(fileName) {
   return fileName
@@ -58,6 +84,10 @@ export default function ClinicianDocuments() {
   const fileInputRef = useRef(null);
   const [children, setChildren] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [profiles, setProfiles] = useState([]);
+  const [profileSharingBusy, setProfileSharingBusy] = useState({});
+  const [profileSharingConfirmed, setProfileSharingConfirmed] = useState({});
+  const [profileSharingErrors, setProfileSharingErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
@@ -91,10 +121,12 @@ export default function ClinicianDocuments() {
       const kids = await base44.entities.Child.filter({ clinician_id: me.id }).catch(() => []);
       setChildren(kids);
       if (kids.length > 0) {
-        const results = await Promise.all(
-          kids.map((kid) => base44.entities.Document.filter({ child_id: kid.id }).catch(() => [])),
-        );
+        const [results, profileResults] = await Promise.all([
+          Promise.all(kids.map((kid) => base44.entities.Document.filter({ child_id: kid.id }).catch(() => []))),
+          Promise.all(kids.map((kid) => base44.entities.ClientProfile.filter({ child_id: kid.id }).catch(() => []))),
+        ]);
         setDocuments(results.flat());
+        setProfiles(profileResults.flat());
         Promise.all(kids.map((kid) => base44.functions.invoke("buildClientProfile", {
           child_id: kid.id,
           include_cached_extractions: true,
@@ -108,6 +140,30 @@ export default function ClinicianDocuments() {
     };
     load();
   }, []);
+
+  const setProfileCaregiverSharing = async (profile, approved) => {
+    if (profileSharingBusy[profile.id]) return;
+    setProfileSharingBusy((current) => ({ ...current, [profile.id]: true }));
+    setProfileSharingErrors((current) => ({ ...current, [profile.id]: "" }));
+    try {
+      const result = await base44.functions.invoke("manageClientRecord", {
+        action: "setClientProfileCaregiverSharing",
+        entity_id: profile.id,
+        data: { approved },
+      });
+      const updated = result?.data?.record;
+      if (!updated || updated.id !== profile.id) throw new Error("Profile sharing update was not confirmed.");
+      setProfiles((current) => current.map((entry) => entry.id === profile.id ? updated : entry));
+      setProfileSharingConfirmed((current) => ({ ...current, [profile.id]: false }));
+    } catch {
+      setProfileSharingErrors((current) => ({
+        ...current,
+        [profile.id]: "Could not update caregiver sharing. The saved profile was not changed.",
+      }));
+    } finally {
+      setProfileSharingBusy((current) => ({ ...current, [profile.id]: false }));
+    }
+  };
 
   const addFiles = (fileList) => {
     const newItems = Array.from(fileList).map(f => ({
@@ -218,6 +274,77 @@ export default function ClinicianDocuments() {
       </div>
 
       <div className="p-5 max-w-2xl mx-auto">
+        {profiles.filter(profileNeedsExplicitSharingReview).map((profile) => {
+          const child = children.find((candidate) => candidate.id === (profile.childId ?? profile.child_id));
+          const approvedAt = profile.caregiverShareApprovedAt ?? profile.caregiver_share_approved_at;
+          const approvedBy = profile.caregiverShareApprovedBy ?? profile.caregiver_share_approved_by;
+          const busy = Boolean(profileSharingBusy[profile.id]);
+          const approved = Boolean(approvedAt && approvedBy);
+          const fields = PROFILE_REVIEW_FIELDS
+            .map(([key, label]) => [label, profileValueText(profile[key] ?? profile[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)])])
+            .filter(([, value]) => value);
+          return (
+            <section key={profile.id} className="bg-card border border-border rounded-2xl p-5 mb-5 space-y-4"
+              data-testid={`legacy-profile-sharing-review-${profile.id}`}>
+              <div>
+                <h2 className="font-semibold text-foreground">Profile sharing review{child?.child_name ? ` · ${child.child_name}` : ""}</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  This older profile has no reliable source link, so caregivers and AI cannot see these fields unless you explicitly approve sharing.
+                </p>
+              </div>
+              {fields.length ? (
+                <dl className="space-y-3">
+                  {fields.map(([label, value]) => (
+                    <div key={label}>
+                      <dt className={LABEL}>{label}</dt>
+                      <dd className="text-sm text-foreground whitespace-pre-wrap break-words">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="text-sm text-muted-foreground">This profile has no reviewable fields.</p>
+              )}
+              {approved ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-foreground" data-testid={`profile-sharing-approved-${profile.id}`}>
+                    Approved for caregiver sharing{Number.isFinite(new Date(approvedAt).getTime())
+                      ? ` on ${new Date(approvedAt).toLocaleDateString()}`
+                      : ""}.
+                  </p>
+                  <Button type="button" variant="outline" disabled={busy} onClick={() => setProfileCaregiverSharing(profile, false)}>
+                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Stop caregiver sharing"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <label className="flex items-start gap-2 text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(profileSharingConfirmed[profile.id])}
+                      onChange={(event) => setProfileSharingConfirmed((current) => ({
+                        ...current,
+                        [profile.id]: event.target.checked,
+                      }))}
+                      data-testid={`checkbox-profile-sharing-${profile.id}`}
+                    />
+                    <span>I reviewed these profile fields and approve sharing them with this child’s caregivers.</span>
+                  </label>
+                  <Button
+                    type="button"
+                    disabled={busy || !profileSharingConfirmed[profile.id] || fields.length === 0}
+                    onClick={() => setProfileCaregiverSharing(profile, true)}
+                    data-testid={`button-approve-profile-sharing-${profile.id}`}
+                  >
+                    {busy ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Approve for caregiver sharing"}
+                  </Button>
+                </div>
+              )}
+              {profileSharingErrors[profile.id] && (
+                <p role="alert" className="text-sm text-destructive">{profileSharingErrors[profile.id]}</p>
+              )}
+            </section>
+          );
+        })}
         <AnimatePresence>
           {showForm && (
             <motion.div
