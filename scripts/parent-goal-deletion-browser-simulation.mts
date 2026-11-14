@@ -675,10 +675,16 @@ async function selectChild(selector: string, childId: string) {
 }
 
 async function clickVisibleTestId(testId: string) {
-  const point = await cdp!.evaluate<{ x: number; y: number } | null>(`(() => {
+  await cdp!.evaluate(`(() => {
+    const element = document.querySelector('[data-testid="${testId}"]');
+    if (!element || element.disabled || element.closest("[hidden], [inert]")) return false;
+    element.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+    return true;
+  })()`);
+  const point = await waitFor(
+    () => cdp!.evaluate<{ x: number; y: number } | null>(`(() => {
     const element = document.querySelector('[data-testid="${testId}"]');
     if (!element || element.disabled || element.closest("[hidden], [inert]")) return null;
-    element.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     if (style.display === "none" || style.visibility === "hidden" ||
@@ -686,8 +692,11 @@ async function clickVisibleTestId(testId: string) {
         rect.bottom <= 0 || rect.top >= window.innerHeight ||
         rect.right <= 0 || rect.left >= window.innerWidth) return null;
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-  })()`);
-  if (!point) return false;
+  })()`),
+    Boolean,
+    `Visible control ${testId} did not enter the viewport.`,
+    5_000,
+  );
   await cdp!.send("Input.dispatchMouseEvent", {
     type: "mousePressed",
     x: point.x,
@@ -978,6 +987,28 @@ async function run() {
     assert.equal(state.options.filter((name: string) => /Mira Fictional|Noah Fictional/.test(name)).length, 2);
     assert.ok(state.options.some((name: string) => name.includes("Mira Fictional")));
     assert.ok(state.options.some((name: string) => name.includes("Noah Fictional")));
+    await waitFor(() => cdp!.evaluate(`(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      const rect = dialog?.getBoundingClientRect();
+      const style = dialog ? getComputedStyle(dialog) : null;
+      return Boolean(dialog && rect && rect.width > 0 && rect.height > 0 &&
+        style?.display !== "none" && style?.visibility !== "hidden" && Number(style?.opacity || 0) > 0.05 &&
+        Array.from(dialog.querySelectorAll("h1,h2,h3")).some((heading) =>
+          heading.textContent?.includes("Who do you need help with?")) &&
+        dialog.querySelector('[data-testid="button-select-child-${childMira}"]'));
+    })()`), Boolean, "Automatic Help Now pop-up did not open after parent login.", 5_000);
+    await cdp!.screenshot(path.join(evidenceDir!, "help-now-popup-child-picker.png"));
+    assert.equal(await clickVisibleTestId(`button-select-child-${childMira}`), true);
+    await waitFor(() => cdp!.evaluate(`(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      return Boolean(dialog && Array.from(dialog.querySelectorAll("h1,h2,h3"))
+        .some((heading) => heading.textContent?.includes("Need support right now?")) &&
+        dialog.innerText.includes("Mira Fictional"));
+    })()`), Boolean, "Automatic Help Now menu did not select the requested child.");
+    await cdp!.screenshot(path.join(evidenceDir!, "help-now-popup-child-specific.png"));
+    assert.equal(await clickVisibleTestId("button-close-support"), true);
+    await waitFor(() => cdp!.evaluate(`!document.querySelector('[role="dialog"]')`), Boolean,
+      "Automatic Help Now pop-up did not close.");
     // Select a child in the real parent shell before opening support.
     await selectChild('[data-testid="select-navigation-child-desktop"]', childMira);
     await waitFor(() => cdp!.evaluate(`document.body.innerText.includes("Today's Support for Mira Fictional")`), Boolean,

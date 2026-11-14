@@ -32,3 +32,9 @@ Caregiver projections must also require every explicit contributing document sou
 **Why:** A caregiver dashboard and parent AI context exposed clinician-only text through mixed-source cards even though the document list itself excluded the clinician-only source. Source-less historical family records cannot be safely re-associated by guessing.
 
 **How to apply:** Build caregiver-visible source IDs from the authorized document projection. Require all recorded sources to pass before returning generated content. Keep records with missing provenance under an explicit policy decision; do not infer associations or purge retained history.
+
+Legacy source-derived profile fields without reliable document links stay hidden from caregiver responses and AI context until an authorized clinician explicitly approves caregiver sharing. Restoring a link does not itself grant access: the linked source must still be caregiver-visible. Independent caregiver-entered information and stored clinician records remain intact.
+
+**Why:** Old profile rows can contain useful derived information but lack enough provenance to establish which document produced it or whether that source may be shared. Guessing a source could expose clinician-only material.
+
+**How to apply:** Filter caregiver lists, direct profile reads, support projections, and AI context with the same source/approval rule. Revalidate the approving clinician’s current access when using explicit approval. Preserve clinician access and never manufacture a document ID for approved source-less information.

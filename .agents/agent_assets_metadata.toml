@@ -1106,3 +1106,17 @@ mtime_ms = 1794691592785
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/29959205-5bf9-4ae5-ab05-8491816b3bcc/d84a4184-8943-48f0-bc8f-dbbda93736b7"
 storage_version_token = "1794691614594216"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "VHFkVJXRBZHAKm7SVYpIa"
+uri = "file://.local/verification/neuro-profile-sharing-final-20261114T222614Z.zip"
+type = "unspecified"
+title = "NeuroPathways verification evidence"
+description = "Isolated caregiver profile-sharing tests, results, audit evidence, and the unresolved Help Now popup browser check."
+logical_id = "439eb350-6e94-45f6-8bbc-4f0924ab9e22"
+content_hash = "sha256:085faf3d3b3fdcf31a66cd648d17dce2ca7c2ad82440f886010c9320105c9d3e"
+size = 3989262
+mtime_ms = 1794695175093
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/439eb350-6e94-45f6-8bbc-4f0924ab9e22/353c0e1d-9543-4760-b167-53ae5c534f29"
+storage_version_token = "1794695186332680"
+content_type = "application/octet-stream"
