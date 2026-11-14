@@ -1078,3 +1078,17 @@ mtime_ms = 1794520334434
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/32f48d20-9334-4640-b0ce-3e54c969af63/78e5c128-ca89-4030-82bd-abc49f6861a8"
 storage_version_token = "1794533045896615"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "GAG1wtIpmcsR8gUjO5fWY"
+uri = "file://.local/verification/neuro-clinician-source-audit-20261113T013857Z/NeuroPathways-Clinician-Audit-Verification-20261114T0223Z.zip"
+type = "unspecified"
+title = "Updated NeuroPathways verification evidence"
+description = "Final evidence ZIP with exact commands, 49 checksummed files, genuine audit records, browser screenshots, results, and remaining gaps."
+logical_id = "4c39fe15-e05b-494a-abb5-81f77e34ae87"
+content_hash = "sha256:af56386a43ba18390b865f4c70f5a824beb37bee2366474c7e2bbd4cc3af6649"
+size = 972445
+mtime_ms = 1794623160043
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/4c39fe15-e05b-494a-abb5-81f77e34ae87/fe8756b8-8cd3-4f1a-ba46-d4812e405dc7"
+storage_version_token = "1794623164882308"
+content_type = "application/octet-stream"
