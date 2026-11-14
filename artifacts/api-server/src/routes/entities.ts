@@ -661,7 +661,7 @@ async function auditDeniedEntityScope(
   scope: EntityActorScope,
   path: string,
   row: any,
-  operation: "update" | "delete",
+  operation: "read" | "update" | "delete",
 ) {
   const childId = typeof row.childId === "string" ? row.childId : undefined;
   const targetChildId = childId ?? (path === "/children" ? String(row.id) : undefined);
@@ -743,13 +743,33 @@ async function actorCanReadEntityRow(
       ? [...new Set(row.sourceDocIds as string[])]
       : [];
     if (sourceDocumentIds.length) {
-      const sourceDocuments = await db.select({ id: documentsTable.id, childId: documentsTable.childId })
+      const sourceDocuments = await db.select()
         .from(documentsTable).where(inArray(documentsTable.id, sourceDocumentIds));
       if (sourceDocuments.length !== sourceDocumentIds.length ||
           sourceDocuments.some((document) => document.childId !== row.childId)) {
         return false;
       }
       const visibleSources = await legacyVisibleDocuments(sourceDocuments, scope.userId);
+      if (!allSourceDocumentsVisible(sourceDocumentIds, visibleSources.map((document) => document.id))) return false;
+    }
+  }
+  if (scope.role === "parent" && table === clientProfilesTable) {
+    if (row.sourceDocIds != null &&
+        (!Array.isArray(row.sourceDocIds) ||
+          row.sourceDocIds.some((id: unknown) => typeof id !== "string" || !id))) {
+      return false;
+    }
+    const sourceDocumentIds: string[] = Array.isArray(row.sourceDocIds)
+      ? [...new Set(row.sourceDocIds as string[])]
+      : [];
+    if (sourceDocumentIds.length) {
+      const sourceDocuments = await db.select()
+        .from(documentsTable).where(inArray(documentsTable.id, sourceDocumentIds));
+      if (sourceDocuments.length !== sourceDocumentIds.length ||
+          sourceDocuments.some((document) => document.childId !== row.childId)) {
+        return false;
+      }
+      const visibleSources = await legacyVisibleDocuments(sourceDocuments, child.clinicianId ?? null, "parent");
       if (!allSourceDocumentsVisible(sourceDocumentIds, visibleSources.map((document) => document.id))) return false;
     }
   }
@@ -825,7 +845,11 @@ function makeCrud(path: string, table: any) {
       const rows = await db.select().from(table).where(and(...clauses));
       const visibleRows = [];
       for (const row of rows as any[]) {
-        if (await actorCanReadEntityRow(scope, table, row)) visibleRows.push(row);
+        if (await actorCanReadEntityRow(scope, table, row)) {
+          visibleRows.push(row);
+        } else {
+          await auditDeniedEntityScope(req, scope, path, row, "read");
+        }
       }
       const responseRows = table === rewardTokensTable
         ? await projectRewardTokenRowsForActor(scope, visibleRows)
@@ -1552,7 +1576,7 @@ router.post("/client-portal-data", async (req, res) => {
       db.select().from(behaviorLogsTable).where(eq(behaviorLogsTable.childId, child_id)),
       db.select().from(messagesTable).where(eq(messagesTable.childId, child_id)),
     ]);
-    const profile = profiles[0] ?? null;
+    const candidateProfile = profiles[0] ?? null;
 
     // Fetch siblings in the same family AND same clinician so the selector never
     // surfaces children that belong to a different clinician tenant.
@@ -1571,6 +1595,17 @@ router.post("/client-portal-data", async (req, res) => {
 
     const visibleDocuments = await legacyVisibleDocuments(documents, clinicianId, "client");
     const visibleDocumentIds = new Set(visibleDocuments.map((document) => document.id));
+    const profileSourceIds = candidateProfile?.sourceDocIds;
+    const validProfileSourceIds = profileSourceIds == null ||
+      (Array.isArray(profileSourceIds) &&
+        profileSourceIds.every((id: unknown) => typeof id === "string" && Boolean(id)));
+    const profileSourceIdsList: string[] = Array.isArray(profileSourceIds)
+      ? [...new Set(profileSourceIds as string[])]
+      : [];
+    const profile = candidateProfile && validProfileSourceIds &&
+      allSourceDocumentsVisible(profileSourceIdsList, [...visibleDocumentIds])
+      ? candidateProfile
+      : null;
     const visibleGoals = goals.filter(g => !g.createdByClinician || (g.publicationStatus === "published" && g.clinicianId === clinicianId))
       .map(({ goalVersions: _versions, ...goal }) => ({
         ...goal,

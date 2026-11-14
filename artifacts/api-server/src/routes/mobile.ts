@@ -366,8 +366,9 @@ router.get("/mobile/documents", requireMobileAuth, async (req: any, res) => {
       .from(documentsTable)
       .where(eq(documentsTable.childId, req.mobileUser.childId));
     const [child] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.mobileUser.childId));
+    const visibleDocuments = await legacyVisibleDocuments(rows, child?.clinicianId ?? null, "client");
     await auditMobileRead(req, "documents");
-    res.json(await legacyVisibleDocuments(rows, child?.clinicianId ?? null, "client"));
+    res.json(visibleDocuments);
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "mobile");
   }

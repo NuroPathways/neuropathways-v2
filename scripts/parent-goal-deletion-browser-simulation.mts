@@ -840,14 +840,21 @@ async function run() {
   await check("Parent login uses the actual web login form and opens a two-child session", async () => {
     await cdp!.navigate(`${browserBase}/ParentLogin`);
     await waitFor(
-      () => cdp!.evaluate(`Boolean(document.querySelector('form input[type="email"]') && document.querySelector('form input[type="password"]'))`),
+      () => cdp!.evaluate(`(() => {
+        const email = document.querySelector('[data-testid="input-email"]');
+        const password = document.querySelector('[data-testid="input-password"]');
+        return Boolean(email && password &&
+          email.getBoundingClientRect().width > 0 &&
+          password.getBoundingClientRect().width > 0);
+      })()`),
       Boolean,
       "Visible parent email-and-password login form did not load.",
+      60_000,
     );
     const row = await db.select().from(seed.parentAccountsTable).where(apiRequire("drizzle-orm").eq(seed.parentAccountsTable.id, parentId));
     assert.equal(row.length, 1);
-    assert.equal(await setInput('form input[type="email"]', row[0].email), true);
-    assert.equal(await setInput('form input[type="password"]', "Fictional-Password-842!"), true);
+    assert.equal(await setInput('[data-testid="input-email"]', row[0].email), true);
+    assert.equal(await setInput('[data-testid="input-password"]', "Fictional-Password-842!"), true);
     await cdp!.evaluate(`document.querySelector('form button')?.click()`);
     try {
       await waitFor(() => cdp!.evaluate(`Boolean(document.querySelector('[data-testid="select-navigation-child-desktop"]'))`), Boolean, "Signed-in parent dashboard did not load.");

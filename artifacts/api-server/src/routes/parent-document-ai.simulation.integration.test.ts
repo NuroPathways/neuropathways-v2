@@ -219,7 +219,9 @@ function toolInput(toolName: string, body: Record<string, any>): Record<string, 
   }
   if (toolName === "save_document_classification") {
     return {
-      document_extractions: providerMode === "malformed-classification" ? "not-an-array" : [],
+      document_extractions: providerMode === "malformed-classification"
+        ? "not-an-array"
+        : profileInput(activeDocumentId).document_extractions,
     };
   }
   return { cards: [] };
@@ -356,6 +358,7 @@ test("document scan route completes safely with a deterministic loopback AI prov
   const clinicianAId = `synthetic-clinician-a-${suffix}`;
   const clinicianBId = `synthetic-clinician-b-${suffix}`;
   const clinicianUnassignedId = `synthetic-clinician-unassigned-${suffix}`;
+  const caregiverUserId = `synthetic-caregiver-${suffix}`;
   const familyAId = `synthetic-family-a-${suffix}`;
   const familyBId = `synthetic-family-b-${suffix}`;
   const childAId = crypto.randomUUID();
@@ -388,11 +391,13 @@ test("document scan route completes safely with a deterministic loopback AI prov
     { id: clinicianAId, email: `${suffix}.clinician-a@example.test`, firstName: "Synthetic", lastName: "Clinician A" },
     { id: clinicianBId, email: `${suffix}.clinician-b@example.test`, firstName: "Synthetic", lastName: "Clinician B" },
     { id: clinicianUnassignedId, email: `${suffix}.clinician-unassigned@example.test`, firstName: "Synthetic", lastName: "Unassigned Clinician" },
+    { id: caregiverUserId, email: `${suffix}.caregiver@example.test`, firstName: "Synthetic", lastName: "Caregiver" },
   ]);
   await db.insert(userProfilesTable).values([
     { id: clinicianAId, appRole: "clinician", tenantId, accountType: "clinician" },
     { id: clinicianBId, appRole: "clinician", tenantId: tenantBId, accountType: "clinician" },
     { id: clinicianUnassignedId, appRole: "clinician", tenantId, accountType: "clinician" },
+    { id: caregiverUserId, appRole: "parent", tenantId, accountType: "parent_family", linkedFamilyId: familyAId },
   ]);
   await db.insert(clinicsTable).values([
     { id: clinicId, displayName: "Synthetic Test Clinic A", legacyTenantId: tenantId, status: "active" },
@@ -412,6 +417,8 @@ test("document scan route completes safely with a deterministic loopback AI prov
       id: childAId,
       tenantId,
       clinicianId: clinicianAId,
+      parentId: caregiverUserId,
+      parentEmail: `${suffix}.caregiver@example.test`,
       familyId: familyAId,
       childName: "Kai Synthetic",
       accountType: "parent_clinician",
@@ -450,7 +457,7 @@ test("document scan route completes safely with a deterministic loopback AI prov
       fileName: documentFilename,
       fileUrl: `/uploads/${documentFilename}`,
       uploadedBy: clinicianAId,
-      accessRoles: "parent,client,clinician",
+      accessRoles: "clinician",
       scanStatus: "pending",
     },
     {
@@ -480,6 +487,10 @@ test("document scan route completes safely with a deterministic loopback AI prov
     const actorId = request.header("x-synthetic-clinician");
     if (actorId) {
       request.user = { id: actorId, email: `${actorId}@example.test`, appRole: "clinician" };
+      request.isAuthenticated = () => true;
+    } else if (request.header("x-synthetic-parent")) {
+      const parentId = request.header("x-synthetic-parent");
+      request.user = { id: parentId, email: `${suffix}.caregiver@example.test`, appRole: "parent" };
       request.isAuthenticated = () => true;
     } else {
       request.isAuthenticated = () => false;
@@ -524,20 +535,10 @@ test("document scan route completes safely with a deterministic loopback AI prov
         assert.equal(response.status, 200, JSON.stringify(body));
         assert.deepEqual(body.scanned, [activeDocumentId]);
         assert.deepEqual(body.failed, []);
-        const responseExtractions = body.document_extractions ?? body.documentExtractions;
-        assert.ok(Array.isArray(responseExtractions) && responseExtractions.length >= 3);
 
-        const [profile] = await db.select().from(clientProfilesTable)
-          .where(eq(clientProfilesTable.childId, childAId));
-        assert.ok(profile);
-        assert.deepEqual(profile.sourceDocIds, [activeDocumentId]);
         const [savedChild] = await db.select().from(childrenTable)
           .where(eq(childrenTable.id, childAId));
         assert.equal(savedChild.familyId, familyAId);
-        const savedBehaviors = profile.behaviors as Array<Record<string, any>>;
-        const savedGoals = profile.goals as Array<Record<string, any>>;
-        assert.equal(savedBehaviors[0].name, "Starting homework");
-        assert.equal(savedGoals[0].title, "Request a break with the break card");
 
         const [run] = await db.select().from(documentExtractionRunsTable)
           .where(eq(documentExtractionRunsTable.documentId, activeDocumentId));
@@ -591,8 +592,8 @@ test("document scan route completes safely with a deterministic loopback AI prov
 
         const currentRunRequests = capturedRequests.slice(start);
         assert.ok(currentRunRequests.some((entry) =>
-          entry.body.tools?.[0]?.name === "save_behavioral_profile",
-        ));
+          entry.body.tools?.[0]?.name === "save_document_classification",
+        ), "A scoped clinician scan must use document classification rather than aggregate profile generation.");
         assert.ok(currentRunRequests.some((entry) =>
           entry.body.tools?.[0]?.name === "generate_source_linked_support_area_candidates",
         ));
@@ -631,6 +632,79 @@ test("document scan route completes safely with a deterministic loopback AI prov
         assert.equal((portalBody.documents ?? []).some((document: any) => document.id === activeDocumentId), false);
         assert.equal(portalBody.profile, null, "The portal must hide summaries whose source is not visible to the caregiver.");
         assert.doesNotMatch(JSON.stringify(portalBody), /multi-step worksheet|break card described in the document/i);
+        const [profileBeforeParentRead] = await db.select().from(clientProfilesTable)
+          .where(eq(clientProfilesTable.childId, childAId));
+        assert.ok(profileBeforeParentRead);
+        const parentReadRequestId = `parent-hidden-profile-read-${suffix}`;
+        const parentProfileResponse = await fetch(`${apiBase}/client-profiles/${profileBeforeParentRead.id}`, {
+          headers: {
+            "x-synthetic-parent": caregiverUserId,
+            "x-test-request-id": parentReadRequestId,
+          },
+        });
+        const parentProfileText = await parentProfileResponse.text();
+        assert.equal(parentProfileResponse.status, 403);
+        assert.doesNotMatch(parentProfileText, /multi-step worksheet|break card described in the document/i);
+        const parentProfileReadAudits = (await db.select().from(auditLogsTable)).filter((row) =>
+          (row.metadata as Record<string, unknown> | null)?.request_id === parentReadRequestId
+        );
+        assert.equal(parentProfileReadAudits.length, 1);
+        assert.equal(parentProfileReadAudits[0].userId, caregiverUserId);
+        assert.equal(parentProfileReadAudits[0].userRole, "parent");
+        assert.equal(parentProfileReadAudits[0].tenantId, tenantId);
+        assert.equal(parentProfileReadAudits[0].action, "cross_tenant_access_attempt");
+        assert.equal(parentProfileReadAudits[0].targetType, "client-profiles");
+        assert.equal(parentProfileReadAudits[0].targetId, profileBeforeParentRead.id);
+        assert.equal(parentProfileReadAudits[0].success, false);
+        assert.equal((parentProfileReadAudits[0].metadata as Record<string, unknown>)?.operation, "read");
+        assert.ok(Number.isFinite(parentProfileReadAudits[0].createdDate.getTime()));
+        assert.doesNotMatch(JSON.stringify(parentProfileReadAudits[0]), /multi-step worksheet|break card described in the document|password|token/i);
+      }));
+
+    await t.test("assigned clinician detail reads write scoped success audit events",
+      recordCase("GE-SEC-023 clinician child and family detail reads are audited exactly once", async () => {
+        const reads = [
+          {
+            route: `/client-detail?child_id=${encodeURIComponent(childAId)}`,
+            requestId: `audit-client-detail-${suffix}`,
+            targetType: "child",
+            targetId: childAId,
+          },
+          {
+            route: `/family-detail?family_id=${encodeURIComponent(familyAId)}`,
+            requestId: `audit-family-detail-${suffix}`,
+            targetType: "family",
+            targetId: familyAId,
+          },
+        ] as const;
+
+        for (const read of reads) {
+          const response = await fetch(`${apiBase}${read.route}`, {
+            headers: {
+              "x-synthetic-clinician": clinicianAId,
+              "x-test-request-id": read.requestId,
+            },
+          });
+          assert.equal(response.status, 200);
+          const responseText = await response.text();
+          assert.doesNotMatch(responseText, new RegExp(activeForeignMarker));
+          const rows = (await db.select().from(auditLogsTable)).filter((row) =>
+            (row.metadata as Record<string, unknown> | null)?.request_id === read.requestId
+          );
+          assert.equal(rows.length, 1);
+          const row = rows[0];
+          assert.equal(row.userId, clinicianAId);
+          assert.equal(row.userRole, "clinician");
+          assert.equal(row.tenantId, tenantId);
+          assert.equal(row.action, "client_viewed");
+          assert.equal(row.targetType, read.targetType);
+          assert.equal(row.targetId, read.targetId);
+          assert.equal(row.success, true);
+          assert.ok(Number.isFinite(row.createdDate.getTime()));
+          const serialized = JSON.stringify(row);
+          assert.doesNotMatch(serialized, /token|password|sourceExcerpt|document_text/i);
+          assert.doesNotMatch(serialized, new RegExp(activeSourceExcerpt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+        }
       }));
 
     await t.test("repeated scanning is idempotent for source records and goals",
@@ -860,6 +934,33 @@ test("document scan route completes safely with a deterministic loopback AI prov
           false,
         );
         assert.doesNotMatch(JSON.stringify(caregiverPortalAfterDeleteBody), /multi-step worksheet|break card described in the document/i);
+        const [retainedProfile] = await db.select().from(clientProfilesTable)
+          .where(eq(clientProfilesTable.childId, childAId));
+        assert.ok(retainedProfile, "The clinician profile record remains retained.");
+        const parentReadAfterDeleteRequestId = `parent-hidden-profile-after-delete-${suffix}`;
+        const parentProfileAfterDelete = await fetch(`${apiBase}/client-profiles/${retainedProfile.id}`, {
+          headers: {
+            "x-synthetic-parent": caregiverUserId,
+            "x-test-request-id": parentReadAfterDeleteRequestId,
+          },
+        });
+        const parentProfileAfterDeleteText = await parentProfileAfterDelete.text();
+        assert.equal(parentProfileAfterDelete.status, 403);
+        assert.doesNotMatch(parentProfileAfterDeleteText, /Kai|homework|break card/i);
+        const parentProfileAfterDeleteAudits = (await db.select().from(auditLogsTable)).filter((row) =>
+          (row.metadata as Record<string, unknown> | null)?.request_id === parentReadAfterDeleteRequestId
+        );
+        assert.equal(parentProfileAfterDeleteAudits.length, 1);
+        assert.equal(parentProfileAfterDeleteAudits[0].userId, caregiverUserId);
+        assert.equal(parentProfileAfterDeleteAudits[0].userRole, "parent");
+        assert.equal(parentProfileAfterDeleteAudits[0].tenantId, tenantId);
+        assert.equal(parentProfileAfterDeleteAudits[0].action, "cross_tenant_access_attempt");
+        assert.equal(parentProfileAfterDeleteAudits[0].targetType, "client-profiles");
+        assert.equal(parentProfileAfterDeleteAudits[0].targetId, retainedProfile.id);
+        assert.equal(parentProfileAfterDeleteAudits[0].success, false);
+        assert.equal((parentProfileAfterDeleteAudits[0].metadata as Record<string, unknown>)?.operation, "read");
+        assert.ok(Number.isFinite(parentProfileAfterDeleteAudits[0].createdDate.getTime()));
+        assert.doesNotMatch(JSON.stringify(parentProfileAfterDeleteAudits[0]), /Kai|homework|break card|password|token/i);
 
         for (const [actor, requestId] of [
           [clinicianBId, `ai-other-clinic-after-delete-${suffix}`],
@@ -884,7 +985,7 @@ test("document scan route completes safely with a deterministic loopback AI prov
         assert.ok(deletionAudit);
         assert.equal(deletionAudit.userId, clinicianAId);
         assert.equal(deletionAudit.userRole, "clinician");
-        assert.equal(deletionAudit.tenantId, tenantId);
+        assert.equal(deletionAudit.tenantId, clinicId, "Audit attribution uses the canonical clinic tenant.");
         assert.equal(deletionAudit.success, true);
         assert.ok(Number.isFinite(deletionAudit.createdDate.getTime()));
       }));
@@ -925,9 +1026,11 @@ test("document scan route completes safely with a deterministic loopback AI prov
     }
   }
 
+  const retainedProfiles = await db.select({ id: clientProfilesTable.id }).from(clientProfilesTable)
+    .where(eq(clientProfilesTable.childId, childAId));
   const auditRows = await db.select().from(auditLogsTable).where(inArray(
     auditLogsTable.targetId,
-    [childAId, childBId, activeDocumentId, foreignDocumentId],
+    [childAId, childBId, familyAId, activeDocumentId, foreignDocumentId, ...retainedProfiles.map((profile) => profile.id)],
   ));
   const sanitizedAuditRows = auditRows.map((row) => ({
     id: row.id,
