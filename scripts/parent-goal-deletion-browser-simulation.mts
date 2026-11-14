@@ -30,6 +30,7 @@ if (process.env.REPLIT_CONNECTORS_ENABLED !== "false" ||
 type CaseStatus = "PASS" | "FAIL" | "BLOCKED" | "NOT RUN";
 const cases: Array<{ name: string; status: CaseStatus; detail?: string }> = [];
 const browserErrors: string[] = [];
+const browserClickEvents: Array<Record<string, unknown>> = [];
 const providerRequests: Array<{ system: string; content: string; child: "mira" | "noah" | "foreign" | "unknown" }> = [];
 const apiRequestSummaries: Array<{ method: string; path: string; status?: number }> = [];
 let delayedMiraResponse: (() => void) | null = null;
@@ -58,6 +59,7 @@ let parentSessionTokenPresentBeforeRevocation = false;
 let seedForEvidence: any;
 const scenarioStartedAt = new Date().toISOString();
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const initialWorkingDirectory = process.cwd();
 const apiRequire = createRequire(path.join(workspaceRoot, "artifacts/api-server/package.json"));
 const webRequire = createRequire(path.join(workspaceRoot, "artifacts/neuropath/package.json"));
 const express = apiRequire("express");
@@ -102,6 +104,19 @@ function authorizedContextForLastChatRequest(): Record<string, any> {
 }
 
 async function check(name: string, action: () => Promise<void>) {
+  if (process.env.PARENT_GOAL_BROWSER_FOCUS_POPUP === "1") {
+    const focusedCases = new Set([
+      "Parent login uses the actual web login form and opens a two-child session",
+      "Caregiver dashboard omits clinician-only and mixed-family source cards",
+      "Signed-in caregiver Home renders authorized support without inaccessible source content",
+      "The visible Home Help Now button opens the child-specific support menu",
+      "Revoked existing parent session blocks later parent-specific chat without an AI call",
+    ]);
+    if (!focusedCases.has(name)) {
+      caseResult(name, "NOT RUN", "Excluded from the focused Help Now popup batch.");
+      return;
+    }
+  }
   try {
     await action();
     caseResult(name, "PASS");
@@ -675,28 +690,69 @@ async function selectChild(selector: string, childId: string) {
 }
 
 async function clickVisibleTestId(testId: string) {
+  const beforeUrl = await cdp!.evaluate<string>(`location.href`);
   await cdp!.evaluate(`(() => {
-    const element = document.querySelector('[data-testid="${testId}"]');
-    if (!element || element.disabled || element.closest("[hidden], [inert]")) return false;
-    element.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+    if (window.__npBrowserClickTraceInstalled) return true;
+    window.__npBrowserClickTraceInstalled = true;
+    window.__npBrowserClickTrace = [];
+    document.addEventListener("click", (event) => {
+      const target = event.target instanceof Element
+        ? event.target.closest("[data-testid]")
+        : null;
+      if (target) window.__npBrowserClickTrace.push({
+        testId: target.getAttribute("data-testid"),
+        trusted: event.isTrusted,
+        defaultPrevented: event.defaultPrevented,
+      });
+    }, true);
     return true;
+  })()`);
+  await cdp!.evaluate(`(() => {
+    const selector = '[data-testid="${testId}"]';
+    const candidates = Array.from(document.querySelectorAll(selector));
+    const element = candidates.find((candidate) => {
+      if (candidate.disabled || candidate.closest("[hidden], [inert]")) return false;
+      candidate.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+      const rect = candidate.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+    return Boolean(element);
   })()`);
   const point = await waitFor(
     () => cdp!.evaluate<{ x: number; y: number } | null>(`(() => {
-    const element = document.querySelector('[data-testid="${testId}"]');
-    if (!element || element.disabled || element.closest("[hidden], [inert]")) return null;
-    const style = getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
-    if (style.display === "none" || style.visibility === "hidden" ||
-        Number(style.opacity) < 0.05 || rect.width <= 0 || rect.height <= 0 ||
-        rect.bottom <= 0 || rect.top >= window.innerHeight ||
-        rect.right <= 0 || rect.left >= window.innerWidth) return null;
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    const selector = '[data-testid="${testId}"]';
+    for (const element of document.querySelectorAll(selector)) {
+      if (element.disabled || element.closest("[hidden], [inert]")) continue;
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0 || rect.bottom <= 0 || rect.top >= window.innerHeight ||
+          rect.right <= 0 || rect.left >= window.innerWidth) continue;
+      let visible = true;
+      for (let node = element; node && node !== document.documentElement; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (style.display === "none" || style.visibility === "hidden" ||
+            style.contentVisibility === "hidden" || Number(style.opacity) < 0.05) {
+          visible = false;
+          break;
+        }
+      }
+      if (!visible) continue;
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      if (hit && (hit === element || element.contains(hit))) return { x, y };
+    }
+    return null;
   })()`),
     Boolean,
     `Visible control ${testId} did not enter the viewport.`,
     5_000,
   );
+  await cdp!.send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: point.x,
+    y: point.y,
+    button: "left",
+  });
   await cdp!.send("Input.dispatchMouseEvent", {
     type: "mousePressed",
     x: point.x,
@@ -711,7 +767,27 @@ async function clickVisibleTestId(testId: string) {
     button: "left",
     clickCount: 1,
   });
-  return true;
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  let clickTrace: Array<Record<string, unknown>> = [];
+  try {
+    clickTrace = await cdp!.evaluate<Array<Record<string, unknown>>>(`window.__npBrowserClickTrace || []`);
+  } catch {
+    // A real click may navigate and replace the JavaScript context before the trace can be read.
+  }
+  let afterUrl = beforeUrl;
+  try { afterUrl = await cdp!.evaluate<string>(`location.href`); } catch {}
+  const trustedClick = clickTrace.some((entry) => entry.testId === testId && entry.trusted === true);
+  const navigationObserved = afterUrl !== beforeUrl;
+  const observed = trustedClick || navigationObserved;
+  browserClickEvents.push({
+    requestedTestId: testId,
+    point,
+    observedTrustedClick: trustedClick,
+    navigationObserved,
+    afterUrl: navigationObserved ? afterUrl : undefined,
+    recent: clickTrace.slice(-4),
+  });
+  return observed;
 }
 
 async function openChat(tabSelector = '[data-testid="nav-ask-desktop"]') {
@@ -868,6 +944,7 @@ async function run() {
   const { default: parentRouter } = await import("../artifacts/api-server/src/routes/parent");
   const { default: parentDocumentsRouter } = await import("../artifacts/api-server/src/routes/parent-documents");
   const { default: careTeamRouter } = await import("../artifacts/api-server/src/routes/care-team");
+  process.chdir(path.join(workspaceRoot, "artifacts/neuropath"));
   const { createServer: createViteServer } = await import(pathToFileURL(webRequire.resolve("vite")).href);
   const app = express();
   app.use(express.json({ limit: "2mb" }));
@@ -987,18 +1064,82 @@ async function run() {
     assert.equal(state.options.filter((name: string) => /Mira Fictional|Noah Fictional/.test(name)).length, 2);
     assert.ok(state.options.some((name: string) => name.includes("Mira Fictional")));
     assert.ok(state.options.some((name: string) => name.includes("Noah Fictional")));
-    await waitFor(() => cdp!.evaluate(`(() => {
-      const dialog = document.querySelector('[role="dialog"]');
-      const rect = dialog?.getBoundingClientRect();
-      const style = dialog ? getComputedStyle(dialog) : null;
-      return Boolean(dialog && rect && rect.width > 0 && rect.height > 0 &&
-        style?.display !== "none" && style?.visibility !== "hidden" && Number(style?.opacity || 0) > 0.05 &&
-        Array.from(dialog.querySelectorAll("h1,h2,h3")).some((heading) =>
-          heading.textContent?.includes("Who do you need help with?")) &&
-        dialog.querySelector('[data-testid="button-select-child-${childMira}"]'));
-    })()`), Boolean, "Automatic Help Now pop-up did not open after parent login.", 5_000);
+    await new Promise((resolve) => setTimeout(resolve, 1_200));
+    const popupEvidence = await cdp!.evaluate(`(async () => {
+      const token = localStorage.getItem("np_parent_token") || "";
+      const response = await fetch("/api/parent/session", { headers: { "X-Parent-Token": token } });
+      const session = await response.json();
+      const isVisible = (element) => {
+        if (!element) return false;
+        const rect = element.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0 || rect.bottom <= 0 || rect.top >= innerHeight ||
+            rect.right <= 0 || rect.left >= innerWidth) return false;
+        for (let node = element; node && node !== document.documentElement; node = node.parentElement) {
+          const style = getComputedStyle(node);
+          if (style.display === "none" || style.visibility === "hidden" ||
+              style.contentVisibility === "hidden" ||
+              Number(style.opacity) < 0.95) return false;
+        }
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        return Boolean(hit && (hit === element || element.contains(hit)));
+      };
+      const dialog = Array.from(document.querySelectorAll('[role="dialog"]'))
+        .find((candidate) => candidate.innerText.includes("Who do you need help with?"));
+      const childButton = dialog?.querySelector('[data-testid="button-select-child-${childMira}"]');
+      const dialogRect = dialog?.getBoundingClientRect();
+      const childRect = childButton?.getBoundingClientRect();
+      return {
+        session: {
+          status: response.status,
+          accountType: session.parent?.accountType || null,
+          childCount: Array.isArray(session.children) ? session.children.length : null,
+        },
+        popupMarkerPresent: Object.keys(sessionStorage).some((key) =>
+          key.startsWith("np-support-popup-shown:") && sessionStorage.getItem(key) === "1"),
+        dialogCount: document.querySelectorAll('[role="dialog"]').length,
+        dialog: dialog ? {
+          ariaModal: dialog.getAttribute("aria-modal"),
+          heading: Array.from(dialog.querySelectorAll("h1,h2,h3")).map((node) => node.textContent?.trim()),
+          text: dialog.innerText.slice(0, 300),
+          rect: dialogRect ? { x: dialogRect.x, y: dialogRect.y, width: dialogRect.width, height: dialogRect.height } : null,
+          visibleAndHitTestable: isVisible(dialog),
+          childRect: childRect ? { x: childRect.x, y: childRect.y, width: childRect.width, height: childRect.height } : null,
+          childVisibleAndHitTestable: isVisible(childButton),
+          shell: (() => {
+            const shell = dialog.closest(".np-help-overlay-shell");
+            if (!shell) return null;
+            const style = getComputedStyle(shell);
+            const shellRect = shell.getBoundingClientRect();
+            return {
+              className: shell.className,
+              position: style.position,
+              display: style.display,
+              top: style.top,
+              right: style.right,
+              bottom: style.bottom,
+              left: style.left,
+              width: shellRect.width,
+              height: shellRect.height,
+            };
+          })(),
+        } : null,
+        path: location.pathname + location.search,
+      };
+    })()`);
+    await fs.writeFile(path.join(evidenceDir!, "help-now-popup-state-after-login.json"),
+      JSON.stringify(popupEvidence, null, 2), { mode: 0o600 });
+    assert.equal(popupEvidence.session.status, 200, "The browser must have an authenticated parent session.");
+    assert.ok(["parent", "parent_free", "parent_family", "family", "legacy_family", "caregiver"].includes(popupEvidence.session.accountType),
+      "The isolated login fixture must have a parent/caregiver account type.");
+    assert.equal(popupEvidence.session.childCount, 2, "The isolated caregiver must have two linked children.");
+    assert.equal(popupEvidence.dialog?.visibleAndHitTestable, true,
+      `Automatic Help Now dialog must be visibly open after login: ${JSON.stringify(popupEvidence)}`);
+    assert.equal(popupEvidence.dialog?.childVisibleAndHitTestable, true,
+      `A child choice must be visibly clickable: ${JSON.stringify(popupEvidence)}`);
     await cdp!.screenshot(path.join(evidenceDir!, "help-now-popup-child-picker.png"));
     assert.equal(await clickVisibleTestId(`button-select-child-${childMira}`), true);
+    assert.equal(await clickVisibleTestId("button-continue-support"), true,
+      "Selecting a child requires the visible Continue action before opening support options.");
     await waitFor(() => cdp!.evaluate(`(() => {
       const dialog = document.querySelector('[role="dialog"]');
       return Boolean(dialog && Array.from(dialog.querySelectorAll("h1,h2,h3"))
@@ -1009,15 +1150,100 @@ async function run() {
     assert.equal(await clickVisibleTestId("button-close-support"), true);
     await waitFor(() => cdp!.evaluate(`!document.querySelector('[role="dialog"]')`), Boolean,
       "Automatic Help Now pop-up did not close.");
-    // Select a child in the real parent shell before opening support.
+
+    // Route changes and a full refresh in the same authenticated session must not reopen the dismissed popup.
     await selectChild('[data-testid="select-navigation-child-desktop"]', childMira);
     await waitFor(() => cdp!.evaluate(`document.body.innerText.includes("Today's Support for Mira Fictional")`), Boolean,
       "The selected child was not shown on the caregiver Home page.");
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await cdp!.navigate(`${browserBase}/ParentHome?tab=practice`);
+    await waitFor(() => cdp!.evaluate(`location.search.includes("tab=practice")`), Boolean,
+      "Caregiver Practice route did not load.");
+    await cdp!.navigate(`${browserBase}/ParentHome?child_id=${childMira}`);
+    await waitFor(() => cdp!.evaluate(`document.body.innerText.includes("Today's Support for Mira Fictional")`), Boolean,
+      "Caregiver Home did not return after same-session refresh.");
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    const sameSessionPopupState = await cdp!.evaluate(`({
+      dialogPresent: Boolean(document.querySelector('[role="dialog"]')),
+      childNameVisible: document.body.innerText.includes("Today's Support for Mira Fictional"),
+      popupMarkerPresent: Object.keys(sessionStorage).some((key) =>
+        key.startsWith("np-support-popup-shown:") && sessionStorage.getItem(key) === "1")
+    })`);
+    await fs.writeFile(path.join(evidenceDir!, "help-now-popup-state-same-session.json"),
+      JSON.stringify(sameSessionPopupState, null, 2), { mode: 0o600 });
+    assert.equal(sameSessionPopupState.dialogPresent, false,
+      "A dismissed popup must not reopen after same-session navigation/refresh.");
+    await cdp!.screenshot(path.join(evidenceDir!, "help-now-popup-dismissed-same-session.png"));
+
+    // Logout in the browser, then sign in again; logout clears the one-session popup marker.
+    assert.equal(await clickVisibleTestId("button-navigation-logout-sidebar"), true,
+      "The visible caregiver Sign out control must be clickable.");
+    await waitFor(() => cdp!.evaluate(`!localStorage.getItem("np_parent_token")`), Boolean,
+      "The parent token was not cleared by the visible sign-out action.");
+    await cdp!.navigate(`${browserBase}/ParentLogin`);
+    await waitFor(() => cdp!.evaluate(`Boolean(document.querySelector('[data-testid="input-email"]'))`), Boolean,
+      "Parent login form did not return after sign-out.");
+    assert.equal(await setInput('[data-testid="input-email"]', row[0].email), true);
+    assert.equal(await setInput('[data-testid="input-password"]', "Fictional-Password-842!"), true);
+    await cdp!.evaluate(`document.querySelector('form button')?.click()`);
+    await waitFor(() => cdp!.evaluate(`Boolean(document.querySelector('[data-testid="select-navigation-child-desktop"]'))`),
+      Boolean, "The second parent login did not return to Home.");
+    await new Promise((resolve) => setTimeout(resolve, 1_200));
+    const newSessionPopupState = await cdp!.evaluate(`(() => {
+      const dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find((candidate) =>
+        candidate.innerText.includes("Who do you need help with?") ||
+        candidate.innerText.includes("Need support right now?"));
+      const child = dialog?.querySelector('[data-testid="button-select-child-${childMira}"]');
+      const rect = child?.getBoundingClientRect();
+      const hit = rect ? document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) : null;
+      const dialogRect = dialog?.getBoundingClientRect();
+      const dialogHit = dialogRect
+        ? document.elementFromPoint(dialogRect.left + dialogRect.width / 2, dialogRect.top + dialogRect.height / 2)
+        : null;
+      return {
+        dialogVisible: Boolean(dialog && dialogRect && dialogRect.width > 0 && dialogRect.height > 0 &&
+          dialogRect.bottom > 0 && dialogRect.top < innerHeight && dialogRect.right > 0 && dialogRect.left < innerWidth &&
+          getComputedStyle(dialog).visibility !== "hidden" && Number(getComputedStyle(dialog).opacity) > 0.95 &&
+          dialogHit && (dialogHit === dialog || dialog.contains(dialogHit))),
+        childPickerVisible: Boolean(child && rect && rect.width > 0 && rect.height > 0 &&
+          rect.bottom > 0 && rect.top < innerHeight && hit && (hit === child || child.contains(hit))),
+        selectedChildMenuVisible: Boolean(dialog?.innerText.includes("Need support right now?") &&
+          dialog.innerText.includes("For: Mira Fictional") &&
+          dialog.querySelector('[data-testid="button-help-behavior"]') &&
+          dialog.querySelector('[data-testid="button-help-crisis"]') &&
+          dialog.querySelector('[data-testid="button-help-calm"]') &&
+          dialog.querySelector('[data-testid="button-help-dashboard"]')),
+        heading: dialog ? Array.from(dialog.querySelectorAll("h1,h2,h3")).map((node) => node.textContent?.trim()) : [],
+        childName: dialog?.innerText.match(/For:\\s*([^\\n]+)/)?.[1]?.trim() || null,
+        popupMarkerPresent: Object.keys(sessionStorage).some((key) =>
+          key.startsWith("np-support-popup-shown:") && sessionStorage.getItem(key) === "1")
+      };
+    })()`);
+    await fs.writeFile(path.join(evidenceDir!, "help-now-popup-state-new-session.json"),
+      JSON.stringify(newSessionPopupState, null, 2), { mode: 0o600 });
+    assert.equal(newSessionPopupState.dialogVisible, true,
+      `A fresh login session should show the popup again: ${JSON.stringify(newSessionPopupState)}`);
+    assert.equal(
+      newSessionPopupState.childPickerVisible || newSessionPopupState.selectedChildMenuVisible,
+      true,
+      "The new session must show either an actionable child picker or options for the same previously selected child.",
+    );
+    await cdp!.screenshot(path.join(evidenceDir!, "help-now-popup-new-session.png"));
+    if (newSessionPopupState.childPickerVisible) {
+      assert.equal(await clickVisibleTestId(`button-select-child-${childMira}`), true);
+      assert.equal(await clickVisibleTestId("button-continue-support"), true);
+      await waitFor(() => cdp!.evaluate(`document.querySelector('[role="dialog"]')?.innerText.includes("Need support right now?")`),
+        Boolean, "The reopened popup did not provide child-specific support after selection.");
+    }
+    assert.equal(await clickVisibleTestId("button-close-support"), true);
+    await waitFor(() => cdp!.evaluate(`!document.querySelector('[role="dialog"]')`), Boolean,
+      "The reopened popup did not dismiss.");
+
+    await selectChild('[data-testid="select-navigation-child-desktop"]', childMira);
+    await waitFor(() => cdp!.evaluate(`document.body.innerText.includes("Today's Support for Mira Fictional")`), Boolean,
+      "The selected child was not shown after the new login.");
     const token = await cdp!.evaluate<string | null>(`localStorage.getItem("np_parent_token")`);
     assert.equal(typeof token, "string");
     parentSessionTokenPresentBeforeRevocation = typeof token === "string" && token.length > 0;
-    // Keep only the in-memory token so the disposable database session can be revoked later.
     currentParentToken = token!;
   });
 
@@ -1078,20 +1304,11 @@ async function run() {
     }
     await waitFor(() => cdp!.evaluate(`(() => {
       const dialog = document.querySelector('[role="dialog"]');
-      const rect = dialog?.getBoundingClientRect();
-      const style = dialog ? getComputedStyle(dialog) : null;
-      return Boolean(dialog && rect && rect.width > 0 && rect.height > 0 &&
-        style?.display !== "none" && style?.visibility !== "hidden" && Number(style?.opacity || 0) > 0.05 &&
-        dialog.querySelector('[data-testid="button-select-child-${childMira}"]'));
-    })()`), Boolean, "Visible Help Now child selector did not open.", 12_000);
-    assert.equal(await clickVisibleTestId(`button-select-child-${childMira}`), true);
-    await waitFor(() => cdp!.evaluate(`(() => {
-      const dialog = document.querySelector('[role="dialog"]');
       return Boolean(dialog && Array.from(dialog.querySelectorAll("h1,h2,h3"))
         .some((heading) => heading.textContent?.includes("Need support right now?")) &&
-        dialog.innerText.includes("Mira Fictional") &&
+        dialog.innerText.includes("For: Mira Fictional") &&
         dialog.querySelector('[data-testid="button-help-behavior"]'));
-    })()`), Boolean, "Child-specific Help Now options did not render.", 12_000);
+    })()`), Boolean, "The Home Help Now action did not show options for the currently selected child.", 12_000);
     const menuState = await cdp!.evaluate(`(() => {
       const dialog = document.querySelector('[role="dialog"]');
       return {
@@ -1634,6 +1851,7 @@ async function run() {
     rawBrowserStderrStored: false,
   }, null, 2)}\n`, { mode: 0o600 });
   await fs.writeFile(path.join(evidenceDir!, "browser-api-request-summary.json"), `${JSON.stringify(apiRequestSummaries, null, 2)}\n`, { mode: 0o600 });
+  await fs.writeFile(path.join(evidenceDir!, "browser-click-events.json"), `${JSON.stringify(browserClickEvents, null, 2)}\n`, { mode: 0o600 });
 }
 
 let currentParentToken = "";
@@ -1658,6 +1876,7 @@ async function cleanup() {
   if (webServer?.listening) await new Promise<void>((resolve) => webServer!.close(() => resolve()));
   if (providerServer?.listening) await new Promise<void>((resolve) => providerServer!.close(() => resolve()));
   if (viteServer) await viteServer.close().catch(() => {});
+  process.chdir(initialWorkingDirectory);
   if (pool) await pool.end().catch(() => {});
 }
 
