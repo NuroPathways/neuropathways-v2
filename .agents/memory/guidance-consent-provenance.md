@@ -26,3 +26,9 @@ Do not equate a retained derived-profile database row with an access leak. On so
 **Why:** The corrected November kit expects a derived profile row to be deleted after revocation, while the approved permissions guidance requires revoked information to disappear from active views and AI without indiscriminately deleting legitimately retained clinical records.
 
 **How to apply:** Verify former-clinician and later-clinician API projections and model-request context after revocation. If those deny the source but a derived row remains, report the row-retention rule as `NEEDS_DECISION` until an explicit purge/deactivation policy is approved.
+
+Caregiver projections must also require every explicit contributing document source to be visible to that caregiver. If a generated support card combines visible and private documents, hide the whole card rather than removing the private source reference while leaving its derived text. Apply the same source check to source references, plan-goal details, activities, and AI context.
+
+**Why:** A caregiver dashboard and parent AI context exposed clinician-only text through mixed-source cards even though the document list itself excluded the clinician-only source. Source-less historical family records cannot be safely re-associated by guessing.
+
+**How to apply:** Build caregiver-visible source IDs from the authorized document projection. Require all recorded sources to pass before returning generated content. Keep records with missing provenance under an explicit policy decision; do not infer associations or purge retained history.
