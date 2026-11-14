@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import http from "node:http";
+import path from "node:path";
 import express from "express";
 import { test } from "node:test";
 
@@ -133,6 +134,7 @@ const clinicianAId = `fictional-clinician-a-${suffix}`;
 const clinicianBId = `fictional-clinician-b-${suffix}`;
 const childAId = crypto.randomUUID();
 const childBId = crypto.randomUUID();
+const legacyProfileChildId = crypto.randomUUID();
 const parentId = `fictional-parent-${suffix}`;
 const parentChildId = crypto.randomUUID();
 const familyId = crypto.randomUUID();
@@ -141,6 +143,7 @@ const familySiblingChildId = crypto.randomUUID();
 const familyClientToken = `fictional-family-session-${crypto.randomUUID()}`;
 const familyOwnerToken = `fictional-family-owner-session-${crypto.randomUUID()}`;
 const clientToken = `fictional-client-session-${crypto.randomUUID()}`;
+const legacyProfileClientToken = `fictional-legacy-profile-session-${crypto.randomUUID()}`;
 const documentAId = crypto.randomUUID();
 const documentBId = crypto.randomUUID();
 const parentUnsharedDocumentId = crypto.randomUUID();
@@ -269,6 +272,10 @@ async function fixture() {
       accountType: "individual", status: "active",
     },
     {
+      id: legacyProfileChildId, tenantId: clinicAId, clinicianId: clinicianAId,
+      childName: "Fictional Legacy Profile Child", accountType: "individual", status: "active",
+    },
+    {
       id: parentChildId, tenantId: "fictional-parent-workspace", parentId, childName: "Fictional Parent Child",
       accountType: "parent", status: "active",
     },
@@ -311,6 +318,7 @@ async function fixture() {
   const now = new Date();
   await db.insert(clientSessionsTable).values([
     { childId: childAId, inviteToken: clientToken, username: "fictional-client-a", expiresAt: new Date(now.getTime() + 86_400_000) },
+    { childId: legacyProfileChildId, inviteToken: legacyProfileClientToken, username: "fictional-legacy-profile", expiresAt: new Date(now.getTime() + 86_400_000) },
     { childId: familyAnchorChildId, inviteToken: familyClientToken, username: "fictional-family-a", expiresAt: new Date(now.getTime() + 86_400_000) },
     { childId: familyAnchorChildId, inviteToken: familyOwnerToken, username: "fictional-family-owner", expiresAt: new Date(now.getTime() + 86_400_000) },
   ]);
@@ -383,6 +391,10 @@ async function fixture() {
     childId: childAId, clinicianId: clinicianAId, tenantId: clinicAId,
     strengths: "Synthetic strength.", sourceDocIds: [documentAId],
   });
+  await db.insert(clientProfilesTable).values({
+    childId: legacyProfileChildId, clinicianId: clinicianAId, tenantId: clinicAId,
+    strengths: "Before the isolated legacy-profile observation.", sourceDocIds: null,
+  });
   return parentSession.token;
 }
 
@@ -443,6 +455,46 @@ test("AI chat uses server-controlled prompts, authorized context, and sanitized 
         assert.ok(metadata.model);
         assert.deepEqual(metadata.source_document_ids, [documentAId]);
         assert.doesNotMatch(JSON.stringify(audit), /prompt|response|credential|cookie|token|AUTHORIZED_DOCUMENT_CONTEXT_MARKER/i);
+      },
+    ));
+
+    await t.test("source-less legacy profile context is observed and flagged for policy review", recordCase(
+      "Record whether generic caregiver AI context includes a legacy profile without source IDs",
+      async () => {
+        const [profileBefore] = await db.select().from(clientProfilesTable)
+          .where(eq(clientProfilesTable.childId, legacyProfileChildId));
+        assert.ok(profileBefore);
+        const legacyMarker = "LEGACY_UNLINKED_PROFILE_AI_CONTEXT_SENTINEL";
+        try {
+          await db.update(clientProfilesTable).set({
+            sourceDocIds: null,
+            strengths: legacyMarker,
+          }).where(eq(clientProfilesTable.childId, legacyProfileChildId));
+          const before = capturedProviderRequests.length;
+          const result = await postChat({
+            childId: legacyProfileChildId,
+            message: "What support should I try?",
+          }, { clientToken: legacyProfileClientToken });
+          assert.equal(result.response.status, 200);
+          assert.equal(capturedProviderRequests.length, before + 1);
+          const request = capturedProviderRequests.at(-1)!;
+          assert.match(request.userContent, new RegExp(legacyMarker));
+          assert.doesNotMatch(request.system, new RegExp(legacyMarker));
+          await fs.writeFile(path.join(evidenceDir, "legacy-profile-ai-context-visibility.json"), JSON.stringify({
+            status: "NEEDS_DECISION",
+            route: "POST /ai/chat",
+            actor: "fictional client account",
+            sourceDocumentAssociation: "missing",
+            profileMarkerIncludedInFakeProviderContext: true,
+            liveAIUsed: false,
+            recommendation: "Do not infer a source link. Decide whether source-less legacy clinical profile fields are excluded from caregiver AI context pending provenance or review.",
+          }, null, 2), { mode: 0o600 });
+        } finally {
+          await db.update(clientProfilesTable).set({
+            sourceDocIds: profileBefore.sourceDocIds,
+            strengths: profileBefore.strengths,
+          }).where(eq(clientProfilesTable.childId, legacyProfileChildId));
+        }
       },
     ));
 

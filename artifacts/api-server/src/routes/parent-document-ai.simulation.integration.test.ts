@@ -306,6 +306,9 @@ const {
   documentExtractionRunsTable,
   documentsTable,
   familiesTable,
+  parentChildSettingsTable,
+  parentFamilyToolsTable,
+  parentDocumentsTable,
   pool,
   rewardTokensTable,
   usersTable,
@@ -313,6 +316,13 @@ const {
 } = database;
 const { default: entitiesRouter } = await import("./entities");
 const { eq, inArray, and } = await import("drizzle-orm");
+const { familyOwnerId } = await import("../lib/familyParentAuth");
+const {
+  getParentDocumentActivitySuggestions,
+  getParentDocumentSupportData,
+  getParentSupportCards,
+} = await import("../lib/parentDocuments");
+const { makeStarterCard } = await import("../lib/parentStarterLibrary");
 
 function isLocalDatabase(): Promise<boolean> {
   return pool.query(
@@ -659,6 +669,240 @@ test("document scan route completes safely with a deterministic loopback AI prov
         assert.equal((parentProfileReadAudits[0].metadata as Record<string, unknown>)?.operation, "read");
         assert.ok(Number.isFinite(parentProfileReadAudits[0].createdDate.getTime()));
         assert.doesNotMatch(JSON.stringify(parentProfileReadAudits[0]), /multi-step worksheet|break card described in the document|password|token/i);
+      }));
+
+    await t.test("source-less legacy profile visibility is recorded for policy review",
+      recordCase("Observe current caregiver visibility for a profile with no reliable source IDs", async () => {
+        const [profileBefore] = await db.select().from(clientProfilesTable)
+          .where(eq(clientProfilesTable.childId, childAId));
+        assert.ok(profileBefore);
+        const legacyMarker = `LEGACY_UNLINKED_PROFILE_${suffix}`;
+        try {
+          await db.update(clientProfilesTable).set({
+            sourceDocIds: null,
+            strengths: legacyMarker,
+          }).where(eq(clientProfilesTable.childId, childAId));
+          const portalResponse = await fetch(`${apiBase}/client-portal-data`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              child_id: childAId,
+              invite_token: caregiverSessionToken,
+            }),
+          });
+          const portalBody = await portalResponse.json() as Record<string, any>;
+          assert.equal(portalResponse.status, 200);
+          assert.equal(portalBody.profile?.strengths, legacyMarker);
+          assert.equal((portalBody.documents ?? []).some((document: any) => document.id === activeDocumentId), false);
+
+          const directResponse = await fetch(`${apiBase}/client-profiles/${profileBefore.id}`, {
+            headers: { "x-synthetic-parent": caregiverUserId },
+          });
+          const directBody = await directResponse.text();
+          assert.equal(directResponse.status, 200);
+          assert.match(directBody, new RegExp(legacyMarker));
+          assert.doesNotMatch(directBody, new RegExp(activeDocumentId));
+
+          await fs.writeFile(path.join(evidenceDir, "legacy-profile-source-less-visibility.json"), JSON.stringify({
+            status: "NEEDS_DECISION",
+            sourceDocumentAssociation: "missing",
+            document: "clinician-only synthetic document remains hidden from caregiver document list",
+            portalRoute: { httpStatus: portalResponse.status, profileReturned: true, markerReturned: true },
+            directProfileRoute: { httpStatus: directResponse.status, profileReturned: true, markerReturned: true },
+            rawDocumentContentReturned: false,
+            recommendation: "Do not infer a source link. Decide whether source-less legacy profiles remain visible, require clinician review, or are hidden until provenance is restored.",
+          }, null, 2), { mode: 0o600 });
+        } finally {
+          await db.update(clientProfilesTable).set({
+            sourceDocIds: profileBefore.sourceDocIds,
+            strengths: profileBefore.strengths,
+          }).where(eq(clientProfilesTable.childId, childAId));
+        }
+      }));
+
+    await t.test("legacy family shared-support cards require every explicit source to be parent-visible",
+      recordCase("Legacy family support cards omit clinician-only and mixed-family source content", async () => {
+        const ownerId = familyOwnerId(familyAId);
+        const visibleDocumentId = crypto.randomUUID();
+        const visibleMarker = `AUTHORIZED_FAMILY_SOURCE_CARD_${suffix}`;
+        const privateMarker = `CLINICIAN_ONLY_FAMILY_CARD_${suffix}`;
+        const mixedMarker = `MIXED_FAMILY_CARD_${suffix}`;
+        const visibleCard = {
+          ...makeStarterCard("custom", "Fictional authorized family source card", null),
+          id: `source-card-visible-${suffix}`,
+          source: "parent_document",
+          sourceDocumentIds: [visibleDocumentId],
+          sourceReferences: [{ documentId: visibleDocumentId, title: "Family upload", excerpt: visibleMarker }],
+          whatMayBeHappening: visibleMarker,
+        };
+        const privateCard = {
+          ...makeStarterCard("custom", "Fictional private source card", null),
+          id: `source-card-private-${suffix}`,
+          source: "clinician_document",
+          sourceDocumentIds: [activeDocumentId],
+          sourceReferences: [{ documentId: activeDocumentId, title: "Private source", excerpt: privateMarker }],
+          whatMayBeHappening: privateMarker,
+        };
+        const mixedCard = {
+          ...makeStarterCard("custom", "Fictional mixed-source card", null),
+          id: `source-card-mixed-${suffix}`,
+          source: "document",
+          sourceDocumentIds: [activeDocumentId, foreignDocumentId],
+          sourceReferences: [
+            { documentId: activeDocumentId, title: "Private source", excerpt: mixedMarker },
+            { documentId: foreignDocumentId, title: "Other-family source", excerpt: activeForeignMarker },
+          ],
+          whatMayBeHappening: mixedMarker,
+        };
+        await db.insert(documentsTable).values({
+          id: visibleDocumentId,
+          parentId: ownerId,
+          tenantId,
+          childId: childAId,
+          title: "Fictional authorized family upload",
+          fileName: "family-support.txt",
+          fileUrl: `isolated-fake://documents/${visibleDocumentId}`,
+          uploadedBy: "parent",
+          accessRoles: "parent",
+          scanStatus: "done",
+        });
+        await db.insert(parentDocumentsTable).values({
+          documentId: visibleDocumentId,
+          parentId: ownerId,
+          childId: childAId,
+          workspaceId: tenantId,
+          storagePath: `isolated-fake-storage/${visibleDocumentId}.enc`,
+          mimeType: "text/plain",
+          sha256: `synthetic-visible-version-${suffix}`,
+        });
+        await db.insert(parentFamilyToolsTable).values({
+          parentId: ownerId,
+          childId: childAId,
+          state: {
+            legacyParentSettings: {
+              behaviors: [],
+              supportCards: [visibleCard, privateCard, mixedCard],
+            },
+          },
+        });
+
+        const cards = await getParentSupportCards(ownerId, childAId);
+        const serialized = JSON.stringify(cards);
+        assert.ok(cards.some((card) => card.id === visibleCard.id));
+        assert.match(serialized, new RegExp(visibleMarker));
+        assert.doesNotMatch(serialized, new RegExp(privateMarker));
+        assert.doesNotMatch(serialized, new RegExp(mixedMarker));
+        assert.doesNotMatch(serialized, new RegExp(activeForeignMarker));
+        assert.equal(cards.some((card) => card.id === privateCard.id || card.id === mixedCard.id), false);
+        await fs.writeFile(path.join(evidenceDir, "legacy-family-support-visibility.json"), JSON.stringify({
+          scenario: "GE-ACC-097 / GE-FPA-108 shared-support-list subcheck",
+          route: "getParentSupportCards for family-scoped caregiver",
+          result: "PASS",
+          authorizedFamilySourceCardReturned: true,
+          privateSourceCardReturned: false,
+          mixedFamilySourceCardReturned: false,
+          unrelatedStarterCardsPreserved: cards.some((card) => card.source === "starter"),
+          sourceContentsPersisted: true,
+          provider: "not called",
+        }, null, 2), { mode: 0o600 });
+      }));
+
+    await t.test("deleted source documents cannot keep parent-visible support or extraction-derived activities",
+      recordCase("Deleted-source support is hidden while independent extraction records remain stored", async () => {
+        const deletedSourceId = crypto.randomUUID();
+        const deletedSourceMarker = `DELETED_SOURCE_SUPPORT_${suffix}`;
+        const version = `synthetic-source-version-${suffix}`;
+        const linkedCard = {
+          ...makeStarterCard("custom", "Fictional deleted-source behavior", null),
+          id: `deleted-source-card-${suffix}`,
+          source: "parent_document",
+          sourceDocumentIds: [deletedSourceId],
+          sourceReferences: [{
+            documentId: deletedSourceId,
+            title: "Fictional parent upload",
+            excerpt: deletedSourceMarker,
+          }],
+          whatMayBeHappening: deletedSourceMarker,
+        };
+        await db.insert(documentsTable).values({
+          id: deletedSourceId,
+          parentId: caregiverUserId,
+          tenantId,
+          childId: childAId,
+          title: "Fictional parent upload",
+          fileName: "fictional-support.txt",
+          fileUrl: `isolated-fake://documents/${deletedSourceId}`,
+          uploadedBy: `parent:${caregiverUserId}`,
+          accessRoles: "parent",
+          scanStatus: "done",
+        });
+        await db.insert(parentDocumentsTable).values({
+          documentId: deletedSourceId,
+          parentId: caregiverUserId,
+          childId: childAId,
+          workspaceId: tenantId,
+          storagePath: `isolated-fake-storage/${deletedSourceId}.enc`,
+          mimeType: "text/plain",
+          sha256: version,
+        });
+        await db.insert(parentChildSettingsTable).values({
+          childId: childAId,
+          parentId: caregiverUserId,
+          workspaceId: tenantId,
+          behaviors: [],
+          supportCards: [linkedCard],
+        });
+        await db.insert(documentExtractionRunsTable).values({
+          childId: childAId,
+          documentId: deletedSourceId,
+          documentVersion: version,
+          documentType: "support_plan",
+          scanStatus: "completed",
+          records: [{
+            id: crypto.randomUUID(),
+            childId: childAId,
+            documentId: deletedSourceId,
+            documentVersion: version,
+            category: "potential_home_activity",
+            sourceSection: "Fictional section",
+            sourceExcerpt: deletedSourceMarker,
+            sourceExcerptVerified: true,
+            interpretation: { title: "Fictional source-linked practice" },
+            extractionStatus: "extracted",
+            reviewStatus: "unreviewed",
+          }] as any,
+        });
+
+        const beforeSupport = await getParentSupportCards(caregiverUserId, childAId);
+        const beforeDocumentSupport = await getParentDocumentSupportData(caregiverUserId, childAId);
+        assert.ok(beforeSupport.some((card) => card.id === linkedCard.id));
+        assert.doesNotMatch(JSON.stringify(beforeDocumentSupport), new RegExp(deletedSourceMarker));
+
+        // Simulate the document-row removal only inside this disposable test database.
+        // Retain its metadata, extraction, and derived goal/support data for access checks.
+        await db.delete(documentsTable).where(eq(documentsTable.id, deletedSourceId));
+        const [retainedRun] = await db.select().from(documentExtractionRunsTable)
+          .where(eq(documentExtractionRunsTable.documentId, deletedSourceId));
+        const afterSupport = await getParentSupportCards(caregiverUserId, childAId);
+        const afterDocumentSupport = await getParentDocumentSupportData(caregiverUserId, childAId);
+        const afterActivities = await getParentDocumentActivitySuggestions(caregiverUserId, childAId);
+        assert.ok(retainedRun, "The test must retain the extraction record to verify access filtering.");
+        assert.equal(afterSupport.some((card) => card.id === linkedCard.id), false);
+        assert.doesNotMatch(JSON.stringify(afterSupport), new RegExp(deletedSourceMarker));
+        assert.equal(afterDocumentSupport.cards.length, 0);
+        assert.doesNotMatch(JSON.stringify(afterDocumentSupport), new RegExp(deletedSourceMarker));
+        assert.doesNotMatch(JSON.stringify(afterActivities), new RegExp(deletedSourceMarker));
+        await fs.writeFile(path.join(evidenceDir, "deleted-source-support-visibility.json"), JSON.stringify({
+          scenario: "deleted-source support visibility",
+          status: "PASS",
+          sourceDocumentRow: "removed from isolated test database",
+          sourceMetadata: "retained",
+          extractionRecord: "retained but not returned through caregiver support/activity paths",
+          sourceLinkedSupportCard: { visibleBeforeDelete: true, visibleAfterDelete: false },
+          documentSupportCards: { before: beforeDocumentSupport.cards.length, after: afterDocumentSupport.cards.length },
+          activitySuggestionsAfterDelete: afterActivities.length,
+          independentGoalRetentionPolicyChanged: false,
+        }, null, 2), { mode: 0o600 });
       }));
 
     await t.test("GE-ACC-070 denies a family session reading another family's portal data",

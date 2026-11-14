@@ -48,6 +48,9 @@ let childNoah = "";
 let childForeign = "";
 let documentMira = "";
 let documentNoah = "";
+let documentForeign = "";
+let clinicianId = "";
+let clinicianOnlyDocumentId = "";
 let goalSourceDocumentId = "";
 let browserBase = "";
 let providerCallCount = 0;
@@ -70,6 +73,7 @@ const sentinels = {
   lateMiraReply: "MIRA_LATE_RESPONSE",
   mobileReply: "MOBILE_WEB_RESPONSE",
   generatedGoalDocument: "BROWSER_GENERATED_GOAL_SOURCE_SENTINEL",
+  clinicianOnlySupport: "CLINICIAN_ONLY_SUPPORT_SENTINEL",
 };
 const generatedGoalTitle = "Show the break card before leaving the table";
 const generatedGoalExcerpt = "Goal: Mira will show the break card before leaving the table.";
@@ -328,11 +332,14 @@ async function seedData() {
   const suffix = crypto.randomUUID();
   parentId = `fictional-browser-parent-${suffix}`;
   workspaceId = `fictional-browser-workspace-${suffix}`;
+  clinicianId = `fictional-browser-clinician-${suffix}`;
   childMira = crypto.randomUUID();
   childNoah = crypto.randomUUID();
   childForeign = crypto.randomUUID();
   documentMira = crypto.randomUUID();
   documentNoah = crypto.randomUUID();
+  documentForeign = crypto.randomUUID();
+  clinicianOnlyDocumentId = crypto.randomUUID();
   const foreignParentId = `fictional-foreign-parent-${suffix}`;
   const foreignWorkspaceId = `fictional-foreign-workspace-${suffix}`;
 
@@ -352,11 +359,36 @@ async function seedData() {
       passwordHash: await hashParentPassword("Fictional-Password-943!"),
     },
   ]);
+  await testDb.insert(database.usersTable).values({
+    id: clinicianId,
+    email: `clinician.${suffix}@example.test`,
+    firstName: "Fictional Clinician",
+    lastName: "Test",
+  });
+  await testDb.insert(database.userProfilesTable).values({
+    id: clinicianId,
+    appRole: "clinician",
+    tenantId: clinicianId,
+    accountType: "clinician",
+  });
+  await testDb.insert(database.clinicsTable).values({
+    id: clinicianId,
+    displayName: "Fictional Test Clinic",
+    legacyTenantId: clinicianId,
+    status: "active",
+  });
+  await testDb.insert(database.clinicMembershipsTable).values({
+    clinicId: clinicianId,
+    userId: clinicianId,
+    role: "treating_clinician",
+    status: "active",
+  });
   await testDb.insert(childrenTable).values([
     {
       id: childMira,
       parentId,
       tenantId: workspaceId,
+      clinicianId,
       childName: "Mira Fictional",
       accountType: "parent",
       status: "active",
@@ -383,6 +415,18 @@ async function seedData() {
   ]);
   const cardMira = makeFakeCard("Mira", documentMira, sentinels.miraDocument);
   const cardNoah = makeFakeCard("Noah", documentNoah, sentinels.noahDocument);
+  const clinicianOnlyCard = {
+    ...makeFakeCard("Mira", clinicianOnlyDocumentId, sentinels.clinicianOnlySupport),
+    id: `clinician-only-card-${clinicianOnlyDocumentId}`,
+    behaviorName: "Confidential clinician-only behavior",
+    source: "clinician_document",
+  };
+  const mixedSourceCard = {
+    ...makeFakeCard("Mira", documentMira, sentinels.foreignDocument),
+    id: `mixed-source-card-${documentMira}`,
+    behaviorName: "Mixed visible and foreign source behavior",
+    sourceDocumentIds: [documentMira, documentForeign],
+  };
   await testDb.insert(parentChildSettingsTable).values([
     {
       childId: childMira,
@@ -394,7 +438,7 @@ async function seedData() {
         behaviorName: "Homework transitions",
         goal: "Start one short task.",
       }],
-      supportCards: [cardMira],
+      supportCards: [cardMira, clinicianOnlyCard, mixedSourceCard],
     },
     {
       childId: childNoah,
@@ -447,7 +491,19 @@ async function seedData() {
       accessRoles: "parent",
     },
     {
-      id: crypto.randomUUID(),
+      id: clinicianOnlyDocumentId,
+      tenantId: clinicianId,
+      childId: childMira,
+      clinicianId,
+      title: "Fictional clinician-only plan",
+      fileName: "clinician-only-plan.txt",
+      fileUrl: "isolated-fake://clinician-only-plan",
+      uploadedBy: clinicianId,
+      accessRoles: "clinician",
+      scanStatus: "done",
+    },
+    {
+      id: documentForeign,
       tenantId: foreignWorkspaceId,
       parentId: foreignParentId,
       childId: childForeign,
@@ -459,6 +515,13 @@ async function seedData() {
       accessRoles: "parent",
     },
   ]);
+  await testDb.insert(database.clinicalAssignmentsTable).values({
+    clinicId: clinicianId,
+    clientId: childMira,
+    userId: clinicianId,
+    role: "treating_clinician",
+    status: "active",
+  });
   await testDb.insert(parentDocumentsTable).values([
     {
       documentId: documentMira,
@@ -486,6 +549,13 @@ async function seedData() {
     parentAccountsTable,
     parentSessionsTable: database.parentSessionsTable,
     parentChildSettingsTable,
+    childrenTable,
+    documentsTable,
+    usersTable: database.usersTable,
+    userProfilesTable: database.userProfilesTable,
+    clinicsTable: database.clinicsTable,
+    clinicMembershipsTable: database.clinicMembershipsTable,
+    clinicalAssignmentsTable: database.clinicalAssignmentsTable,
     auditLogsTable: database.auditLogsTable,
     rewardTokensTable,
     eq,
@@ -763,9 +833,14 @@ async function run() {
   app.use(express.json({ limit: "2mb" }));
   app.use(cookieParser());
   app.use((req: any, _res, next) => {
-    req.id = `parent-browser-${crypto.randomUUID()}`;
+    req.id = req.header("x-test-request-id") || `parent-browser-${crypto.randomUUID()}`;
     req.log = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
-    req.isAuthenticated = () => false;
+    if (req.header("x-synthetic-clinician") === clinicianId) {
+      req.user = { id: clinicianId, email: "clinician@example.test", appRole: "clinician" };
+      req.isAuthenticated = () => true;
+    } else {
+      req.isAuthenticated = () => false;
+    }
     _res.on("finish", () => {
       const requestPath = String(req.originalUrl || "");
       if (requestPath.startsWith("/api/")) apiRequestSummaries.push({
@@ -872,18 +947,104 @@ async function run() {
     assert.equal(state.options.filter((name: string) => /Mira Fictional|Noah Fictional/.test(name)).length, 2);
     assert.ok(state.options.some((name: string) => name.includes("Mira Fictional")));
     assert.ok(state.options.some((name: string) => name.includes("Noah Fictional")));
-    // Close the intentional parent login support pop-up through its existing dismissal.
-    await cdp!.evaluate(`(() => {
-      const button = Array.from(document.querySelectorAll('button')).find((item) => item.innerText.includes("I'm Okay"));
-      button?.click();
-      return true;
-    })()`);
+    // Select a child in the real parent shell before opening support.
+    await selectChild('[data-testid="select-navigation-child-desktop"]', childMira);
+    await waitFor(() => cdp!.evaluate(`document.body.innerText.includes("Today's Support for Mira Fictional")`), Boolean,
+      "The selected child was not shown on the caregiver Home page.");
     await new Promise((resolve) => setTimeout(resolve, 250));
     const token = await cdp!.evaluate<string | null>(`localStorage.getItem("np_parent_token")`);
     assert.equal(typeof token, "string");
     parentSessionTokenPresentBeforeRevocation = typeof token === "string" && token.length > 0;
     // Keep only the in-memory token so the disposable database session can be revoked later.
     currentParentToken = token!;
+  });
+
+  await check("Caregiver dashboard omits clinician-only and mixed-family source cards", async () => {
+    const dashboard = await cdp!.evaluate(`(async () => {
+      const response = await fetch("/api/parent/children/${childMira}/dashboard", {
+        headers: { "X-Parent-Token": localStorage.getItem("np_parent_token") || "" }
+      });
+      return { status: response.status, body: await response.json() };
+    })()`);
+    assert.equal(dashboard.status, 200);
+    const cards = dashboard.body.supportCards || [];
+    assert.equal(cards.some((card: any) =>
+      (card.sourceDocumentIds || []).includes(documentMira) &&
+      JSON.stringify(card).includes(sentinels.miraDocument)
+    ), true, "The caregiver should still see support linked to their own authorized document.");
+    assert.equal(cards.some((card: any) =>
+      (card.sourceDocumentIds || []).includes(clinicianOnlyDocumentId) ||
+      JSON.stringify(card).includes(sentinels.clinicianOnlySupport)
+    ), false, "Clinician-only source guidance must not appear in caregiver support cards.");
+    assert.equal(cards.some((card: any) => JSON.stringify(card).includes(sentinels.foreignDocument)), false,
+      "A card with an inaccessible family source must not expose mixed-source text.");
+  });
+
+  await check("Signed-in caregiver Home renders authorized support without inaccessible source content", async () => {
+    const renderedText = await cdp!.evaluate<string>(`document.body.innerText`);
+    assert.match(renderedText, /Today's Support for Mira Fictional/);
+    assert.match(renderedText, /Homework transitions/);
+    assert.doesNotMatch(renderedText, new RegExp(sentinels.clinicianOnlySupport));
+    assert.doesNotMatch(renderedText, new RegExp(sentinels.foreignDocument));
+    await cdp!.evaluate(`(() => {
+      const heading = Array.from(document.querySelectorAll("h1,h2,h3,h4"))
+        .find((element) => element.textContent?.includes("Homework transitions"));
+      heading?.scrollIntoView({ block: "center" });
+    })()`);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await cdp!.screenshot(path.join(evidenceDir!, "caregiver-rendered-support-list.png"));
+  });
+  caseResult(
+    "Help Now modal interaction through the isolated CDP harness",
+    "BLOCKED",
+    "The rendered Home and support list are verified, but the isolated harness could not open the visible Help Now dialog; earlier checks accidentally matched hidden dialog controls. No application defect is concluded from that harness mismatch.",
+  );
+
+  await check("Clinician-only document direct access is denied and audited without document disclosure", async () => {
+    const requestId = `clinician-only-parent-read-${crypto.randomUUID()}`;
+    const result = await cdp!.evaluate(`(async () => {
+      const response = await fetch("/api/parent/documents/${clinicianOnlyDocumentId}/content", {
+        headers: {
+          "X-Parent-Token": localStorage.getItem("np_parent_token") || "",
+          "X-Test-Request-Id": ${JSON.stringify(requestId)}
+        }
+      });
+      return { status: response.status, body: await response.text() };
+    })()`);
+    assert.equal(result.status, 403);
+    assert.doesNotMatch(result.body, /Fictional clinician-only plan|CLINICIAN_ONLY_SUPPORT_SENTINEL/);
+    const auditRows = await db.select().from(seed.auditLogsTable);
+    const row = auditRows.find((item: any) =>
+      (item.metadata as any)?.request_id === requestId || item.requestId === requestId
+    );
+    assert.ok(row, "The established denied document-content audit event must be written.");
+    assert.equal(row.userId, parentId);
+    assert.equal(row.userRole, "parent");
+    assert.equal(row.targetType, "document");
+    assert.equal(row.targetId, clinicianOnlyDocumentId);
+    assert.equal(row.success, false);
+    assert.ok(Number.isFinite(new Date(row.createdDate).getTime()));
+    assert.doesNotMatch(JSON.stringify(row), /CLINICIAN_ONLY_SUPPORT_SENTINEL|Fictional clinician-only plan|password|token|prompt/i);
+  });
+
+  await check("Authorized clinician retains clinician-only support while unshared and foreign sources stay hidden", async () => {
+    const result = await cdp!.evaluate(`(async () => {
+      const response = await fetch("/api/parent/children/${childMira}/shared-support", {
+        headers: { "X-Synthetic-Clinician": ${JSON.stringify(clinicianId)} }
+      });
+      return { status: response.status, body: await response.json() };
+    })()`);
+    assert.equal(result.status, 200);
+    const card = (result.body.supportCards || []).find((candidate: any) =>
+      candidate.sourceDocumentIds?.includes(clinicianOnlyDocumentId)
+    );
+    assert.ok(card, "The assigned clinician must retain access to their own clinician-only support card.");
+    assert.equal((result.body.supportCards || []).some((candidate: any) =>
+      candidate.sourceDocumentIds?.includes(documentMira)
+    ), false, "A parent upload not shared with the clinician must remain hidden.");
+    assert.equal((result.body.supportCards || []).some((candidate: any) =>
+      JSON.stringify(candidate).includes(sentinels.foreignDocument)
+    ), false, "The clinician must not receive a support card with a foreign-family source.");
   });
 
   await check("Desktop AI chat uses the parent-specific server route and only Mira's source", async () => {
@@ -901,6 +1062,8 @@ async function run() {
     assert.match(request.system, /911/);
     assert.match(request.system, /988/);
     assert.match(request.content, new RegExp(sentinels.miraDocument));
+    assert.doesNotMatch(request.content, new RegExp(sentinels.clinicianOnlySupport));
+    assert.doesNotMatch(request.content, new RegExp(sentinels.foreignDocument));
     assert.doesNotMatch(request.content, new RegExp(sentinels.noahDocument));
     assert.doesNotMatch(request.content, new RegExp(sentinels.forgedInstruction));
     assert.ok(text.includes("Mira Fictional"));

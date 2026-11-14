@@ -27,6 +27,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { CLAUDE_MODEL, getAnthropicClient } from "./anthropic";
 import { nextParentClinicConsentScopes } from "./parentSharingPolicy";
 import { clinicalRecordClinicId, clinicianCanAccessChild } from "./clinicAuthorization";
+import { documentAccessRolesPermit } from "./documentVisibility";
 import {
   buildParentChatSafeFallback,
   buildParentChatSystemPrompt,
@@ -383,7 +384,7 @@ export async function listParentDocuments(parentId: string, childId: string): Pr
     if (ownIds.has(d.id) || !child.clinicianId || d.clinicianId !== child.clinicianId) return false;
     const metadata = permissions.get(d.id);
     if (metadata && metadata.sharedClinicianId !== child.clinicianId) return false;
-    if (d.accessRoles && !/parent|client|family|caregiver|all/i.test(d.accessRoles)) return false;
+    if (!documentAccessRolesPermit(d.accessRoles, "parent")) return false;
     return true;
   }).map(d => ({
     id: d.id, childId, title: d.title || d.fileName || "Care-team document",
@@ -1937,31 +1938,64 @@ export async function getParentSharedSupport(
 }
 
 export async function getParentSupportCards(parentId: string, childId: string): Promise<SupportCard[]> {
-  if (familyIdForOwner(parentId)) return familySupportCards(parentId, childId);
   const child = await ownedChild(parentId, childId);
+  const isLegacyFamily = Boolean(familyIdForOwner(parentId));
   const [settings] = await db.select().from(parentChildSettingsTable).where(eq(parentChildSettingsTable.childId, childId));
-  const raw = Array.isArray(settings?.supportCards)
-    ? settings.supportCards.filter(validCard).filter(isSafeParentGuidance)
-    : [];
+  const raw = isLegacyFamily
+    ? await familySupportCards(parentId, childId)
+    : Array.isArray(settings?.supportCards)
+      ? settings.supportCards.filter(validCard).filter(isSafeParentGuidance)
+      : [];
+  const visibleDocuments = await listParentDocuments(parentId, childId);
+  const parentVisibleDocumentIds = new Set(visibleDocuments.map((document) => document.id));
   const currentCards: SupportCard[] = [];
   for (const card of raw) {
-    const sourceRows = await Promise.all((card.sourceDocumentIds || []).map(async (id) => ({
+    const cardSourceIds = uniqueStrings([
+      ...(card.sourceDocumentIds || []),
+      ...(card.sourceReferences || []).map((reference) => reference.documentId),
+    ]);
+    const activitySourceIds = uniqueStrings((card.dailyActivities || []).map((activity) => activity.sourceDocumentId));
+    const sourceRows = await Promise.all(cardSourceIds.map(async (id) => ({
       id,
       metadata: await isParentDocument(id),
       document: await findDocument(id),
     })));
+    const activityRows = await Promise.all(activitySourceIds
+      .filter((id) => !cardSourceIds.includes(id))
+      .map(async (id) => ({
+        id,
+        metadata: await isParentDocument(id),
+        document: await findDocument(id),
+      })));
+    const sourceRowsById = new Map([...sourceRows, ...activityRows].map((source) => [source.id, source]));
     const isVisibleSource = (source: typeof sourceRows[number]) => Boolean(
       source.metadata
-        ? source.metadata.parentId === parentId && source.metadata.childId === childId
+        ? source.metadata.parentId === parentId &&
+          source.metadata.childId === childId &&
+          parentVisibleDocumentIds.has(source.id)
         : source.document &&
-          source.document.childId === childId &&
-          source.document.clinicianId === child.clinicianId &&
-          source.document.tenantId === child.clinicianId &&
-          source.document.uploadedBy === child.clinicianId,
+          parentVisibleDocumentIds.has(source.id),
     );
     const allowed = sourceRows.filter(isVisibleSource).map((source) => source.id);
-    if (card.source !== "starter" && allowed.length === 0) continue;
+    // Explicitly linked cards must be fully sourced from documents visible to
+    // this caregiver. Keeping only visible IDs while retaining mixed-source
+    // text could reveal content contributed by an inaccessible document.
+    if (sourceRows.length && allowed.length !== sourceRows.length) continue;
+    // Do not guess provenance for old direct-parent cards. Preserve the
+    // established family-plan behavior for unlinked family records, while
+    // keeping the direct-parent rule that unlinked document cards are hidden.
+    if (!sourceRows.length && card.source !== "starter" && !isLegacyFamily) continue;
     const visibleRefs = (card.sourceReferences || []).filter((reference) => allowed.includes(reference.documentId));
+    const hasPlanGoalProvenance = Boolean(
+      card.planGoalSourceDocumentIds?.length || card.planGoalSourceReferences?.length,
+    );
+    const goalProjection = hasPlanGoalProvenance
+      ? filterPlanGoalForVisibleSources({
+          ...card,
+          planGoalSourceDocumentIds: card.planGoalSourceDocumentIds || [],
+          planGoalSourceReferences: card.planGoalSourceReferences || [],
+        }, parentVisibleDocumentIds)
+      : card;
     const reviewStillValid = Boolean(
       card.source === "clinician_reviewed" &&
       card.reviewedBy &&
@@ -1983,11 +2017,22 @@ export async function getParentSupportCards(parentId: string, childId: string): 
     const visibleParentSource = sourceRows.some((source) =>
       source.metadata?.parentId === parentId && source.metadata.childId === childId,
     );
+    if (!sourceRows.length && isLegacyFamily) {
+      currentCards.push({
+        ...goalProjection,
+        dailyActivities: (card.dailyActivities || []).filter((activity) =>
+          parentVisibleDocumentIds.has(activity.sourceDocumentId),
+        ),
+        sourceDocumentIds: [],
+        sourceReferences: [],
+      });
+      continue;
+    }
     currentCards.push({
-      ...card,
+      ...goalProjection,
       dailyActivities: (card.dailyActivities || []).flatMap((activity) => {
-        const source = sourceRows.find((row) => row.id === activity.sourceDocumentId);
-        if (!source || !isVisibleSource(source)) return [];
+        const source = sourceRowsById.get(activity.sourceDocumentId);
+        if (!parentVisibleDocumentIds.has(activity.sourceDocumentId) || !source || !isVisibleSource(source)) return [];
         const sourceReviewed = source.metadata
           ? source.metadata.sharedClinicianId === child.clinicianId &&
             Boolean(source.metadata.reviewedBy && source.metadata.reviewedAt)
@@ -2017,9 +2062,6 @@ export async function getParentSupportCards(parentId: string, childId: string): 
               : "clinician_uploaded_plan" as const,
         }];
       }),
-      planGoal: card.planGoal || null,
-      planGoalSourceDocumentIds: card.planGoalSourceDocumentIds || [],
-      planGoalSourceReferences: card.planGoalSourceReferences || [],
       sourceDocumentIds: allowed,
       sourceReferences: visibleRefs,
       source: reviewStillValid
