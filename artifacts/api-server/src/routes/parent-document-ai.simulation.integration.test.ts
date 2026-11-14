@@ -661,9 +661,54 @@ test("document scan route completes safely with a deterministic loopback AI prov
         assert.doesNotMatch(JSON.stringify(parentProfileReadAudits[0]), /multi-step worksheet|break card described in the document|password|token/i);
       }));
 
+    await t.test("GE-ACC-070 denies a family session reading another family's portal data",
+      recordCase("GE-ACC-070 cross-family portal data denial writes a genuine scoped audit event", async () => {
+        const requestId = `family-portal-cross-family-${suffix}`;
+        const response = await fetch(`${apiBase}/client-portal-data`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-test-request-id": requestId,
+          },
+          body: JSON.stringify({
+            child_id: childBId,
+            invite_token: caregiverSessionToken,
+          }),
+        });
+        const bodyText = await response.text();
+        assert.equal(response.status, 403);
+        assert.doesNotMatch(bodyText, /Riley Synthetic|FOREIGN_FAMILY_MARKER|private document|document title/i);
+        const rows = (await db.select().from(auditLogsTable)).filter((row) =>
+          (row.metadata as Record<string, unknown> | null)?.request_id === requestId
+        );
+        assert.equal(rows.length, 1);
+        const row = rows[0];
+        assert.equal(row.userId, childAId);
+        assert.equal(row.userRole, "client");
+        assert.equal(row.tenantId, tenantId);
+        assert.equal(row.action, "cross_tenant_access_attempt");
+        assert.equal(row.targetType, "child");
+        assert.equal(row.targetId, childBId);
+        assert.equal(row.success, false);
+        assert.ok(Number.isFinite(row.createdDate.getTime()));
+        assert.doesNotMatch(JSON.stringify(row), /FOREIGN_FAMILY_MARKER|private document|password|token|invite/i);
+      }));
+
     await t.test("assigned clinician detail reads write scoped success audit events",
       recordCase("GE-SEC-023 clinician child and family detail reads are audited exactly once", async () => {
         const reads = [
+          {
+            route: `/children/${encodeURIComponent(childAId)}`,
+            requestId: `audit-child-by-id-${suffix}`,
+            targetType: "child",
+            targetId: childAId,
+          },
+          {
+            route: `/families/${encodeURIComponent(familyAId)}`,
+            requestId: `audit-family-by-id-${suffix}`,
+            targetType: "family",
+            targetId: familyAId,
+          },
           {
             route: `/client-detail?child_id=${encodeURIComponent(childAId)}`,
             requestId: `audit-client-detail-${suffix}`,
@@ -701,6 +746,9 @@ test("document scan route completes safely with a deterministic loopback AI prov
           assert.equal(row.targetId, read.targetId);
           assert.equal(row.success, true);
           assert.ok(Number.isFinite(row.createdDate.getTime()));
+          if (read.route.startsWith("/children/") || read.route.startsWith("/families/")) {
+            assert.equal((row.metadata as Record<string, unknown>)?.operation, "read");
+          }
           const serialized = JSON.stringify(row);
           assert.doesNotMatch(serialized, /token|password|sourceExcerpt|document_text/i);
           assert.doesNotMatch(serialized, new RegExp(activeSourceExcerpt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

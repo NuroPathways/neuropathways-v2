@@ -665,7 +665,10 @@ async function auditDeniedEntityScope(
 ) {
   const childId = typeof row.childId === "string" ? row.childId : undefined;
   const targetChildId = childId ?? (path === "/children" ? String(row.id) : undefined);
-  const targetTenantId = row.tenantId ??
+  const scopedChild = targetChildId
+    ? scope.children.find((child) => child.id === targetChildId)
+    : undefined;
+  const targetTenantId = scopedChild?.tenantId ?? row.tenantId ??
     (targetChildId ? await clinicalRecordClinicId(targetChildId) : null);
   await auditLog({
     userId: scope.userId,
@@ -1001,9 +1004,33 @@ function makeCrud(path: string, table: any) {
       const [row] = await db.select().from(table).where(eq(table.id, req.params.id));
       if (!row) return res.status(404).json({ error: "Not found" });
       if (!(await actorCanReadEntityRow(scope, table, row))) {
-        await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: path, targetId: req.params.id, success: false, reason: "record outside authorized child or family scope", requestId: req.id });
+        await auditDeniedEntityScope(req, scope, path, row, "read");
         return res.status(403).json({ error: "Access denied" });
       }
+      const childId = table === childrenTable
+        ? String(row.id)
+        : typeof row.childId === "string"
+          ? row.childId
+          : undefined;
+      const targetType = table === childrenTable
+        ? "child"
+        : table === familiesTable
+          ? "family"
+          : path.replace(/^\//, "");
+      const targetTenantId = row.tenantId ??
+        (childId ? await clinicalRecordClinicId(childId) : null);
+      await auditLog({
+        userId: scope.userId,
+        userRole: scope.role,
+        action: table === childrenTable || table === familiesTable ? "client_viewed" : "entity_viewed",
+        targetType,
+        targetId: String(row.id),
+        success: true,
+        metadata: { operation: "read", ...(childId ? { child_id: childId } : {}) },
+        tenantId: targetTenantId ?? undefined,
+        ip: req.ip,
+        requestId: String(req.id ?? ""),
+      });
       const responseRow = table === rewardTokensTable
         ? (await projectRewardTokenRowsForActor(scope, [row as typeof rewardTokensTable.$inferSelect]))[0]
         : row;
