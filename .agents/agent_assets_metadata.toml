@@ -1134,3 +1134,17 @@ mtime_ms = 1794698142417
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/6088d1a3-9fe0-40f8-92f9-28db3f65f709/01376107-c93e-42e7-8ad5-d85c74037c51"
 storage_version_token = "1794698182544685"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "_64SwB8m-SqM9bjlgmj9c"
+uri = "file://.local/verification/clinic-onboarding-audit-20261115T061949Z/clinic-onboarding-audit-20261115T061949Z.zip"
+type = "unspecified"
+title = "Clinic onboarding audit evidence"
+description = "Sanitized report, current isolated API results and audit records, and prior staff browser screenshots."
+logical_id = "97b6202c-4678-4160-ab1f-24335ecd9aeb"
+content_hash = "sha256:82f352f0cdd79e46ce08ef372bf3c9a25afbe0567d34dfef3ee23544715dbb27"
+size = 484952
+mtime_ms = 1794724106664
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/97b6202c-4678-4160-ab1f-24335ecd9aeb/ad334be5-b524-465c-9c3b-8afdb50aa81e"
+storage_version_token = "1794724139352893"
+content_type = "application/octet-stream"
