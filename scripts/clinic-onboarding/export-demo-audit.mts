@@ -1,11 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { auditLogsTable, db, pool } from "../../artifacts/api-server/node_modules/@workspace/db/src/index.ts";
 
 const databaseUrl = new URL(process.env.DATABASE_URL || "http://invalid");
 const privateDir = path.resolve(process.env.NP_DEMO_PRIVATE_DIR || "");
 const evidenceDir = path.resolve(process.env.NP_DEMO_EVIDENCE_DIR || "");
-const workspace = process.cwd();
+const workspace = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 if (
   process.env.NODE_ENV !== "test" ||
