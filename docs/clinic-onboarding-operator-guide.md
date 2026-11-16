@@ -5,6 +5,7 @@
 - Platform-administrator grants authorize clinic provisioning only. They do not add clinic membership, client assignments, or chart access.
 - A clinic administrator can invite treating clinicians and change assignments only inside an active clinic they administer. Clinic administration does not make a person a treating clinician or give them access to every chart.
 - Treating clinicians receive no client assignment as a side effect of joining a clinic. An authorized clinic administrator must assign clients explicitly.
+- Accepting a clinic invitation sets the clinician's primary clinic tenant only when no tenant is already set. It does not overwrite an existing tenant or create a chart assignment. For a caregiver-linked child, clinic-directory scope comes from an explicit family clinic association, or from exactly one active clinic membership when a legacy association is absent; ambiguous legacy multi-clinic associations fail closed.
 - The public clinician-registration route creates a pending, non-privileged clinician account. It cannot grant a clinic role, a platform role, or chart access.
 - Invitation acceptance requires a signed-in account whose normalized email matches the invitation and possession of its single-use token. The token is stored as a SHA-256 hash, expires after seven days, and is delivered in a URL fragment so browsers do not send it in HTTP requests or referrers.
 - Existing user IDs, caregiver relationships, clinical records, clinic memberships, and assignments are not replaced when an invitation is accepted. A revoked membership remains revoked until a new authorized invitation is accepted.
@@ -36,6 +37,8 @@ Do not run the bootstrap command in an ordinary developer shell or point it at a
 The platform clinic page creates a pending clinic and first-admin invitation. The clinic becomes active only when that first administrator accepts. A clinic administrator can create a treating-clinician invitation, revoke or reissue a pending invitation, and assign/reassign a client within that clinic. Each action is checked again on the server and recorded in the audit log.
 
 No production email provider is configured by this implementation. Outside an isolated test run the server records `not_sent` and tells the administrator “Invitation created, email not sent.” The only email sink is enabled when `NODE_ENV=test` and its URL is a loopback `127.0.0.1` address with an explicit port. Never set that test sink to a public URL.
+
+The first-slice browser verification used a local fake mail sink only. A newly clinic-invited clinician's clinic tenant is established on acceptance only when unset; active assignments remain a separate, explicit clinic-admin action.
 
 ## Account activation and existing accounts
 

@@ -2,10 +2,10 @@ import { useState } from "react";
 import { createParentClinicInvite } from "@workspace/api-client-react";
 import { base44 } from '@/api/entities';
 import { X, Plus, Trash2, ChevronRight, ChevronLeft, Users, User, Baby, Mail, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
+import { Input } from "@workspace/neuropathways-foundations/components/ui/input";
+import { Label } from "@workspace/neuropathways-foundations/components/ui/label";
+import { Textarea } from "@workspace/neuropathways-foundations/components/ui/textarea";
 import { motion } from "framer-motion";
 
 const emptyChild = () => ({ child_name: "", age: "", diagnosis: "", triggers: "", notes: "", is_patient: false });

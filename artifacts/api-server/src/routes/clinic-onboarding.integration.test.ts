@@ -16,6 +16,9 @@ import {
   childrenTable,
   clinicianCredentialsTable,
   db,
+  familiesTable,
+  parentAccountsTable,
+  parentClinicConsentsTable,
   platformAdministratorGrantsTable,
   usersTable,
   userProfilesTable,
@@ -23,6 +26,7 @@ import {
 import { createSession } from "../lib/auth.js";
 import { createClinicianPasswordHash } from "../lib/clinicianPassword.js";
 import { createClinicInvitationToken, hashClinicInvitationToken } from "../lib/clinicInvitationSecurity.js";
+import { clinicalRecordClinicId } from "../lib/clinicAuthorization.js";
 
 const expectedDatabaseName = "np_clinic_onboarding_test";
 const databaseUrl = new URL(process.env.DATABASE_URL || "http://invalid");
@@ -515,8 +519,118 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     assert.equal(accepted.body.role, "treating_clinician");
     staffClinicianCookie = loggedIn.cookie!;
     staffClinicianId = pending.id;
+    const [acceptedClinicianProfile] = await db.select().from(userProfilesTable)
+      .where(eq(userProfilesTable.id, staffClinicianId));
+    assert.equal(acceptedClinicianProfile.tenantId, clinic.id, "first accepted clinic becomes the legacy default tenant");
     assert.equal((await db.select().from(clinicalAssignmentsTable).where(eq(clinicalAssignmentsTable.userId, pending.id))).length, 0);
     assert.equal((await api(`/clinic-management/${clinic.id}/clients`, { cookie: loggedIn.cookie })).status, 403);
+
+    await st.test("parent-workspace children resolve only to a defensible clinic scope", async () => {
+      const [originalProfile] = await db.select().from(userProfilesTable)
+        .where(eq(userProfilesTable.id, staffClinicianId));
+      const createdParentIds: string[] = [];
+      const createdFamilyIds: string[] = [];
+      const createdChildIds: string[] = [];
+      let secondClinicId: string | null = null;
+      try {
+        // Exercise records created before clinic invitation acceptance began
+        // setting a legacy tenant: the family carries the clinician ID while
+        // the linked child correctly remains in the parent's own workspace.
+        await db.update(userProfilesTable).set({ tenantId: null })
+          .where(eq(userProfilesTable.id, staffClinicianId));
+
+        const createParentLinkedChild = async (familyTenantId: string) => {
+          const parentId = `fictional-parent-${crypto.randomUUID()}`;
+          const workspaceId = `fictional-parent-workspace-${crypto.randomUUID()}`;
+          const [parent] = await db.insert(parentAccountsTable).values({
+            id: parentId,
+            email: `${parentId}@example.test`,
+            firstName: "Fictional",
+            workspaceId,
+            passwordHash: "unused-fictional-test-hash",
+          }).returning({ id: parentAccountsTable.id });
+          createdParentIds.push(parent.id);
+          const [family] = await db.insert(familiesTable).values({
+            tenantId: familyTenantId,
+            clinicianId: staffClinicianId,
+            familyName: "Fictional Linked Family",
+            createdBy: staffClinicianId,
+          }).returning({ id: familiesTable.id });
+          createdFamilyIds.push(family.id);
+          const [child] = await db.insert(childrenTable).values({
+            tenantId: workspaceId,
+            clinicianId: staffClinicianId,
+            familyId: family.id,
+            parentId: parent.id,
+            childName: "Fictional Linked Child",
+            status: "active",
+            createdBy: staffClinicianId,
+          }).returning({ id: childrenTable.id });
+          createdChildIds.push(child.id);
+          await db.insert(parentClinicConsentsTable).values({
+            parentId: parent.id,
+            childId: child.id,
+            clinicianId: staffClinicianId,
+            scopes: ["documents"],
+          });
+          return child.id;
+        };
+
+        const legacyLinkedChildId = await createParentLinkedChild(staffClinicianId);
+        assert.equal(await clinicalRecordClinicId(legacyLinkedChildId), clinic.id);
+        const clinicDirectory = await api(`/clinic-management/${clinic.id}/clients`, { cookie: adminCookie });
+        assert.equal(clinicDirectory.status, 200);
+        assert(
+          clinicDirectory.body.clients.some((record: { childId: string }) => record.childId === legacyLinkedChildId),
+          "clinic admin directory should include the explicitly linked child",
+        );
+
+        const [secondClinic] = await db.insert(clinicsTable).values({
+          displayName: "Fictional Second Clinic",
+          status: "active",
+          createdBy: admin.id,
+        }).returning({ id: clinicsTable.id });
+        secondClinicId = secondClinic.id;
+        await db.insert(clinicMembershipsTable).values({
+          clinicId: secondClinic.id,
+          userId: staffClinicianId,
+          role: "treating_clinician",
+          status: "active",
+          createdBy: admin.id,
+        });
+
+        const ambiguousChildId = await createParentLinkedChild(staffClinicianId);
+        assert.equal(await clinicalRecordClinicId(ambiguousChildId), null, "an unscoped legacy family must not be guessed across multiple clinics");
+        const explicitlyScopedChildId = await createParentLinkedChild(secondClinic.id);
+        assert.equal(await clinicalRecordClinicId(explicitlyScopedChildId), secondClinic.id);
+        const explicitlyScopedCurrentClinicChildId = await createParentLinkedChild(clinic.id);
+        assert.equal(await clinicalRecordClinicId(explicitlyScopedCurrentClinicChildId), clinic.id);
+        const updatedClinicDirectory = await api(`/clinic-management/${clinic.id}/clients`, { cookie: adminCookie });
+        assert.equal(updatedClinicDirectory.status, 200);
+        assert(!updatedClinicDirectory.body.clients.some((record: { childId: string }) => record.childId === legacyLinkedChildId));
+        assert(!updatedClinicDirectory.body.clients.some((record: { childId: string }) => record.childId === ambiguousChildId));
+        assert(!updatedClinicDirectory.body.clients.some((record: { childId: string }) => record.childId === explicitlyScopedChildId));
+        assert(updatedClinicDirectory.body.clients.some((record: { childId: string }) => record.childId === explicitlyScopedCurrentClinicChildId));
+        checks.push({ name: "parent-workspace clinic scope resolution and cross-clinic fail-closed behavior", status: "PASS" });
+      } finally {
+        for (const childId of createdChildIds) {
+          await db.delete(parentClinicConsentsTable).where(eq(parentClinicConsentsTable.childId, childId));
+          await db.delete(childrenTable).where(eq(childrenTable.id, childId));
+        }
+        for (const familyId of createdFamilyIds) {
+          await db.delete(familiesTable).where(eq(familiesTable.id, familyId));
+        }
+        for (const parentId of createdParentIds) {
+          await db.delete(parentAccountsTable).where(eq(parentAccountsTable.id, parentId));
+        }
+        if (secondClinicId) {
+          await db.delete(clinicMembershipsTable).where(eq(clinicMembershipsTable.clinicId, secondClinicId));
+          await db.delete(clinicsTable).where(eq(clinicsTable.id, secondClinicId));
+        }
+        await db.update(userProfilesTable).set({ tenantId: originalProfile?.tenantId ?? null })
+          .where(eq(userProfilesTable.id, staffClinicianId));
+      }
+    });
 
     const revokedEmail = `revoked-${crypto.randomUUID()}@example.test`;
     latestMessage = null;

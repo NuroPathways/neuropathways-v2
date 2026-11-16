@@ -191,6 +191,7 @@ export async function clinicalRecordClinicId(childId: string): Promise<string | 
     tenantId: childrenTable.tenantId,
     clinicianId: childrenTable.clinicianId,
     parentId: childrenTable.parentId,
+    familyId: childrenTable.familyId,
   }).from(childrenTable).where(eq(childrenTable.id, childId));
   if (!child) return null;
   const legacyTenantKey = resolveLegacyClinicId(child.tenantId, child.clinicianId);
@@ -203,6 +204,58 @@ export async function clinicalRecordClinicId(childId: string): Promise<string | 
       .from(parentAccountsTable).where(eq(parentAccountsTable.id, child.parentId))
     : [];
   const linkedParentWorkspace = parentWorkspace?.workspaceId === child.tenantId;
+  if (linkedParentWorkspace && child.clinicianId && recordClinicianProfile?.appRole === "clinician") {
+    const [family] = child.familyId
+      ? await db.select({
+          clinicianId: familiesTable.clinicianId,
+          tenantId: familiesTable.tenantId,
+        }).from(familiesTable).where(eq(familiesTable.id, child.familyId))
+      : [];
+    if (!family || family.clinicianId !== child.clinicianId) return null;
+
+    const familyTenantKey = family.tenantId?.trim();
+    if (familyTenantKey) {
+      const familyClinics = await db.select({
+        id: clinicsTable.id,
+        legacyTenantId: clinicsTable.legacyTenantId,
+        status: clinicsTable.status,
+      }).from(clinicsTable).where(and(
+        or(
+          eq(clinicsTable.id, familyTenantKey),
+          eq(clinicsTable.legacyTenantId, familyTenantKey),
+        ),
+        eq(clinicsTable.status, "active"),
+      ));
+      if (familyClinics.length === 1) return familyClinics[0].id;
+    }
+
+    const memberships = await db.select({
+      clinicId: clinicMembershipsTable.clinicId,
+    }).from(clinicMembershipsTable).where(and(
+      eq(clinicMembershipsTable.userId, child.clinicianId),
+      eq(clinicMembershipsTable.status, "active"),
+    ));
+    const membershipClinicIds = [...new Set(memberships.map((membership) => membership.clinicId))];
+    const activeMembershipClinics = membershipClinicIds.length
+      ? await db.select({
+          id: clinicsTable.id,
+          legacyTenantId: clinicsTable.legacyTenantId,
+          status: clinicsTable.status,
+        }).from(clinicsTable).where(and(
+          inArray(clinicsTable.id, membershipClinicIds),
+          eq(clinicsTable.status, "active"),
+        ))
+      : [];
+    const profileTenantKey = recordClinicianProfile.tenantId?.trim();
+    if (profileTenantKey && (!familyTenantKey || familyTenantKey === profileTenantKey)) {
+      const profileClinic = activeMembershipClinics.find((clinic) =>
+        clinic.id === profileTenantKey || clinic.legacyTenantId === profileTenantKey,
+      );
+      if (profileClinic) return profileClinic.id;
+    }
+    return activeMembershipClinics.length === 1 ? activeMembershipClinics[0].id : null;
+  }
+
   const clinicLookupKey = linkedParentWorkspace && recordClinicianProfile?.appRole === "clinician"
     ? recordClinicianProfile.tenantId?.trim() || legacyTenantKey
     : legacyTenantKey;

@@ -192,6 +192,7 @@ router.post("/clinic-invitations/accept", async (req: any, res): Promise<void> =
             await tx.update(userProfilesTable).set({
               appRole: "clinician",
               accountType: "clinician",
+              tenantId: profile.tenantId?.trim() || invitation.clinicId,
               updatedAt: now,
             }).where(eq(userProfilesTable.id, actorId));
           } else {
@@ -199,6 +200,7 @@ router.post("/clinic-invitations/accept", async (req: any, res): Promise<void> =
               id: actorId,
               appRole: "clinician",
               accountType: "clinician",
+              tenantId: invitation.clinicId,
               displayName: [user.firstName, user.lastName].filter(Boolean).join(" ") || null,
               firstName: user.firstName,
               lastName: user.lastName,

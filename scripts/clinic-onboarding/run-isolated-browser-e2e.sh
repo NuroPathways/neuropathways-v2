@@ -72,6 +72,9 @@ export NP_TEST_WEB_URL="http://127.0.0.1:$WEB_PORT"
 
 cleanup() {
   set +e
+  if [[ -d "$ROOT/artifacts/neuropath/dist/public/assets" ]]; then
+    find "$ROOT/artifacts/neuropath/dist/public/assets" -maxdepth 1 -type f -name '*.js.map' -exec cp -- {} "$ATTEMPT/" \;
+  fi
   if [[ "$DIST_SAVED" == "1" && -d "$PRIVATE/preexisting-dist" ]]; then
     rm -rf -- "$ROOT/artifacts/neuropath/dist"
     mv -- "$PRIVATE/preexisting-dist" "$ROOT/artifacts/neuropath/dist"
@@ -146,7 +149,7 @@ fi
 
 cp -a "$ROOT/artifacts/neuropath/dist" "$PRIVATE/preexisting-dist"
 DIST_SAVED=1
-if ! pnpm --filter @workspace/neuropath run build >"$ATTEMPT/logs/web-build.log" 2>&1; then
+if ! pnpm --filter @workspace/neuropath exec vite build --config vite.config.ts --sourcemap >"$ATTEMPT/logs/web-build.log" 2>&1; then
   echo "The isolated web build failed; browser checks were not run." >"$ATTEMPT/runner-errors.txt"
   exit 6
 fi

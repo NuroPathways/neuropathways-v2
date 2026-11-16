@@ -38,7 +38,9 @@ This is a preparation checklist, not an AWS deployment. No production configurat
 
 ## Local evidence and Git
 
-The local branch was based on `613ce7a2d51a4a60d81b7b13bf745eab53cca0f0`, with two existing commits ahead of `origin/main`. This feature is being implemented and tested locally; do not push or deploy as part of this handoff. The final report will provide the exact verified local commits and state whether GitHub has diverged.
+The onboarding work is local-only. At the start of this batch, `HEAD` was `bcaac392022a39d6ea78d873d88540a5f0de3b54` and `origin/main` was `3e9fc0aa6143e006f2849a53ef25d7c86837fad3`, with four local commits already ahead. This batch was uncommitted at that point; its final tested commit, final `origin/main`, and ahead/behind counts are recorded in the associated evidence report. No push or deployment is part of this handoff.
+
+The interactive demo workflows are local verification aids only: each starts a new loopback PostgreSQL cluster and private storage, seeds fictional accounts, disables connectors and live providers, and removes only its own temporary resources when stopped. Their generated credentials are private and excluded from evidence archives.
 
 ## What the current isolated checks can establish
 

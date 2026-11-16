@@ -4,14 +4,15 @@ import BrandMark from "@/components/brand/BrandMark";
 import { base44 } from '@/api/entities';
 import { useAuth } from "@/lib/AuthContext";
 import {
-  Users, FileText, Plus, BarChart2, MessageCircle,
+  Users, FileText, Plus, BarChart2, MessageCircle, Mail,
   Upload, ShieldAlert, ChevronRight, TrendingUp,
   Clock, Star, Activity, Settings, ArrowUpRight
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
 import { motion } from "framer-motion";
 import FamilyCard from "../components/clinician/FamilyCard";
 import AddClientModal from "../components/clinician/AddClientModal";
+import AddFamilyModal from "../components/clinician/AddFamilyModal";
 import AddChildToFamilyModal from "../components/clinician/AddChildToFamilyModal";
 
 function getGreeting() {
@@ -28,7 +29,8 @@ export default function ClinicianDashboard() {
   const [children, setChildren] = useState([]);
   const [logs, setLogs] = useState([]);
   const [messages, setMessages] = useState([]);
-  const [showAddFamily, setShowAddFamily] = useState(false);
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [showInviteFamily, setShowInviteFamily] = useState(false);
   const [showAddChild, setShowAddChild] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -142,7 +144,7 @@ export default function ClinicianDashboard() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
-              { label: "Add Client", icon: Plus, color: "bg-primary text-primary-foreground", onClick: () => setShowAddFamily(true) },
+              { label: "Add Client", icon: Plus, color: "bg-primary text-primary-foreground", onClick: () => setShowAddClient(true) },
               { label: "Intervention Plans", icon: ShieldAlert, color: "bg-secondary/10 text-secondary-foreground hover:bg-secondary/20", onClick: () => navigate("/InterventionBuilder") },
               { label: "Upload Docs", icon: Upload, color: "bg-accent/10 text-accent-foreground hover:bg-accent/20", onClick: () => navigate("/ClinicianDocuments") },
               { label: "Progress Reports", icon: BarChart2, color: "bg-purple-100 text-purple-700 hover:bg-purple-200", onClick: () => navigate("/ProgressReports") },
@@ -176,13 +178,16 @@ export default function ClinicianDashboard() {
             transition={{ delay: 0.35 }}
             className="md:col-span-2"
           >
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
               <h2 className="font-semibold text-foreground">My Clients</h2>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" className="rounded-xl gap-1.5 text-xs h-8" onClick={() => setShowInviteFamily(true)}>
+                  <Mail className="w-3 h-3" /> Invite Family
+                </Button>
                 <Button size="sm" variant="outline" className="rounded-xl gap-1.5 text-xs h-8" onClick={() => setShowAddChild(true)}>
                   <Plus className="w-3 h-3" /> Add to Family
                 </Button>
-                <Button size="sm" className="rounded-xl bg-primary hover:bg-primary/90 gap-1.5 text-xs h-8" onClick={() => setShowAddFamily(true)}>
+                <Button size="sm" className="rounded-xl bg-primary hover:bg-primary/90 gap-1.5 text-xs h-8" onClick={() => setShowAddClient(true)}>
                   <Plus className="w-3 h-3" /> New Client
                 </Button>
               </div>
@@ -204,8 +209,11 @@ export default function ClinicianDashboard() {
                 </div>
                 <p className="font-semibold text-foreground mb-1">No clients yet</p>
                 <p className="text-sm text-muted-foreground mb-5">Add your first client to get started with care plans and AI support</p>
-                <Button size="sm" className="rounded-xl bg-primary hover:bg-primary/90 gap-1.5" onClick={() => setShowAddFamily(true)}>
+                <Button size="sm" className="rounded-xl bg-primary hover:bg-primary/90 gap-1.5" onClick={() => setShowAddClient(true)}>
                   <Plus className="w-3.5 h-3.5" /> Add Client
+                </Button>
+                <Button size="sm" variant="outline" className="rounded-xl gap-1.5 mt-2" onClick={() => setShowInviteFamily(true)}>
+                  <Mail className="w-3.5 h-3.5" /> Invite Family
                 </Button>
               </div>
             ) : (
@@ -332,7 +340,8 @@ export default function ClinicianDashboard() {
 
       </div>
 
-      <AddClientModal open={showAddFamily} onClose={() => setShowAddFamily(false)} onSuccess={refresh} clinicianId={user?.id} />
+      <AddClientModal open={showAddClient} onClose={() => setShowAddClient(false)} onSuccess={refresh} clinicianId={user?.id} />
+      <AddFamilyModal open={showInviteFamily} onClose={() => setShowInviteFamily(false)} onSuccess={refresh} clinicianId={user?.id} />
       <AddChildToFamilyModal open={showAddChild} onClose={() => setShowAddChild(false)} onSuccess={refresh} clinicianId={user?.id} />
     </div>
   );

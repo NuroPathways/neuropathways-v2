@@ -105,10 +105,6 @@ const AuthenticatedApp = () => {
     || ["parent", "parent_family", "family", "caregiver"].includes(user?.account_type);
   const accountHomeRedirect = getAccountHomeRedirect(user, location.pathname, location.search);
 
-  if (location.pathname === "/ClinicInvitation") {
-    return <Routes><Route path="/ClinicInvitation" element={<ClinicInvitation />} /></Routes>;
-  }
-
   useEffect(() => {
     const identity = user?.id;
     if (identity === previousIdentity.current) return;
@@ -118,6 +114,10 @@ const AuthenticatedApp = () => {
     }
     previousIdentity.current = identity;
   }, [queryClient, user?.id]);
+
+  if (location.pathname === "/ClinicInvitation") {
+    return <Routes><Route path="/ClinicInvitation" element={<ClinicInvitation />} /></Routes>;
+  }
 
   // Reset links are intentionally usable without an existing clinician or client session.
   if (location.pathname === "/ResetAccessCode") {
