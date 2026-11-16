@@ -29,21 +29,18 @@ database_host="$(jq -r '.databaseHost // empty' "$ACTIVE_MARKER")"
 pid="$(jq -r '.pid // empty' "$ACTIVE_MARKER")"
 private_dir="$(jq -r '.privateDir // empty' "$ACTIVE_MARKER")"
 mode="$(jq -r '.mode // empty' "$ACTIVE_MARKER")"
+port="$(jq -r '.port // empty' "$ACTIVE_MARKER")"
 if [[ "$database_name" != "np_demo_clinic_onboarding" ||
       "$database_host" != "127.0.0.1" ||
       ! "$pid" =~ ^[0-9]+$ ||
+      ! "$port" =~ ^[0-9]+$ ||
+      "$port" -lt 1024 ||
+      "$port" -gt 65535 ||
       "$mode" != "$MODE" ||
-      "$private_dir" != "$DEMO_ROOT"/run-*/private ]]; then
+      "$private_dir" != "$DEMO_ROOT"/run-*/private ||
+      -L "$private_dir" ||
+      ! -d "$private_dir/pgdata" ]]; then
   echo "The demo marker did not match the exact private loopback demo; reset stopped without changes." >&2
-  exit 3
-fi
-if ! kill -0 "$pid" 2>/dev/null; then
-  echo "The recorded demo owner is not running. Inspect the private marker and logs before cleanup; no files were removed." >&2
-  exit 3
-fi
-command_line="$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true)"
-if [[ "$command_line" != *"demo-workflow.sh"* || "$command_line" != *"$mode"* ]]; then
-  echo "The recorded PID is not the isolated demo workflow; reset stopped without signaling it." >&2
   exit 3
 fi
 
@@ -55,18 +52,62 @@ if [[ -z "$PG_CTL" || ! -d "$private_dir/pgdata" ]]; then
   echo "The private database directory could not be verified; reset stopped without changes." >&2
   exit 3
 fi
-if ! "$PG_CTL" -D "$private_dir/pgdata" status >/dev/null 2>&1; then
-  echo "The isolated database is not running; reset stopped without deleting its files." >&2
+
+if kill -0 "$pid" 2>/dev/null; then
+  command_line="$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true)"
+  if [[ "$command_line" != *"demo-workflow.sh"* || "$command_line" != *"$mode"* ]]; then
+    echo "The recorded PID is not the isolated demo workflow; reset stopped without signaling it." >&2
+    exit 3
+  fi
+  if ! "$PG_CTL" -D "$private_dir/pgdata" status >/dev/null 2>&1; then
+    echo "The isolated database is not running; reset stopped without deleting its files." >&2
+    exit 3
+  fi
+
+  kill -TERM "$pid"
+  for _ in $(seq 1 120); do
+    if [[ ! -e "$ACTIVE_MARKER" ]]; then
+      echo "The isolated demo workflow stopped and removed only its private database, storage, and credentials. Sanitized demo audit evidence was retained."
+      exit 0
+    fi
+    sleep 0.5
+  done
+  echo "The isolated demo did not finish cleanup within 60 seconds. No manual deletion was attempted; inspect its workflow logs." >&2
+  exit 4
+fi
+
+# A preview manager may terminate a workflow after its owner exits, leaving
+# only the private files and marker. Recover only after verifying that neither
+# the exact database nor the preview server/browser profile is still active.
+if "$PG_CTL" -D "$private_dir/pgdata" status >/dev/null 2>&1; then
+  echo "The owner is gone but the isolated database is still running; reset stopped without changes." >&2
+  exit 3
+fi
+if ps -eo args | grep -F -- "-D $private_dir/pgdata" | grep -v grep >/dev/null; then
+  echo "A process still references the isolated database directory; reset stopped without changes." >&2
+  exit 3
+fi
+if ps -eo args | grep -F -- "$private_dir-browser-profile" | grep -v grep >/dev/null; then
+  echo "A browser still uses the isolated profile; reset stopped without changes." >&2
+  exit 3
+fi
+if curl --noproxy '*' --silent --max-time 1 --fail "http://127.0.0.1:$port/" >/dev/null; then
+  echo "The preview port still serves content; reset stopped without changes." >&2
   exit 3
 fi
 
-kill -TERM "$pid"
-for _ in $(seq 1 120); do
-  if [[ ! -e "$ACTIVE_MARKER" ]]; then
-    echo "The isolated demo workflow stopped and removed only its private database, storage, and credentials. Sanitized demo audit evidence was retained."
-    exit 0
-  fi
-  sleep 0.5
-done
-echo "The isolated demo did not finish cleanup within 60 seconds. No manual deletion was attempted; inspect its workflow logs." >&2
-exit 4
+run_dir="$(dirname "$private_dir")"
+stamp="$(basename "$run_dir" | sed -E 's/^run-([0-9]{8}T[0-9]{6}Z)-.*/\1/')"
+evidence_dir="$ROOT/.local/verification/clinic-onboarding-demo/$stamp"
+if [[ ! "$stamp" =~ ^[0-9]{8}T[0-9]{6}Z$ ||
+      "$evidence_dir" != "$ROOT/.local/verification/clinic-onboarding-demo/"* ]]; then
+  echo "The evidence directory could not be verified; reset stopped without changes." >&2
+  exit 3
+fi
+rm -rf -- "$private_dir" "$evidence_dir/private-browser-profile"
+rm -f -- "$ACTIVE_MARKER"
+mkdir -m 700 -p "$evidence_dir"
+printf 'Orphaned isolated demo files were removed after confirming no owner, database, preview listener, or browser profile remained. Existing evidence was preserved; audit export may be unavailable if the database had already stopped.\n' \
+  >"$evidence_dir/cleanup-status.txt"
+chmod 600 "$evidence_dir/cleanup-status.txt"
+echo "Removed only the verified orphaned isolated demo files. Existing evidence was retained."
