@@ -1162,3 +1162,17 @@ mtime_ms = 1794795947938
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/b3164c83-dda2-4cbf-ae74-ab463b12561b/c395d6a4-c1ba-4f54-b379-28cab1c52b30"
 storage_version_token = "1794795965500287"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "9nSKmKFt0edtJNMA3Bs-u"
+uri = "file://.local/verification/clinic-onboarding-real-backend-20261116T023532Z/final-package-20261116T031900Z.zip"
+type = "unspecified"
+title = "NeuroPathways invitation verification evidence"
+description = "Updated sanitized evidence package with the final commit, isolated browser/database results, genuine audit events, screenshots, checksums, and generated asset-metadata status."
+logical_id = "15ae91cf-8b87-4337-b731-9e5eb7e9ed85"
+content_hash = "sha256:558743bc420bf5c556641e570dca9c0061ae388e36c44851d3d62a264d0e5b75"
+size = 415692
+mtime_ms = 1794799192866
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/15ae91cf-8b87-4337-b731-9e5eb7e9ed85/23022240-7866-45bc-afea-735d94a90ff3"
+storage_version_token = "1794799196734622"
+content_type = "application/octet-stream"
