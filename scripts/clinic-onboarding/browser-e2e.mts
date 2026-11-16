@@ -85,6 +85,7 @@ function requireIsolatedEnvironment() {
 function scrub(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(scrub);
   if (typeof value === "string") return scrubText(value);
+  if (value instanceof Date) return value.toISOString();
   if (!value || typeof value !== "object") return value;
   const result: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
@@ -622,7 +623,13 @@ async function captureAudit() {
     metadata: auditLogsTable.metadata,
     createdDate: auditLogsTable.createdDate,
   }).from(auditLogsTable).orderBy(desc(auditLogsTable.createdDate));
-  await saveJson("genuine-audit-events.json", scrub(rows));
+  const sanitizedRows = scrub(rows) as Array<{ createdDate?: unknown }>;
+  assert(sanitizedRows.length > 0, "The signed-in browser run should produce genuine audit evidence.");
+  assert(
+    sanitizedRows.every((row) => typeof row.createdDate === "string" && Number.isFinite(Date.parse(row.createdDate))),
+    "Genuine audit evidence must retain parseable event timestamps.",
+  );
+  await saveJson("genuine-audit-events.json", sanitizedRows);
 }
 
 async function main() {
