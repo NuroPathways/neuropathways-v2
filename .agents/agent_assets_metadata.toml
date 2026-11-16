@@ -1176,3 +1176,31 @@ mtime_ms = 1794799192866
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/15ae91cf-8b87-4337-b731-9e5eb7e9ed85/23022240-7866-45bc-afea-735d94a90ff3"
 storage_version_token = "1794799196734622"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "QGAmFbVmGsHnayvReZ9HU"
+uri = "file://.local/verification/clinic-onboarding-final-20261116T163952Z/NeuroPathways-Clinic-Onboarding-Evidence-20261116T163952Z.zip"
+type = "unspecified"
+title = "Clinic onboarding evidence package"
+description = "Sanitized test results, genuine fictional audit records, screenshots, cleanup evidence, and checksums."
+logical_id = "bac1e419-33ca-4437-b2fd-01ee324d3ea7"
+content_hash = "sha256:4c71efcd552ba6a1af09244ced88f218ea1cd74da2eb3e0d271bf626a601d664"
+size = 925936
+mtime_ms = 1794847350709
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/bac1e419-33ca-4437-b2fd-01ee324d3ea7/76703d07-ac9b-4fbd-810d-0777fd5d95a0"
+storage_version_token = "1794847374640218"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "2qr9yTD-W27uaAU6u4U5t"
+uri = "file://.local/verification/clinic-onboarding-final-20261116T163952Z/package/demo/populated/screenshots/caregiver-signed-in.png"
+type = "image"
+title = "Caregiver demo screenshot"
+description = "Fictional caregiver signed in and viewing only the linked demo child."
+logical_id = "ed641a42-fef3-4930-8141-f723e8201249"
+content_hash = "sha256:dd412091699d0ac2ccbc69059e9b979b2d8319af15991027d4db14d77ef0cb74"
+size = 71329
+mtime_ms = 1794847252442
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/ed641a42-fef3-4930-8141-f723e8201249/ab6fd9fb-d521-40c6-a012-f7691bece2d6"
+storage_version_token = "1794847375404654"
+content_type = "image/png"
