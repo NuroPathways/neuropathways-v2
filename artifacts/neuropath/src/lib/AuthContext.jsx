@@ -157,8 +157,10 @@ export const AuthProvider = ({ children }) => {
       clearSupportPopupSession(currentUser.id);
       setUser(currentUser);
       setIsAuthenticated(true);
+      return currentUser;
     } catch {
       setIsAuthenticated(false);
+      return null;
     } finally {
       setIsLoadingAuth(false);
       setAuthChecked(true);

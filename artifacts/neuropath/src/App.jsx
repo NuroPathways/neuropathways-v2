@@ -19,6 +19,8 @@ import ClientDetail from './pages/ClientDetail';
 import ChildProfile from './pages/ChildProfile';
 import ClinicianUsers from './pages/ClinicianUsers';
 import PlatformAdminClinics from './pages/PlatformAdminClinics';
+import ClinicRequest from './pages/ClinicRequest';
+import WorkspaceSelect from './pages/WorkspaceSelect';
 import ClinicInvitation from './pages/ClinicInvitation';
 import Settings from './pages/Settings';
 import HelpNow from './pages/HelpNow';
@@ -175,6 +177,8 @@ const AuthenticatedApp = () => {
         />
       ))}
       <Route path="/ClinicianLogin" element={<ClinicianLogin />} />
+      <Route path="/ClinicRequest" element={<ClinicRequest />} />
+      <Route path="/WorkspaceSelect" element={<WorkspaceSelect />} />
       <Route path="/ParentLogin" element={<ParentLogin />} />
       <Route path="/ForgotPassword" element={<PasswordRecovery />} />
       <Route path="/ResetPassword" element={<PasswordRecovery />} />

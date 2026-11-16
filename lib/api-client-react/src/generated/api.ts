@@ -43,6 +43,9 @@ import type {
   ClinicInvitationActionResult,
   ClinicProvisioningInput,
   ClinicProvisioningResult,
+  ClinicRequestApprovalInput,
+  ClinicRequestSubmissionBody,
+  ClinicRequestSubmissionResult,
   ClinicStaffInvitationInput,
   ClinicStaffRevocationResult,
   ClinicianActivityActionInput,
@@ -102,6 +105,7 @@ import type {
   PasswordResetCompleteInput,
   PasswordResetRequestInput,
   PasswordResetRequestResult,
+  PlatformClinicRequestDirectory,
   PlatformClinicsResponse,
   RecordClinicianObservationFeedback200,
   RevokeParentClinicLink200,
@@ -134,6 +138,358 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getSubmitClinicRequestUrl = () => {
+
+
+
+
+  return `/api/clinic-requests`
+}
+
+/**
+ * @summary Submit a clinic onboarding request for review
+ */
+export const submitClinicRequest = async (clinicRequestSubmissionBody: ClinicRequestSubmissionBody, options?: Parameters<typeof customFetch>[1]): Promise<ClinicRequestSubmissionResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ClinicRequestSubmissionResult>(getSubmitClinicRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(clinicRequestSubmissionBody)
+  }
+);}
+
+
+
+
+
+export const getSubmitClinicRequestMutationKey = () => ['submitClinicRequest'] as const;
+
+export const getSubmitClinicRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitClinicRequest>>, TError,SubmitClinicRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitClinicRequest>>, TError,SubmitClinicRequestMutationVariables, TContext> => {
+
+const mutationKey = getSubmitClinicRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitClinicRequest>>, SubmitClinicRequestMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitClinicRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitClinicRequestMutationResult = NonNullable<Awaited<ReturnType<typeof submitClinicRequest>>>
+    export type SubmitClinicRequestMutationBody = BodyType<ClinicRequestSubmissionBody>
+    export type SubmitClinicRequestMutationError = ErrorType<void>
+    export type SubmitClinicRequestMutationVariables = {data: BodyType<ClinicRequestSubmissionBody>}
+
+    /**
+ * @summary Submit a clinic onboarding request for review
+ */
+export const useSubmitClinicRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitClinicRequest>>, TError,SubmitClinicRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof submitClinicRequest>>,
+        TError,
+        SubmitClinicRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSubmitClinicRequestMutationOptions(options), queryClient);
+    }
+
+export const getListPlatformClinicRequestsUrl = () => {
+
+
+
+
+  return `/api/platform-management/clinic-requests`
+}
+
+/**
+ * @summary List clinic requests for a platform administrator
+ */
+export const listPlatformClinicRequests = async ( options?: Parameters<typeof customFetch>[1]): Promise<PlatformClinicRequestDirectory> => {
+
+  return customFetch<PlatformClinicRequestDirectory>(getListPlatformClinicRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformClinicRequestsQueryKey = () => {
+    return [
+    `/api/platform-management/clinic-requests`
+    ] as const;
+    }
+
+
+export const getListPlatformClinicRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformClinicRequests>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformClinicRequests>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformClinicRequestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformClinicRequests>>> = ({ signal }) => listPlatformClinicRequests({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformClinicRequests>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPlatformClinicRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformClinicRequests>>>
+export type ListPlatformClinicRequestsQueryError = ErrorType<void>
+
+
+export function useListPlatformClinicRequests<TData = Awaited<ReturnType<typeof listPlatformClinicRequests>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformClinicRequests>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformClinicRequests>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformClinicRequests>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformClinicRequests<TData = Awaited<ReturnType<typeof listPlatformClinicRequests>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformClinicRequests>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformClinicRequests>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformClinicRequests>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformClinicRequests<TData = Awaited<ReturnType<typeof listPlatformClinicRequests>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformClinicRequests>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List clinic requests for a platform administrator
+ */
+
+export function useListPlatformClinicRequests<TData = Awaited<ReturnType<typeof listPlatformClinicRequests>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformClinicRequests>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPlatformClinicRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApprovePlatformClinicRequestUrl = (requestId: string,) => {
+
+
+
+
+  return `/api/platform-management/clinic-requests/${requestId}/approve`
+}
+
+/**
+ * @summary Approve a pending clinic request and invite its designated first administrator
+ */
+export const approvePlatformClinicRequest = async (requestId: string,
+    clinicRequestApprovalInput: ClinicRequestApprovalInput, options?: Parameters<typeof customFetch>[1]): Promise<ClinicProvisioningResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ClinicProvisioningResult>(getApprovePlatformClinicRequestUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(clinicRequestApprovalInput)
+  }
+);}
+
+
+
+
+
+export const getApprovePlatformClinicRequestMutationKey = () => ['approvePlatformClinicRequest'] as const;
+
+export const getApprovePlatformClinicRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePlatformClinicRequest>>, TError,ApprovePlatformClinicRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approvePlatformClinicRequest>>, TError,ApprovePlatformClinicRequestMutationVariables, TContext> => {
+
+const mutationKey = getApprovePlatformClinicRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approvePlatformClinicRequest>>, ApprovePlatformClinicRequestMutationVariables> = (props) => {
+          const {requestId,data} = props ?? {};
+
+          return  approvePlatformClinicRequest(requestId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApprovePlatformClinicRequestMutationResult = NonNullable<Awaited<ReturnType<typeof approvePlatformClinicRequest>>>
+    export type ApprovePlatformClinicRequestMutationBody = BodyType<ClinicRequestApprovalInput>
+    export type ApprovePlatformClinicRequestMutationError = ErrorType<void>
+    export type ApprovePlatformClinicRequestMutationVariables = {requestId: string;data: BodyType<ClinicRequestApprovalInput>}
+
+    /**
+ * @summary Approve a pending clinic request and invite its designated first administrator
+ */
+export const useApprovePlatformClinicRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approvePlatformClinicRequest>>, TError,ApprovePlatformClinicRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof approvePlatformClinicRequest>>,
+        TError,
+        ApprovePlatformClinicRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApprovePlatformClinicRequestMutationOptions(options), queryClient);
+    }
+
+export const getDeclinePlatformClinicRequestUrl = (requestId: string,) => {
+
+
+
+
+  return `/api/platform-management/clinic-requests/${requestId}/decline`
+}
+
+/**
+ * @summary Decline a pending clinic onboarding request
+ */
+export const declinePlatformClinicRequest = async (requestId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeclinePlatformClinicRequestUrl(requestId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeclinePlatformClinicRequestMutationKey = () => ['declinePlatformClinicRequest'] as const;
+
+export const getDeclinePlatformClinicRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declinePlatformClinicRequest>>, TError,DeclinePlatformClinicRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof declinePlatformClinicRequest>>, TError,DeclinePlatformClinicRequestMutationVariables, TContext> => {
+
+const mutationKey = getDeclinePlatformClinicRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof declinePlatformClinicRequest>>, DeclinePlatformClinicRequestMutationVariables> = (props) => {
+          const {requestId} = props ?? {};
+
+          return  declinePlatformClinicRequest(requestId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeclinePlatformClinicRequestMutationResult = NonNullable<Awaited<ReturnType<typeof declinePlatformClinicRequest>>>
+
+    export type DeclinePlatformClinicRequestMutationError = ErrorType<void>
+    export type DeclinePlatformClinicRequestMutationVariables = {requestId: string}
+
+    /**
+ * @summary Decline a pending clinic onboarding request
+ */
+export const useDeclinePlatformClinicRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declinePlatformClinicRequest>>, TError,DeclinePlatformClinicRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof declinePlatformClinicRequest>>,
+        TError,
+        DeclinePlatformClinicRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeclinePlatformClinicRequestMutationOptions(options), queryClient);
+    }
 
 export const getListPlatformClinicsUrl = () => {
 

@@ -11,6 +11,7 @@ import {
   SESSION_TTL,
   type SessionData,
 } from "../lib/auth";
+import { defaultWorkspace, listAuthorizedWorkspaces } from "../lib/userWorkspaces";
 
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
 
@@ -99,12 +100,16 @@ router.get("/auth/user", async (req: Request, res: Response) => {
       eq(platformAdministratorGrantsTable.status, "active"),
       isNull(platformAdministratorGrantsTable.revokedAt),
     ));
+  const authorizedWorkspaces = await listAuthorizedWorkspaces(req.user.id);
+  const primaryWorkspace = defaultWorkspace(authorizedWorkspaces);
   res.json({
     user: {
       ...req.user,
       isPlatformAdministrator: Boolean(
         grant && profile?.appRole === "clinician" && profile?.accountType === "clinician",
       ),
+      authorizedWorkspaces,
+      defaultWorkspaceId: primaryWorkspace?.id ?? null,
     },
   });
 });

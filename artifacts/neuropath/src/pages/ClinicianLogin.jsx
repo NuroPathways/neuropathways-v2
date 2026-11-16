@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { base44 } from '@/api/entities';
 import { useAuth } from '@/lib/AuthContext';
 import { Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
@@ -9,9 +9,12 @@ import { Input } from "@workspace/neuropathways-foundations/components/ui/input"
 import { Label } from "@workspace/neuropathways-foundations/components/ui/label";
 import { Shell } from "@/components/parentfree/common";
 import SignupAuthorityFields from "@/components/signup/SignupAuthorityFields";
+import { getPostLoginPath } from "@/lib/workspaceRouting";
 
 export default function ClinicianLogin() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const workspaceIntent = searchParams.get("workspace");
   const { checkUserAuth } = useAuth();
   const [mode, setMode] = useState("choose"); // choose | email-login | email-register | registration-pending
   const [showPassword, setShowPassword] = useState(false);
@@ -25,15 +28,12 @@ export default function ClinicianLogin() {
     base44.auth.isAuthenticated().then(async (authed) => {
       if (authed) {
         const user = await base44.auth.me();
-        const role = user.app_role || user.appRole;
-        if (user.isPlatformAdministrator || user.is_platform_administrator) navigate("/PlatformAdminClinics");
-        else if (role === "clinician") navigate("/ClinicianDashboard");
-        else if (role === "parent") navigate("/ParentDashboard");
-        else if (role === "pending_clinician") navigate("/RoleSetup?role=clinician");
-        else navigate("/RoleSetup?role=clinician");
+        const destination = getPostLoginPath(user, workspaceIntent);
+        if (destination) navigate(destination, { replace: true });
+        else if ((user.app_role || user.appRole) === "pending_clinician") navigate("/RoleSetup?role=clinician", { replace: true });
       }
     });
-  }, []);
+  }, [navigate, workspaceIntent]);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -50,8 +50,11 @@ export default function ClinicianLogin() {
       });
       const data = await res.json();
       if (!res.ok || data.error) { setError(data.error || "Login failed"); setLoading(false); return; }
-      await checkUserAuth();
-      navigate(data.redirect || "/ClinicianDashboard");
+      const currentUser = await checkUserAuth();
+      const destination = data.invitationAccess
+        ? "/ClinicInvitation"
+        : getPostLoginPath(currentUser, workspaceIntent) || data.redirect || "/RoleSetup?role=clinician";
+      navigate(destination, { replace: true });
     } catch {
       setError("Network error — please try again.");
     }
@@ -91,9 +94,18 @@ export default function ClinicianLogin() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
 
         <div className="text-center mb-8">
-          <p className="pf-eyebrow" style={{ marginBottom: 8 }}>Clinician portal</p>
-          <h1 style={{ fontSize: "clamp(2rem,7vw,2.8rem)", margin: "8px 0" }}>Welcome back</h1>
-          <p className="pf-hint">Sign in to access your clinical dashboard.</p>
+          <p className="pf-eyebrow" style={{ marginBottom: 8 }}>
+            {workspaceIntent === "clinic-admin" ? "Clinic administration" : "Clinical workspace"}
+          </p>
+          <h1 style={{ fontSize: "clamp(2rem,7vw,2.8rem)", margin: "8px 0" }}>
+            {workspaceIntent === "clinic-admin" ? "Clinic administrator sign in" : "Clinician sign in"}
+          </h1>
+          <p className="pf-hint">
+            {workspaceIntent === "clinic-admin"
+              ? "Manage staff, invitations, and assignments for clinics where you hold an active administrator membership. Sign-in uses your existing account."
+              : "Access clinical tools only for clients you are authorized to support. Sign-in uses your existing account."}
+            {" "}The server sends each account to its authorized workspace.
+          </p>
         </div>
 
         <div className="pf-card" style={{ display: "grid", gap: 14 }}>
@@ -108,17 +120,24 @@ export default function ClinicianLogin() {
                 >
                   <Mail className="w-4 h-4" /> Sign In with Email
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full rounded-xl py-5 font-semibold text-sm"
-                  onClick={() => { setMode("email-register"); setError(""); }}
-                >
-                  Request clinician access
-                </Button>
-                <p className="text-xs text-center text-muted-foreground">
-                  New clinician accounts stay locked until an authorized clinic administrator approves them.
-                </p>
+                {workspaceIntent !== "clinic-admin" && <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full rounded-xl py-5 font-semibold text-sm"
+                    onClick={() => { setMode("email-register"); setError(""); }}
+                  >
+                    Request clinician access
+                  </Button>
+                  <p className="text-xs text-center text-muted-foreground">
+                    New clinician accounts stay locked until an authorized clinic administrator approves them.
+                  </p>
+                </>}
+                {workspaceIntent === "clinic-admin" && (
+                  <p className="text-xs text-center text-muted-foreground">
+                    Need a new clinic? <Link className="text-primary font-medium hover:underline" to="/ClinicRequest">Submit a clinic request</Link>. Administrator access is issued only after platform review.
+                  </p>
+                )}
 
               </motion.div>
             )}

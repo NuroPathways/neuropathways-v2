@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AuthorizedWorkspace } from './authorizedWorkspace';
 
 export interface AuthUser {
   id: string;
@@ -17,4 +18,7 @@ export interface AuthUser {
   /** @nullable */
   profileImageUrl: string | null;
   isPlatformAdministrator: boolean;
+  authorizedWorkspaces?: AuthorizedWorkspace[];
+  /** @nullable */
+  defaultWorkspaceId?: string | null;
 }

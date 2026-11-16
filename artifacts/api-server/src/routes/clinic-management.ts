@@ -113,6 +113,7 @@ router.get("/clinic-management/staff", async (req: any, res): Promise<void> => {
           role: clinicInvitationsTable.role,
           status: clinicInvitationsTable.status,
           deliveryStatus: clinicInvitationsTable.deliveryStatus,
+          deliveryAttemptedAt: clinicInvitationsTable.deliveryAttemptedAt,
           createdAt: clinicInvitationsTable.createdAt,
           expiresAt: clinicInvitationsTable.expiresAt,
         }).from(clinicInvitationsTable).where(and(
@@ -184,6 +185,9 @@ router.get("/clinic-management/staff", async (req: any, res): Promise<void> => {
         staff,
         invitations: invitations.map((invitation) => ({
           ...invitation,
+          deliveryAttemptedAt: invitation.deliveryAttemptedAt
+            ? invitation.deliveryAttemptedAt.toISOString()
+            : null,
           createdAt: invitation.createdAt.toISOString(),
           expiresAt: invitation.expiresAt.toISOString(),
         })),

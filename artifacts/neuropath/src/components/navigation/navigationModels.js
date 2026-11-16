@@ -3,6 +3,7 @@ import {
   BarChart2,
   BookOpen,
   Bot,
+  Building2,
   ClipboardList,
   FileText,
   Heart,
@@ -23,14 +24,55 @@ import {
   Users,
 } from "lucide-react";
 
-export function resolveNavigationRole(user, individualFallback = false) {
+export function resolveNavigationRole(user, individualFallback = false, activeWorkspace = null) {
+  if (["platform_admin", "clinic_admin", "clinician"].includes(activeWorkspace?.type)) return activeWorkspace.type;
+  const authorizedWorkspaces = Array.isArray(user?.authorizedWorkspaces) ? user.authorizedWorkspaces : [];
+  if (authorizedWorkspaces.length === 1) return authorizedWorkspaces[0].type;
+  if (user?.isPlatformAdministrator && authorizedWorkspaces.some((workspace) => workspace.type === "platform_admin")) return "platform_admin";
+  if (authorizedWorkspaces.some((workspace) => workspace.type === "clinic_admin") && authorizedWorkspaces.length === 1) return "clinic_admin";
   const rawRole = user?.app_role || user?.role;
-  if (rawRole === "clinician" || rawRole === "admin") return "clinician";
+  if (rawRole === "clinician") return "clinician";
   if (user?.account_type === "individual" || individualFallback) return "individual";
   return "caregiver";
 }
 
 export function createRoleNavigation(role, homePath, includeUploadPlan = false) {
+  if (role === "platform_admin") {
+    return [
+      {
+        label: "Platform",
+        items: [
+          { key: "clinic-management", label: "Clinic management", icon: Building2, to: "/PlatformAdminClinics", pages: ["PlatformAdminClinics"] },
+        ],
+      },
+      {
+        label: "Account",
+        items: [
+          { key: "settings", label: "Account settings", icon: Settings, to: "/Settings", pages: ["Settings"] },
+        ],
+      },
+    ];
+  }
+
+  if (role === "clinic_admin") {
+    return [
+      {
+        label: "Clinic administration",
+        items: [
+          { key: "clinic-overview", label: "Clinic overview", icon: Building2, to: "/ClinicianUsers#overview", pages: ["ClinicianUsers"] },
+          { key: "staff-invitations", label: "Staff & invitations", icon: Users, to: "/ClinicianUsers#staff", pages: ["ClinicianUsers"] },
+          { key: "assignments", label: "Client assignments", icon: UserRound, to: "/ClinicianUsers#assignments", pages: ["ClinicianUsers"] },
+        ],
+      },
+      {
+        label: "Account",
+        items: [
+          { key: "settings", label: "Settings", icon: Settings, to: "/Settings", pages: ["Settings"] },
+        ],
+      },
+    ];
+  }
+
   if (role === "clinician") {
     return [
       {
@@ -135,6 +177,8 @@ export function createRoleNavigation(role, homePath, includeUploadPlan = false) 
 }
 
 export function mobilePrimaryKeysForRole(role) {
+  if (role === "platform_admin") return ["clinic-management"];
+  if (role === "clinic_admin") return ["clinic-overview", "staff-invitations", "assignments"];
   if (role === "clinician") return ["dashboard", "clients", "messages"];
   if (role === "individual") return ["home", "support", "progress"];
   return ["home", "support", "practice", "goals"];

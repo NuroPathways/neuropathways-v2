@@ -17,6 +17,7 @@ import clinicManagementRouter from "./clinic-management";
 import clinicManagementInvitationsRouter from "./clinic-management-invitations";
 import platformManagementRouter from "./platform-management";
 import clinicInvitationsRouter from "./clinic-invitations";
+import clinicRequestsRouter from "./clinic-requests";
 
 const router: IRouter = Router();
 
@@ -29,6 +30,7 @@ router.use(parentFamilyDataRouter);
 router.use(careTeamRouter);
 router.use(clinicManagementRouter);
 router.use(clinicManagementInvitationsRouter);
+router.use(clinicRequestsRouter);
 router.use(platformManagementRouter);
 router.use(clinicInvitationsRouter);
 router.use(parentDocumentsRouter);

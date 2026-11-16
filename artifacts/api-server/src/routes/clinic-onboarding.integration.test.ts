@@ -11,6 +11,7 @@ import {
   auditLogsTable,
   clinicInvitationsTable,
   clinicMembershipsTable,
+  clinicRequestsTable,
   clinicsTable,
   clinicalAssignmentsTable,
   childrenTable,
@@ -807,6 +808,125 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     for (const secret of [...invitationTokens, ...sensitiveValues]) {
       if (secret) assert(!serialized.includes(secret), "sensitive token or password material leaked to audit");
     }
+    checks.push({ name: currentScenario, status: "PASS" });
+  });
+
+  await t.test("public clinic requests remain pending until platform review and approved setup uses the existing provisioner", async (st) => {
+    if (!setupReady) { st.skip("isolated service setup did not pass"); return; }
+    currentScenario = "clinic request intake, pending-only behavior, approval and decline";
+    const beforeClinics = await db.select({ id: clinicsTable.id }).from(clinicsTable);
+    const beforeInvitations = await db.select({ id: clinicInvitationsTable.id }).from(clinicInvitationsTable);
+    const beforeMemberships = await db.select({ id: clinicMembershipsTable.id }).from(clinicMembershipsTable);
+    const requestKey = crypto.randomUUID();
+    const requestBody = {
+      clinicName: "Fictional Request Clinic",
+      contactName: "Jordan Test",
+      workEmail: `jordan-${crypto.randomUUID()}@example.test`,
+      website: "https://fictional-clinic.example.test",
+      requestKey,
+    };
+    const submitted = await api("/clinic-requests", { method: "POST", body: requestBody });
+    assert.equal(submitted.status, 202);
+    assert.equal(submitted.body.status, "pending");
+    assert(!submitted.text.includes(requestBody.workEmail));
+    const [requestRecord] = await db.select().from(clinicRequestsTable)
+      .where(eq(clinicRequestsTable.id, submitted.body.requestId));
+    assert.equal(requestRecord.status, "pending");
+    assert.equal(requestRecord.clinicId, null);
+    assert.equal((await db.select({ id: clinicsTable.id }).from(clinicsTable)).length, beforeClinics.length);
+    assert.equal((await db.select({ id: clinicInvitationsTable.id }).from(clinicInvitationsTable)).length, beforeInvitations.length);
+    assert.equal((await db.select({ id: clinicMembershipsTable.id }).from(clinicMembershipsTable)).length, beforeMemberships.length);
+
+    const listingDenied = await api("/platform-management/clinic-requests");
+    assert.equal(listingDenied.status, 401);
+    const nonPlatform = await createFixtureUser({
+      email: `request-viewer-${crypto.randomUUID()}@example.test`,
+      appRole: "clinician",
+      accountType: "clinician",
+      firstName: "Request",
+      lastName: "Viewer",
+    });
+    const nonPlatformSession = await createSession({
+      user: { id: nonPlatform.id, email: nonPlatform.email, firstName: nonPlatform.firstName, lastName: nonPlatform.lastName, profileImageUrl: null, isPlatformAdministrator: false },
+      access_token: "isolated-test",
+    });
+    const nonPlatformList = await api("/platform-management/clinic-requests", { cookie: nonPlatformSession });
+    assert.equal(nonPlatformList.status, 403);
+    assert(!nonPlatformList.text.includes(requestBody.workEmail));
+    const unauthorizedApproval = await api(`/platform-management/clinic-requests/${requestRecord.id}/approve`, {
+      method: "POST",
+      cookie: nonPlatformSession,
+      body: { firstAdminEmail: requestBody.workEmail },
+    });
+    assert.equal(unauthorizedApproval.status, 403);
+    assert.equal((await db.select().from(clinicRequestsTable).where(eq(clinicRequestsTable.id, requestRecord.id)))[0].status, "pending");
+    const platformQueue = await api("/platform-management/clinic-requests", { cookie: platformCookie });
+    assert.equal(platformQueue.status, 200);
+    assert(platformQueue.body.requests.some((item: any) => item.requestId === requestRecord.id));
+
+    const firstAdminEmail = `designated-admin-${crypto.randomUUID()}@example.test`;
+    latestMessage = null;
+    const approved = await api(`/platform-management/clinic-requests/${requestRecord.id}/approve`, {
+      method: "POST",
+      cookie: platformCookie,
+      body: { firstAdminEmail },
+    });
+    assert.equal(approved.status, 201);
+    assert.equal(approved.body.clinicStatus, "pending");
+    assert.equal(approved.body.invitation.role, "clinic_admin");
+    assert.equal(approved.body.invitation.invitedEmail, firstAdminEmail);
+    assert(["test_sink_accepted", "not_sent"].includes(approved.body.invitation.deliveryStatus));
+    const requestInvitationToken = approved.body.invitation.deliveryStatus === "test_sink_accepted"
+      ? await getInvitationToken()
+      : "";
+    assert(!requestInvitationToken || !approved.text.includes(requestInvitationToken));
+    assert(!approved.text.includes(firstAdminToken));
+    const [approvedRequest] = await db.select().from(clinicRequestsTable)
+      .where(eq(clinicRequestsTable.id, requestRecord.id));
+    assert.equal(approvedRequest.status, "approved");
+    assert.equal(approvedRequest.clinicId, approved.body.clinicId);
+    assert.equal((await db.select().from(usersTable).where(eq(usersTable.email, firstAdminEmail))).length, 0);
+    const [approvedInvitation] = await db.select().from(clinicInvitationsTable)
+      .where(eq(clinicInvitationsTable.id, approved.body.invitation.id));
+    assert.equal(approvedInvitation.status, "pending");
+    assert.equal(approvedInvitation.tokenHash.length, 64);
+    assert(!approved.text.includes(approvedInvitation.tokenHash));
+    if (approvedInvitation.deliveryStatus === "test_sink_accepted") assert.equal(requestInvitationToken.length > 32, true);
+    const clinicCountAfterApproval = (await db.select({ id: clinicsTable.id }).from(clinicsTable)).length;
+    const invitationCountAfterApproval = (await db.select({ id: clinicInvitationsTable.id }).from(clinicInvitationsTable)).length;
+    const retryApproval = await api(`/platform-management/clinic-requests/${requestRecord.id}/approve`, {
+      method: "POST",
+      cookie: platformCookie,
+      body: { firstAdminEmail },
+    });
+    assert.equal(retryApproval.status, 200);
+    assert.equal(retryApproval.body.invitation.id, approved.body.invitation.id);
+    assert.equal((await db.select({ id: clinicsTable.id }).from(clinicsTable)).length, clinicCountAfterApproval);
+    assert.equal((await db.select({ id: clinicInvitationsTable.id }).from(clinicInvitationsTable)).length, invitationCountAfterApproval);
+
+    const declineBody = {
+      ...requestBody,
+      clinicName: "Fictional Declined Clinic",
+      workEmail: `declined-${crypto.randomUUID()}@example.test`,
+      requestKey: crypto.randomUUID(),
+    };
+    const declinedRequest = await api("/clinic-requests", { method: "POST", body: declineBody });
+    assert.equal(declinedRequest.status, 202);
+    const beforeDeclineClinics = (await db.select({ id: clinicsTable.id }).from(clinicsTable)).length;
+    const decline = await api(`/platform-management/clinic-requests/${declinedRequest.body.requestId}/decline`, {
+      method: "POST",
+      cookie: platformCookie,
+    });
+    assert.equal(decline.status, 200);
+    assert.equal((await db.select().from(clinicRequestsTable).where(eq(clinicRequestsTable.id, declinedRequest.body.requestId)))[0].status, "declined");
+    assert.equal((await db.select({ id: clinicsTable.id }).from(clinicsTable)).length, beforeDeclineClinics);
+    const requestAudits = await db.select().from(auditLogsTable).where(eq(auditLogsTable.targetId, requestRecord.id));
+    assert(requestAudits.some((event) => event.action === "clinic_request_submitted" && event.success));
+    assert(requestAudits.some((event) => event.action === "clinic_request_approved" && event.success));
+    assert(requestAudits.every((event) => !JSON.stringify(event.metadata || {}).toLowerCase().includes("email")));
+    const declinedAudits = await db.select().from(auditLogsTable).where(eq(auditLogsTable.targetId, declinedRequest.body.requestId));
+    assert(declinedAudits.some((event) => event.action === "clinic_request_submitted" && event.success));
+    assert(declinedAudits.some((event) => event.action === "clinic_request_declined" && event.success));
     checks.push({ name: currentScenario, status: "PASS" });
   });
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Building2, RefreshCw, ShieldCheck } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { useCreatePlatformClinic, useListPlatformClinics, useReissuePlatformClinicInvitation, useRevokePlatformClinicInvitation, getListPlatformClinicsQueryKey } from "@workspace/api-client-react";
+import { useApprovePlatformClinicRequest, useCreatePlatformClinic, useDeclinePlatformClinicRequest, useListPlatformClinicRequests, useListPlatformClinics, useReissuePlatformClinicInvitation, useRevokePlatformClinicInvitation, getListPlatformClinicRequestsQueryKey, getListPlatformClinicsQueryKey } from "@workspace/api-client-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@workspace/neuropathways-foundations/components/ui/alert-dialog";
 import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@workspace/neuropathways-foundations/components/ui/card";
@@ -27,14 +27,19 @@ export default function PlatformAdminClinics() {
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
   const [revokeTarget, setRevokeTarget] = useState(null);
+  const [firstAdminEmails, setFirstAdminEmails] = useState({});
   const clinicsQuery = useListPlatformClinics({ query: { queryKey: getListPlatformClinicsQueryKey(), enabled: true } });
+  const requestsQuery = useListPlatformClinicRequests({ query: { queryKey: getListPlatformClinicRequestsQueryKey(), enabled: true } });
   const createClinic = useCreatePlatformClinic();
+  const approveRequest = useApprovePlatformClinicRequest();
+  const declineRequest = useDeclinePlatformClinicRequest();
   const reissue = useReissuePlatformClinicInvitation();
   const revoke = useRevokePlatformClinicInvitation();
   const form = useForm({ defaultValues: { displayName: "", firstAdminEmail: "" } });
-  const busy = createClinic.isPending || reissue.isPending || revoke.isPending;
+  const busy = createClinic.isPending || approveRequest.isPending || declineRequest.isPending || reissue.isPending || revoke.isPending;
 
   const refreshClinics = () => queryClient.invalidateQueries({ queryKey: getListPlatformClinicsQueryKey() });
+  const refreshRequests = () => queryClient.invalidateQueries({ queryKey: getListPlatformClinicRequestsQueryKey() });
   const create = form.handleSubmit((values) => {
     setError(""); setFeedback("");
     createClinic.mutate({ data: { ...values, requestKey: createRequestKey() } }, {
@@ -46,6 +51,27 @@ export default function PlatformAdminClinics() {
       onError: (reason) => setError(getApiMessage(reason)),
     });
   });
+  const runRequestAction = (action, request) => {
+    setError(""); setFeedback("");
+    if (action === "approve") {
+      const firstAdminEmail = firstAdminEmails[request.requestId] || request.workEmail;
+      approveRequest.mutate({ requestId: request.requestId, data: { firstAdminEmail } }, {
+        onSuccess: async (result) => {
+          setFeedback(invitationDeliveryMessage(result));
+          await Promise.all([refreshClinics(), refreshRequests()]);
+        },
+        onError: (reason) => setError(getApiMessage(reason)),
+      });
+      return;
+    }
+    declineRequest.mutate({ requestId: request.requestId }, {
+      onSuccess: async () => {
+        setFeedback("Clinic request declined. No clinic or invitation was created.");
+        await refreshRequests();
+      },
+      onError: (reason) => setError(getApiMessage(reason)),
+    });
+  };
   const runInvitationAction = (action, clinicId, invitationId) => {
     setError(""); setFeedback("");
     const options = {
@@ -66,12 +92,54 @@ export default function PlatformAdminClinics() {
   return (
     <main className="np-foundations np-onboarding-page">
       <div className="np-onboarding-content">
-        <PageHeader title="Platform clinic access" context="NeuroPathways · Platform administration" description="Create a clinic and invite its first administrator. Access and role permissions remain controlled by the server." data-testid="header-platform-clinics" />
+        <PageHeader title="Clinic management" context="NeuroPathways · Platform administration" description="Review clinic requests, provision an approved clinic, and invite its first administrator. Platform access does not grant access to clinical records." data-testid="header-platform-clinics" />
         {feedback && <p role="status" className="np-feedback" data-testid="status-platform-feedback">{feedback}</p>}
         {error && <p role="alert" className="np-feedback np-feedback-error" data-testid="status-platform-error">{error}</p>}
 
+        <section className="np-onboarding-section" aria-label="Clinic requests">
+          <SectionHeading title="Clinic requests" description="A request creates no clinic, administrator, membership, or invitation until a platform administrator approves it." />
+          {requestsQuery.isLoading ? <div className="np-skeleton-stack" role="status" data-testid="status-clinic-requests-loading"><div /><div /></div>
+            : requestsQuery.isError ? <div className="np-empty-panel" role="alert" data-testid="status-clinic-requests-error"><p>Clinic requests could not be loaded.</p><Button variant="outline" onClick={() => requestsQuery.refetch()} data-testid="button-retry-clinic-requests">Try again</Button></div>
+              : !requestsQuery.data?.requests?.length ? <div className="np-empty-panel" data-testid="empty-clinic-requests"><p>No pending clinic requests.</p></div>
+                : <div className="np-list" data-testid="list-clinic-requests">
+                  {requestsQuery.data.requests.map((request) => (
+                    <Card key={request.requestId} className="np-onboarding-card" data-testid={`card-clinic-request-${request.requestId}`}>
+                      <CardHeader className="np-clinic-heading">
+                        <div>
+                          <CardTitle className="np-card-title">{request.clinicName}</CardTitle>
+                          <p className="np-muted">{request.contactName} · {request.workEmail}</p>
+                          {request.website && <a href={request.website} target="_blank" rel="noreferrer" className="np-muted">{request.website}</a>}
+                          <p className="np-muted">Received {formatDate(request.createdAt)}</p>
+                        </div>
+                        <StatusBadge tone="info">Pending review</StatusBadge>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="np-form-grid">
+                          <div className="np-field">
+                            <Label htmlFor={`first-admin-${request.requestId}`}>First administrator email</Label>
+                            <Input
+                              id={`first-admin-${request.requestId}`}
+                              type="email"
+                              value={firstAdminEmails[request.requestId] ?? request.workEmail}
+                              onChange={(event) => setFirstAdminEmails((current) => ({ ...current, [request.requestId]: event.target.value }))}
+                              disabled={busy}
+                              data-testid={`input-request-first-admin-${request.requestId}`}
+                            />
+                            <p className="np-muted">Confirm the recipient before approval. The request contact is not automatically treated as a verified clinic administrator.</p>
+                          </div>
+                          <div className="np-row-actions">
+                            <Button disabled={busy} onClick={() => runRequestAction("approve", request)} data-testid={`button-approve-clinic-request-${request.requestId}`}>Approve and invite</Button>
+                            <Button variant="outline" disabled={busy} onClick={() => runRequestAction("decline", request)} data-testid={`button-decline-clinic-request-${request.requestId}`}>Decline request</Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>}
+        </section>
+
         <Card className="np-onboarding-card">
-          <CardHeader><CardTitle className="np-section-title">Create a clinic</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="np-section-title">Create a clinic directly</CardTitle></CardHeader>
           <CardContent>
             <Form {...form}>
               <form onSubmit={create} className="np-form-grid" data-testid="form-create-clinic">

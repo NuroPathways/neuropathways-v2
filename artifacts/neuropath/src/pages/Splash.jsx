@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, ArrowRight, LockKeyhole, TimerReset, UserRoundCheck } from "lucide-react";
 import { base44 } from '@/api/entities';
 import BrandMark from "@/components/brand/BrandMark";
+import { getPostLoginPath } from "@/lib/workspaceRouting";
 import "./splash-landing.css";
 
 const STEPS = [
@@ -38,18 +39,18 @@ export default function Splash() {
       if (!authed) return;
       const user = await base44.auth.me().catch(() => null);
       if (!user) return;
-      if (user.app_role === "clinician") navigate("/ClinicianDashboard");
-      else if (user.app_role === "parent") navigate("/ParentDashboard");
+      const destination = getPostLoginPath(user);
+      if (destination) navigate(destination, { replace: true });
     }).catch(() => {});
   }, [navigate]);
 
   return (
-    <div className="np">
+    <div className="np np-foundations">
       <nav className="np-nav">
         <span className="np-brand"><span className="np-mark"><BrandMark size={34} /></span>NeuroPathways</span>
         <div className="np-navr">
-          <a href="#clinicians" className="np-textbtn" data-testid="link-nav-clinicians">For clinics</a>
-          <Link to="/ParentLogin" className="np-btn small primary" data-testid="link-parent-login">I Already Have an Account</Link>
+          <a href="#access" className="np-textbtn" data-testid="link-nav-clinicians">Choose your workspace</a>
+          <Link to="/ParentLogin" className="np-btn small primary" data-testid="link-parent-login">Caregiver sign in</Link>
         </div>
       </nav>
 
@@ -69,8 +70,47 @@ export default function Splash() {
         <div className="np-cta np-rise" style={{ animationDelay: ".2s" }}>
           <Link to="/ParentSignup" className="np-btn primary" data-testid="link-start-parent">Start Parent Account</Link>
           <a href="#explore" className="np-btn" data-testid="link-explore">Explore Behavior Support</a>
-          <Link to="/ParentLogin" className="np-btn ghost" data-testid="link-top-login">I Already Have an Account</Link>
+          <Link to="/ParentLogin" className="np-btn ghost" data-testid="link-top-login">Caregiver sign in</Link>
         </div>
+
+        <section className="np-entry-grid" id="access" aria-label="Choose your NeuroPathways workspace" data-testid="section-workspace-entry">
+          <article className="np-entry-card np-surface-separated">
+            <p className="np-muted np-text-support">FAMILY WORKSPACE</p>
+            <h2 className="np-card-title">Caregivers and parents</h2>
+            <p className="np-text-body-sm">Get to your child’s home, support, goals, practice, documents, and family tools.</p>
+            <div className="np-entry-actions">
+              <Link to="/ParentLogin" className="np-btn primary" data-testid="link-caregiver-sign-in">Caregiver sign in</Link>
+              <Link to="/ParentSignup" className="np-btn" data-testid="link-caregiver-create">Create a caregiver account</Link>
+            </div>
+            <Link to="/UsernameLogin" className="np-entry-secondary" data-testid="link-family-access-code">Use family username and access code</Link>
+          </article>
+          <article className="np-entry-card np-surface-separated">
+            <p className="np-muted np-text-support">CLINICAL WORKSPACE</p>
+            <h2 className="np-card-title">Treating clinicians</h2>
+            <p className="np-text-body-sm">Use clinical tools for clients you are explicitly assigned to support.</p>
+            <div className="np-entry-actions">
+              <Link to="/ClinicianLogin?workspace=clinician" className="np-btn" data-testid="link-clinician-entry">Clinician sign in</Link>
+            </div>
+            <p className="np-entry-note">New clinician access remains locked until an authorized clinic approves it.</p>
+          </article>
+          <article className="np-entry-card np-surface-separated">
+            <p className="np-muted np-text-support">CLINIC WORKSPACE</p>
+            <h2 className="np-card-title">Clinic administrators</h2>
+            <p className="np-text-body-sm">Manage your clinic’s staff, invitations, and client assignments. Administration alone does not grant access to clinical records.</p>
+            <div className="np-entry-actions">
+              <Link to="/ClinicianLogin?workspace=clinic-admin" className="np-btn" data-testid="link-clinic-admin-entry">Clinic administrator sign in</Link>
+            </div>
+            <p className="np-entry-note">Administrator access is issued through an authorized clinic invitation.</p>
+          </article>
+          <article className="np-entry-card np-surface-separated">
+            <p className="np-muted np-text-support">CLINIC ONBOARDING</p>
+            <h2 className="np-card-title">Register your clinic</h2>
+            <p className="np-text-body-sm">Send a request for platform review. A request does not create a clinic or an administrator account.</p>
+            <div className="np-entry-actions">
+              <Link to="/ClinicRequest" className="np-btn" data-testid="link-register-clinic">Request clinic setup</Link>
+            </div>
+          </article>
+        </section>
 
         <div className="np-preview np-rise" style={{ animationDelay: ".3s" }} aria-hidden="true" data-testid="preview-dashboard">
           <div className="np-pbar"><i /><i /><i /><span>Today’s Support</span></div>
@@ -132,8 +172,8 @@ export default function Splash() {
         <section className="np-sec" id="clinicians">
           <div className="np-card np-clin" data-testid="section-clinicians">
             <div><h2 style={{ marginBottom: 8 }}>For clinics and clinicians</h2>
-              <p>Clinicians can upload plans, organize client documents, and help families access support steps between sessions.</p></div>
-            <Link to="/ClinicianLogin" className="np-btn" data-testid="link-clinician-login">Clinician Login</Link>
+              <p>Clinical access is based on active clinic membership and explicit client assignments. Clinic administration and clinical care remain separate workspace permissions.</p></div>
+            <Link to="/ClinicRequest" className="np-btn" data-testid="link-clinic-request-lower">Request clinic setup</Link>
           </div>
         </section>
 
@@ -152,7 +192,9 @@ export default function Splash() {
         <footer className="np-foot">
           <span>NeuroPathways</span>
           <div>
-            <Link to="/ClinicianLogin" className="np-link">Clinician login</Link>
+            <Link to="/ClinicianLogin?workspace=clinician" className="np-link">Clinician login</Link>
+            <Link to="/ClinicianLogin?workspace=clinic-admin" className="np-link">Clinic administrator login</Link>
+            <Link to="/ClinicRequest" className="np-link">Register your clinic</Link>
             <Link to="/UsernameLogin" className="np-link" data-testid="link-username-login">Username login</Link>
             <Link to="/privacy" className="np-link" data-testid="link-privacy">Privacy policy</Link>
             <Link to="/terms" className="np-link">Terms of use</Link>

@@ -16,6 +16,8 @@ export interface ClinicInvitationRecord {
   role: ClinicInvitationRole;
   status: ClinicInvitationStatus;
   deliveryStatus: ClinicInvitationDeliveryStatus;
+  /** @nullable */
+  deliveryAttemptedAt: Date | null;
   createdAt: Date;
   expiresAt: Date;
 }

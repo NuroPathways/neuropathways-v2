@@ -80,7 +80,7 @@ function renderShell({
 describe("navigation role and menu models", () => {
   it("recognizes clinician and individual accounts without treating a missing role as individual", () => {
     expect(resolveNavigationRole({ app_role: "clinician" })).toBe("clinician");
-    expect(resolveNavigationRole({ role: "admin", account_type: "individual" })).toBe("clinician");
+    expect(resolveNavigationRole({ role: "admin", account_type: "individual" })).toBe("individual");
     expect(resolveNavigationRole({ app_role: "parent", account_type: "individual" })).toBe("individual");
     expect(resolveNavigationRole({ app_role: "parent" })).toBe("caregiver");
     expect(resolveNavigationRole({ app_role: "parent" }, true)).toBe("individual");
@@ -95,6 +95,16 @@ describe("navigation role and menu models", () => {
     ]);
     expect(items.some((item) => item.key === "support" || item.key === "profiles")).toBe(false);
     expect(items.every((item) => item.to.startsWith("/"))).toBe(true);
+  });
+
+  it("keeps clinic administration separate from clinical and platform workspaces", () => {
+    const adminItems = allItems(createRoleNavigation("clinic_admin", "/ClinicianUsers"));
+    expect(adminItems.map((item) => item.label)).toEqual([
+      "Clinic overview", "Staff & invitations", "Client assignments", "Settings",
+    ]);
+    expect(adminItems.some((item) => ["documents", "plans", "reports", "ai-review"].includes(item.key))).toBe(false);
+    expect(allItems(createRoleNavigation("platform_admin", "/PlatformAdminClinics")).map((item) => item.key))
+      .toEqual(["clinic-management", "settings"]);
   });
 
   it("puts Messages in the clinician mobile bar and keeps Progress Reports in the full menu", () => {

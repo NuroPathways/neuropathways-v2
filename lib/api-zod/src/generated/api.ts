@@ -9,6 +9,96 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Submit a clinic onboarding request for review
+ */
+export const submitClinicRequestBodyClinicNameMin = 2;
+export const submitClinicRequestBodyClinicNameMax = 200;
+
+export const submitClinicRequestBodyContactNameMin = 2;
+export const submitClinicRequestBodyContactNameMax = 160;
+
+export const submitClinicRequestBodyWorkEmailMax = 254;
+
+export const submitClinicRequestBodyWebsiteMax = 500;
+
+
+
+export const SubmitClinicRequestBody = zod.object({
+  "clinicName": zod.string().min(submitClinicRequestBodyClinicNameMin).max(submitClinicRequestBodyClinicNameMax),
+  "contactName": zod.string().min(submitClinicRequestBodyContactNameMin).max(submitClinicRequestBodyContactNameMax),
+  "workEmail": zod.string().email().max(submitClinicRequestBodyWorkEmailMax),
+  "website": zod.string().max(submitClinicRequestBodyWebsiteMax).nullish(),
+  "requestKey": zod.string().uuid()
+})
+
+export const SubmitClinicRequestResponse = zod.object({
+  "requestId": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'declined']),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary List clinic requests for a platform administrator
+ */
+export const ListPlatformClinicRequestsResponse = zod.object({
+  "requests": zod.array(zod.object({
+  "requestId": zod.string(),
+  "clinicName": zod.string(),
+  "contactName": zod.string(),
+  "workEmail": zod.string().email(),
+  "website": zod.string().nullable(),
+  "status": zod.enum(['pending', 'approved', 'declined']),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Approve a pending clinic request and invite its designated first administrator
+ */
+export const ApprovePlatformClinicRequestParams = zod.object({
+  "requestId": zod.coerce.string().uuid()
+})
+
+export const approvePlatformClinicRequestBodyFirstAdminEmailMax = 254;
+
+
+
+export const ApprovePlatformClinicRequestBody = zod.object({
+  "firstAdminEmail": zod.string().email().max(approvePlatformClinicRequestBodyFirstAdminEmailMax)
+})
+
+export const ApprovePlatformClinicRequestResponse = zod.object({
+  "clinicId": zod.string(),
+  "clinicName": zod.string(),
+  "clinicStatus": zod.enum(['pending', 'active']),
+  "invitation": zod.object({
+  "id": zod.string(),
+  "clinicId": zod.string(),
+  "invitedEmail": zod.string().email(),
+  "role": zod.enum(['clinic_admin', 'treating_clinician']),
+  "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
+  "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "deliveryAttemptedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Decline a pending clinic onboarding request
+ */
+export const DeclinePlatformClinicRequestParams = zod.object({
+  "requestId": zod.coerce.string().uuid()
+})
+
+export const DeclinePlatformClinicRequestResponse = zod.unknown()
+
+
+/**
  * @summary List clinics and invitation states for a platform administrator
  */
 export const ListPlatformClinicsResponse = zod.object({
@@ -24,6 +114,7 @@ export const ListPlatformClinicsResponse = zod.object({
   "role": zod.enum(['clinic_admin', 'treating_clinician']),
   "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
   "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "deliveryAttemptedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date()
 }))
@@ -58,6 +149,7 @@ export const CreatePlatformClinicResponse = zod.object({
   "role": zod.enum(['clinic_admin', 'treating_clinician']),
   "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
   "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "deliveryAttemptedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date()
 }),
@@ -85,6 +177,7 @@ export const ReissuePlatformClinicInvitationResponse = zod.object({
   "role": zod.enum(['clinic_admin', 'treating_clinician']),
   "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
   "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "deliveryAttemptedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date()
 }),
@@ -108,6 +201,7 @@ export const RevokePlatformClinicInvitationResponse = zod.object({
   "role": zod.enum(['clinic_admin', 'treating_clinician']),
   "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
   "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "deliveryAttemptedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date()
 }),
@@ -139,6 +233,7 @@ export const InviteClinicClinicianResponse = zod.object({
   "role": zod.enum(['clinic_admin', 'treating_clinician']),
   "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
   "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "deliveryAttemptedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date()
 }),
@@ -166,6 +261,7 @@ export const ReissueClinicStaffInvitationResponse = zod.object({
   "role": zod.enum(['clinic_admin', 'treating_clinician']),
   "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
   "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "deliveryAttemptedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date()
 }),
@@ -189,6 +285,7 @@ export const RevokeClinicStaffInvitationResponse = zod.object({
   "role": zod.enum(['clinic_admin', 'treating_clinician']),
   "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
   "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "deliveryAttemptedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date()
 }),
@@ -292,6 +389,7 @@ export const ListManagedClinicStaffResponse = zod.object({
   "role": zod.enum(['clinic_admin', 'treating_clinician']),
   "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
   "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "deliveryAttemptedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date()
 }))
@@ -1647,7 +1745,14 @@ export const GetAuthUserResponse = zod.object({
   "firstName": zod.string().nullable(),
   "lastName": zod.string().nullable(),
   "profileImageUrl": zod.string().nullable(),
-  "isPlatformAdministrator": zod.boolean()
+  "isPlatformAdministrator": zod.boolean(),
+  "authorizedWorkspaces": zod.array(zod.object({
+  "id": zod.enum(['platform-administration', 'clinic-administration', 'clinical-workspace']),
+  "type": zod.enum(['platform_admin', 'clinic_admin', 'clinician']),
+  "label": zod.string(),
+  "homePath": zod.enum(['/PlatformAdminClinics', '/ClinicianUsers', '/ClinicianDashboard'])
+})).optional(),
+  "defaultWorkspaceId": zod.string().nullish()
 }),zod.null()])
 })
 

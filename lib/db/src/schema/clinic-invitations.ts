@@ -23,6 +23,7 @@ export const clinicInvitationsTable = pgTable(
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     deliveryStatus: varchar("delivery_status").notNull().default("not_sent"),
+    deliveryAttemptedAt: timestamp("delivery_attempted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },

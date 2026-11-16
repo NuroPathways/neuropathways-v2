@@ -54,6 +54,7 @@ import {
   parentCanAccessChild,
   userIsActivePlatformAdministrator,
 } from "../lib/clinicAuthorization";
+import { defaultWorkspace, listAuthorizedWorkspaces } from "../lib/userWorkspaces";
 import { resolveLocalUploadReference } from "../lib/localUploadReference";
 import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
 import { accessCodeResetAuditTargetId } from "../lib/accessCodeResetAudit";
@@ -1421,6 +1422,8 @@ router.get("/users/me", requireAuth, async (req: any, res) => {
         eq(platformAdministratorGrantsTable.status, "active"),
         isNull(platformAdministratorGrantsTable.revokedAt),
       ));
+    const authorizedWorkspaces = await listAuthorizedWorkspaces(req.user.id);
+    const primaryWorkspace = defaultWorkspace(authorizedWorkspaces);
     const { emailVerified: _emailVerified, ...safeAuthUser } = authUser ?? {};
     return res.json(serialize({
       ...safeAuthUser,
@@ -1428,6 +1431,8 @@ router.get("/users/me", requireAuth, async (req: any, res) => {
       isPlatformAdministrator: Boolean(
         platformGrant && profile?.appRole === "clinician" && profile?.accountType === "clinician",
       ),
+      authorizedWorkspaces,
+      defaultWorkspaceId: primaryWorkspace?.id ?? null,
     }));
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "entities");

@@ -2,13 +2,16 @@ import { Router } from "express";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import {
   clinicInvitationsTable,
+  clinicRequestsTable,
   clinicsTable,
   db,
-  platformAdministratorGrantsTable,
-  userProfilesTable,
 } from "@workspace/db";
 import {
   CreatePlatformClinicBody,
+  ApprovePlatformClinicRequestBody,
+  ApprovePlatformClinicRequestParams,
+  DeclinePlatformClinicRequestParams,
+  ListPlatformClinicRequestsResponse,
   ListPlatformClinicsResponse,
   ReissuePlatformClinicInvitationBody,
   ReissuePlatformClinicInvitationParams,
@@ -19,13 +22,17 @@ import {
 import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
 import { deliverClinicInvitation } from "../lib/clinicInvitationActions";
 import {
+  FIRST_ADMIN_INVITATION_TTL_MS,
+  hasPlatformAuthority,
+  provisionClinicAndFirstAdminInTransaction,
+} from "../lib/platformClinicProvisioning";
+import {
   createClinicInvitationToken,
   hashClinicInvitationToken,
   normalizeInvitationEmail,
 } from "../lib/clinicInvitationSecurity";
 
 const router = Router();
-const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function actorId(req: any): string | null {
   return typeof req.user?.id === "string" && req.user.id ? req.user.id : null;
@@ -39,24 +46,10 @@ function invitationRecord(row: any) {
     role: row.role,
     status: row.status,
     deliveryStatus: row.deliveryStatus,
+    deliveryAttemptedAt: row.deliveryAttemptedAt ? new Date(row.deliveryAttemptedAt).toISOString() : null,
     createdAt: new Date(row.createdAt).toISOString(),
     expiresAt: new Date(row.expiresAt).toISOString(),
   };
-}
-
-async function hasPlatformAuthority(userId: string, executor: any = db): Promise<boolean> {
-  const [[grant], [profile]] = await Promise.all([
-    executor.select({ id: platformAdministratorGrantsTable.id })
-      .from(platformAdministratorGrantsTable)
-      .where(and(
-        eq(platformAdministratorGrantsTable.userId, userId),
-        eq(platformAdministratorGrantsTable.status, "active"),
-        isNull(platformAdministratorGrantsTable.revokedAt),
-      )),
-    executor.select({ appRole: userProfilesTable.appRole, accountType: userProfilesTable.accountType })
-      .from(userProfilesTable).where(eq(userProfilesTable.id, userId)),
-  ]);
-  return Boolean(grant && profile?.appRole === "clinician" && profile?.accountType === "clinician");
 }
 
 async function auditDenied(req: any, userId: string | null, clinicId: string | null, action: string, targetId?: string) {
@@ -75,6 +68,209 @@ async function auditDenied(req: any, userId: string | null, clinicId: string | n
   });
 }
 
+router.get("/platform-management/clinic-requests", async (req: any, res): Promise<void> => {
+  const userId = actorId(req);
+  if (!userId) {
+    await auditDenied(req, null, null, "platform_clinic_requests_list_denied");
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+  if (!(await hasPlatformAuthority(userId, db))) {
+    await auditDenied(req, userId, null, "platform_clinic_requests_list_denied");
+    res.status(403).json({ error: "Platform administrator permission required" });
+    return;
+  }
+  try {
+    const requests = await db.select().from(clinicRequestsTable)
+      .where(eq(clinicRequestsTable.status, "pending"))
+      .orderBy(asc(clinicRequestsTable.createdAt));
+    res.json(ListPlatformClinicRequestsResponse.parse({
+      requests: requests.map((row) => ({
+        requestId: row.id,
+        clinicName: row.clinicName,
+        contactName: row.contactName,
+        workEmail: row.workEmail,
+        website: row.website,
+        status: row.status,
+        createdAt: new Date(row.createdAt).toISOString(),
+      })),
+    }));
+  } catch (error) {
+    req.log?.error?.({ err: error }, "Clinic requests could not be loaded");
+    res.status(500).json({ error: "Clinic requests could not be loaded" });
+  }
+});
+
+router.post("/platform-management/clinic-requests/:requestId/approve", async (req: any, res): Promise<void> => {
+  const userId = actorId(req);
+  const params = ApprovePlatformClinicRequestParams.safeParse(req.params);
+  const body = ApprovePlatformClinicRequestBody.safeParse(req.body);
+  const firstAdminEmail = normalizeInvitationEmail(body.success ? body.data.firstAdminEmail : null);
+  if (!params.success || !body.success || !firstAdminEmail) {
+    res.status(400).json({ error: "A valid request ID and first-administrator email are required" });
+    return;
+  }
+  if (!userId) {
+    await auditDenied(req, null, null, "platform_clinic_request_approval_denied", params.data.requestId);
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+  if (!(await hasPlatformAuthority(userId, db))) {
+    await auditDenied(req, userId, null, "platform_clinic_request_approval_denied", params.data.requestId);
+    res.status(403).json({ error: "Platform administrator permission required" });
+    return;
+  }
+
+  const token = createClinicInvitationToken();
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [request] = await tx.select().from(clinicRequestsTable)
+        .where(eq(clinicRequestsTable.id, params.data.requestId))
+        .for("update");
+      if (!request) throw Object.assign(new Error("Clinic request not found"), { status: 404 });
+      if (request.status === "approved" && request.clinicId) {
+        const [[clinic], [invitation]] = await Promise.all([
+          tx.select().from(clinicsTable).where(eq(clinicsTable.id, request.clinicId)),
+          tx.select().from(clinicInvitationsTable).where(and(
+            eq(clinicInvitationsTable.clinicId, request.clinicId),
+            eq(clinicInvitationsTable.role, "clinic_admin"),
+            eq(clinicInvitationsTable.requestKey, `platform-create:${request.id}`),
+          )),
+        ]);
+        if (!clinic || !invitation || invitation.invitedEmail !== firstAdminEmail) {
+          throw Object.assign(new Error("Request was already reviewed"), { status: 409 });
+        }
+        return { clinic, invitation, created: false };
+      }
+      if (request.status !== "pending") {
+        throw Object.assign(new Error("Request is no longer pending"), { status: 409 });
+      }
+
+      const provisioned = await provisionClinicAndFirstAdminInTransaction(tx, {
+        userId,
+        clinicName: request.clinicName,
+        invitedEmail: firstAdminEmail,
+        requestKey: `platform-create:${request.id}`,
+        token,
+        request: req,
+      });
+      const reviewedAt = new Date();
+      await tx.update(clinicRequestsTable).set({
+        status: "approved",
+        reviewedBy: userId,
+        reviewedAt,
+        clinicId: provisioned.clinic.id,
+        updatedAt: reviewedAt,
+      }).where(eq(clinicRequestsTable.id, request.id));
+      await writeAuditEvent(tx, {
+        userId,
+        userRole: "platform_admin",
+        tenantId: provisioned.clinic.id,
+        action: "clinic_request_approved",
+        targetType: "clinic_request",
+        targetId: request.id,
+        metadata: { clinic_id: provisioned.clinic.id, first_admin_invitation_id: provisioned.invitation.id },
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
+      return provisioned;
+    });
+
+    let invitation = result.invitation;
+    if (result.created) {
+      await deliverClinicInvitation({
+        invitationId: invitation.id,
+        clinicId: result.clinic.id,
+        createdBy: userId,
+        invitedEmail: firstAdminEmail,
+        clinicName: result.clinic.displayName,
+        role: "clinic_admin",
+        token,
+        request: req,
+      });
+      [invitation] = await db.select().from(clinicInvitationsTable)
+        .where(eq(clinicInvitationsTable.id, invitation.id));
+    }
+    res.status(result.created ? 201 : 200).json({
+      clinicId: result.clinic.id,
+      clinicName: result.clinic.displayName,
+      clinicStatus: result.clinic.status,
+      invitation: invitationRecord(invitation),
+      message: result.created
+        ? deliveryMessage(invitation.deliveryStatus)
+        : "This request was already approved; no new invitation was issued.",
+    });
+  } catch (error: any) {
+    const status = [403, 404, 409].includes(error?.status) ? error.status : 500;
+    if (status === 500) req.log?.error?.({ err: error }, "Clinic request approval failed");
+    if (status === 403) await auditDenied(req, userId, null, "platform_clinic_request_approval_denied", params.data.requestId);
+    res.status(status).json({
+      error: status === 404 ? "Clinic request not found"
+        : status === 409 ? "This clinic request is no longer pending"
+          : status === 403 ? "Platform administrator permission required"
+            : "Clinic request could not be approved",
+    });
+  }
+});
+
+router.post("/platform-management/clinic-requests/:requestId/decline", async (req: any, res): Promise<void> => {
+  const userId = actorId(req);
+  const params = DeclinePlatformClinicRequestParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "A valid clinic request ID is required" });
+    return;
+  }
+  if (!userId) {
+    await auditDenied(req, null, null, "platform_clinic_request_decline_denied", params.data.requestId);
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+  if (!(await hasPlatformAuthority(userId, db))) {
+    await auditDenied(req, userId, null, "platform_clinic_request_decline_denied", params.data.requestId);
+    res.status(403).json({ error: "Platform administrator permission required" });
+    return;
+  }
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      const [request] = await tx.select().from(clinicRequestsTable)
+        .where(eq(clinicRequestsTable.id, params.data.requestId))
+        .for("update");
+      if (!request) return "not_found" as const;
+      if (request.status === "declined") return "declined" as const;
+      if (request.status !== "pending") return "conflict" as const;
+      const reviewedAt = new Date();
+      await tx.update(clinicRequestsTable).set({
+        status: "declined",
+        reviewedBy: userId,
+        reviewedAt,
+        updatedAt: reviewedAt,
+      }).where(eq(clinicRequestsTable.id, request.id));
+      await writeAuditEvent(tx, {
+        userId,
+        userRole: "platform_admin",
+        action: "clinic_request_declined",
+        targetType: "clinic_request",
+        targetId: request.id,
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
+      return "declined" as const;
+    });
+    if (outcome === "not_found") {
+      res.status(404).json({ error: "Clinic request not found" });
+      return;
+    }
+    if (outcome === "conflict") {
+      res.status(409).json({ error: "This clinic request is no longer pending" });
+      return;
+    }
+    res.json({ ok: true, requestId: params.data.requestId, status: outcome });
+  } catch (error) {
+    req.log?.error?.({ err: error }, "Clinic request could not be declined");
+    res.status(500).json({ error: "Clinic request could not be declined" });
+  }
+});
+
 router.get("/platform-management/clinics", async (req: any, res): Promise<void> => {
   const userId = actorId(req);
   if (!userId) {
@@ -82,7 +278,7 @@ router.get("/platform-management/clinics", async (req: any, res): Promise<void> 
     res.status(401).json({ error: "Authentication required" });
     return;
   }
-  if (!(await hasPlatformAuthority(userId))) {
+  if (!(await hasPlatformAuthority(userId, db))) {
     await auditDenied(req, userId, null, "platform_clinic_list_denied");
     res.status(403).json({ error: "Platform administrator permission required" });
     return;
@@ -126,7 +322,7 @@ router.post("/platform-management/clinics", async (req: any, res): Promise<void>
     res.status(401).json({ error: "Authentication required" });
     return;
   }
-  if (!(await hasPlatformAuthority(userId))) {
+  if (!(await hasPlatformAuthority(userId, db))) {
     await auditDenied(req, userId, null, "platform_clinic_provisioning_denied");
     res.status(403).json({ error: "Platform administrator permission required" });
     return;
@@ -145,93 +341,17 @@ router.post("/platform-management/clinics", async (req: any, res): Promise<void>
     return;
   }
   const token = createClinicInvitationToken();
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + INVITATION_TTL_MS);
-
   try {
-    const result = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${requestKey}))`);
-      if (!(await hasPlatformAuthority(userId, tx))) {
-        throw Object.assign(new Error("Platform administrator permission required"), { status: 403 });
-      }
-      let [clinic] = await tx.select().from(clinicsTable)
-        .where(eq(clinicsTable.creationRequestKey, parsed.data.requestKey));
-      let [invitation] = clinic
-        ? await tx.select().from(clinicInvitationsTable)
-          .where(and(
-            eq(clinicInvitationsTable.clinicId, clinic.id),
-            eq(clinicInvitationsTable.requestKey, requestKey),
-          ))
-        : [];
-
-      if (clinic) {
-        if (clinic.displayName !== clinicName || invitation?.invitedEmail !== invitedEmail) {
-          throw Object.assign(new Error("Request key was already used for another clinic invitation"), { status: 409 });
-        }
-        if (!invitation) {
-          invitation = (await tx.insert(clinicInvitationsTable).values({
-            clinicId: clinic.id,
-            invitedEmail,
-            role: "clinic_admin",
-            tokenHash: hashClinicInvitationToken(token),
-            requestKey,
-            createdBy: userId,
-            expiresAt,
-          }).returning())[0];
-          await writeAuditEvent(tx, {
-            userId,
-            userRole: "platform_admin",
-            tenantId: clinic.id,
-            action: "clinic_first_admin_invitation_created",
-            targetType: "clinic_invitation",
-            targetId: invitation.id,
-            metadata: { role: "clinic_admin", retry_recovered: true },
-            ipAddress: req.ip,
-            requestId: req.id,
-          });
-        }
-        return { clinic, invitation, created: false };
-      }
-
-      clinic = (await tx.insert(clinicsTable).values({
-        displayName: clinicName,
-        status: "pending",
-        createdBy: userId,
-        creationRequestKey: parsed.data.requestKey,
-      }).returning())[0];
-      invitation = (await tx.insert(clinicInvitationsTable).values({
-        clinicId: clinic.id,
+    const result = await db.transaction(async (tx) =>
+      provisionClinicAndFirstAdminInTransaction(tx, {
+        userId,
+        clinicName,
         invitedEmail,
-        role: "clinic_admin",
-        tokenHash: hashClinicInvitationToken(token),
         requestKey,
-        createdBy: userId,
-        expiresAt,
-      }).returning())[0];
-      await writeAuditEvent(tx, {
-        userId,
-        userRole: "platform_admin",
-        tenantId: clinic.id,
-        action: "clinic_provisioned",
-        targetType: "clinic",
-        targetId: clinic.id,
-        metadata: { status: "pending", first_admin_invitation_id: invitation.id },
-        ipAddress: req.ip,
-        requestId: req.id,
-      });
-      await writeAuditEvent(tx, {
-        userId,
-        userRole: "platform_admin",
-        tenantId: clinic.id,
-        action: "clinic_first_admin_invitation_created",
-        targetType: "clinic_invitation",
-        targetId: invitation.id,
-        metadata: { role: "clinic_admin" },
-        ipAddress: req.ip,
-        requestId: req.id,
-      });
-      return { clinic, invitation, created: true };
-    });
+        token,
+        request: req,
+      })
+    );
 
     let currentInvitation = result.invitation;
     if (result.created) {
@@ -304,7 +424,7 @@ router.post("/platform-management/clinics/:clinicId/invitations/:invitationId/re
     res.status(401).json({ error: "Authentication required" });
     return;
   }
-  if (!(await hasPlatformAuthority(userId))) {
+  if (!(await hasPlatformAuthority(userId, db))) {
     await auditDenied(req, userId, params.data.clinicId, "clinic_invitation_reissue_denied", params.data.invitationId);
     res.status(403).json({ error: "Platform administrator permission required" });
     return;
@@ -343,7 +463,7 @@ router.post("/platform-management/clinics/:clinicId/invitations/:invitationId/re
         tokenHash: hashClinicInvitationToken(token),
         requestKey,
         createdBy: userId,
-        expiresAt: new Date(now.getTime() + INVITATION_TTL_MS),
+        expiresAt: new Date(now.getTime() + FIRST_ADMIN_INVITATION_TTL_MS),
       }).returning();
       await writeAuditEvent(tx, {
         userId,
@@ -400,7 +520,7 @@ router.post("/platform-management/clinics/:clinicId/invitations/:invitationId/re
     res.status(401).json({ error: "Authentication required" });
     return;
   }
-  if (!(await hasPlatformAuthority(userId))) {
+  if (!(await hasPlatformAuthority(userId, db))) {
     await auditDenied(req, userId, params.data.clinicId, "clinic_invitation_revocation_denied", params.data.invitationId);
     res.status(403).json({ error: "Platform administrator permission required" });
     return;

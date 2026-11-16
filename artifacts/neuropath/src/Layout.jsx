@@ -6,13 +6,17 @@ import { useAuth } from "@/lib/AuthContext";
 import SupportNowOverlay from "@/components/support/SupportNowOverlay";
 import RoleAwareShell from "@/components/navigation/RoleAwareShell";
 import { createRoleNavigation, mobilePrimaryKeysForRole, resolveNavigationRole } from "@/components/navigation/navigationModels";
+import { getAuthorizedWorkspaces, resolveActiveWorkspace } from "@/lib/workspaceRouting";
 
-const noLayoutPages = ["Splash", "Login", "RoleSelection", "ClinicianLogin", "ParentLogin", "ParentSignup", "ParentQuickStart", "ParentHome", "ClientLogin", "RoleSetup", "HelpNow", "AIChat"];
+const noLayoutPages = ["Splash", "Login", "RoleSelection", "ClinicianLogin", "ParentLogin", "ParentSignup", "ParentQuickStart", "ParentHome", "ClientLogin", "RoleSetup", "HelpNow", "AIChat", "WorkspaceSelect", "ClinicRequest"];
 
 export default function Layout({ children, currentPageName }) {
   const { user, isLoadingAuth } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const authorizedWorkspaces = getAuthorizedWorkspaces(user);
+  const activeWorkspace = resolveActiveWorkspace(user, location.pathname, location.search);
+  const role = resolveNavigationRole(user, isIndividualFallback, activeWorkspace);
   const [childrenList, setChildrenList] = useState([]);
   const [isIndividualFallback, setIsIndividualFallback] = useState(false);
   const [supportRequest, setSupportRequest] = useState(0);
@@ -40,15 +44,16 @@ export default function Layout({ children, currentPageName }) {
       return () => { cancelled = true; };
     }
 
-    if (user.app_role === "clinician" || user.role === "admin") {
+    if (role === "clinician") {
       base44.entities.Child.filter({ clinician_id: user.id })
         .then((children) => { if (!cancelled) setChildrenList(children); })
         .catch(() => {});
-    } else if (
+    } else if (role === "caregiver" || role === "individual") {
+      if (
       ["parent", "caregiver"].includes(user.app_role) ||
       ["parent", "caregiver"].includes(user.role) ||
       ["parent", "parent_family", "family", "caregiver"].includes(user.account_type)
-    ) {
+      ) {
       Promise.all([
         base44.entities.Child.filter({ parent_id: user.id }).catch(() => []),
         user.email ? base44.entities.Child.filter({ parent_email: user.email }).catch(() => []) : Promise.resolve([]),
@@ -69,9 +74,10 @@ export default function Layout({ children, currentPageName }) {
           }
         }
       });
+      }
     }
     return () => { cancelled = true; };
-  }, [user?.id, user?.app_role, user?.role, user?.account_type, user?.invite_token, user?.children, user?.email]);
+  }, [user?.id, user?.app_role, user?.role, user?.account_type, user?.invite_token, user?.children, user?.email, role]);
 
   if (noLayoutPages.includes(currentPageName)) return <>{children}</>;
 
@@ -85,7 +91,6 @@ export default function Layout({ children, currentPageName }) {
 
   if (!user) return <>{children}</>;
 
-  const role = resolveNavigationRole(user, isIndividualFallback);
   const homePath = user.invite_token ? "/ClientHome" : "/ParentHome";
   const requestedChildId = new URLSearchParams(location.search).get("child_id");
   let savedChildId = null;
@@ -105,8 +110,12 @@ export default function Layout({ children, currentPageName }) {
       : "") ||
     childrenList[0]?.child_name ||
     "Account";
-  const accountMeta = role === "clinician"
-    ? "Clinical team"
+  const accountMeta = role === "platform_admin"
+    ? "Platform administration"
+    : role === "clinic_admin"
+      ? "Clinic administration"
+      : role === "clinician"
+        ? "Clinical team"
     : role === "individual"
       ? "Individual account"
       : "Family account";
@@ -115,9 +124,13 @@ export default function Layout({ children, currentPageName }) {
     ...group,
     items: group.items.map((item) => {
       const openSupportOverlay = item.key === "support" && role !== "clinician";
+        const hashTarget = typeof item.to === "string" ? item.to.split("#")[1] : null;
+        const activeFromRoute = hashTarget
+          ? currentPageName === "ClinicianUsers" && location.hash === `#${hashTarget}`
+          : item.pages?.includes(currentPageName) || false;
       return {
         ...item,
-        active: item.pages?.includes(currentPageName) || false,
+          active: Boolean(item.active || activeFromRoute),
         to: openSupportOverlay ? undefined : item.to && ((path) => {
           if ((!user.invite_token && role !== "caregiver") || path === "/ClientHome" || path === "/PlatformAdminClinics") return path;
           const childId = selectedChild?.id || currentChildId;
@@ -132,19 +145,19 @@ export default function Layout({ children, currentPageName }) {
       };
     }),
   }));
-  if (user?.isPlatformAdministrator || user?.is_platform_administrator) {
+  if (authorizedWorkspaces.length > 1) {
     navigationGroups.push({
-      label: "Platform",
-      items: [{
-        key: "platform-clinics",
-        label: "Platform clinics",
+      label: "Workspaces",
+      items: authorizedWorkspaces.map((workspace) => ({
+        key: `workspace-${workspace.id}`,
+        label: workspace.label,
         icon: Building2,
-        to: "/PlatformAdminClinics",
-        pages: ["PlatformAdminClinics"],
-      }],
+        to: `${workspace.homePath}?workspace=${workspace.id}`,
+        active: workspace.id === activeWorkspace?.id,
+      })),
     });
   }
-  const isLegacyDashboard = currentPageName === "ClinicianDashboard";
+  const isLegacyDashboard = currentPageName === "ClinicianDashboard" && role === "clinician";
   const dashboardOrder = ["dashboard", "clients", "plans", "documents", "reports", "messages", "settings"];
   const navigationItems = navigationGroups.flatMap((group) => group.items);
   const groups = isLegacyDashboard ? [
@@ -175,7 +188,13 @@ export default function Layout({ children, currentPageName }) {
   return (
     <RoleAwareShell
       role={role}
-      roleLabel={role === "clinician" ? isLegacyDashboard ? "Clinician Portal" : "Clinician workspace" : role === "individual" ? "Your personal space" : "Caregiver workspace"}
+      roleLabel={role === "platform_admin"
+        ? "Platform administration"
+        : role === "clinic_admin"
+          ? "Clinic administration"
+          : role === "clinician"
+            ? isLegacyDashboard ? "Clinician Portal" : "Clinician workspace"
+            : role === "individual" ? "Your personal space" : "Caregiver workspace"}
       legacyAppearance={isLegacyDashboard}
       hideTopbar={isLegacyDashboard}
       currentLabel={currentLabel}

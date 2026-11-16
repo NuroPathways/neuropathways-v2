@@ -496,6 +496,40 @@ export interface HealthStatus {
   status: string;
 }
 
+export type AuthorizedWorkspaceId = typeof AuthorizedWorkspaceId[keyof typeof AuthorizedWorkspaceId];
+
+
+export const AuthorizedWorkspaceId = {
+  'platform-administration': 'platform-administration',
+  'clinic-administration': 'clinic-administration',
+  'clinical-workspace': 'clinical-workspace',
+} as const;
+
+export type AuthorizedWorkspaceType = typeof AuthorizedWorkspaceType[keyof typeof AuthorizedWorkspaceType];
+
+
+export const AuthorizedWorkspaceType = {
+  platform_admin: 'platform_admin',
+  clinic_admin: 'clinic_admin',
+  clinician: 'clinician',
+} as const;
+
+export type AuthorizedWorkspaceHomePath = typeof AuthorizedWorkspaceHomePath[keyof typeof AuthorizedWorkspaceHomePath];
+
+
+export const AuthorizedWorkspaceHomePath = {
+  '/PlatformAdminClinics': '/PlatformAdminClinics',
+  '/ClinicianUsers': '/ClinicianUsers',
+  '/ClinicianDashboard': '/ClinicianDashboard',
+} as const;
+
+export interface AuthorizedWorkspace {
+  id: AuthorizedWorkspaceId;
+  type: AuthorizedWorkspaceType;
+  label: string;
+  homePath: AuthorizedWorkspaceHomePath;
+}
+
 export interface AuthUser {
   id: string;
   /** @nullable */
@@ -507,6 +541,9 @@ export interface AuthUser {
   /** @nullable */
   profileImageUrl: string | null;
   isPlatformAdministrator: boolean;
+  authorizedWorkspaces?: AuthorizedWorkspace[];
+  /** @nullable */
+  defaultWorkspaceId?: string | null;
 }
 
 export interface CurrentAuthUser {
@@ -1649,6 +1686,8 @@ export interface ClinicInvitationRecord {
   role: ClinicInvitationRole;
   status: ClinicInvitationStatus;
   deliveryStatus: ClinicInvitationDeliveryStatus;
+  /** @nullable */
+  deliveryAttemptedAt: string | null;
   createdAt: string;
   expiresAt: string;
 }
@@ -1691,6 +1730,75 @@ export interface ClinicStaffRevocationResult {
   membershipsRevoked: number;
   assignmentsRevoked: number;
   legacyChildrenBlocked: number;
+}
+
+export interface ClinicRequestSubmissionBody {
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  clinicName: string;
+  /**
+     * @minLength 2
+     * @maxLength 160
+     */
+  contactName: string;
+  /** @maxLength 254 */
+  workEmail: string;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  website?: string | null;
+  requestKey: string;
+}
+
+export type ClinicRequestSubmissionResultStatus = typeof ClinicRequestSubmissionResultStatus[keyof typeof ClinicRequestSubmissionResultStatus];
+
+
+export const ClinicRequestSubmissionResultStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  declined: 'declined',
+} as const;
+
+export interface ClinicRequestSubmissionResult {
+  requestId: string;
+  status: ClinicRequestSubmissionResultStatus;
+  message: string;
+}
+
+export type PlatformClinicRequestStatus = typeof PlatformClinicRequestStatus[keyof typeof PlatformClinicRequestStatus];
+
+
+export const PlatformClinicRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  declined: 'declined',
+} as const;
+
+export interface PlatformClinicRequest {
+  requestId: string;
+  clinicName: string;
+  contactName: string;
+  workEmail: string;
+  /** @nullable */
+  website: string | null;
+  status: PlatformClinicRequestStatus;
+  createdAt: string;
+}
+
+export interface PlatformClinicRequestDirectory {
+  requests: PlatformClinicRequest[];
+}
+
+export interface ClinicRequestApprovalPath {
+  requestId: string;
+}
+
+export interface ClinicRequestApprovalInput {
+  /** @maxLength 254 */
+  firstAdminEmail: string;
 }
 
 export interface ClinicProvisioningInput {

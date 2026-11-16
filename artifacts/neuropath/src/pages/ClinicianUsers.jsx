@@ -42,6 +42,9 @@ export default function ClinicianUsers() {
   const [error, setError] = useState("");
   const [revokeTarget, setRevokeTarget] = useState(null);
   const [removeStaffTarget, setRemoveStaffTarget] = useState(null);
+  const [staffSearch, setStaffSearch] = useState("");
+  const [staffStatus, setStaffStatus] = useState("all");
+  const [invitationStatus, setInvitationStatus] = useState("all");
   const enabled = Boolean(user?.id && ["clinician", "clinic_admin"].includes(user?.app_role || user?.appRole));
   const staffQuery = useListManagedClinicStaff({ query: { queryKey: getListManagedClinicStaffQueryKey(), enabled } });
   const clinics = staffQuery.data?.clinics || [];
@@ -54,6 +57,22 @@ export default function ClinicianUsers() {
     () => (selectedClinic?.staff || []).filter((person) => person.status === "active" && person.roles.includes("treating_clinician")),
     [selectedClinic],
   );
+  const filteredStaff = useMemo(() => {
+    const search = staffSearch.trim().toLowerCase();
+    return (selectedClinic?.staff || []).filter((person) => {
+      const textMatch = !search || [person.displayName, person.email, ...(person.roles || [])]
+        .some((value) => String(value || "").toLowerCase().includes(search));
+      return textMatch && (staffStatus === "all" || person.status === staffStatus);
+    });
+  }, [selectedClinic, staffSearch, staffStatus]);
+  const filteredInvitations = useMemo(() => {
+    const search = staffSearch.trim().toLowerCase();
+    return (selectedClinic?.invitations || []).filter((invitation) => {
+      const textMatch = !search || [invitation.invitedEmail, invitation.role, invitation.status, invitation.deliveryStatus]
+        .some((value) => String(value || "").toLowerCase().includes(search));
+      return textMatch && (invitationStatus === "all" || invitation.status === invitationStatus);
+    });
+  }, [selectedClinic, staffSearch, invitationStatus]);
   const invite = useInviteClinicClinician();
   const reissue = useReissueClinicStaffInvitation();
   const revoke = useRevokeClinicStaffInvitation();
@@ -118,7 +137,7 @@ export default function ClinicianUsers() {
   return (
     <main className="np-foundations np-onboarding-page">
       <div className="np-onboarding-content">
-        <PageHeader title="Clinic team" context="NeuroPathways · Clinic access" description="Invite treating clinicians and maintain client assignments within this clinic. Clinic administrators cannot create or edit administrative roles." data-testid="header-clinician-users" />
+        <PageHeader title="Clinic management" context="NeuroPathways · Clinic administration" description="View clinic membership, manage staff invitations, and maintain client assignments. This page does not grant clinical record access or allow role editing." data-testid="header-clinician-users" />
         {feedback && <p role="status" className="np-feedback" data-testid="status-clinic-team-feedback">{feedback}</p>}
         {error && <p role="alert" className="np-feedback np-feedback-error" data-testid="status-clinic-team-error">{error}</p>}
 
@@ -126,16 +145,21 @@ export default function ClinicianUsers() {
           : staffQuery.isError ? <div className="np-empty-panel" role="alert" data-testid="status-clinic-staff-error"><p>Clinic team information could not be loaded.</p><Button variant="outline" onClick={() => staffQuery.refetch()} data-testid="button-retry-clinic-team">Try again</Button></div>
             : !clinics.length ? <div className="np-empty-panel" data-testid="empty-clinic-team"><Users aria-hidden="true" /><h2>No clinic administration access</h2><p>Clinic staff and client assignments are available to clinic administrators. Contact your clinic administrator if you need access.</p></div>
               : <>
-                <div className="np-clinic-selector">
+                <section className="np-clinic-selector" id="overview">
+                  <h2 className="np-section-title">Clinic overview</h2>
                   <Label htmlFor="clinic-selector">Clinic</Label>
                   <Select value={selectedClinicId} onValueChange={setSelectedClinicId}>
                     <SelectTrigger id="clinic-selector" className="np-select-trigger" data-testid="select-managed-clinic"><SelectValue placeholder="Choose a clinic" /></SelectTrigger>
                     <SelectContent>{clinics.map((clinic) => <SelectItem key={clinic.clinicId} value={clinic.clinicId}>{clinic.clinicName}</SelectItem>)}</SelectContent>
                   </Select>
-                </div>
+                  <div className="np-field">
+                    <Label htmlFor="staff-search">Search staff and invitations</Label>
+                    <Input id="staff-search" value={staffSearch} onChange={(event) => setStaffSearch(event.target.value)} placeholder="Name, email, role, or status" data-testid="input-search-clinic-staff" />
+                  </div>
+                </section>
 
                 {selectedClinic && <>
-                  <Card className="np-onboarding-card">
+                  <Card className="np-onboarding-card" id="staff">
                     <CardHeader><CardTitle className="np-section-title">Invite a treating clinician</CardTitle></CardHeader>
                     <CardContent>
                       <Form {...inviteForm}>
@@ -149,32 +173,63 @@ export default function ClinicianUsers() {
                   </Card>
 
                   <section className="np-onboarding-section">
-                    <SectionHeading title="Clinic staff" description="Staff roles and account states are provided by the server." />
-                    {selectedClinic.staff.length ? <div className="np-people-list" data-testid={`list-clinic-staff-${selectedClinic.clinicId}`}>
-                       {selectedClinic.staff.map((person) => <div className="np-person-row" key={person.userId} data-testid={`row-managed-staff-${person.userId}`}>
-                         <div className="np-person-copy"><strong data-testid={`text-managed-staff-name-${person.userId}`}>{person.displayName}</strong>{person.email && <span data-testid={`text-managed-staff-email-${person.userId}`}>{person.email}</span>}<span data-testid={`text-managed-staff-roles-${person.userId}`}>{person.roles.map(statusLabel).join(", ")}</span></div>
+                    <div className="np-filter-row">
+                      <SectionHeading title="Clinic staff" description="Staff roles and account states are provided by the server." />
+                      <Select value={staffStatus} onValueChange={setStaffStatus}>
+                        <SelectTrigger className="np-select-trigger" aria-label="Filter clinic staff by status" data-testid="select-staff-status"><SelectValue /></SelectTrigger>
+                        <SelectContent>{["all", "active", "pending", "suspended", "revoked"].map((status) => <SelectItem key={status} value={status}>{status === "all" ? "All staff statuses" : statusLabel(status)}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    {filteredStaff.length ? <div className="np-people-list" data-testid={`list-clinic-staff-${selectedClinic.clinicId}`}>
+                       {filteredStaff.map((person) => {
+                         const matchingInvitations = selectedClinic.invitations
+                           .filter((invitation) => invitation.invitedEmail.toLowerCase() === String(person.email || "").toLowerCase())
+                           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                         const latestInvitation = matchingInvitations[0];
+                         return <div className="np-person-row" key={person.userId} data-testid={`row-managed-staff-${person.userId}`}>
+                         <div className="np-person-copy">
+                           <strong data-testid={`text-managed-staff-name-${person.userId}`}>{person.displayName}</strong>
+                           {person.email && <span data-testid={`text-managed-staff-email-${person.userId}`}>{person.email}</span>}
+                           <span data-testid={`text-managed-staff-roles-${person.userId}`}>{person.roles.map(statusLabel).join(", ")}</span>
+                           <span>Member since {formatDate(person.membershipCreatedAt)}</span>
+                           <span data-testid={`text-managed-staff-invitation-history-${person.userId}`}>{latestInvitation ? `Recorded invitation: ${statusLabel(latestInvitation.status)}` : "No recorded invitation history."}</span>
+                         </div>
                          <div className="np-row-actions">
                            <StatusBadge tone={toneFor(person.status)} data-testid={`status-managed-staff-${person.userId}`}>{statusLabel(person.status)}</StatusBadge>
                            {person.status === "active" && person.roles.includes("treating_clinician") && <Button variant="destructive" disabled={busy} onClick={() => setRemoveStaffTarget({ userId: person.userId, displayName: person.displayName })} data-testid={`button-remove-clinician-${person.userId}`}>Remove access</Button>}
                          </div>
-                      </div>)}
-                    </div> : <div className="np-empty-panel" data-testid="empty-clinic-staff"><p>No staff are listed for this clinic.</p></div>}
+                       </div>;
+                       })}
+                     </div> : <div className="np-empty-panel" data-testid="empty-clinic-staff"><p>No staff match these filters.</p></div>}
                   </section>
 
-                  <section className="np-onboarding-section">
-                    <SectionHeading title="Pending invitations" description="Reissue to send a fresh invitation or revoke access to this pending invitation." />
-                    {selectedClinic.invitations.filter((invitation) => invitation.status === "pending").length ? <div className="np-invitation-list" data-testid={`list-pending-invitations-${selectedClinic.clinicId}`}>
-                      {selectedClinic.invitations.filter((invitation) => invitation.status === "pending").map((invitation) => <div className="np-invitation-row" key={invitation.id} data-testid={`row-staff-invitation-${invitation.id}`}>
-                        <div className="np-invitation-copy"><strong data-testid={`text-staff-invitation-email-${invitation.id}`}>{invitation.invitedEmail}</strong><span data-testid={`text-staff-invitation-expires-${invitation.id}`}>Expires {formatDate(invitation.expiresAt)}</span><div className="np-badges"><StatusBadge tone={toneFor(invitation.status)} data-testid={`status-staff-invitation-${invitation.id}`}>{statusLabel(invitation.status)}</StatusBadge><StatusBadge tone="outline" data-testid={`status-staff-delivery-${invitation.id}`}>Email: {statusLabel(invitation.deliveryStatus)}</StatusBadge></div></div>
+                  <section className="np-onboarding-section" id="invitations">
+                    <div className="np-filter-row">
+                      <SectionHeading title="Staff invitation history" description="Invitation status, delivery status, creation date, actual delivery attempt, and expiry are tracked separately." />
+                      <Select value={invitationStatus} onValueChange={setInvitationStatus}>
+                        <SelectTrigger className="np-select-trigger" aria-label="Filter invitations by status" data-testid="select-invitation-status"><SelectValue /></SelectTrigger>
+                        <SelectContent>{["all", "pending", "accepted", "expired", "revoked", "superseded"].map((status) => <SelectItem key={status} value={status}>{status === "all" ? "All invitation statuses" : statusLabel(status)}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    {filteredInvitations.length ? <div className="np-invitation-list" data-testid={`list-pending-invitations-${selectedClinic.clinicId}`}>
+                      {filteredInvitations.map((invitation) => <div className="np-invitation-row" key={invitation.id} data-testid={`row-staff-invitation-${invitation.id}`}>
+                        <div className="np-invitation-copy">
+                          <strong data-testid={`text-staff-invitation-email-${invitation.id}`}>{invitation.invitedEmail}</strong>
+                          <span>{statusLabel(invitation.role)} · Created {formatDate(invitation.createdAt)} · Expires {formatDate(invitation.expiresAt)}</span>
+                          <span data-testid={`text-staff-invitation-attempt-${invitation.id}`}>Last delivery attempt: {invitation.deliveryAttemptedAt ? formatDate(invitation.deliveryAttemptedAt) : "None recorded"}</span>
+                          <div className="np-badges"><StatusBadge tone={toneFor(invitation.status)} data-testid={`status-staff-invitation-${invitation.id}`}>{statusLabel(invitation.status)}</StatusBadge><StatusBadge tone="outline" data-testid={`status-staff-delivery-${invitation.id}`}>Delivery: {statusLabel(invitation.deliveryStatus)}</StatusBadge></div>
+                        </div>
                         <div className="np-row-actions">
-                          <Button variant="outline" disabled={busy} onClick={() => handleInvitationAction("reissue", invitation.id)} data-testid={`button-reissue-staff-${invitation.id}`}><RefreshCw aria-hidden="true" /> Reissue</Button>
-                          <Button variant="destructive" disabled={busy} onClick={() => setRevokeTarget({ invitationId: invitation.id, email: invitation.invitedEmail })} data-testid={`button-revoke-staff-${invitation.id}`}>Revoke</Button>
+                          {invitation.status === "pending" && <>
+                            <Button variant="outline" disabled={busy} onClick={() => handleInvitationAction("reissue", invitation.id)} data-testid={`button-reissue-staff-${invitation.id}`}><RefreshCw aria-hidden="true" /> Reissue</Button>
+                            <Button variant="destructive" disabled={busy} onClick={() => setRevokeTarget({ invitationId: invitation.id, email: invitation.invitedEmail })} data-testid={`button-revoke-staff-${invitation.id}`}>Revoke</Button>
+                          </>}
                         </div>
                       </div>)}
-                    </div> : <div className="np-empty-panel" data-testid="empty-pending-invitations"><p>No pending clinician invitations.</p></div>}
+                    </div> : <div className="np-empty-panel" data-testid="empty-pending-invitations"><p>No invitations match these filters.</p></div>}
                   </section>
 
-                  <section className="np-onboarding-section">
+                  <section className="np-onboarding-section" id="assignments">
                     <SectionHeading title="Client assignments" description="Assignments are limited to active treating clinicians in this clinic." />
                     {clientsQuery.isLoading ? <div className="np-skeleton-stack" role="status" data-testid="status-clients-loading"><div /><div /></div>
                       : clientsQuery.isError ? <div className="np-empty-panel" role="alert" data-testid="status-clients-error"><p>Clinic client assignments could not be loaded.</p><Button variant="outline" onClick={() => clientsQuery.refetch()} data-testid="button-retry-clients">Try again</Button></div>

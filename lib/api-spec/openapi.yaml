@@ -21,6 +21,86 @@ tags:
   - name: platform-management
     description: Platform-scoped clinic provisioning
 paths:
+  /clinic-requests:
+    post:
+      operationId: submitClinicRequest
+      tags: [platform-management]
+      summary: Submit a clinic onboarding request for review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicRequestSubmissionBody" }
+      responses:
+        "202":
+          description: Request recorded; no clinic, account, membership, or invitation is created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicRequestSubmissionResult" }
+        "400": { description: Invalid request details }
+        "409": { description: Request ID conflicts with previously submitted details }
+  /platform-management/clinic-requests:
+    get:
+      operationId: listPlatformClinicRequests
+      tags: [platform-management]
+      summary: List clinic requests for a platform administrator
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      responses:
+        "200":
+          description: Requests awaiting platform review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformClinicRequestDirectory" }
+        "401": { description: Authentication required }
+        "403": { description: Platform administrator permission required }
+  /platform-management/clinic-requests/{requestId}/approve:
+    parameters:
+      - { name: requestId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: approvePlatformClinicRequest
+      tags: [platform-management]
+      summary: Approve a pending clinic request and invite its designated first administrator
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicRequestApprovalInput" }
+      responses:
+        "201":
+          description: Pending clinic created and first-administrator invitation issued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicProvisioningResult" }
+        "200":
+          description: Previously approved request retrieved without reissuing credentials
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicProvisioningResult" }
+        "401": { description: Authentication required }
+        "403": { description: Platform administrator permission required }
+        "404": { description: Clinic request not found }
+        "409": { description: Request is not pending or input conflicts with prior approval }
+  /platform-management/clinic-requests/{requestId}/decline:
+    parameters:
+      - { name: requestId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: declinePlatformClinicRequest
+      tags: [platform-management]
+      summary: Decline a pending clinic onboarding request
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      responses:
+        "200": { description: Request declined }
+        "401": { description: Authentication required }
+        "403": { description: Platform administrator permission required }
+        "404": { description: Clinic request not found }
+        "409": { description: Request is no longer pending }
   /platform-management/clinics:
     get:
       operationId: listPlatformClinics
@@ -1818,7 +1898,27 @@ components:
           type: [string, "null"]
         isPlatformAdministrator:
           type: boolean
+        authorizedWorkspaces:
+          type: array
+          items: { $ref: "#/components/schemas/AuthorizedWorkspace" }
+        defaultWorkspaceId:
+          type: [string, "null"]
       required: [id, email, firstName, lastName, profileImageUrl, isPlatformAdministrator]
+    AuthorizedWorkspace:
+      type: object
+      properties:
+        id:
+          type: string
+          enum: [platform-administration, clinic-administration, clinical-workspace]
+        type:
+          type: string
+          enum: [platform_admin, clinic_admin, clinician]
+        label:
+          type: string
+        homePath:
+          type: string
+          enum: [/PlatformAdminClinics, /ClinicianUsers, /ClinicianDashboard]
+      required: [id, type, label, homePath]
     CurrentAuthUser:
       type: object
       properties:
@@ -3236,9 +3336,54 @@ components:
         role: { $ref: "#/components/schemas/ClinicInvitationRole" }
         status: { $ref: "#/components/schemas/ClinicInvitationStatus" }
         deliveryStatus: { $ref: "#/components/schemas/ClinicInvitationDeliveryStatus" }
+        deliveryAttemptedAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
-      required: [id, clinicId, invitedEmail, role, status, deliveryStatus, createdAt, expiresAt]
+      required: [id, clinicId, invitedEmail, role, status, deliveryStatus, deliveryAttemptedAt, createdAt, expiresAt]
+    ClinicRequestSubmissionBody:
+      type: object
+      properties:
+        clinicName: { type: string, minLength: 2, maxLength: 200 }
+        contactName: { type: string, minLength: 2, maxLength: 160 }
+        workEmail: { type: string, format: email, maxLength: 254 }
+        website: { type: ["string", "null"], maxLength: 500 }
+        requestKey: { type: string, format: uuid }
+      required: [clinicName, contactName, workEmail, requestKey]
+    ClinicRequestSubmissionResult:
+      type: object
+      properties:
+        requestId: { type: string }
+        status: { type: string, enum: [pending, approved, declined] }
+        message: { type: string }
+      required: [requestId, status, message]
+    PlatformClinicRequest:
+      type: object
+      properties:
+        requestId: { type: string }
+        clinicName: { type: string }
+        contactName: { type: string }
+        workEmail: { type: string, format: email }
+        website: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, approved, declined] }
+        createdAt: { type: string, format: date-time }
+      required: [requestId, clinicName, contactName, workEmail, website, status, createdAt]
+    PlatformClinicRequestDirectory:
+      type: object
+      properties:
+        requests:
+          type: array
+          items: { $ref: "#/components/schemas/PlatformClinicRequest" }
+      required: [requests]
+    ClinicRequestApprovalPath:
+      type: object
+      properties:
+        requestId: { type: string, format: uuid }
+      required: [requestId]
+    ClinicRequestApprovalInput:
+      type: object
+      properties:
+        firstAdminEmail: { type: string, format: email, maxLength: 254 }
+      required: [firstAdminEmail]
     ClinicProvisioningInput:
       type: object
       properties:

@@ -95,6 +95,14 @@ const passwordResetCompleteLimiter = rateLimit({
   message: { error: "Too many reset attempts, please try again later" },
   skip: () => RATE_LIMIT_DISABLED,
 });
+const clinicRequestLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many clinic requests. Try again later." },
+  skip: () => RATE_LIMIT_DISABLED,
+});
 app.use([
   "/api/client-session/login",
   "/api/client-session/change-access-code",
@@ -112,6 +120,7 @@ app.use("/api/client-access-code-reset/request", accessCodeResetRequestLimiter);
 app.use("/api/client-access-code-reset/complete", accessCodeResetCompleteLimiter);
 app.use("/api/auth/password-reset/request", passwordResetRequestLimiter);
 app.use("/api/auth/password-reset/complete", passwordResetCompleteLimiter);
+app.use("/api/clinic-requests", clinicRequestLimiter);
 
 app.use(
   pinoHttp({
