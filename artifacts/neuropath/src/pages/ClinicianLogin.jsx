@@ -26,7 +26,8 @@ export default function ClinicianLogin() {
       if (authed) {
         const user = await base44.auth.me();
         const role = user.app_role || user.appRole;
-        if (role === "clinician") navigate("/ClinicianDashboard");
+        if (user.isPlatformAdministrator || user.is_platform_administrator) navigate("/PlatformAdminClinics");
+        else if (role === "clinician") navigate("/ClinicianDashboard");
         else if (role === "parent") navigate("/ParentDashboard");
         else if (role === "pending_clinician") navigate("/RoleSetup?role=clinician");
         else navigate("/RoleSetup?role=clinician");
@@ -50,7 +51,7 @@ export default function ClinicianLogin() {
       const data = await res.json();
       if (!res.ok || data.error) { setError(data.error || "Login failed"); setLoading(false); return; }
       await checkUserAuth();
-      navigate("/ClinicianDashboard");
+      navigate(data.redirect || "/ClinicianDashboard");
     } catch {
       setError("Network error — please try again.");
     }

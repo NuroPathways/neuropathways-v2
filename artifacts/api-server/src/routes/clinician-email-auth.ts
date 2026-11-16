@@ -5,18 +5,23 @@ import {
   usersTable,
   sessionsTable,
   clinicMembershipsTable,
+  clinicInvitationsTable,
   clinicsTable,
+  platformAdministratorGrantsTable,
+  userProfilesTable,
+  clinicianCredentialsTable,
+  consentEventsTable,
 } from "@workspace/db";
 import { writeAuditEvent, writeAuditEventBestEffort } from "../lib/auditEvents";
 import { respondWithInternalError } from "../lib/apiError";
-import { userProfilesTable, clinicianCredentialsTable, consentEventsTable } from "@workspace/db";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { createSession, deleteSession, getSessionId, SESSION_COOKIE, SESSION_TTL } from "../lib/auth";
 import { isDisabledPublicDemoClinicianEmail } from "../lib/publicDemoAccountPolicy";
 import { accountAuthorityEvent, validateAccountAuthority } from "../lib/accountAuthority";
 import { createClinicianPasswordHash, verifyClinicianPassword } from "../lib/clinicianPassword";
 import { PENDING_CLINICIAN_ROLE } from "../lib/securityPolicies";
 import { getClinicianAccessibleChildren } from "../lib/clinicAuthorization";
+import { hashClinicInvitationToken, normalizeInvitationEmail } from "../lib/clinicInvitationSecurity";
 
 const router = Router();
 
@@ -41,7 +46,55 @@ async function clinicianHasActiveAccess(userId: string): Promise<boolean> {
     ))
     .limit(1);
   if (membership) return true;
+  const [platformGrant] = await db.select({ id: platformAdministratorGrantsTable.id })
+    .from(platformAdministratorGrantsTable).where(and(
+      eq(platformAdministratorGrantsTable.userId, userId),
+      eq(platformAdministratorGrantsTable.status, "active"),
+      isNull(platformAdministratorGrantsTable.revokedAt),
+    ));
+  if (platformGrant) return true;
   return (await getClinicianAccessibleChildren(userId)).length > 0;
+}
+
+async function validInvitationForLogin(rawToken: unknown, email: string): Promise<boolean> {
+  if (typeof rawToken !== "string" || rawToken.length < 32 || rawToken.length > 128) return false;
+  const [invitation] = await db.select().from(clinicInvitationsTable)
+    .where(eq(clinicInvitationsTable.tokenHash, hashClinicInvitationToken(rawToken)));
+  if (
+    !invitation ||
+    invitation.status !== "pending" ||
+    invitation.expiresAt <= new Date() ||
+    normalizeInvitationEmail(invitation.invitedEmail) !== email
+  ) return false;
+  const [clinic] = await db.select({ status: clinicsTable.status })
+    .from(clinicsTable).where(eq(clinicsTable.id, invitation.clinicId));
+  if (invitation.role === "clinic_admin") {
+    if (clinic?.status !== "pending") return false;
+    const [grant] = await db.select({ id: platformAdministratorGrantsTable.id })
+      .from(platformAdministratorGrantsTable).where(and(
+        eq(platformAdministratorGrantsTable.userId, invitation.createdBy),
+        eq(platformAdministratorGrantsTable.status, "active"),
+        isNull(platformAdministratorGrantsTable.revokedAt),
+      ));
+    return Boolean(grant);
+  }
+  const [membership] = await db.select({ id: clinicMembershipsTable.id })
+    .from(clinicMembershipsTable).where(and(
+      eq(clinicMembershipsTable.userId, invitation.createdBy),
+      eq(clinicMembershipsTable.clinicId, invitation.clinicId),
+      eq(clinicMembershipsTable.role, "clinic_admin"),
+      eq(clinicMembershipsTable.status, "active"),
+    ));
+  const [inviterProfile] = await db.select({
+    appRole: userProfilesTable.appRole,
+    accountType: userProfilesTable.accountType,
+  }).from(userProfilesTable).where(eq(userProfilesTable.id, invitation.createdBy));
+  return Boolean(
+    clinic?.status === "active" &&
+    membership &&
+    inviterProfile?.appRole === "clinician" &&
+    inviterProfile.accountType === "clinician",
+  );
 }
 
 async function registerClinician(req: any, res: any) {
@@ -161,7 +214,7 @@ router.post("/clinician/register", registerClinician);
 router.post("/mobile/clinician/register", registerClinician);
 
 async function loginClinician(req: any, res: any) {
-  const { email, password } = req.body;
+  const { email, password, invitationToken } = req.body;
   if (!email || !password)
     return res.status(400).json({ error: "Email and password are required" });
 
@@ -213,16 +266,30 @@ async function loginClinician(req: any, res: any) {
     if (!user)
       return res.status(401).json({ error: "Account not found" });
     const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, user.id));
-    if (profile?.appRole === PENDING_CLINICIAN_ROLE) {
+    const pendingInvitationAccess = profile?.appRole === PENDING_CLINICIAN_ROLE
+      && !req.path.startsWith("/mobile/")
+      && await validInvitationForLogin(invitationToken, normalizedEmail);
+    if (profile?.appRole === PENDING_CLINICIAN_ROLE && !pendingInvitationAccess) {
+      await writeAuditEventBestEffort({
+        userId: user.id,
+        userRole: PENDING_CLINICIAN_ROLE,
+        action: "clinic_invitation_login_denied",
+        targetType: "clinic_invitation",
+        success: false,
+        reason: "No valid invitation access was available for this account",
+        metadata: { method: req.path.startsWith("/mobile/") ? "mobile_email_password" : "email_password" },
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
       return res.status(403).json({
         error: "This clinician account is awaiting clinic administrator approval.",
         pendingApproval: true,
       });
     }
-    if (profile?.appRole !== "clinician")
+    if (profile?.appRole !== "clinician" && !pendingInvitationAccess)
       return res.status(403).json({ error: "This account is not a clinician account" });
 
-    if (!(await clinicianHasActiveAccess(user.id))) {
+    if (!pendingInvitationAccess && !(await clinicianHasActiveAccess(user.id))) {
       await writeAuditEventBestEffort({
         userId: user.id,
         userRole: "clinician",
@@ -248,6 +315,7 @@ async function loginClinician(req: any, res: any) {
         firstName: user.firstName,
         lastName: user.lastName,
         profileImageUrl: user.profileImageUrl,
+        isPlatformAdministrator: false,
       },
       access_token: "email_auth",
     });
@@ -255,11 +323,37 @@ async function loginClinician(req: any, res: any) {
       res.json({ token: sid, clinician: { id: user.id, email: user.email, first_name: user.firstName, last_name: user.lastName, role: "clinician" } });
     } else {
       setSessionCookie(res, sid);
-      res.json({ ok: true, redirect: "/ClinicianDashboard" });
+      const activePlatformGrants = await db.select({ id: platformAdministratorGrantsTable.id })
+        .from(platformAdministratorGrantsTable).where(and(
+          eq(platformAdministratorGrantsTable.userId, user.id),
+          eq(platformAdministratorGrantsTable.status, "active"),
+          isNull(platformAdministratorGrantsTable.revokedAt),
+        ));
+      res.json({
+        ok: true,
+        redirect: pendingInvitationAccess
+          ? "/ClinicInvitation"
+          : activePlatformGrants.length
+            ? "/PlatformAdminClinics"
+            : "/ClinicianDashboard",
+        invitationAccess: Boolean(pendingInvitationAccess),
+      });
+    }
+    if (pendingInvitationAccess) {
+      await writeAuditEventBestEffort({
+        userId: user.id,
+        userRole: PENDING_CLINICIAN_ROLE,
+        action: "clinic_invitation_login",
+        targetType: "clinic_invitation",
+        success: true,
+        metadata: { method: "email_password", invitation_access: true },
+        ipAddress: req.ip,
+        requestId: req.id,
+      });
     }
     await writeAuditEventBestEffort({
       userId: user.id,
-      userRole: "clinician",
+      userRole: pendingInvitationAccess ? PENDING_CLINICIAN_ROLE : "clinician",
       action: "login",
       targetType: "clinician_account",
       targetId: user.id,

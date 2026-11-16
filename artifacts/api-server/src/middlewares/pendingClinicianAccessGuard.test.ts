@@ -4,7 +4,7 @@ import express from "express";
 import { test } from "node:test";
 import { pendingClinicianAccessGuard } from "./pendingClinicianAccessGuard";
 
-test("pending clinician sessions can only read their status or sign out", async (t) => {
+test("pending clinician sessions can read status, accept an invitation, or sign out only", async (t) => {
   const app = express();
   app.use((req: any, _res, next) => {
     req.user = { id: "synthetic-pending-clinician", appRole: "pending_clinician" };
@@ -14,6 +14,8 @@ test("pending clinician sessions can only read their status or sign out", async 
   app.get("/api/users/me", (_req, res) => res.json({ appRole: "pending_clinician" }));
   app.patch("/api/users/me", (_req, res) => res.json({ ok: true }));
   app.all("/api/logout", (_req, res) => res.json({ ok: true }));
+  app.post("/api/clinic-invitations/accept", (_req, res) => res.json({ ok: true }));
+  app.get("/api/clinic-invitations/accept", (_req, res) => res.json({ mustNotBeReached: true }));
   app.get("/api/children", (_req, res) => res.json([{ id: "must-not-be-reached" }]));
 
   const server = app.listen(0, "127.0.0.1");
@@ -29,6 +31,8 @@ test("pending clinician sessions can only read their status or sign out", async 
   assert.equal((await fetch(`${base}/api/users/me`)).status, 200);
   assert.equal((await fetch(`${base}/api/users/me`, { method: "PATCH" })).status, 200);
   assert.equal((await fetch(`${base}/api/logout`, { method: "POST" })).status, 200);
+  assert.equal((await fetch(`${base}/api/clinic-invitations/accept`, { method: "POST" })).status, 200);
+  assert.equal((await fetch(`${base}/api/clinic-invitations/accept`)).status, 403);
   const protectedResponse = await fetch(`${base}/api/children`);
   assert.equal(protectedResponse.status, 403);
   assert.equal((await protectedResponse.json() as { accountStatus?: string }).accountStatus, "pending_approval");

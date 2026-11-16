@@ -75,6 +75,12 @@ export function isPendingClinicianRequestAllowed(
   ) {
     return true;
   }
+  if (
+    normalizedMethod === "POST" &&
+    ["/api/clinic-invitations/accept", "/clinic-invitations/accept"].includes(normalizedPath)
+  ) {
+    return true;
+  }
 
   return ["/api/logout", "/logout"].includes(normalizedPath);
 }

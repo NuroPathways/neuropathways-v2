@@ -9,6 +9,268 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary List clinics and invitation states for a platform administrator
+ */
+export const ListPlatformClinicsResponse = zod.object({
+  "clinics": zod.array(zod.object({
+  "clinicId": zod.string(),
+  "clinicName": zod.string(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'archived']),
+  "createdAt": zod.coerce.date(),
+  "invitations": zod.array(zod.object({
+  "id": zod.string(),
+  "clinicId": zod.string(),
+  "invitedEmail": zod.string().email(),
+  "role": zod.enum(['clinic_admin', 'treating_clinician']),
+  "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
+  "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}))
+}))
+})
+
+
+/**
+ * @summary Create a clinic and invite its designated first administrator
+ */
+export const createPlatformClinicBodyDisplayNameMin = 2;
+export const createPlatformClinicBodyDisplayNameMax = 200;
+
+export const createPlatformClinicBodyFirstAdminEmailMax = 254;
+
+
+
+export const CreatePlatformClinicBody = zod.object({
+  "displayName": zod.string().min(createPlatformClinicBodyDisplayNameMin).max(createPlatformClinicBodyDisplayNameMax),
+  "firstAdminEmail": zod.string().email().max(createPlatformClinicBodyFirstAdminEmailMax),
+  "requestKey": zod.string().uuid()
+})
+
+export const CreatePlatformClinicResponse = zod.object({
+  "clinicId": zod.string(),
+  "clinicName": zod.string(),
+  "clinicStatus": zod.enum(['pending', 'active']),
+  "invitation": zod.object({
+  "id": zod.string(),
+  "clinicId": zod.string(),
+  "invitedEmail": zod.string().email(),
+  "role": zod.enum(['clinic_admin', 'treating_clinician']),
+  "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
+  "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Supersede and reissue a pending first-administrator invitation
+ */
+export const ReissuePlatformClinicInvitationParams = zod.object({
+  "clinicId": zod.coerce.string(),
+  "invitationId": zod.coerce.string()
+})
+
+export const ReissuePlatformClinicInvitationBody = zod.object({
+  "requestKey": zod.string().uuid()
+})
+
+export const ReissuePlatformClinicInvitationResponse = zod.object({
+  "invitation": zod.object({
+  "id": zod.string(),
+  "clinicId": zod.string(),
+  "invitedEmail": zod.string().email(),
+  "role": zod.enum(['clinic_admin', 'treating_clinician']),
+  "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
+  "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Revoke a pending first-administrator invitation
+ */
+export const RevokePlatformClinicInvitationParams = zod.object({
+  "clinicId": zod.coerce.string(),
+  "invitationId": zod.coerce.string()
+})
+
+export const RevokePlatformClinicInvitationResponse = zod.object({
+  "invitation": zod.object({
+  "id": zod.string(),
+  "clinicId": zod.string(),
+  "invitedEmail": zod.string().email(),
+  "role": zod.enum(['clinic_admin', 'treating_clinician']),
+  "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
+  "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Invite a treating clinician to an administered clinic
+ */
+export const InviteClinicClinicianParams = zod.object({
+  "clinicId": zod.coerce.string()
+})
+
+export const inviteClinicClinicianBodyInvitedEmailMax = 254;
+
+
+
+export const InviteClinicClinicianBody = zod.object({
+  "invitedEmail": zod.string().email().max(inviteClinicClinicianBodyInvitedEmailMax),
+  "requestKey": zod.string().uuid()
+})
+
+export const InviteClinicClinicianResponse = zod.object({
+  "invitation": zod.object({
+  "id": zod.string(),
+  "clinicId": zod.string(),
+  "invitedEmail": zod.string().email(),
+  "role": zod.enum(['clinic_admin', 'treating_clinician']),
+  "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
+  "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Supersede and reissue a pending treating-clinician invitation
+ */
+export const ReissueClinicStaffInvitationParams = zod.object({
+  "clinicId": zod.coerce.string(),
+  "invitationId": zod.coerce.string()
+})
+
+export const ReissueClinicStaffInvitationBody = zod.object({
+  "requestKey": zod.string().uuid()
+})
+
+export const ReissueClinicStaffInvitationResponse = zod.object({
+  "invitation": zod.object({
+  "id": zod.string(),
+  "clinicId": zod.string(),
+  "invitedEmail": zod.string().email(),
+  "role": zod.enum(['clinic_admin', 'treating_clinician']),
+  "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
+  "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Revoke a pending treating-clinician invitation
+ */
+export const RevokeClinicStaffInvitationParams = zod.object({
+  "clinicId": zod.coerce.string(),
+  "invitationId": zod.coerce.string()
+})
+
+export const RevokeClinicStaffInvitationResponse = zod.object({
+  "invitation": zod.object({
+  "id": zod.string(),
+  "clinicId": zod.string(),
+  "invitedEmail": zod.string().email(),
+  "role": zod.enum(['clinic_admin', 'treating_clinician']),
+  "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
+  "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Accept a matching, unexpired clinic invitation
+ */
+export const acceptClinicInvitationBodyTokenMin = 32;
+export const acceptClinicInvitationBodyTokenMax = 128;
+
+
+
+export const AcceptClinicInvitationBody = zod.object({
+  "token": zod.string().min(acceptClinicInvitationBodyTokenMin).max(acceptClinicInvitationBodyTokenMax)
+})
+
+export const AcceptClinicInvitationResponse = zod.object({
+  "ok": zod.literal(true),
+  "clinicId": zod.string(),
+  "clinicName": zod.string(),
+  "role": zod.enum(['clinic_admin', 'treating_clinician'])
+})
+
+
+/**
+ * @summary Sign in a clinician, optionally to finish an invitation
+ */
+export const loginClinicianBodyPasswordMax = 128;
+
+export const loginClinicianBodyInvitationTokenMin = 32;
+export const loginClinicianBodyInvitationTokenMax = 128;
+
+
+
+export const LoginClinicianBody = zod.object({
+  "email": zod.string().email(),
+  "password": zod.string().min(1).max(loginClinicianBodyPasswordMax),
+  "invitationToken": zod.string().min(loginClinicianBodyInvitationTokenMin).max(loginClinicianBodyInvitationTokenMax).optional()
+})
+
+export const LoginClinicianResponse = zod.object({
+  "ok": zod.literal(true),
+  "redirect": zod.string(),
+  "invitationAccess": zod.boolean()
+})
+
+
+/**
+ * @summary Create a pending clinician account for an invitation recipient
+ */
+export const registerClinicianBodyEmailMax = 254;
+
+export const registerClinicianBodyPasswordMin = 8;
+export const registerClinicianBodyPasswordMax = 128;
+
+export const registerClinicianBodyFirstNameMax = 100;
+
+export const registerClinicianBodyLastNameMax = 100;
+
+
+
+export const RegisterClinicianBody = zod.object({
+  "email": zod.string().email().max(registerClinicianBodyEmailMax),
+  "password": zod.string().min(registerClinicianBodyPasswordMin).max(registerClinicianBodyPasswordMax),
+  "firstName": zod.string().min(1).max(registerClinicianBodyFirstNameMax),
+  "lastName": zod.string().min(1).max(registerClinicianBodyLastNameMax),
+  "accountHolderType": zod.enum(['clinician']),
+  "accountHolderAgeGroup": zod.enum(['13_17', '18_plus']),
+  "adultOrGuardianConfirmed": zod.literal(true)
+})
+
+export const RegisterClinicianResponse = zod.object({
+  "ok": zod.literal(true),
+  "pendingApproval": zod.literal(true),
+  "message": zod.string()
+})
+
+
+/**
  * @summary List staff in clinics administered by the signed-in clinician
  */
 export const ListManagedClinicStaffResponse = zod.object({
@@ -22,8 +284,54 @@ export const ListManagedClinicStaffResponse = zod.object({
   "roles": zod.array(zod.enum(['clinic_admin', 'clinical_supervisor', 'treating_clinician'])),
   "status": zod.enum(['active', 'pending', 'suspended', 'revoked']),
   "membershipCreatedAt": zod.coerce.date()
+})),
+  "invitations": zod.array(zod.object({
+  "id": zod.string(),
+  "clinicId": zod.string(),
+  "invitedEmail": zod.string().email(),
+  "role": zod.enum(['clinic_admin', 'treating_clinician']),
+  "status": zod.enum(['pending', 'accepted', 'revoked', 'superseded', 'expired']),
+  "deliveryStatus": zod.enum(['not_sent', 'test_sink_accepted', 'provider_accepted', 'failed']),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
 }))
 }))
+})
+
+
+/**
+ * @summary List minimal client identifiers needed for clinic assignment management
+ */
+export const GetManagedClinicClientsParams = zod.object({
+  "clinicId": zod.coerce.string()
+})
+
+export const GetManagedClinicClientsResponse = zod.object({
+  "clinicId": zod.string(),
+  "clients": zod.array(zod.object({
+  "childId": zod.string(),
+  "displayName": zod.string(),
+  "treatingClinicianId": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Assign a clinic client to an active treating clinician in the same clinic
+ */
+export const ReassignClinicClientParams = zod.object({
+  "clinicId": zod.coerce.string(),
+  "childId": zod.coerce.string()
+})
+
+export const ReassignClinicClientBody = zod.object({
+  "clinicianId": zod.string()
+})
+
+export const ReassignClinicClientResponse = zod.object({
+  "ok": zod.literal(true),
+  "childId": zod.string(),
+  "clinicianId": zod.string()
 })
 
 
@@ -1338,7 +1646,8 @@ export const GetAuthUserResponse = zod.object({
   "email": zod.string().nullable(),
   "firstName": zod.string().nullable(),
   "lastName": zod.string().nullable(),
-  "profileImageUrl": zod.string().nullable()
+  "profileImageUrl": zod.string().nullable(),
+  "isPlatformAdministrator": zod.boolean()
 }),zod.null()])
 })
 

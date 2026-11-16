@@ -506,6 +506,7 @@ export interface AuthUser {
   lastName: string | null;
   /** @nullable */
   profileImageUrl: string | null;
+  isPlatformAdministrator: boolean;
 }
 
 export interface CurrentAuthUser {
@@ -1612,14 +1613,77 @@ export interface ManagedClinicStaffMember {
   membershipCreatedAt: string;
 }
 
+export type ClinicInvitationRole = typeof ClinicInvitationRole[keyof typeof ClinicInvitationRole];
+
+
+export const ClinicInvitationRole = {
+  clinic_admin: 'clinic_admin',
+  treating_clinician: 'treating_clinician',
+} as const;
+
+export type ClinicInvitationStatus = typeof ClinicInvitationStatus[keyof typeof ClinicInvitationStatus];
+
+
+export const ClinicInvitationStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  revoked: 'revoked',
+  superseded: 'superseded',
+  expired: 'expired',
+} as const;
+
+export type ClinicInvitationDeliveryStatus = typeof ClinicInvitationDeliveryStatus[keyof typeof ClinicInvitationDeliveryStatus];
+
+
+export const ClinicInvitationDeliveryStatus = {
+  not_sent: 'not_sent',
+  test_sink_accepted: 'test_sink_accepted',
+  provider_accepted: 'provider_accepted',
+  failed: 'failed',
+} as const;
+
+export interface ClinicInvitationRecord {
+  id: string;
+  clinicId: string;
+  invitedEmail: string;
+  role: ClinicInvitationRole;
+  status: ClinicInvitationStatus;
+  deliveryStatus: ClinicInvitationDeliveryStatus;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export interface ManagedClinicStaffClinic {
   clinicId: string;
   clinicName: string;
   staff: ManagedClinicStaffMember[];
+  invitations: ClinicInvitationRecord[];
 }
 
 export interface ManagedClinicStaffResponse {
   clinics: ManagedClinicStaffClinic[];
+}
+
+export interface ManagedClinicClient {
+  childId: string;
+  displayName: string;
+  /** @nullable */
+  treatingClinicianId: string | null;
+}
+
+export interface ManagedClinicClientsResponse {
+  clinicId: string;
+  clients: ManagedClinicClient[];
+}
+
+export interface ClinicClientReassignmentInput {
+  clinicianId: string;
+}
+
+export interface ClinicClientReassignmentResult {
+  ok: true;
+  childId: string;
+  clinicianId: string;
 }
 
 export interface ClinicStaffRevocationResult {
@@ -1627,6 +1691,149 @@ export interface ClinicStaffRevocationResult {
   membershipsRevoked: number;
   assignmentsRevoked: number;
   legacyChildrenBlocked: number;
+}
+
+export interface ClinicProvisioningInput {
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  displayName: string;
+  /** @maxLength 254 */
+  firstAdminEmail: string;
+  requestKey: string;
+}
+
+export interface ClinicStaffInvitationInput {
+  /** @maxLength 254 */
+  invitedEmail: string;
+  requestKey: string;
+}
+
+export interface ClinicInvitationActionInput {
+  requestKey: string;
+}
+
+export interface ClinicInvitationAcceptInput {
+  /**
+     * @minLength 32
+     * @maxLength 128
+     */
+  token: string;
+}
+
+export type ClinicProvisioningResultClinicStatus = typeof ClinicProvisioningResultClinicStatus[keyof typeof ClinicProvisioningResultClinicStatus];
+
+
+export const ClinicProvisioningResultClinicStatus = {
+  pending: 'pending',
+  active: 'active',
+} as const;
+
+export interface ClinicProvisioningResult {
+  clinicId: string;
+  clinicName: string;
+  clinicStatus: ClinicProvisioningResultClinicStatus;
+  invitation: ClinicInvitationRecord;
+  message: string;
+}
+
+export interface ClinicInvitationActionResult {
+  invitation: ClinicInvitationRecord;
+  message: string;
+}
+
+export interface ClinicInvitationAcceptanceResult {
+  ok: true;
+  clinicId: string;
+  clinicName: string;
+  role: ClinicInvitationRole;
+}
+
+export type PlatformManagedClinicStatus = typeof PlatformManagedClinicStatus[keyof typeof PlatformManagedClinicStatus];
+
+
+export const PlatformManagedClinicStatus = {
+  pending: 'pending',
+  active: 'active',
+  suspended: 'suspended',
+  archived: 'archived',
+} as const;
+
+export interface PlatformManagedClinic {
+  clinicId: string;
+  clinicName: string;
+  status: PlatformManagedClinicStatus;
+  createdAt: string;
+  invitations: ClinicInvitationRecord[];
+}
+
+export interface PlatformClinicsResponse {
+  clinics: PlatformManagedClinic[];
+}
+
+export interface ClinicianLoginInput {
+  email: string;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  password: string;
+  /**
+     * @minLength 32
+     * @maxLength 128
+     */
+  invitationToken?: string;
+}
+
+export interface ClinicianLoginResult {
+  ok: true;
+  redirect: string;
+  invitationAccess: boolean;
+}
+
+export type ClinicianRegistrationInputAccountHolderType = typeof ClinicianRegistrationInputAccountHolderType[keyof typeof ClinicianRegistrationInputAccountHolderType];
+
+
+export const ClinicianRegistrationInputAccountHolderType = {
+  clinician: 'clinician',
+} as const;
+
+export type ClinicianRegistrationInputAccountHolderAgeGroup = typeof ClinicianRegistrationInputAccountHolderAgeGroup[keyof typeof ClinicianRegistrationInputAccountHolderAgeGroup];
+
+
+export const ClinicianRegistrationInputAccountHolderAgeGroup = {
+  '13_17': '13_17',
+  '18_plus': '18_plus',
+} as const;
+
+export interface ClinicianRegistrationInput {
+  /** @maxLength 254 */
+  email: string;
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
+  password: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  firstName: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  lastName: string;
+  accountHolderType: ClinicianRegistrationInputAccountHolderType;
+  accountHolderAgeGroup: ClinicianRegistrationInputAccountHolderAgeGroup;
+  adultOrGuardianConfirmed: true;
+}
+
+export interface ClinicianRegistrationResult {
+  ok: true;
+  pendingApproval: true;
+  message: string;
 }
 
 export type RecordClinicianObservationFeedback200 = {

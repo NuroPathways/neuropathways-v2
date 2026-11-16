@@ -11,3 +11,4 @@ export * from "./care-team-assignments";
 export * from "./password-reset";
 export * from "./document-extraction-runs";
 export * from "./clinic-accounts";
+export * from "./clinic-invitations";

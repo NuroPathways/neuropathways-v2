@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import {
   auditLogsTable,
   childrenTable,
+  clinicInvitationsTable,
   clinicMembershipsTable,
   clinicsTable,
   clinicalAssignmentsTable,
@@ -30,6 +31,22 @@ function authenticatedUserId(req: any, res: any): string | null {
     return null;
   }
   return req.user.id;
+}
+
+async function auditAssignmentDenied(req: any, actorId: string | null, clinicId: string, childId: string, clinicianId: string, reason: string) {
+  await writeAuditEventBestEffort({
+    userId: actorId,
+    userRole: actorId ? (req.user?.appRole ?? "authenticated") : "unauthenticated",
+    tenantId: clinicId,
+    action: "clinical_assignment_reassignment_denied",
+    targetType: "clinical_assignment",
+    targetId: childId,
+    success: false,
+    reason,
+    metadata: { requested_clinician_id: clinicianId },
+    ipAddress: req.ip,
+    requestId: req.id,
+  });
 }
 
 async function actorIsActiveClinicAdmin(tx: any, userId: string, clinicId: string) {
@@ -69,7 +86,8 @@ router.get("/clinic-management/staff", async (req: any, res): Promise<void> => {
       .orderBy(asc(clinicsTable.displayName));
 
     const clinicMembershipRows = await Promise.all(managedClinics.map(async (clinic) => {
-      const members = await db.select({
+      const [members, invitations] = await Promise.all([
+        db.select({
         userId: clinicMembershipsTable.userId,
         role: clinicMembershipsTable.role,
         status: clinicMembershipsTable.status,
@@ -87,9 +105,23 @@ router.get("/clinic-management/staff", async (req: any, res): Promise<void> => {
           inArray(clinicMembershipsTable.status, ["active", "pending", "suspended", "revoked"]),
           eq(userProfilesTable.appRole, "clinician"),
         ))
-        .orderBy(asc(userProfilesTable.lastName), asc(userProfilesTable.firstName), asc(usersTable.email));
+        .orderBy(asc(userProfilesTable.lastName), asc(userProfilesTable.firstName), asc(usersTable.email)),
+        db.select({
+          id: clinicInvitationsTable.id,
+          clinicId: clinicInvitationsTable.clinicId,
+          invitedEmail: clinicInvitationsTable.invitedEmail,
+          role: clinicInvitationsTable.role,
+          status: clinicInvitationsTable.status,
+          deliveryStatus: clinicInvitationsTable.deliveryStatus,
+          createdAt: clinicInvitationsTable.createdAt,
+          expiresAt: clinicInvitationsTable.expiresAt,
+        }).from(clinicInvitationsTable).where(and(
+          eq(clinicInvitationsTable.clinicId, clinic.clinicId),
+          eq(clinicInvitationsTable.role, "treating_clinician"),
+        )).orderBy(asc(clinicInvitationsTable.createdAt)),
+      ]);
 
-      return { clinic, members };
+      return { clinic, members, invitations };
     }));
 
     const candidateIds = [...new Set(clinicMembershipRows.flatMap(({ members }) => members.map((member) => member.userId)))];
@@ -103,7 +135,7 @@ router.get("/clinic-management/staff", async (req: any, res): Promise<void> => {
       : [];
     const platformAdminIds = new Set(activePlatformGrants.map((grant) => grant.userId));
 
-    const clinics = clinicMembershipRows.map(({ clinic, members }) => {
+    const clinics = clinicMembershipRows.map(({ clinic, members, invitations }) => {
       const byUser = new Map<string, {
         userId: string;
         displayName: string;
@@ -146,7 +178,16 @@ router.get("/clinic-management/staff", async (req: any, res): Promise<void> => {
         membershipCreatedAt: member.membershipCreatedAt.toISOString(),
       }));
 
-      return { clinicId: clinic.clinicId, clinicName: clinic.clinicName, staff };
+      return {
+        clinicId: clinic.clinicId,
+        clinicName: clinic.clinicName,
+        staff,
+        invitations: invitations.map((invitation) => ({
+          ...invitation,
+          createdAt: invitation.createdAt.toISOString(),
+          expiresAt: invitation.expiresAt.toISOString(),
+        })),
+      };
     });
 
     res.json(ListManagedClinicStaffResponse.parse({ clinics }));
@@ -390,25 +431,35 @@ router.post("/clinic-management/:clinicId/staff/:staffUserId/revoke", async (req
 
 router.post("/clinic-management/:clinicId/clients/:childId/reassign", async (req: any, res) => {
   const actorId = authenticatedUserId(req, res);
-  if (!actorId) return;
   const clinicId = String(req.params.clinicId || "");
   const childId = String(req.params.childId || "");
   const clinicianId = typeof req.body?.clinicianId === "string" ? req.body.clinicianId : "";
+  if (!actorId) {
+    await auditAssignmentDenied(req, null, clinicId || "unknown", childId || "unknown", clinicianId || "unknown", "Authentication required");
+    return;
+  }
   if (!clinicId || !childId || !clinicianId) {
+    if (actorId) await auditAssignmentDenied(req, actorId, clinicId || "unknown", childId || "unknown", clinicianId || "unknown", "Required assignment fields were missing");
     return res.status(400).json({ error: "Clinic, client, and new clinician IDs are required" });
   }
   if (!(await clinicianCanManageClinic(actorId, clinicId))) {
+    await auditAssignmentDenied(req, actorId, clinicId, childId, clinicianId, "Active clinic administrator permission required");
     return res.status(403).json({ error: "An active clinic administrator is required" });
   }
   if (await clinicalRecordClinicId(childId) !== clinicId) {
+    await auditAssignmentDenied(req, actorId, clinicId, childId, clinicianId, "Client is not in the requested clinic");
     return res.status(404).json({ error: "Client is not in this clinic" });
   }
   const [child] = await db.select({ status: childrenTable.status }).from(childrenTable)
     .where(eq(childrenTable.id, childId));
-  if (!child || child.status === "merged") return res.status(404).json({ error: "Client not found" });
+  if (!child || child.status === "merged") {
+    await auditAssignmentDenied(req, actorId, clinicId, childId, clinicianId, "Client is not available");
+    return res.status(404).json({ error: "Client not found" });
+  }
   const [newClinician] = await db.select({ appRole: userProfilesTable.appRole })
     .from(userProfilesTable).where(eq(userProfilesTable.id, clinicianId));
   if (newClinician?.appRole !== "clinician") {
+    await auditAssignmentDenied(req, actorId, clinicId, childId, clinicianId, "Selected account is not a clinician");
     return res.status(404).json({ error: "Active treating clinician not found" });
   }
 
@@ -559,6 +610,16 @@ router.post("/clinic-management/:clinicId/clients/:childId/reassign", async (req
   } catch (error: any) {
     const status = Number.isInteger(error?.status) ? error.status : 500;
     if (status === 500) req.log?.error?.({ err: error }, "Clinical assignment reassignment failed");
+    if ([403, 404, 409].includes(status)) {
+      await auditAssignmentDenied(
+        req,
+        actorId,
+        clinicId,
+        childId,
+        clinicianId,
+        status === 403 ? "Clinic administrator authorization changed before assignment" : "Assignment target was not eligible",
+      );
+    }
     return res.status(status).json({
       error: status === 500 ? "Client assignment could not be changed" : error.message,
     });

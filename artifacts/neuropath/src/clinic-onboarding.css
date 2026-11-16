@@ -1,0 +1,325 @@
+.np-onboarding-page,
+.np-invitation-page {
+  min-height: 100dvh;
+  padding: var(--np-space-section) var(--np-space-gutter);
+  background: var(--np-color-background);
+  color: var(--np-color-foreground);
+}
+
+.np-onboarding-content,
+.np-invitation-shell {
+  display: grid;
+  gap: var(--np-space-section);
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+}
+
+.np-invitation-shell {
+  max-width: 48rem;
+}
+
+.np-onboarding-card {
+  border-color: var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-card);
+  color: var(--np-color-card-foreground);
+  box-shadow: var(--np-shadow-raised);
+}
+
+.np-onboarding-card > div:first-child {
+  padding: var(--np-space-card-lg);
+  padding-bottom: var(--np-space-list-lg);
+}
+
+.np-onboarding-card > div:last-child {
+  padding: 0 var(--np-space-card-lg) var(--np-space-card-lg);
+}
+
+.np-section-title {
+  margin: 0;
+  color: var(--np-color-foreground);
+  font-size: var(--np-text-section-title);
+  line-height: var(--np-leading-section-title);
+}
+
+.np-card-title {
+  color: var(--np-color-foreground);
+  font-size: var(--np-text-card-title);
+  line-height: var(--np-leading-card-title);
+}
+
+.np-form-grid,
+.np-invitation-form-content {
+  display: grid;
+  gap: var(--np-space-related-lg);
+  min-width: 0;
+}
+
+.np-field {
+  display: grid;
+  gap: var(--np-space-list);
+  min-width: 0;
+}
+
+.np-field label,
+.np-assignment-control label,
+.np-clinic-selector label {
+  color: var(--np-color-foreground);
+  font-size: var(--np-text-support);
+  font-weight: 600;
+}
+
+.np-field input,
+.np-select-trigger,
+.np-field select {
+  min-height: var(--np-space-control);
+  border-color: var(--np-color-input);
+  border-radius: var(--np-radius);
+  background: var(--np-color-card);
+  color: var(--np-color-foreground);
+}
+
+.np-field-error {
+  margin: 0;
+  color: var(--np-color-destructive);
+  font-size: var(--np-text-support-sm);
+}
+
+.np-onboarding-section {
+  display: grid;
+  gap: var(--np-space-related-lg);
+  min-width: 0;
+}
+
+.np-clinic-heading,
+.np-invitation-heading,
+.np-invitation-security,
+.np-person-row,
+.np-client-row,
+.np-invitation-row,
+.np-admin-note,
+.np-inline-form {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--np-space-related);
+  min-width: 0;
+}
+
+.np-clinic-heading > div:first-child,
+.np-invitation-copy,
+.np-person-copy {
+  display: grid;
+  gap: var(--np-space-list);
+  min-width: 0;
+}
+
+.np-muted {
+  margin: 0;
+  color: var(--np-color-muted-foreground);
+  font-size: var(--np-text-support);
+  overflow-wrap: anywhere;
+}
+
+.np-invitation-list,
+.np-people-list,
+.np-list {
+  display: grid;
+  gap: var(--np-space-list-lg);
+  min-width: 0;
+}
+
+.np-invitation-row,
+.np-person-row,
+.np-client-row {
+  padding: var(--np-space-card);
+  border: 1px solid var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-background);
+}
+
+.np-invitation-copy strong,
+.np-person-copy strong {
+  overflow-wrap: anywhere;
+}
+
+.np-invitation-copy > span,
+.np-person-copy > span {
+  color: var(--np-color-muted-foreground);
+  font-size: var(--np-text-support-sm);
+  overflow-wrap: anywhere;
+}
+
+.np-badges,
+.np-row-actions,
+.np-mode-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--np-space-list);
+}
+
+.np-row-actions > button,
+.np-form-grid > button,
+.np-inline-form > button {
+  min-height: var(--np-space-control);
+}
+
+.np-feedback,
+.np-empty-panel,
+.np-admin-note,
+.np-invitation-security {
+  padding: var(--np-space-card);
+  border: 1px solid var(--np-color-border);
+  border-radius: var(--np-radius);
+  background: var(--np-color-accent);
+  color: var(--np-color-accent-foreground);
+  overflow-wrap: anywhere;
+}
+
+.np-feedback {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--np-space-list);
+}
+
+.np-feedback-error {
+  border-left: 4px solid var(--np-color-destructive);
+  background: var(--np-color-muted);
+  color: var(--np-color-foreground);
+}
+
+.np-empty-panel {
+  display: grid;
+  justify-items: start;
+  gap: var(--np-space-list-lg);
+  background: var(--np-color-card);
+}
+
+.np-empty-panel p,
+.np-empty-panel h3,
+.np-empty-panel h2 {
+  margin: 0;
+}
+
+.np-empty-panel > svg {
+  color: var(--np-color-chart-2);
+}
+
+.np-skeleton-stack {
+  display: grid;
+  gap: var(--np-space-list-lg);
+}
+
+.np-skeleton-stack > div {
+  min-height: var(--np-space-control);
+  border-radius: var(--np-radius);
+  background: var(--np-color-muted);
+  animation: np-onboarding-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes np-onboarding-pulse {
+  50% { opacity: 0.55; }
+}
+
+.np-inline-form {
+  align-items: flex-end;
+}
+
+.np-inline-form .np-field {
+  flex: 1 1 auto;
+}
+
+.np-clinic-selector {
+  display: grid;
+  gap: var(--np-space-list);
+  max-width: 32rem;
+}
+
+.np-assignment-control {
+  display: grid;
+  flex: 0 1 22rem;
+  gap: var(--np-space-list);
+}
+
+.np-invitation-heading {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.np-invitation-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: var(--np-space-control);
+  height: var(--np-space-control);
+  border-radius: var(--np-radius);
+  background: var(--np-color-accent);
+  color: var(--np-color-chart-2);
+}
+
+.np-invitation-security {
+  justify-content: flex-start;
+  background: var(--np-color-background);
+  color: var(--np-color-muted-foreground);
+  font-size: var(--np-text-support-sm);
+}
+
+.np-invitation-security > span {
+  flex: 1 1 auto;
+}
+
+.np-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--np-space-list);
+  color: var(--np-color-foreground);
+  font-size: var(--np-text-support);
+}
+
+.np-confirmation input {
+  margin-top: var(--np-space-list);
+}
+
+.np-admin-note {
+  justify-content: flex-start;
+  background: var(--np-color-background);
+  color: var(--np-color-muted-foreground);
+  font-size: var(--np-text-support);
+}
+
+@media (max-width: 767px) {
+  .np-onboarding-page,
+  .np-invitation-page {
+    padding-top: var(--np-space-related-lg);
+    padding-bottom: calc(var(--np-space-section) + env(safe-area-inset-bottom));
+  }
+
+  .np-invitation-row,
+  .np-person-row,
+  .np-client-row,
+  .np-inline-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .np-row-actions {
+    width: 100%;
+  }
+
+  .np-row-actions > button,
+  .np-inline-form > button {
+    flex: 1 1 auto;
+  }
+
+  .np-assignment-control {
+    flex-basis: auto;
+  }
+
+  .np-invitation-security {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}

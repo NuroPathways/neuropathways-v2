@@ -30,12 +30,14 @@ export const clinicsTable = pgTable("clinics", {
   displayName: varchar("display_name", { length: 200 }).notNull(),
   // Maps older tenant_id values without rewriting clinical records.
   legacyTenantId: varchar("legacy_tenant_id"),
+  creationRequestKey: varchar("creation_request_key"),
   status: varchar("status").notNull().default("pending"),
   createdBy: varchar("created_by").references(() => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("clinics_legacy_tenant_uq").on(table.legacyTenantId),
+  uniqueIndex("clinics_creation_request_key_uq").on(table.creationRequestKey),
   check("clinics_status_check", sql`${table.status} in ('pending', 'active', 'suspended', 'archived')`),
 ]);
 

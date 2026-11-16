@@ -18,7 +18,221 @@ tags:
     description: Parent and clinician linking operations
   - name: clinic-management
     description: Clinic-scoped staff access management
+  - name: platform-management
+    description: Platform-scoped clinic provisioning
 paths:
+  /platform-management/clinics:
+    get:
+      operationId: listPlatformClinics
+      tags: [platform-management]
+      summary: List clinics and invitation states for a platform administrator
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      responses:
+        "200":
+          description: Platform clinic directory without invitation tokens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformClinicsResponse" }
+        "401": { description: Authentication required }
+        "403": { description: Platform administrator permission required }
+    post:
+      operationId: createPlatformClinic
+      tags: [platform-management]
+      summary: Create a clinic and invite its designated first administrator
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicProvisioningInput" }
+      responses:
+        "201":
+          description: Clinic and first-administrator invitation created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicProvisioningResult" }
+        "400": { description: Invalid clinic or invitation request }
+        "401": { description: Authentication required }
+        "403": { description: Platform administrator permission required }
+        "409": { description: Request conflicts with an existing clinic or membership }
+  /platform-management/clinics/{clinicId}/invitations/{invitationId}/reissue:
+    parameters:
+      - { name: clinicId, in: path, required: true, schema: { type: string } }
+      - { name: invitationId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: reissuePlatformClinicInvitation
+      tags: [platform-management]
+      summary: Supersede and reissue a pending first-administrator invitation
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicInvitationActionInput" }
+      responses:
+        "200":
+          description: Pending invitation safely reissued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicInvitationActionResult" }
+        "401": { description: Authentication required }
+        "403": { description: Platform administrator permission required }
+        "404": { description: Pending invitation not found }
+  /platform-management/clinics/{clinicId}/invitations/{invitationId}/revoke:
+    parameters:
+      - { name: clinicId, in: path, required: true, schema: { type: string } }
+      - { name: invitationId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: revokePlatformClinicInvitation
+      tags: [platform-management]
+      summary: Revoke a pending first-administrator invitation
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      responses:
+        "200":
+          description: Pending invitation revoked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicInvitationActionResult" }
+        "401": { description: Authentication required }
+        "403": { description: Platform administrator permission required }
+        "404": { description: Pending invitation not found }
+  /clinic-management/{clinicId}/invitations:
+    parameters:
+      - { name: clinicId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: inviteClinicClinician
+      tags: [clinic-management]
+      summary: Invite a treating clinician to an administered clinic
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicStaffInvitationInput" }
+      responses:
+        "201":
+          description: Treating-clinician invitation created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicInvitationActionResult" }
+        "400": { description: Invalid email or request key }
+        "401": { description: Authentication required }
+        "403": { description: Active clinic administrator permission required }
+        "409": { description: Existing membership or pending invitation }
+  /clinic-management/{clinicId}/invitations/{invitationId}/reissue:
+    parameters:
+      - { name: clinicId, in: path, required: true, schema: { type: string } }
+      - { name: invitationId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: reissueClinicStaffInvitation
+      tags: [clinic-management]
+      summary: Supersede and reissue a pending treating-clinician invitation
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicInvitationActionInput" }
+      responses:
+        "200":
+          description: Pending invitation safely reissued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicInvitationActionResult" }
+        "401": { description: Authentication required }
+        "403": { description: Active clinic administrator permission required }
+        "404": { description: Pending invitation not found }
+  /clinic-management/{clinicId}/invitations/{invitationId}/revoke:
+    parameters:
+      - { name: clinicId, in: path, required: true, schema: { type: string } }
+      - { name: invitationId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: revokeClinicStaffInvitation
+      tags: [clinic-management]
+      summary: Revoke a pending treating-clinician invitation
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      responses:
+        "200":
+          description: Pending invitation revoked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicInvitationActionResult" }
+        "401": { description: Authentication required }
+        "403": { description: Active clinic administrator permission required }
+        "404": { description: Pending invitation not found }
+  /clinic-invitations/accept:
+    post:
+      operationId: acceptClinicInvitation
+      tags: [clinic-management]
+      summary: Accept a matching, unexpired clinic invitation
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicInvitationAcceptInput" }
+      responses:
+        "200":
+          description: Intended clinic membership activated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicInvitationAcceptanceResult" }
+        "400": { description: Invalid invitation }
+        "401": { description: Matching authenticated clinician account required }
+        "403": { description: Invitation identity or authority does not match }
+        "409": { description: "Invitation is expired, revoked, or already used" }
+  /clinician/login:
+    post:
+      operationId: loginClinician
+      tags: [auth]
+      summary: Sign in a clinician, optionally to finish an invitation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicianLoginInput" }
+      responses:
+        "200":
+          description: Signed-in clinician session established
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicianLoginResult" }
+        "401": { description: Invalid credentials }
+        "403": { description: Account is not active or invitation access is unavailable }
+  /clinician/register:
+    post:
+      operationId: registerClinician
+      tags: [auth]
+      summary: Create a pending clinician account for an invitation recipient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicianRegistrationInput" }
+      responses:
+        "202":
+          description: Non-privileged account created and awaiting invitation acceptance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicianRegistrationResult" }
+        "400": { description: Invalid account details or authority confirmation }
+        "409": { description: Account already exists }
   /clinic-management/staff:
     get:
       operationId: listManagedClinicStaff
@@ -38,6 +252,50 @@ paths:
           description: Authentication required
         "500":
           description: Staff directory could not be loaded
+  /clinic-management/{clinicId}/clients:
+    parameters:
+      - { name: clinicId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getManagedClinicClients
+      tags: [clinic-management]
+      summary: List minimal client identifiers needed for clinic assignment management
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      responses:
+        "200":
+          description: Names and assignment identifiers only; no clinical chart data
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ManagedClinicClientsResponse" }
+        "401": { description: Authentication required }
+        "403": { description: Active clinic administrator permission required }
+  /clinic-management/{clinicId}/clients/{childId}/reassign:
+    parameters:
+      - { name: clinicId, in: path, required: true, schema: { type: string } }
+      - { name: childId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: reassignClinicClient
+      tags: [clinic-management]
+      summary: Assign a clinic client to an active treating clinician in the same clinic
+      security:
+        - ClinicianBearer: []
+        - ClinicianSessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicClientReassignmentInput" }
+      responses:
+        "200":
+          description: Explicit assignment updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicClientReassignmentResult" }
+        "401": { description: Authentication required }
+        "403": { description: Active clinic administrator permission required }
+        "404": { description: Client or clinician not found in clinic }
+        "409": { description: Clinician is not an active clinic member }
   /clinic-management/{clinicId}/staff/{staffUserId}/revoke:
     parameters:
       - name: clinicId
@@ -1558,7 +1816,9 @@ components:
           type: [string, "null"]
         profileImageUrl:
           type: [string, "null"]
-      required: [id, email, firstName, lastName, profileImageUrl]
+        isPlatformAdministrator:
+          type: boolean
+      required: [id, email, firstName, lastName, profileImageUrl, isPlatformAdministrator]
     CurrentAuthUser:
       type: object
       properties:
@@ -2905,7 +3165,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ManagedClinicStaffMember"
-      required: [clinicId, clinicName, staff]
+        invitations:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClinicInvitationRecord"
+      required: [clinicId, clinicName, staff, invitations]
     ManagedClinicStaffResponse:
       type: object
       properties:
@@ -2914,6 +3178,33 @@ components:
           items:
             $ref: "#/components/schemas/ManagedClinicStaffClinic"
       required: [clinics]
+    ManagedClinicClient:
+      type: object
+      properties:
+        childId: { type: string }
+        displayName: { type: string }
+        treatingClinicianId: { type: ["string", "null"] }
+      required: [childId, displayName, treatingClinicianId]
+    ManagedClinicClientsResponse:
+      type: object
+      properties:
+        clinicId: { type: string }
+        clients:
+          type: array
+          items: { $ref: "#/components/schemas/ManagedClinicClient" }
+      required: [clinicId, clients]
+    ClinicClientReassignmentInput:
+      type: object
+      properties:
+        clinicianId: { type: string }
+      required: [clinicianId]
+    ClinicClientReassignmentResult:
+      type: object
+      properties:
+        ok: { type: boolean, const: true }
+        childId: { type: string }
+        clinicianId: { type: string }
+      required: [ok, childId, clinicianId]
     ClinicStaffRevocationResult:
       type: object
       properties:
@@ -2927,3 +3218,120 @@ components:
         legacyChildrenBlocked:
           type: integer
       required: [ok, membershipsRevoked, assignmentsRevoked, legacyChildrenBlocked]
+    ClinicInvitationRole:
+      type: string
+      enum: [clinic_admin, treating_clinician]
+    ClinicInvitationStatus:
+      type: string
+      enum: [pending, accepted, revoked, superseded, expired]
+    ClinicInvitationDeliveryStatus:
+      type: string
+      enum: [not_sent, test_sink_accepted, provider_accepted, failed]
+    ClinicInvitationRecord:
+      type: object
+      properties:
+        id: { type: string }
+        clinicId: { type: string }
+        invitedEmail: { type: string, format: email }
+        role: { $ref: "#/components/schemas/ClinicInvitationRole" }
+        status: { $ref: "#/components/schemas/ClinicInvitationStatus" }
+        deliveryStatus: { $ref: "#/components/schemas/ClinicInvitationDeliveryStatus" }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+      required: [id, clinicId, invitedEmail, role, status, deliveryStatus, createdAt, expiresAt]
+    ClinicProvisioningInput:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 2, maxLength: 200 }
+        firstAdminEmail: { type: string, format: email, maxLength: 254 }
+        requestKey: { type: string, format: uuid }
+      required: [displayName, firstAdminEmail, requestKey]
+    ClinicStaffInvitationInput:
+      type: object
+      properties:
+        invitedEmail: { type: string, format: email, maxLength: 254 }
+        requestKey: { type: string, format: uuid }
+      required: [invitedEmail, requestKey]
+    ClinicInvitationActionInput:
+      type: object
+      properties:
+        requestKey: { type: string, format: uuid }
+      required: [requestKey]
+    ClinicInvitationAcceptInput:
+      type: object
+      properties:
+        token: { type: string, minLength: 32, maxLength: 128 }
+      required: [token]
+    ClinicProvisioningResult:
+      type: object
+      properties:
+        clinicId: { type: string }
+        clinicName: { type: string }
+        clinicStatus: { type: string, enum: [pending, active] }
+        invitation: { $ref: "#/components/schemas/ClinicInvitationRecord" }
+        message: { type: string }
+      required: [clinicId, clinicName, clinicStatus, invitation, message]
+    ClinicInvitationActionResult:
+      type: object
+      properties:
+        invitation: { $ref: "#/components/schemas/ClinicInvitationRecord" }
+        message: { type: string }
+      required: [invitation, message]
+    ClinicInvitationAcceptanceResult:
+      type: object
+      properties:
+        ok: { type: boolean, const: true }
+        clinicId: { type: string }
+        clinicName: { type: string }
+        role: { $ref: "#/components/schemas/ClinicInvitationRole" }
+      required: [ok, clinicId, clinicName, role]
+    PlatformManagedClinic:
+      type: object
+      properties:
+        clinicId: { type: string }
+        clinicName: { type: string }
+        status: { type: string, enum: [pending, active, suspended, archived] }
+        createdAt: { type: string, format: date-time }
+        invitations:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicInvitationRecord" }
+      required: [clinicId, clinicName, status, createdAt, invitations]
+    PlatformClinicsResponse:
+      type: object
+      properties:
+        clinics:
+          type: array
+          items: { $ref: "#/components/schemas/PlatformManagedClinic" }
+      required: [clinics]
+    ClinicianLoginInput:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1, maxLength: 128 }
+        invitationToken: { type: string, minLength: 32, maxLength: 128 }
+      required: [email, password]
+    ClinicianLoginResult:
+      type: object
+      properties:
+        ok: { type: boolean, const: true }
+        redirect: { type: string }
+        invitationAccess: { type: boolean }
+      required: [ok, redirect, invitationAccess]
+    ClinicianRegistrationInput:
+      type: object
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 8, maxLength: 128 }
+        firstName: { type: string, minLength: 1, maxLength: 100 }
+        lastName: { type: string, minLength: 1, maxLength: 100 }
+        accountHolderType: { type: string, enum: [clinician] }
+        accountHolderAgeGroup: { type: string, enum: ["13_17", "18_plus"] }
+        adultOrGuardianConfirmed: { type: boolean, const: true }
+      required: [email, password, firstName, lastName, accountHolderType, accountHolderAgeGroup, adultOrGuardianConfirmed]
+    ClinicianRegistrationResult:
+      type: object
+      properties:
+        ok: { type: boolean, const: true }
+        pendingApproval: { type: boolean, const: true }
+        message: { type: string }
+      required: [ok, pendingApproval, message]

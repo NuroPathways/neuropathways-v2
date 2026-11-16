@@ -1,7 +1,7 @@
 import * as oidc from "openid-client";
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { and, eq, isNull } from "drizzle-orm";
+import { db, platformAdministratorGrantsTable, userProfilesTable, usersTable } from "@workspace/db";
 import {
   clearSession,
   getOidcConfig,
@@ -57,6 +57,7 @@ async function upsertUser(claims: Record<string, unknown>) {
     firstName: (claims.first_name as string) || null,
     lastName: (claims.last_name as string) || null,
     profileImageUrl: (claims.profile_image_url || claims.picture) as string | null,
+    emailVerified: claims.email_verified === true,
     updatedAt: new Date(),
   };
 
@@ -83,8 +84,29 @@ async function upsertUser(claims: Record<string, unknown>) {
   return user;
 }
 
-router.get("/auth/user", (req: Request, res: Response) => {
-  res.json({ user: req.isAuthenticated() ? req.user : null });
+router.get("/auth/user", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.json({ user: null });
+    return;
+  }
+  const [profile] = await db.select({
+    appRole: userProfilesTable.appRole,
+    accountType: userProfilesTable.accountType,
+  }).from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
+  const [grant] = await db.select({ id: platformAdministratorGrantsTable.id })
+    .from(platformAdministratorGrantsTable).where(and(
+      eq(platformAdministratorGrantsTable.userId, req.user.id),
+      eq(platformAdministratorGrantsTable.status, "active"),
+      isNull(platformAdministratorGrantsTable.revokedAt),
+    ));
+  res.json({
+    user: {
+      ...req.user,
+      isPlatformAdministrator: Boolean(
+        grant && profile?.appRole === "clinician" && profile?.accountType === "clinician",
+      ),
+    },
+  });
 });
 
 router.get("/login", async (req: Request, res: Response) => {
@@ -168,6 +190,7 @@ router.get("/callback", async (req: Request, res: Response) => {
       firstName: dbUser.firstName,
       lastName: dbUser.lastName,
       profileImageUrl: dbUser.profileImageUrl,
+      isPlatformAdministrator: false,
     },
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,

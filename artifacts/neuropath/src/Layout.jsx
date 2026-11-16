@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { Building2 } from "lucide-react";
 import { base44 } from "@/api/entities";
 import { useAuth } from "@/lib/AuthContext";
 import SupportNowOverlay from "@/components/support/SupportNowOverlay";
@@ -118,7 +119,7 @@ export default function Layout({ children, currentPageName }) {
         ...item,
         active: item.pages?.includes(currentPageName) || false,
         to: openSupportOverlay ? undefined : item.to && ((path) => {
-          if ((!user.invite_token && role !== "caregiver") || path === "/ClientHome") return path;
+          if ((!user.invite_token && role !== "caregiver") || path === "/ClientHome" || path === "/PlatformAdminClinics") return path;
           const childId = selectedChild?.id || currentChildId;
           if (!childId) return path;
           const [pathname, query = ""] = path.split("?");
@@ -131,6 +132,18 @@ export default function Layout({ children, currentPageName }) {
       };
     }),
   }));
+  if (user?.isPlatformAdministrator || user?.is_platform_administrator) {
+    navigationGroups.push({
+      label: "Platform",
+      items: [{
+        key: "platform-clinics",
+        label: "Platform clinics",
+        icon: Building2,
+        to: "/PlatformAdminClinics",
+        pages: ["PlatformAdminClinics"],
+      }],
+    });
+  }
   const isLegacyDashboard = currentPageName === "ClinicianDashboard";
   const dashboardOrder = ["dashboard", "clients", "plans", "documents", "reports", "messages", "settings"];
   const navigationItems = navigationGroups.flatMap((group) => group.items);

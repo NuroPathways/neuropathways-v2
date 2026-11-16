@@ -17,7 +17,7 @@ import {
   aiConversationsTable, dailyCheckInsTable, winLogsTable, engagementEventsTable,
   clientProfilesTable, userProfilesTable, usersTable, auditLogsTable, invitationsTable,
   clientSessionsTable, mobileTokensTable, clientAccessCodeResetsTable, consentEventsTable, parentClinicConsentsTable,
-  parentDocumentsTable,
+  parentDocumentsTable, platformAdministratorGrantsTable,
   documentExtractionRunsTable,
 } from "@workspace/db";
 import { eq, and, inArray, or, isNull, gt, ne, sql, desc } from "drizzle-orm";
@@ -1415,7 +1415,20 @@ router.get("/users/me", requireAuth, async (req: any, res) => {
   try {
     const [profile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, req.user.id));
     const [authUser] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
-    return res.json(serialize({ ...authUser, ...profile }));
+    const [platformGrant] = await db.select({ id: platformAdministratorGrantsTable.id })
+      .from(platformAdministratorGrantsTable).where(and(
+        eq(platformAdministratorGrantsTable.userId, req.user.id),
+        eq(platformAdministratorGrantsTable.status, "active"),
+        isNull(platformAdministratorGrantsTable.revokedAt),
+      ));
+    const { emailVerified: _emailVerified, ...safeAuthUser } = authUser ?? {};
+    return res.json(serialize({
+      ...safeAuthUser,
+      ...profile,
+      isPlatformAdministrator: Boolean(
+        platformGrant && profile?.appRole === "clinician" && profile?.accountType === "clinician",
+      ),
+    }));
   } catch (e: any) {
     return respondWithInternalError(req, res, e, "entities");
   }

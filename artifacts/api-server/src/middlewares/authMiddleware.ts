@@ -1,8 +1,8 @@
 import * as oidc from "openid-client";
 import { type Request, type Response, type NextFunction } from "express";
 import type { AuthUser } from "@workspace/api-zod";
-import { db, userProfilesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, platformAdministratorGrantsTable, userProfilesTable } from "@workspace/db";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   clearSession,
   getOidcConfig,
@@ -95,19 +95,27 @@ export async function authMiddleware(
   }
 
   try {
-    const [profile] = await db
-      .select({
+    const [[profile], [grant]] = await Promise.all([
+      db.select({
         appRole: userProfilesTable.appRole,
         accountType: userProfilesTable.accountType,
-      })
-      .from(userProfilesTable)
-      .where(eq(userProfilesTable.id, refreshed.user.id));
+      }).from(userProfilesTable).where(eq(userProfilesTable.id, refreshed.user.id)),
+      db.select({ id: platformAdministratorGrantsTable.id })
+        .from(platformAdministratorGrantsTable).where(and(
+          eq(platformAdministratorGrantsTable.userId, refreshed.user.id),
+          eq(platformAdministratorGrantsTable.status, "active"),
+          isNull(platformAdministratorGrantsTable.revokedAt),
+        )),
+    ]);
 
     // Never use role or account-type claims from the browser/session as
     // authorization truth. Refresh them from the server-owned profile row.
     req.user = Object.assign({}, refreshed.user, {
       appRole: profile?.appRole ?? null,
       accountType: profile?.accountType ?? null,
+      isPlatformAdministrator: Boolean(
+        grant && profile?.appRole === "clinician" && profile?.accountType === "clinician",
+      ),
     });
   } catch {
     res.status(503).json({ error: "Unable to verify account permissions." });

@@ -5,10 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ClinicInvitationRecord } from './clinicInvitationRecord';
 import type { ManagedClinicStaffMember } from './managedClinicStaffMember';
 
 export interface ManagedClinicStaffClinic {
   clinicId: string;
   clinicName: string;
   staff: ManagedClinicStaffMember[];
+  invitations: ClinicInvitationRecord[];
 }

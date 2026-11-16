@@ -18,6 +18,8 @@ import RoleSetup from './pages/RoleSetup';
 import ClientDetail from './pages/ClientDetail';
 import ChildProfile from './pages/ChildProfile';
 import ClinicianUsers from './pages/ClinicianUsers';
+import PlatformAdminClinics from './pages/PlatformAdminClinics';
+import ClinicInvitation from './pages/ClinicInvitation';
 import Settings from './pages/Settings';
 import HelpNow from './pages/HelpNow';
 import LogBehavior from './pages/LogBehavior';
@@ -103,6 +105,10 @@ const AuthenticatedApp = () => {
     || ["parent", "parent_family", "family", "caregiver"].includes(user?.account_type);
   const accountHomeRedirect = getAccountHomeRedirect(user, location.pathname, location.search);
 
+  if (location.pathname === "/ClinicInvitation") {
+    return <Routes><Route path="/ClinicInvitation" element={<ClinicInvitation />} /></Routes>;
+  }
+
   useEffect(() => {
     const identity = user?.id;
     if (identity === previousIdentity.current) return;
@@ -180,6 +186,7 @@ const AuthenticatedApp = () => {
       <Route path="/ClientDetail" element={<LayoutWrapper currentPageName="ClientDetail"><ClientDetail /></LayoutWrapper>} />
       <Route path="/ChildProfile" element={<LayoutWrapper currentPageName="ChildProfile"><ChildProfile /></LayoutWrapper>} />
       <Route path="/ClinicianUsers" element={<LayoutWrapper currentPageName="ClinicianUsers"><ClinicianUsers /></LayoutWrapper>} />
+      <Route path="/PlatformAdminClinics" element={<LayoutWrapper currentPageName="PlatformAdminClinics"><PlatformAdminClinics /></LayoutWrapper>} />
       <Route path="/Settings" element={<LayoutWrapper currentPageName="Settings"><Settings /></LayoutWrapper>} />
       <Route path="/DataRequests" element={<DataRequests />} />
       <Route path="/HelpNow" element={<HelpNow />} />
