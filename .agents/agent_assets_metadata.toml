@@ -1218,3 +1218,45 @@ mtime_ms = 1794855460383
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/8ff6f7a7-d7bd-48e7-abb9-6c303af0ae9e/89a37f83-af21-41f2-a814-7959e58cdc3f"
 storage_version_token = "1794855506510339"
 content_type = "image/png"
+
+[[outputs]]
+id = "SPCtWS2rN4bgllGgND70w"
+uri = "file://.local/verification/clinic-onboarding-unified-20261116T2030Z/clinic-onboarding-workspaces-evidence.zip"
+type = "unspecified"
+title = "Final NeuroPathways onboarding evidence"
+description = "Updated post-commit evidence archive; 18 browser checks and 19 API checks passed. SHA-256: b8e9853d61c79e0388f6afd8d6c76e36c3d2d713ca0d5658b183992510cdeb41"
+logical_id = "f3f89ab5-82db-47a7-9f0a-8c8cc5517972"
+content_hash = "sha256:b8e9853d61c79e0388f6afd8d6c76e36c3d2d713ca0d5658b183992510cdeb41"
+size = 2081764
+mtime_ms = 1794862194529
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/f3f89ab5-82db-47a7-9f0a-8c8cc5517972/513ec5d2-6c8a-424e-8af8-65b3fc14f428"
+storage_version_token = "1794862200186388"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Fk0B_gRvpi2e_2puceEgK"
+uri = "file://.local/verification/clinic-onboarding-unified-20261116T2030Z/package/preview-screenshots/preview-landing-desktop-full.jpg"
+type = "image"
+title = "NeuroPathways landing page — desktop"
+description = "Full-page view of the updated public landing page."
+logical_id = "43ad4b6f-865a-40da-b1ae-26780926365e"
+content_hash = "sha256:a6442fbce9a37b6b794157c91d602fda21e543d4406b13eea54b44c34bb3085b"
+size = 383122
+mtime_ms = 1794862085793
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/43ad4b6f-865a-40da-b1ae-26780926365e/2df66ef2-7200-4170-a2b3-ef91165739d8"
+storage_version_token = "1794862124613693"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "j7VwCKLUIbUtZ4OnjLf3q"
+uri = "file://.local/verification/clinic-onboarding-unified-20261116T2030Z/package/preview-screenshots/preview-landing-mobile-viewport.jpg"
+type = "image"
+title = "NeuroPathways landing page — mobile"
+description = "Mobile-sized view of the updated public landing page."
+logical_id = "8506846b-7619-4198-855c-42d59cbdd64e"
+content_hash = "sha256:8477ead0f7918d8356cf2a27f56abe916136a7aaab7047b42f3bd3a3232757a2"
+size = 49927
+mtime_ms = 1794862085809
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/8506846b-7619-4198-855c-42d59cbdd64e/0f9a018b-350d-430c-b6f1-e164117c6309"
+storage_version_token = "1794862125175275"
+content_type = "image/jpeg"
