@@ -595,7 +595,7 @@ test("family invitation reissue is audited for success and unauthorized denial",
   };
   const auditRows: Record<string, unknown>[] = [];
   let updatedFamily = family;
-  let actingUser = {
+  let actingUser: any = {
     id: family.clinicianId,
     appRole: "clinician",
     tenantId: family.tenantId,
@@ -677,7 +677,6 @@ test("family invitation reissue is audited for success and unauthorized denial",
     actingUser = {
       id: "unrelated-clinician",
       appRole: "clinician",
-      tenantId: "unrelated-clinic",
     };
     (db as any).select = () => {
       let table: unknown;
@@ -735,6 +734,184 @@ test("family invitation reissue is audited for success and unauthorized denial",
     (db as any).select = originalSelect;
     (db as any).insert = originalInsert;
     (db as any).transaction = originalTransaction;
+    if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("family-detail cross-clinic denial records the authenticated actor clinic and role", async () => {
+  const originalSelect = (db as any).select;
+  const originalInsert = (db as any).insert;
+  const family = {
+    id: "denied-family-detail",
+    clinicianId: "owning-clinician",
+    tenantId: "owning-clinic",
+    familyName: "Synthetic private family",
+  };
+  const auditRows: Record<string, unknown>[] = [];
+  (db as any).select = () => {
+    let table: unknown;
+    return {
+      from(value: unknown) { table = value; return this; },
+      where() {
+        if (table === familiesTable) return Promise.resolve([family]);
+        if (table === childrenTable) return Promise.resolve([]);
+        if (table === userProfilesTable) return Promise.resolve([{
+          id: "unrelated-clinician",
+          appRole: "clinician",
+          tenantId: "unrelated-clinic",
+        }]);
+        return Promise.resolve([]);
+      },
+    };
+  };
+  (db as any).insert = (table: unknown) => ({
+    values(values: Record<string, unknown>) {
+      assert.equal(table, auditLogsTable);
+      auditRows.push(values);
+      return Promise.resolve([]);
+    },
+  });
+
+  const app = express();
+  app.use((req: any, _res, next) => {
+    req.user = { id: "unrelated-clinician" };
+    req.isAuthenticated = () => true;
+    next();
+  });
+  app.use(entitiesRouter);
+  const server = app.listen(0, "127.0.0.1");
+  try {
+    await once(server, "listening");
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/family-detail?family_id=${family.id}`,
+    );
+    assert.equal(response.status, 403);
+    const responseText = await response.text();
+    assert.equal(responseText.includes(family.familyName), false);
+    assert.equal(auditRows.length, 1);
+    assert.equal(auditRows[0].action, "cross_tenant_access_attempt");
+    assert.equal(auditRows[0].userId, "unrelated-clinician");
+    assert.equal(auditRows[0].userRole, "clinician");
+    assert.equal(auditRows[0].tenantId, "unrelated-clinic");
+    assert.equal(auditRows[0].targetType, "family");
+    assert.equal(auditRows[0].targetId, family.id);
+    assert.equal(auditRows[0].success, false);
+  } finally {
+    (db as any).select = originalSelect;
+    (db as any).insert = originalInsert;
+    if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("create-client-account keeps clinic audit scope and omits login credentials from logs", async () => {
+  const originalSelect = (db as any).select;
+  const originalInsert = (db as any).insert;
+  const originalInfo = console.info;
+  const clinicianId = "onboarding-clinician";
+  const clinicId = "onboarding-clinic";
+  const familyId = "onboarding-created-family";
+  const childId = "onboarding-created-child";
+  const submitted = {
+    username: "fictional-login-identifier",
+    accessCode: "fictional-access-code",
+    inviteToken: "fictional-invitation-token",
+  };
+  const logLines: string[] = [];
+  const auditRows: Record<string, unknown>[] = [];
+  const insertedFamilies: Record<string, unknown>[] = [];
+  const insertedChildren: Record<string, unknown>[] = [];
+  console.info = (...args: unknown[]) => { logLines.push(args.map(String).join(" ")); };
+
+  (db as any).select = () => {
+    let table: unknown;
+    return {
+      from(value: unknown) { table = value; return this; },
+      where() {
+        if (table === userProfilesTable) {
+          return Promise.resolve([{ id: clinicianId, appRole: "clinician", tenantId: clinicId }]);
+        }
+        if (table === clinicsTable) {
+          return Promise.resolve([{ id: clinicId, legacyTenantId: null, status: "active" }]);
+        }
+        if (table === clinicMembershipsTable) {
+          return Promise.resolve([{ id: "active-onboarding-membership" }]);
+        }
+        return Promise.resolve([]);
+      },
+    };
+  };
+  (db as any).insert = (table: unknown) => ({
+    values(values: Record<string, unknown>) {
+      if (table === familiesTable) {
+        insertedFamilies.push(values);
+        return { returning: async () => [{ ...values, id: familyId }] };
+      }
+      if (table === childrenTable) {
+        insertedChildren.push(values);
+        return { returning: async () => [{ ...values, id: childId }] };
+      }
+      if (table === auditLogsTable) {
+        auditRows.push(values);
+        return Promise.resolve([]);
+      }
+      throw new Error("Unexpected table in create-client-account regression test.");
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use((req: any, _res, next) => {
+    req.user = { id: clinicianId, appRole: "clinician", email: "fictional-clinician@example.test" };
+    req.isAuthenticated = () => true;
+    next();
+  });
+  app.use(entitiesRouter);
+  const server = app.listen(0, "127.0.0.1");
+  try {
+    await once(server, "listening");
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const response = await fetch(`http://127.0.0.1:${address.port}/create-client-account`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        accountType: "parent_family",
+        familyName: "Fictional Onboarding Family",
+        parentName: "Fictional Caregiver",
+        accountEmail: "fictional-caregiver@example.test",
+        token: submitted.inviteToken,
+        children: [{ child_name: "Fictional Child", is_patient: true }],
+        clientAccount: {
+          first_name: "Fictional",
+          last_name: "Caregiver",
+          username: submitted.username,
+          access_code: submitted.accessCode,
+        },
+      }),
+    });
+    assert.equal(response.status, 201);
+    assert.equal(insertedFamilies.length, 1);
+    assert.equal(insertedChildren.length, 1);
+    assert.equal(insertedFamilies[0].clinicianId, clinicianId);
+    assert.equal(insertedFamilies[0].tenantId, clinicId);
+    assert.equal(insertedChildren[0].familyId, familyId);
+    assert.equal(insertedChildren[0].clinicianId, clinicianId);
+    assert.equal(insertedChildren[0].tenantId, clinicId);
+    assert.equal(auditRows.length, 1);
+    assert.equal(auditRows[0].action, "family_account_created");
+    assert.equal(auditRows[0].userId, clinicianId);
+    assert.equal(auditRows[0].tenantId, clinicId);
+    assert.equal(auditRows[0].targetId, familyId);
+    const capturedLogs = logLines.join("\n");
+    assert.equal(capturedLogs.includes(submitted.username), false, "Login identifiers must not be written to application logs.");
+    assert.equal(capturedLogs.includes(submitted.accessCode), false, "Access codes must not be written to application logs.");
+    assert.equal(capturedLogs.includes(submitted.inviteToken), false, "Invitation tokens must not be written to application logs.");
+  } finally {
+    console.info = originalInfo;
+    (db as any).select = originalSelect;
+    (db as any).insert = originalInsert;
     if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });

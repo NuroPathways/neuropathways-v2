@@ -342,6 +342,23 @@ function serializeFamily(f: any) {
   };
 }
 
+async function authenticatedAuditContext(user: any): Promise<{ userRole: string | null; tenantId: string | null }> {
+  if (user?.tenantId && user?.appRole) {
+    return { userRole: user.appRole, tenantId: user.tenantId };
+  }
+  if (!user?.id) {
+    return { userRole: user?.appRole ?? null, tenantId: user?.tenantId ?? null };
+  }
+  const [profile] = await db.select({
+    appRole: userProfilesTable.appRole,
+    tenantId: userProfilesTable.tenantId,
+  }).from(userProfilesTable).where(eq(userProfilesTable.id, user.id));
+  return {
+    userRole: user?.appRole ?? profile?.appRole ?? null,
+    tenantId: user?.tenantId ?? profile?.tenantId ?? null,
+  };
+}
+
 // Convert snake_case body keys to camelCase (for Drizzle inserts)
 function bodyToCamel(obj: Record<string, any>): Record<string, any> {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
@@ -2009,7 +2026,16 @@ router.get("/family-detail", requireAuth, async (req: any, res) => {
     })));
     const accessibleChildren = accessChecks.filter((item) => item.allowed).map((item) => item.child);
     if (accessibleChildren.length === 0) {
-      await auditLog({ userId: req.user.id, action: "cross_tenant_access_attempt", targetType: "family", targetId: family_id, success: false });
+      const auditContext = await authenticatedAuditContext(req.user);
+      await auditLog({
+        userId: req.user.id,
+        userRole: auditContext.userRole ?? undefined,
+        action: "cross_tenant_access_attempt",
+        targetType: "family",
+        targetId: family_id,
+        tenantId: auditContext.tenantId ?? undefined,
+        success: false,
+      });
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -2133,11 +2159,11 @@ router.post("/create-client-account", requireAuth, async (req: any, res): Promis
       action: accountType === "individual" ? "individual_client_account_created" : "family_account_created",
       targetType: "family",
       targetId: family.id,
-      tenantId: req.user.id,
+      tenantId,
       metadata: { accountType, childCount: createdChildren.length, hasEmail: !!accountEmail },
     });
 
-    console.info(`[NeuroPath] Account created: ${accountType} family=${family.id} children=${createdChildren.length} username=${clientAccount?.username ?? "none"}`);
+    console.info(`[NeuroPath] Account created: ${accountType} family=${family.id} children=${createdChildren.length}`);
 
     const safeChildren = createdChildren.map(({ accessCode, ...rest }) => rest);
     res.status(201).json(serialize({ family: serializeFamily(family), children: safeChildren }));
@@ -3409,18 +3435,21 @@ router.post("/manage-client-record", requireAuth, async (req: any, res) => {
     auditAction: "family_access_revocation_denied" | "family_invitation_reissue_denied",
     familyId: string | undefined,
     reason: string,
-  ) => auditLog({
-    userId: req.user?.id,
-    userRole: req.user?.appRole || "clinician",
-    action: auditAction,
-    targetType: "family",
-    targetId: familyId,
-    tenantId: actorTenantId,
-    success: false,
-    reason,
-    ip: req.ip,
-    requestId: req.id,
-  });
+  ) => {
+    const auditContext = await authenticatedAuditContext(req.user);
+    return auditLog({
+      userId: req.user?.id,
+      userRole: auditContext.userRole || "clinician",
+      action: auditAction,
+      targetType: "family",
+      targetId: familyId,
+      tenantId: auditContext.tenantId ?? actorTenantId,
+      success: false,
+      reason,
+      ip: req.ip,
+      requestId: req.id,
+    });
+  };
   try {
     if (!(await clinicianCanManageClinicalWorkspace(req.user.id))) {
       if (action === "deleteFamily") {
