@@ -107,7 +107,7 @@ export NP_CLINIC_INVITATION_BASE_URL="http://127.0.0.1:4173/ClinicInvitation"
   printf 'AI: disabled/not called\nStorage: private temporary local directory; no external storage\nMail: in-process loopback-only test sink\n'
   printf 'Network guard: Node non-loopback sockets and DNS rejected; browser checks use a separate deny-only proxy.\n'
 } >"$ATTEMPT/isolation-check.txt"
-if ! grep -Fx "np_clinic_onboarding_test|127.0.0.1" "$ATTEMPT/isolation-check.txt" >/dev/null; then
+if ! grep -Fq "np_clinic_onboarding_test|127.0.0.1" "$ATTEMPT/isolation-check.txt"; then
   echo "Isolation guard failed; refusing to run tests." >"$ATTEMPT/runner-errors.txt"
   exit 4
 fi

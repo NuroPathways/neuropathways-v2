@@ -11,6 +11,7 @@ import {
   useListManagedClinicStaff,
   useReassignClinicClient,
   useReissueClinicStaffInvitation,
+  useRevokeClinicStaffAccess,
   useRevokeClinicStaffInvitation,
 } from "@workspace/api-client-react";
 import { Button } from "@workspace/neuropathways-foundations/components/ui/button";
@@ -40,6 +41,7 @@ export default function ClinicianUsers() {
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
   const [revokeTarget, setRevokeTarget] = useState(null);
+  const [removeStaffTarget, setRemoveStaffTarget] = useState(null);
   const enabled = Boolean(user?.id && ["clinician", "clinic_admin"].includes(user?.app_role || user?.appRole));
   const staffQuery = useListManagedClinicStaff({ query: { queryKey: getListManagedClinicStaffQueryKey(), enabled } });
   const clinics = staffQuery.data?.clinics || [];
@@ -55,9 +57,10 @@ export default function ClinicianUsers() {
   const invite = useInviteClinicClinician();
   const reissue = useReissueClinicStaffInvitation();
   const revoke = useRevokeClinicStaffInvitation();
+  const revokeStaffAccess = useRevokeClinicStaffAccess();
   const reassign = useReassignClinicClient();
   const inviteForm = useForm({ defaultValues: { invitedEmail: "" } });
-  const busy = invite.isPending || reissue.isPending || revoke.isPending || reassign.isPending;
+  const busy = invite.isPending || reissue.isPending || revoke.isPending || revokeStaffAccess.isPending || reassign.isPending;
 
   useEffect(() => {
     if (clinics.length && !clinics.some((clinic) => clinic.clinicId === selectedClinicId)) setSelectedClinicId(clinics[0].clinicId);
@@ -99,6 +102,18 @@ export default function ClinicianUsers() {
       onError: (reason) => setError(getApiMessage(reason)),
     });
   };
+  const removeStaff = () => {
+    if (!selectedClinicId || !removeStaffTarget) return;
+    setFeedback(""); setError("");
+    revokeStaffAccess.mutate({ clinicId: selectedClinicId, staffUserId: removeStaffTarget.userId }, {
+      onSuccess: async () => {
+        setRemoveStaffTarget(null);
+        setFeedback("Staff access revoked. Existing sessions were signed out; clinical records were retained.");
+        await Promise.all([refreshStaff(), refreshClients()]);
+      },
+      onError: (reason) => setError(getApiMessage(reason)),
+    });
+  };
 
   return (
     <main className="np-foundations np-onboarding-page">
@@ -136,9 +151,12 @@ export default function ClinicianUsers() {
                   <section className="np-onboarding-section">
                     <SectionHeading title="Clinic staff" description="Staff roles and account states are provided by the server." />
                     {selectedClinic.staff.length ? <div className="np-people-list" data-testid={`list-clinic-staff-${selectedClinic.clinicId}`}>
-                      {selectedClinic.staff.map((person) => <div className="np-person-row" key={person.userId} data-testid={`row-managed-staff-${person.userId}`}>
-                        <div className="np-person-copy"><strong data-testid={`text-managed-staff-name-${person.userId}`}>{person.displayName}</strong>{person.email && <span data-testid={`text-managed-staff-email-${person.userId}`}>{person.email}</span>}<span data-testid={`text-managed-staff-roles-${person.userId}`}>{person.roles.map(statusLabel).join(", ")}</span></div>
-                        <StatusBadge tone={toneFor(person.status)} data-testid={`status-managed-staff-${person.userId}`}>{statusLabel(person.status)}</StatusBadge>
+                       {selectedClinic.staff.map((person) => <div className="np-person-row" key={person.userId} data-testid={`row-managed-staff-${person.userId}`}>
+                         <div className="np-person-copy"><strong data-testid={`text-managed-staff-name-${person.userId}`}>{person.displayName}</strong>{person.email && <span data-testid={`text-managed-staff-email-${person.userId}`}>{person.email}</span>}<span data-testid={`text-managed-staff-roles-${person.userId}`}>{person.roles.map(statusLabel).join(", ")}</span></div>
+                         <div className="np-row-actions">
+                           <StatusBadge tone={toneFor(person.status)} data-testid={`status-managed-staff-${person.userId}`}>{statusLabel(person.status)}</StatusBadge>
+                           {person.status === "active" && person.roles.includes("treating_clinician") && <Button variant="destructive" disabled={busy} onClick={() => setRemoveStaffTarget({ userId: person.userId, displayName: person.displayName })} data-testid={`button-remove-clinician-${person.userId}`}>Remove access</Button>}
+                         </div>
                       </div>)}
                     </div> : <div className="np-empty-panel" data-testid="empty-clinic-staff"><p>No staff are listed for this clinic.</p></div>}
                   </section>
@@ -183,6 +201,15 @@ export default function ClinicianUsers() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={revoke.isPending} data-testid="button-cancel-revoke-staff-invitation">Keep invitation</AlertDialogCancel>
             <AlertDialogAction disabled={revoke.isPending} onClick={(event) => { event.preventDefault(); if (revokeTarget) handleInvitationAction("revoke", revokeTarget.invitationId); }} data-testid="button-confirm-revoke-staff-invitation">{revoke.isPending ? "Revoking…" : "Revoke invitation"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={Boolean(removeStaffTarget)} onOpenChange={(open) => { if (!open && !revokeStaffAccess.isPending) setRemoveStaffTarget(null); }}>
+        <AlertDialogContent className="np-foundations">
+          <AlertDialogHeader><AlertDialogTitle>Remove clinician access?</AlertDialogTitle><AlertDialogDescription>{removeStaffTarget ? `${removeStaffTarget.displayName} will lose access to this clinic and assigned clients. Existing sessions will be signed out. Clinical records will remain.` : "This clinician will lose clinic access."}</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={revokeStaffAccess.isPending} data-testid="button-cancel-remove-clinician">Keep access</AlertDialogCancel>
+            <AlertDialogAction disabled={revokeStaffAccess.isPending} onClick={(event) => { event.preventDefault(); removeStaff(); }} data-testid="button-confirm-remove-clinician">{revokeStaffAccess.isPending ? "Removing access…" : "Remove access"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

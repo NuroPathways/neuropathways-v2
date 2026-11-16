@@ -6,13 +6,14 @@ import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import { test } from "node:test";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   auditLogsTable,
   clinicInvitationsTable,
   clinicMembershipsTable,
   clinicsTable,
   clinicalAssignmentsTable,
+  childrenTable,
   clinicianCredentialsTable,
   db,
   platformAdministratorGrantsTable,
@@ -28,8 +29,8 @@ const databaseUrl = new URL(process.env.DATABASE_URL || "http://invalid");
 const evidenceDir = process.env.NP_TEST_EVIDENCE_DIR;
 const root = path.resolve(process.cwd(), "../..");
 const checks: Array<{ name: string; status: "PASS" | "FAIL"; detail?: string }> = [];
-const fixtureUserIds: string[] = [];
 const invitationTokens: string[] = [];
+const sensitiveValues: string[] = [];
 let app: any;
 let appServer: Server | undefined;
 let sinkServer: Server | undefined;
@@ -40,6 +41,14 @@ let tempDir = "";
 let invitedAdminPassword = "";
 let currentScenario = "test setup";
 let platformAdminId = "";
+let setupReady = false;
+let platformCookie = "";
+let staffClinicianCookie = "";
+let staffClinicianId = "";
+let assignedChildId = "";
+let firstAdminInvitationId = "";
+let firstAdminClinicId = "";
+let firstAdminToken = "";
 
 function assertIsolatedDatabase() {
   if (
@@ -77,7 +86,6 @@ async function createFixtureUser(options: {
   password?: string;
 }) {
   const id = crypto.randomUUID();
-  fixtureUserIds.push(id);
   await db.insert(usersTable).values({
     id,
     email: options.email,
@@ -159,13 +167,11 @@ async function collectSanitizedEvidence() {
     reason: auditLogsTable.reason,
     metadata: auditLogsTable.metadata,
     createdAt: auditLogsTable.createdDate,
-  }).from(auditLogsTable).where(
-    fixtureUserIds.length
-      ? inArray(auditLogsTable.userId, fixtureUserIds)
-      : eq(auditLogsTable.userId, "no-fixtures"),
-  );
+  }).from(auditLogsTable);
   const serialized = JSON.stringify(audit);
-  for (const token of invitationTokens) assert(!serialized.includes(token), "Raw invitation token found in audit evidence");
+  for (const secret of [...invitationTokens, ...sensitiveValues]) {
+    if (secret) assert(!serialized.includes(secret), "Sensitive invitation or password material found in audit evidence");
+  }
   await writeFile(path.join(evidenceDir, "clinic-onboarding-api-checks.json"), JSON.stringify({
     startedAt: startedAt.toISOString(),
     endedAt: new Date().toISOString(),
@@ -218,16 +224,17 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     process.env.NP_CLINIC_INVITATION_BASE_URL = "http://127.0.0.1:3000/ClinicInvitation";
     process.env.TEST_DB_NAME = expectedDatabaseName;
     app = (await import("../app.js")).default;
-    appServer = app.listen(0, "127.0.0.1");
-    const address = appServer?.address();
-    assert(address && typeof address === "object");
-    appPort = address.port;
+    appServer = createServer(app);
+    appPort = await listen(appServer);
+    setupReady = true;
     checks.push({ name: currentScenario, status: "PASS" });
   });
 
-  await t.test("operator bootstrap, authenticated platform clinic provisioning, and idempotency", async () => {
+  await t.test("operator bootstrap, authenticated platform clinic provisioning, and idempotency", async (st) => {
+    if (!setupReady) { st.skip("isolated service setup did not pass"); return; }
     currentScenario = "operator bootstrap, platform clinic provisioning, denied user, idempotency";
     const platformPassword = `T-demo-${crypto.randomBytes(18).toString("base64url")}`;
+    sensitiveValues.push(platformPassword);
     const platform = await createFixtureUser({
       email: `platform-${crypto.randomUUID()}@example.test`,
       appRole: "clinician",
@@ -253,10 +260,25 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     const grantRows = await db.select().from(platformAdministratorGrantsTable)
       .where(eq(platformAdministratorGrantsTable.userId, platform.id));
     assert.equal(grantRows.length, 1);
+    const repeatedBootstrap = spawnSync("pnpm", [
+      "--filter", "@workspace/api-server", "run", "bootstrap:platform-admin", "--",
+      `--user-id=${platform.id}`,
+      "--approval-reference=TEST-APPROVED-002",
+      "--confirm=BOOTSTRAP-ONE-PLATFORM-ADMIN",
+    ], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, NP_ALLOW_PLATFORM_ADMIN_BOOTSTRAP: "approved" },
+      timeout: 60_000,
+    });
+    assert.notEqual(repeatedBootstrap.status, 0, "bootstrap must refuse once an active grant exists");
+    assert(!repeatedBootstrap.stdout.includes(platformPassword) && !repeatedBootstrap.stderr.includes(platformPassword));
+    assert.equal((await db.select().from(platformAdministratorGrantsTable)).length, 1);
     const platformLogin = await loginCookie(platform.email, platformPassword);
     assert.equal(platformLogin.response.status, 200);
     assert.equal(platformLogin.body.redirect, "/PlatformAdminClinics");
     assert(platformLogin.cookie);
+    platformCookie = platformLogin.cookie;
     const emptyList = await api("/platform-management/clinics", { cookie: platformLogin.cookie });
     assert.equal(emptyList.status, 200);
     assert.deepEqual(emptyList.body.clinics, []);
@@ -281,15 +303,20 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
       requestKey,
     };
     latestMessage = null;
-    const [create, concurrentRetry] = await Promise.all([
+    const concurrentResponses = await Promise.all([
       api("/platform-management/clinics", { method: "POST", cookie: platformLogin.cookie, body: createBody }),
       api("/platform-management/clinics", { method: "POST", cookie: platformLogin.cookie, body: createBody }),
     ]);
+    const create = concurrentResponses.find((result) => result.status === 201)!;
+    const concurrentRetry = concurrentResponses.find((result) => result.status === 200)!;
     assert.equal(create.status, 201);
     assert.equal(concurrentRetry.status, 200);
     assert.equal(concurrentRetry.body.clinicId, create.body.clinicId);
     assert.equal(concurrentRetry.body.invitation.id, create.body.invitation.id);
     const token = await getInvitationToken();
+    firstAdminToken = token;
+    firstAdminInvitationId = create.body.invitation.id;
+    firstAdminClinicId = create.body.clinicId;
     assert(!create.text.includes(token));
     assert.equal(create.body.clinicStatus, "pending");
     assert.equal(create.body.invitation.role, "clinic_admin");
@@ -315,11 +342,12 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     checks.push({ name: currentScenario, status: "PASS" });
   });
 
-  await t.test("wrong identity is denied; invited administrator activates one clinic role", async () => {
+  await t.test("wrong identity is denied; invited administrator activates one clinic role", async (st) => {
+    if (!setupReady) { st.skip("isolated service setup did not pass"); return; }
     currentScenario = "first administrator invitation identity, activation, replay, and chart isolation";
     const clinic = (await db.select().from(clinicsTable))[0];
     const invitation = (await db.select().from(clinicInvitationsTable))[0];
-    const token = invitationTokens[0];
+    const originalToken = firstAdminToken;
     const invitedUser = await createFixtureUser({
       email: invitation.invitedEmail,
       appRole: "pending_clinician",
@@ -342,13 +370,37 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     const wrong = await api("/clinic-invitations/accept", {
       method: "POST",
       cookie: wrongSession,
-      body: { token, clinicId: "forged-clinic", role: "platform_admin" },
+      body: { token: originalToken },
     });
     assert.equal(wrong.status, 403);
     assert.equal(wrong.body.clinicId, undefined);
     assert.equal((await db.select().from(clinicMembershipsTable).where(eq(clinicMembershipsTable.userId, wrongIdentity.id))).length, 0);
 
+    const invitedSession = await createSession({
+      user: { id: invitedUser.id, email: invitedUser.email, firstName: invitedUser.firstName, lastName: invitedUser.lastName, profileImageUrl: null, isPlatformAdministrator: false },
+      access_token: "isolated-test",
+    });
+    latestMessage = null;
+    const reissued = await api(`/platform-management/clinics/${clinic.id}/invitations/${invitation.id}/reissue`, {
+      method: "POST",
+      cookie: platformCookie,
+      body: { requestKey: crypto.randomUUID() },
+    });
+    assert.equal(reissued.status, 200);
+    const token = await getInvitationToken();
+    assert(!reissued.text.includes(token));
+    assert.notEqual(reissued.body.invitation.id, invitation.id);
+    const [superseded] = await db.select().from(clinicInvitationsTable).where(eq(clinicInvitationsTable.id, invitation.id));
+    assert.equal(superseded.status, "superseded");
+    const oldLink = await api("/clinic-invitations/accept", {
+      method: "POST",
+      cookie: invitedSession,
+      body: { token: originalToken },
+    });
+    assert.equal(oldLink.status, 409);
+
     invitedAdminPassword = `T-invite-${crypto.randomBytes(18).toString("base64url")}`;
+    sensitiveValues.push(invitedAdminPassword);
     await db.insert(clinicianCredentialsTable).values({
       userId: invitedUser.id,
       email: invitedUser.email,
@@ -361,7 +413,7 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     const accepted = await api("/clinic-invitations/accept", {
       method: "POST",
       cookie: invitedLogin.cookie,
-      body: { token, clinicId: "forged-clinic", role: "platform_admin" },
+      body: { token },
     });
     assert.equal(accepted.status, 200);
     assert.equal(accepted.body.role, "clinic_admin");
@@ -383,7 +435,8 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     checks.push({ name: currentScenario, status: "PASS" });
   });
 
-  await t.test("staff invites are restricted, single-use, revocable, and do not create chart assignments", async () => {
+  await t.test("staff invites are restricted, single-use, revocable, and do not create chart assignments", async (st) => {
+    if (!setupReady) { st.skip("isolated service setup did not pass"); return; }
     currentScenario = "staff invitation, pending signup, role boundary, revocation, and clinic isolation";
     const clinic = (await db.select().from(clinicsTable))[0];
     const admin = (await db.select().from(usersTable).where(eq(usersTable.email, (await db.select().from(clinicInvitationsTable))[0].invitedEmail)))[0];
@@ -399,11 +452,25 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     assert.equal(staffInvite.status, 201);
     assert.equal(staffInvite.body.invitation.role, "treating_clinician");
     assert.equal(staffInvite.body.invitation.deliveryStatus, "test_sink_accepted");
-    const staffToken = await getInvitationToken();
+    let staffToken = await getInvitationToken();
+    const firstStaffInvitationId = staffInvite.body.invitation.id;
     assert(!staffInvite.text.includes(staffToken));
     const [stored] = await db.select().from(clinicInvitationsTable)
-      .where(eq(clinicInvitationsTable.id, staffInvite.body.invitation.id));
+      .where(eq(clinicInvitationsTable.id, firstStaffInvitationId));
     assert.equal(stored.tokenHash, hashClinicInvitationToken(staffToken));
+    const supersededStaffToken = staffToken;
+    latestMessage = null;
+    const staffReissue = await api(`/clinic-management/${clinic.id}/invitations/${firstStaffInvitationId}/reissue`, {
+      method: "POST",
+      cookie: adminCookie,
+      body: { requestKey: crypto.randomUUID() },
+    });
+    assert.equal(staffReissue.status, 200);
+    staffToken = await getInvitationToken();
+    assert(!staffReissue.text.includes(staffToken));
+    const [supersededStaffInvite] = await db.select().from(clinicInvitationsTable)
+      .where(eq(clinicInvitationsTable.id, firstStaffInvitationId));
+    assert.equal(supersededStaffInvite.status, "superseded");
     const duplicate = await api(`/clinic-management/${clinic.id}/invitations`, {
       method: "POST",
       cookie: adminCookie,
@@ -422,18 +489,32 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
         adultOrGuardianConfirmed: true,
         appRole: "platform_admin",
         clinicId: "forged",
+        emailVerified: true,
+        email_verified: true,
       },
     });
+    sensitiveValues.push("Test-only-Clinician-Password-49");
     assert.equal(registered.status, 202);
     const pending = (await db.select().from(usersTable).where(eq(usersTable.email, staffOneEmail)))[0];
     const [pendingProfile] = await db.select().from(userProfilesTable).where(eq(userProfilesTable.id, pending.id));
     assert.equal(pendingProfile.appRole, "pending_clinician");
     assert.equal((await db.select().from(clinicMembershipsTable).where(eq(clinicMembershipsTable.userId, pending.id))).length, 0);
+    assert.equal((await db.select().from(platformAdministratorGrantsTable).where(eq(platformAdministratorGrantsTable.userId, pending.id))).length, 0);
+    const [pendingUser] = await db.select().from(usersTable).where(eq(usersTable.id, pending.id));
+    assert.equal(pendingUser.emailVerified, false, "browser-supplied verification claims must not verify the account");
+    const oldStaffSession = await createSession({
+      user: { id: pending.id, email: staffOneEmail, firstName: "Fictional", lastName: "Clinician One", profileImageUrl: null, isPlatformAdministrator: false },
+      access_token: "isolated-test",
+    });
+    const oldStaffAccept = await api("/clinic-invitations/accept", { method: "POST", cookie: oldStaffSession, body: { token: supersededStaffToken } });
+    assert.equal(oldStaffAccept.status, 409);
     const loggedIn = await loginCookie(staffOneEmail, "Test-only-Clinician-Password-49", staffToken);
     assert.equal(loggedIn.response.status, 200);
     const accepted = await api("/clinic-invitations/accept", { method: "POST", cookie: loggedIn.cookie, body: { token: staffToken } });
     assert.equal(accepted.status, 200);
     assert.equal(accepted.body.role, "treating_clinician");
+    staffClinicianCookie = loggedIn.cookie!;
+    staffClinicianId = pending.id;
     assert.equal((await db.select().from(clinicalAssignmentsTable).where(eq(clinicalAssignmentsTable.userId, pending.id))).length, 0);
     assert.equal((await api(`/clinic-management/${clinic.id}/clients`, { cookie: loggedIn.cookie })).status, 403);
 
@@ -465,6 +546,35 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     const revokedAccept = await api("/clinic-invitations/accept", { method: "POST", cookie: revokedSession, body: { token: revokedToken } });
     assert.equal(revokedAccept.status, 409);
     assert.equal((await db.select().from(clinicMembershipsTable).where(eq(clinicMembershipsTable.userId, revokedUser.id))).length, 0);
+
+    const expiredToken = createClinicInvitationToken();
+    const expiredInviteEmail = `expired-${crypto.randomUUID()}@example.test`;
+    const expiredUser = await createFixtureUser({
+      email: expiredInviteEmail,
+      appRole: "pending_clinician",
+      accountType: "clinician",
+      firstName: "Expired",
+      lastName: "Invitee",
+    });
+    const [expiredInvite] = await db.insert(clinicInvitationsTable).values({
+      clinicId: clinic.id,
+      invitedEmail: expiredInviteEmail,
+      role: "treating_clinician",
+      tokenHash: hashClinicInvitationToken(expiredToken),
+      requestKey: `clinic-staff-expired:${crypto.randomUUID()}`,
+      createdBy: admin.id,
+      status: "pending",
+      expiresAt: new Date(Date.now() - 60_000),
+    }).returning();
+    invitationTokens.push(expiredToken);
+    const expiredSession = await createSession({
+      user: { id: expiredUser.id, email: expiredUser.email, firstName: expiredUser.firstName, lastName: expiredUser.lastName, profileImageUrl: null, isPlatformAdministrator: false },
+      access_token: "isolated-test",
+    });
+    const expiredAccept = await api("/clinic-invitations/accept", { method: "POST", cookie: expiredSession, body: { token: expiredToken } });
+    assert.equal(expiredAccept.status, 409);
+    const [expiredAfter] = await db.select().from(clinicInvitationsTable).where(eq(clinicInvitationsTable.id, expiredInvite.id));
+    assert.equal(expiredAfter.status, "expired");
 
     const otherClinic = await createFixtureUser({
       email: `other-admin-${crypto.randomUUID()}@example.test`,
@@ -500,10 +610,67 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     const ownClinicStaff = await api("/clinic-management/staff", { cookie: otherClinicSession });
     assert.equal(ownClinicStaff.status, 200);
     assert.deepEqual(ownClinicStaff.body.clinics.map((entry: any) => entry.clinicId), [otherClinicId]);
+
+    assignedChildId = crypto.randomUUID();
+    await db.insert(childrenTable).values({
+      id: assignedChildId,
+      tenantId: clinic.id,
+      childName: "Fictional Child One",
+      status: "active",
+      isPatient: true,
+    });
+    const directory = await api(`/clinic-management/${clinic.id}/clients`, { cookie: adminCookie });
+    assert.equal(directory.status, 200);
+    assert.deepEqual(directory.body.clients, [{
+      childId: assignedChildId,
+      displayName: "Fictional Child One",
+      treatingClinicianId: null,
+    }]);
+    const adminChartBefore = await api(`/children/${assignedChildId}`, { cookie: adminCookie });
+    assert([403, 404].includes(adminChartBefore.status), "clinic admin membership alone must not grant chart access");
+    assert(!adminChartBefore.text.includes("Fictional Child One"));
+    const platformChart = await api(`/children/${assignedChildId}`, { cookie: platformCookie });
+    assert([403, 404].includes(platformChart.status), "platform admin grant must not grant chart access");
+    assert(!platformChart.text.includes("Fictional Child One"));
+    const assigned = await api(`/clinic-management/${clinic.id}/clients/${assignedChildId}/reassign`, {
+      method: "POST",
+      cookie: adminCookie,
+      body: { clinicianId: staffClinicianId },
+    });
+    assert.equal(assigned.status, 200);
+    const clinicianChart = await api(`/children/${assignedChildId}`, { cookie: staffClinicianCookie });
+    assert.equal(clinicianChart.status, 200);
+    assert.equal(clinicianChart.body.id, assignedChildId);
+    assert.equal(clinicianChart.body.child_name, "Fictional Child One");
+    const crossClinicChart = await api(`/children/${assignedChildId}`, { cookie: otherClinicSession });
+    assert([403, 404].includes(crossClinicChart.status));
+    assert(!crossClinicChart.text.includes("Fictional Child One"));
+    const foreignAssignment = await api(`/clinic-management/${clinic.id}/clients/${assignedChildId}/reassign`, {
+      method: "POST",
+      cookie: otherClinicSession,
+      body: { clinicianId: otherClinic.id },
+    });
+    assert.equal(foreignAssignment.status, 403);
+    const revokedStaff = await api(`/clinic-management/${clinic.id}/staff/${staffClinicianId}/revoke`, {
+      method: "POST",
+      cookie: adminCookie,
+    });
+    assert.equal(revokedStaff.status, 200);
+    assert.equal(revokedStaff.body.assignmentsRevoked, 1);
+    const priorSessionAfterRevoke = await api("/users/me", { cookie: staffClinicianCookie });
+    assert.equal(priorSessionAfterRevoke.status, 401);
+    assert.equal((await db.select().from(childrenTable).where(eq(childrenTable.id, assignedChildId))).length, 1);
+    const [assignmentAfterRevoke] = await db.select().from(clinicalAssignmentsTable).where(and(
+      eq(clinicalAssignmentsTable.clinicId, clinic.id),
+      eq(clinicalAssignmentsTable.clientId, assignedChildId),
+      eq(clinicalAssignmentsTable.userId, staffClinicianId),
+    ));
+    assert.equal(assignmentAfterRevoke.status, "revoked");
     checks.push({ name: currentScenario, status: "PASS" });
   });
 
-  await t.test("sanitized genuine audit evidence records success and denial with no tokens", async () => {
+  await t.test("sanitized genuine audit evidence records success and denial with no tokens", async (st) => {
+    if (!setupReady) { st.skip("isolated service setup did not pass"); return; }
     currentScenario = "genuine audit events and token redaction";
     const events = await db.select().from(auditLogsTable);
     const actions = new Set(events.map((event) => event.action));
@@ -511,13 +678,21 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
       "platform_admin_bootstrapped",
       "clinic_provisioned",
       "clinic_first_admin_invitation_created",
+      "clinic_invitation_reissued",
       "clinic_invitation_accepted",
       "clinic_invitation_accept_denied",
       "clinic_staff_invitation_created",
+      "clinic_staff_invitation_reissued",
+      "clinic_staff_invitation_creation_denied",
       "clinic_staff_invitation_revoked",
+      "clinical_assignment_reassigned",
+      "clinical_assignment_reassignment_denied",
+      "clinic_staff_access_revoked",
     ]) assert(actions.has(requiredAction), `missing genuine audit action ${requiredAction}`);
     const serialized = JSON.stringify(events);
-    for (const token of invitationTokens) assert(!serialized.includes(token), "raw invitation token leaked to audit");
+    for (const secret of [...invitationTokens, ...sensitiveValues]) {
+      if (secret) assert(!serialized.includes(secret), "sensitive token or password material leaked to audit");
+    }
     checks.push({ name: currentScenario, status: "PASS" });
   });
 

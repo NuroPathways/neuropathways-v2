@@ -1,0 +1,922 @@
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import http from "node:http";
+import path from "node:path";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
+import { and, desc, eq } from "drizzle-orm";
+import {
+  auditLogsTable,
+  childrenTable,
+  clinicInvitationsTable,
+  clinicMembershipsTable,
+  clinicsTable,
+  clinicalAssignmentsTable,
+  clinicianCredentialsTable,
+  db,
+  platformAdministratorGrantsTable,
+  usersTable,
+  userProfilesTable,
+} from "../../artifacts/api-server/node_modules/@workspace/db/src/index.ts";
+import { and, desc, eq, sql } from "../../artifacts/api-server/node_modules/drizzle-orm/index.js";
+import { createClinicianPasswordHash } from "../../artifacts/api-server/src/lib/clinicianPassword.js";
+
+type Check = { name: string; status: "PASS" | "FAIL" | "NOT_RUN"; method: "signed-in browser" | "isolated setup"; detail?: string };
+type TestMail = { to: string; text: string; receivedAt: string; token: string };
+
+const root = path.resolve(process.cwd(), "../..");
+const evidenceDir = process.env.NP_TEST_BROWSER_EVIDENCE_DIR;
+const expectedDb = process.env.NP_TEST_BROWSER_EXPECTED_DATABASE;
+const dbUrl = new URL(process.env.DATABASE_URL || "http://invalid");
+const webUrl = process.env.NP_TEST_WEB_URL;
+const apiPort = Number(process.env.NP_TEST_API_PORT);
+const webPort = Number(process.env.PORT);
+const cdpPort = Number(process.env.NP_CDP_PORT);
+const chromiumPath = process.env.CHROMIUM_PATH;
+const storageRoot = process.env.NP_TEST_STORAGE_ROOT;
+const checks: Check[] = [];
+const mailMessages: TestMail[] = [];
+const serviceChildren: ChildProcess[] = [];
+const browserChildren: ChildProcess[] = [];
+let sink: http.Server | undefined;
+let staticWebServer: http.Server | undefined;
+let nextBrowserProfile = 0;
+let currentBrowser: Browser | undefined;
+
+function requireIsolatedEnvironment() {
+  if (
+    process.env.NODE_ENV !== "test" ||
+    process.env.REPLIT_CONNECTORS_ENABLED !== "false" ||
+    expectedDb !== "np_clinic_onboarding_browser_test" ||
+    dbUrl.hostname !== "127.0.0.1" ||
+    dbUrl.pathname !== `/${expectedDb}` ||
+    !evidenceDir ||
+    !webUrl ||
+    !Number.isInteger(apiPort) ||
+    !Number.isInteger(webPort) ||
+    !Number.isInteger(cdpPort) ||
+    !chromiumPath ||
+    !storageRoot ||
+    !process.env.FILE_ENCRYPTION_KEY
+  ) {
+    throw new Error("Browser acceptance refused: exact loopback DB, disabled connectors, local storage and isolated browser settings are required.");
+  }
+}
+
+function scrub(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(scrub);
+  if (!value || typeof value !== "object") return value;
+  const result: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (/token|password|secret|credential|authorization|cookie|document.?text|prompt|response.?body/i.test(key)) continue;
+    result[key] = scrub(item);
+  }
+  return result;
+}
+
+async function saveJson(name: string, data: unknown) {
+  await fs.writeFile(path.join(evidenceDir!, name), `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
+}
+
+async function recordCheck(name: string, method: Check["method"], action: () => Promise<string | void>) {
+  try {
+    const detail = await action();
+    checks.push({ name, status: "PASS", method, ...(detail ? { detail } : {}) });
+  } catch (error) {
+    checks.push({
+      name,
+      status: "FAIL",
+      method,
+      detail: error instanceof Error ? error.message.slice(0, 300) : "Check failed.",
+    });
+    throw error;
+  }
+}
+
+function latestMail(email: string, after = 0): TestMail {
+  const item = [...mailMessages].reverse().find((message) =>
+    message.to.toLowerCase() === email.toLowerCase() && Date.parse(message.receivedAt) >= after,
+  );
+  if (!item) throw new Error("The local test mail sink did not capture the expected invitation.");
+  return item;
+}
+
+async function startSink() {
+  sink = http.createServer((request, response) => {
+    if (request.method !== "POST" || request.url !== "/messages") {
+      response.writeHead(404).end();
+      return;
+    }
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => { body += chunk; });
+    request.on("end", () => {
+      try {
+        const message = JSON.parse(body);
+        const url = String(message.text || "").match(/https?:\/\/127\.0\.0\.1:\d+\/ClinicInvitation#token=([A-Za-z0-9_-]+)/);
+        if (typeof message.to === "string" && url) {
+          mailMessages.push({
+            to: message.to,
+            text: String(message.text),
+            token: url[1],
+            receivedAt: new Date().toISOString(),
+          });
+          response.writeHead(202, { "content-type": "application/json" }).end('{"accepted":true}');
+        } else {
+          response.writeHead(400).end();
+        }
+      } catch {
+        response.writeHead(400).end();
+      }
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    sink!.once("error", reject);
+    sink!.listen(0, "127.0.0.1", resolve);
+  });
+  const address = sink.address();
+  assert(address && typeof address === "object");
+  process.env.NP_CLINIC_INVITATION_TEST_SINK_URL = `http://127.0.0.1:${address.port}/messages`;
+}
+
+function startProcess(command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv; logPath: string }) {
+  const child = spawn(command, args, { cwd: options.cwd, env: options.env, stdio: ["ignore", "pipe", "pipe"] });
+  serviceChildren.push(child);
+  const output = fs.open(options.logPath, "a", 0o600).then((handle) => {
+    child.stdout?.on("data", (chunk) => { void handle.appendFile(chunk); });
+    child.stderr?.on("data", (chunk) => { void handle.appendFile(chunk); });
+    child.once("close", () => { void handle.close(); });
+  });
+  void output;
+  return child;
+}
+
+async function waitForHttp(url: string, expectedStatus = 200) {
+  const end = Date.now() + 60_000;
+  let last = "";
+  while (Date.now() < end) {
+    try {
+      const response = await fetch(url);
+      if (response.status === expectedStatus) return;
+      last = `HTTP ${response.status}`;
+    } catch (error) {
+      last = error instanceof Error ? error.message.slice(0, 120) : "request failed";
+    }
+    await delay(250);
+  }
+  throw new Error(`Local service did not become ready (${last}).`);
+}
+
+async function seedPlatformOperator() {
+  const userId = crypto.randomUUID();
+  const email = `platform.operator.${crypto.randomBytes(4).toString("hex")}@example.test`;
+  const password = `LocalOnly-${crypto.randomBytes(20).toString("base64url")}-8!`;
+  await db.insert(usersTable).values({
+    id: userId,
+    email,
+    firstName: "Fictional",
+    lastName: "Operator",
+    emailVerified: true,
+  });
+  await db.insert(userProfilesTable).values({
+    id: userId,
+    appRole: "clinician",
+    accountType: "clinician",
+    firstName: "Fictional",
+    lastName: "Operator",
+    displayName: "Fictional Operator",
+  });
+  await db.insert(clinicianCredentialsTable).values({
+    userId,
+    email,
+    passwordHash: await createClinicianPasswordHash(password),
+  });
+  process.env.NP_ALLOW_PLATFORM_ADMIN_BOOTSTRAP = "approved";
+  const bootstrap = spawnSync("pnpm", [
+    "--filter", "@workspace/api-server", "run", "bootstrap:platform-admin", "--",
+    `--user-id=${userId}`,
+    "--approval-reference=isolated-fictional-browser-acceptance",
+    "--confirm=BOOTSTRAP-ONE-PLATFORM-ADMIN",
+  ], { cwd: root, env: process.env, encoding: "utf8" });
+  delete process.env.NP_ALLOW_PLATFORM_ADMIN_BOOTSTRAP;
+  if (bootstrap.status !== 0) {
+    const message = `${bootstrap.stdout || ""}\n${bootstrap.stderr || ""}`
+      .replace(/(?:token|password|secret|credential)[^\n]*/gi, "[redacted output]")
+      .trim()
+      .slice(-240);
+    throw new Error(`The guarded operator bootstrap did not complete in the disposable browser database. ${message}`);
+  }
+  return { userId, email, password };
+}
+
+class Browser {
+  private ws!: WebSocket;
+  private messageId = 0;
+  private pending = new Map<number, { resolve: (value: any) => void; reject: (reason: Error) => void }>();
+  private messageListener?: (event: MessageEvent) => void;
+  diagnostics: string[] = [];
+  private process?: ChildProcess;
+  readonly profile: string;
+
+  constructor() {
+    this.profile = path.join(process.env.NP_TEST_EVIDENCE_DIR!, "private-browser-profile-" + (++nextBrowserProfile));
+  }
+
+  async launch() {
+    await fs.mkdir(this.profile, { recursive: true, mode: 0o700 });
+    this.process = spawn(chromiumPath!, [
+      "--headless=new",
+      "--no-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-background-networking",
+      "--disable-sync",
+      "--no-first-run",
+      "--no-default-browser-check",
+      "--remote-allow-origins=*",
+      "--remote-debugging-address=127.0.0.1",
+      `--remote-debugging-port=${cdpPort}`,
+      `--user-data-dir=${this.profile}`,
+      "--host-resolver-rules=MAP * ~NOTFOUND,EXCLUDE 127.0.0.1",
+      "about:blank",
+    ], { env: { ...process.env, NODE_OPTIONS: "" }, stdio: ["ignore", "ignore", "pipe"] });
+    browserChildren.push(this.process);
+    await this.waitForCdp();
+  }
+
+  private async waitForCdp() {
+    const until = Date.now() + 20_000;
+    let target: any;
+    while (Date.now() < until) {
+      try {
+        const response = await fetch(`http://127.0.0.1:${cdpPort}/json/list`);
+        const targets = await response.json() as any[];
+        target = targets.find((item) => item.type === "page");
+        if (target?.webSocketDebuggerUrl) break;
+      } catch { /* Chromium is still starting. */ }
+      await delay(150);
+    }
+    if (!target?.webSocketDebuggerUrl) throw new Error("The isolated Chromium page target did not start.");
+    this.ws = new WebSocket(target.webSocketDebuggerUrl);
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("Chromium DevTools connection timed out.")), 10_000);
+      this.ws.addEventListener("open", () => { clearTimeout(timeout); resolve(); }, { once: true });
+      this.ws.addEventListener("error", () => { clearTimeout(timeout); reject(new Error("Chromium DevTools connection failed.")); }, { once: true });
+    });
+    this.messageListener = (event) => {
+      const message = JSON.parse(String(event.data));
+      if (["Runtime.exceptionThrown", "Runtime.consoleAPICalled", "Log.entryAdded", "Network.loadingFailed", "Network.requestWillBeSent", "Network.responseReceived"].includes(message.method)) {
+        const params = message.params || {};
+        const detail = JSON.stringify({
+          url: params.request?.url || params.response?.url || "",
+          status: params.response?.status,
+          errorText: params.errorText,
+          message: params.exceptionDetails?.text || params.entry?.text,
+        }).replace(/(?:token|password|secret|credential|cookie)[^,}]*/gi, "[redacted]");
+        this.diagnostics.push(`${message.method}: ${detail.slice(0, 600)}`);
+      }
+      if (!message.id) return;
+      const pending = this.pending.get(message.id);
+      if (!pending) return;
+      this.pending.delete(message.id);
+      if (message.error) pending.reject(new Error(message.error.message || "Browser command failed."));
+      else pending.resolve(message.result);
+    };
+    this.ws.addEventListener("message", this.messageListener);
+    await this.send("Page.enable");
+    await this.send("Runtime.enable");
+    await this.send("DOM.enable");
+    await this.send("Network.enable");
+    await this.send("Log.enable");
+  }
+
+  private send(method: string, params: Record<string, unknown> = {}) {
+    const id = ++this.messageId;
+    return new Promise<any>((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      this.ws.send(JSON.stringify({ id, method, params }));
+      setTimeout(() => {
+        const item = this.pending.get(id);
+        if (item) {
+          this.pending.delete(id);
+          reject(new Error(`Browser command timed out: ${method}`));
+        }
+      }, 20_000).unref();
+    });
+  }
+
+  async evaluate(expression: string) {
+    const result = await this.send("Runtime.evaluate", {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+      userGesture: true,
+    });
+    if (result.exceptionDetails) throw new Error("Browser script raised an exception.");
+    return result.result?.value;
+  }
+
+  async navigate(url: string) {
+    const navigation = await this.send("Page.navigate", { url });
+    if (navigation?.errorText) throw new Error(`Browser navigation failed: ${navigation.errorText}`);
+    const expected = new URL(url);
+    await this.waitFor(
+      () => this.evaluate(`location.origin === ${JSON.stringify(expected.origin)} && location.pathname !== 'about:blank'`),
+      15_000,
+      `Browser did not navigate to the isolated app.`,
+    );
+    await this.waitFor(() => this.evaluate("document.readyState === 'complete' || document.readyState === 'interactive'"));
+    await delay(200);
+  }
+
+  async waitFor(predicate: () => Promise<unknown>, timeoutMs = 15_000, message = "Expected browser content did not appear.") {
+    const end = Date.now() + timeoutMs;
+    while (Date.now() < end) {
+      try { if (await predicate()) return; } catch { /* route or React tree is still settling */ }
+      await delay(200);
+    }
+    throw new Error(message);
+  }
+
+  async text() {
+    return String(await this.evaluate("document.body?.innerText || ''"));
+  }
+
+  async fill(selector: string, value: string) {
+    const escaped = JSON.stringify(selector);
+    const found = await this.evaluate(`(() => { const e=document.querySelector(${escaped}); if(!e) return false; e.focus(); return true; })()`);
+    if (!found) throw new Error(`Visible form field not found: ${selector}`);
+    await this.send("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: 2 });
+    await this.send("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", modifiers: 2 });
+    await this.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", code: "Backspace" });
+    await this.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace" });
+    await this.send("Input.insertText", { text: value });
+  }
+
+  async setSelect(selector: string, value: string) {
+    const script = `(() => { const e=document.querySelector(${JSON.stringify(selector)}); if(!e) return false; const setter=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set; setter.call(e,${JSON.stringify(value)}); e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true})); return e.value === ${JSON.stringify(value)}; })()`;
+    if (!await this.evaluate(script)) throw new Error(`Select field not found or not set: ${selector}`);
+  }
+
+  async click(selector: string) {
+    const script = `(() => { const e=document.querySelector(${JSON.stringify(selector)}); if(!e) return false; e.click(); return true; })()`;
+    if (!await this.evaluate(script)) throw new Error(`Visible control not found: ${selector}`);
+  }
+
+  async clickText(text: string) {
+    const script = `(() => { const target=${JSON.stringify(text)}; const items=[...document.querySelectorAll('button,a,[role="button"]')]; const e=items.find(x=>x.innerText.trim()===target && !x.disabled); if(!e) return {ok:false, labels:items.map(x=>x.innerText.trim()).filter(Boolean).slice(0,12), page:document.body?.innerText?.slice(0,500)}; e.click(); return {ok:true}; })()`;
+    const result = await this.evaluate(script);
+    if (!result?.ok) throw new Error(`Visible button was not found: ${text}. Visible UI: ${String(result?.page || "").replace(/\s+/g, " ").slice(0, 300)}`);
+  }
+
+  async clickFirst(selector: string) {
+    const script = `(() => { const e=[...document.querySelectorAll(${JSON.stringify(selector)})].find(x=>x.getClientRects().length); if(!e) return false; e.click(); return true; })()`;
+    if (!await this.evaluate(script)) throw new Error(`Visible control was not found: ${selector}`);
+  }
+
+  async waitText(text: string, timeoutMs = 15_000) {
+    await this.waitFor(async () => (await this.text()).includes(text), timeoutMs, `Expected visible text was not found: ${text}; page: ${String(await this.evaluate("location.href + ' | ' + document.title + ' | ' + (document.body?.innerText || '')")).replace(/\s+/g, " ").slice(0, 300)}; html: ${String(await this.evaluate("document.documentElement?.outerHTML || ''")).replace(/\s+/g, " ").slice(0, 400)}; browser: ${this.diagnostics.slice(-20).join(" | ")}`);
+  }
+
+  async waitPath(pathPart: string, timeoutMs = 15_000) {
+    await this.waitFor(() => this.evaluate(`location.pathname.includes(${JSON.stringify(pathPart)})`), timeoutMs, `Browser did not reach the expected route: ${pathPart}`);
+  }
+
+  async screenshot(name: string) {
+    const result = await this.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
+    await fs.writeFile(path.join(evidenceDir!, "screenshots", `${name}.png`), Buffer.from(result.data, "base64"), { mode: 0o600 });
+  }
+
+  async viewport(width: number, height: number, mobile: boolean) {
+    await this.send("Emulation.setDeviceMetricsOverride", {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile,
+    });
+  }
+
+  async close() {
+    try { this.ws?.close(); } catch { /* already closed */ }
+    if (this.process && !this.process.killed) {
+      this.process.kill("SIGTERM");
+      await Promise.race([
+        new Promise<void>((resolve) => this.process?.once("exit", () => resolve())),
+        delay(5_000),
+      ]);
+      if (this.process.exitCode === null) this.process.kill("SIGKILL");
+    }
+    await fs.rm(this.profile, { recursive: true, force: true });
+    if (currentBrowser === this) currentBrowser = undefined;
+  }
+}
+
+async function newBrowser() {
+  const browser = new Browser();
+  currentBrowser = browser;
+  await browser.launch();
+  return browser;
+}
+
+async function loginClinician(browser: Browser, email: string, password: string) {
+  await browser.navigate(`${webUrl}/ClinicianLogin`);
+  await browser.waitText("Clinician portal", 60_000);
+  await browser.clickText("Sign In with Email");
+  await browser.fill('input[type="email"]', email);
+  await browser.fill('input[type="password"]', password);
+  await browser.clickText("Sign In");
+  await browser.waitFor(async () => (await browser.text()).includes("Platform clinic access") || (await browser.text()).includes("Clinic team") || await browser.evaluate("location.pathname === '/ClinicianDashboard'"));
+}
+
+async function registerAndAcceptClinicInvite(browser: Browser, token: string, invitee: { email: string; password: string; firstName: string; lastName: string }) {
+  await browser.navigate(`${webUrl}/ClinicInvitation#token=${encodeURIComponent(token)}`);
+  await browser.waitText("Accept clinic invitation");
+  await browser.click('[data-testid="button-mode-register"]');
+  await browser.fill('[data-testid="input-invite-first-name"]', invitee.firstName);
+  await browser.fill('[data-testid="input-invite-last-name"]', invitee.lastName);
+  await browser.fill('[data-testid="input-invite-register-email"]', invitee.email);
+  await browser.fill('[data-testid="input-invite-register-password"]', invitee.password);
+  await browser.click('[data-testid="checkbox-adult-confirmation"]');
+  await browser.click('[data-testid="button-create-invited-account"]');
+  await browser.waitText("Sign in with the invited email");
+  await browser.clickText("Sign in");
+  await browser.click('[data-testid="button-invitation-sign-in"]');
+  await browser.waitFor(async () => await browser.evaluate("location.pathname === '/ClinicianUsers' || location.pathname === '/PlatformAdminClinics' || location.pathname === '/ClinicianDashboard'"), 20_000);
+}
+
+async function startWebServices() {
+  const sinkAddress = sink?.address();
+  assert(sinkAddress && typeof sinkAddress === "object");
+  process.env.NP_CLINIC_INVITATION_TEST_SINK_URL = `http://127.0.0.1:${sinkAddress.port}/messages`;
+  const env = { ...process.env };
+  const api = startProcess("pnpm", ["exec", "tsx", "../../scripts/clinic-onboarding/api-service.mts"], {
+    cwd: path.join(root, "artifacts/api-server"),
+    env,
+    logPath: path.join(evidenceDir!, "logs", "api-service.log"),
+  });
+  await waitForHttp(`http://127.0.0.1:${apiPort}/api/healthz`);
+  const staticRoot = path.resolve(root, "artifacts/neuropath/dist/public");
+  staticWebServer = http.createServer(async (request, response) => {
+    if (request.url?.startsWith("/api/")) {
+      const upstream = http.request({
+        hostname: "127.0.0.1",
+        port: apiPort,
+        method: request.method,
+        path: request.url,
+        headers: { ...request.headers, host: `127.0.0.1:${apiPort}` },
+      }, (upstreamResponse) => {
+        response.writeHead(upstreamResponse.statusCode || 502, upstreamResponse.headers);
+        upstreamResponse.pipe(response);
+      });
+      upstream.on("error", () => {
+        if (!response.headersSent) response.writeHead(502, { "content-type": "application/json" });
+        response.end('{"error":"Local test API unavailable"}');
+      });
+      request.pipe(upstream);
+      return;
+    }
+    let pathname = "/";
+    try { pathname = decodeURIComponent(new URL(request.url || "/", `http://127.0.0.1:${webPort}`).pathname); }
+    catch { response.writeHead(400).end(); return; }
+    const requested = pathname === "/"
+      ? path.join(staticRoot, "index.html")
+      : path.resolve(staticRoot, `.${pathname}`);
+    if (!requested.startsWith(`${staticRoot}${path.sep}`) && requested !== path.join(staticRoot, "index.html")) {
+      response.writeHead(400).end();
+      return;
+    }
+    let target = requested;
+    try {
+      if (!(await fs.stat(target)).isFile()) target = path.join(staticRoot, "index.html");
+    } catch {
+      target = path.join(staticRoot, "index.html");
+    }
+    try {
+      const content = await fs.readFile(target);
+      const extension = path.extname(target).toLowerCase();
+      const contentType = ({
+        ".html": "text/html; charset=utf-8",
+        ".js": "text/javascript; charset=utf-8",
+        ".css": "text/css; charset=utf-8",
+        ".json": "application/json; charset=utf-8",
+        ".svg": "image/svg+xml",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".woff": "font/woff",
+        ".woff2": "font/woff2",
+      } as Record<string, string>)[extension] || "application/octet-stream";
+      response.writeHead(200, { "content-type": contentType, "content-length": content.byteLength });
+      response.end(content);
+    } catch {
+      response.writeHead(404).end();
+    }
+  });
+  await new Promise<void>((resolve, reject) => {
+    staticWebServer!.once("error", reject);
+    staticWebServer!.listen(webPort, "127.0.0.1", resolve);
+  });
+  await waitForHttp(webUrl!);
+  const entryResponse = await fetch(`${webUrl}/`);
+  const entrySource = await entryResponse.text();
+  const javascriptAsset = entrySource.match(/src="([^"]+\.js)"/)?.[1];
+  if (!javascriptAsset) throw new Error("The built app page did not reference its JavaScript bundle.");
+  const bundleResponse = await fetch(new URL(javascriptAsset, webUrl));
+  const bundle = await bundleResponse.arrayBuffer();
+  await fs.writeFile(path.join(evidenceDir!, "vite-entry-check.json"), JSON.stringify({
+    status: entryResponse.status,
+    htmlBytes: Buffer.byteLength(entrySource),
+    referencesBuiltAssets: entrySource.includes("/assets/"),
+    javascriptStatus: bundleResponse.status,
+    javascriptBytes: bundle.byteLength,
+  }, null, 2), { mode: 0o600 });
+  if (!entryResponse.ok || !bundleResponse.ok || !entrySource.includes("/assets/") || bundle.byteLength < 100_000) {
+    throw new Error("The built app entry page did not load in the isolated web preview.");
+  }
+  return { api };
+}
+
+async function captureAudit() {
+  const rows = await db.select({
+    id: auditLogsTable.id,
+    tenantId: auditLogsTable.tenantId,
+    userId: auditLogsTable.userId,
+    userRole: auditLogsTable.userRole,
+    action: auditLogsTable.action,
+    targetType: auditLogsTable.targetType,
+    targetId: auditLogsTable.targetId,
+    success: auditLogsTable.success,
+    metadata: auditLogsTable.metadata,
+    createdDate: auditLogsTable.createdDate,
+  }).from(auditLogsTable).orderBy(desc(auditLogsTable.createdDate));
+  await saveJson("genuine-audit-events.json", scrub(rows));
+}
+
+async function main() {
+  requireIsolatedEnvironment();
+  await startSink();
+  const databaseInfo = await db.execute(sql`select current_database() as name, host(inet_server_addr()) as host`);
+  const firstDbRow = (databaseInfo as any).rows?.[0];
+  assert.equal(firstDbRow?.name, expectedDb);
+  assert.equal(firstDbRow?.host, "127.0.0.1");
+
+  const operator = await seedPlatformOperator();
+  await startWebServices();
+
+  let clinicId = "";
+  let adminInviteId = "";
+  let firstAdminToken = "";
+  let currentAdminToken = "";
+  let firstAdminEmail = `clinic.admin.${crypto.randomBytes(4).toString("hex")}@example.test`;
+  const firstAdminPassword = `LocalOnly-${crypto.randomBytes(20).toString("base64url")}-8!`;
+  const clinicName = `Fictional North Clinic ${crypto.randomBytes(3).toString("hex")}`;
+  const clinicianOne = { email: `clinician.one.${crypto.randomBytes(4).toString("hex")}@example.test`, password: `LocalOnly-${crypto.randomBytes(20).toString("base64url")}-8!`, firstName: "Fictional", lastName: "Clinician One" };
+  const clinicianTwo = { email: `clinician.two.${crypto.randomBytes(4).toString("hex")}@example.test`, password: `LocalOnly-${crypto.randomBytes(20).toString("base64url")}-8!`, firstName: "Fictional", lastName: "Clinician Two" };
+
+  await recordCheck("Platform operator signs in through the real clinician login form", "signed-in browser", async () => {
+    const browser = await newBrowser();
+    await loginClinician(browser, operator.email, operator.password);
+    await browser.waitText("Platform clinic access");
+    await browser.screenshot("01-platform-empty-state");
+    assert((await browser.text()).includes("No clinics yet"));
+    await browser.close();
+    return "The operator logged in through the visible email/password form; no session bypass was used.";
+  });
+
+  await recordCheck("Platform UI creates a clinic and captures the first-admin invite locally", "signed-in browser", async () => {
+    const browser = await newBrowser();
+    await loginClinician(browser, operator.email, operator.password);
+    await browser.fill('[data-testid="input-clinic-name"]', clinicName);
+    await browser.fill('[data-testid="input-first-admin-email"]', firstAdminEmail);
+    await browser.click('[data-testid="button-create-clinic"]');
+    await browser.waitText("Invitation created; test email captured locally, not sent externally.");
+    await browser.waitText(clinicName);
+    await browser.screenshot("02-platform-clinic-created");
+    const [clinic] = await db.select({ id: clinicsTable.id }).from(clinicsTable).where(eq(clinicsTable.displayName, clinicName));
+    assert(clinic?.id);
+    clinicId = clinic.id;
+    const [invitation] = await db.select({ id: clinicInvitationsTable.id }).from(clinicInvitationsTable).where(and(
+      eq(clinicInvitationsTable.clinicId, clinicId),
+      eq(clinicInvitationsTable.invitedEmail, firstAdminEmail),
+    ));
+    assert(invitation?.id);
+    adminInviteId = invitation.id;
+    firstAdminToken = latestMail(firstAdminEmail).token;
+    await browser.close();
+    return "The page reports that the email was captured locally and not sent externally.";
+  });
+
+  await recordCheck("Wrong-email invite registration does not grant clinic membership", "signed-in browser", async () => {
+    const wrongBrowser = await newBrowser();
+    const wrong = {
+      email: `wrong.identity.${crypto.randomBytes(4).toString("hex")}@example.test`,
+      password: `LocalOnly-${crypto.randomBytes(20).toString("base64url")}-8!`,
+    };
+    await wrongBrowser.navigate(`${webUrl}/ClinicInvitation#token=${encodeURIComponent(firstAdminToken)}`);
+    await wrongBrowser.waitText("Accept clinic invitation");
+    await wrongBrowser.click('[data-testid="button-mode-register"]');
+    await wrongBrowser.fill('[data-testid="input-invite-first-name"]', "Fictional");
+    await wrongBrowser.fill('[data-testid="input-invite-last-name"]', "Wrong Identity");
+    await wrongBrowser.fill('[data-testid="input-invite-register-email"]', wrong.email);
+    await wrongBrowser.fill('[data-testid="input-invite-register-password"]', wrong.password);
+    await wrongBrowser.click('[data-testid="checkbox-adult-confirmation"]');
+    await wrongBrowser.click('[data-testid="button-create-invited-account"]');
+    await wrongBrowser.waitText("Sign in with the invited email");
+    await wrongBrowser.clickText("Sign in");
+    await wrongBrowser.click('[data-testid="button-invitation-sign-in"]');
+    await wrongBrowser.waitText("awaiting clinic administrator approval");
+    const [wrongUser] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, wrong.email));
+    assert(wrongUser?.id);
+    const memberships = await db.select({ id: clinicMembershipsTable.id }).from(clinicMembershipsTable).where(eq(clinicMembershipsTable.userId, wrongUser.id));
+    assert.equal(memberships.length, 0);
+    await wrongBrowser.close();
+    return "A mismatched identity stays pending and has no clinic membership.";
+  });
+
+  await recordCheck("Platform admin can reissue the first-admin invite; current invite activates the real account", "signed-in browser", async () => {
+    const operatorBrowser = await newBrowser();
+    await loginClinician(operatorBrowser, operator.email, operator.password);
+    const oldToken = firstAdminToken;
+    await operatorBrowser.click(`[data-testid="button-reissue-${adminInviteId}"]`);
+    await operatorBrowser.waitText("Invitation created; test email captured locally, not sent externally.");
+    currentAdminToken = latestMail(firstAdminEmail, Date.now() - 30_000).token;
+    assert.notEqual(currentAdminToken, oldToken);
+    await operatorBrowser.close();
+    const inviteeBrowser = await newBrowser();
+    await registerAndAcceptClinicInvite(inviteeBrowser, currentAdminToken, {
+      email: firstAdminEmail,
+      password: firstAdminPassword,
+      firstName: "Fictional",
+      lastName: "Clinic Admin",
+    });
+    await inviteeBrowser.waitPath("/ClinicianUsers");
+    await inviteeBrowser.waitText("Invite a treating clinician");
+    await inviteeBrowser.screenshot("03-clinic-admin-team");
+    const active = await db.select({ id: clinicMembershipsTable.id }).from(clinicMembershipsTable).where(and(
+      eq(clinicMembershipsTable.userId, (await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, firstAdminEmail)))[0].id),
+      eq(clinicMembershipsTable.clinicId, clinicId),
+      eq(clinicMembershipsTable.status, "active"),
+    ));
+    assert.equal(active.length, 1);
+    await inviteeBrowser.close();
+    return "Invitation activation ends in the clinic team page; the account receives only clinic-admin membership.";
+  });
+
+  await recordCheck("Clinic administrator invites and activates two treating clinicians without role editing", "signed-in browser", async () => {
+    const adminBrowser = await newBrowser();
+    await loginClinician(adminBrowser, firstAdminEmail, firstAdminPassword);
+    await adminBrowser.navigate(`${webUrl}/ClinicianUsers`);
+    await adminBrowser.waitText("Invite a treating clinician");
+    await adminBrowser.fill('[data-testid="input-clinician-email"]', clinicianOne.email);
+    await adminBrowser.click('[data-testid="button-invite-clinician"]');
+    await adminBrowser.waitText("Invitation created; test email captured locally, not sent externally.");
+    let tokenOne = latestMail(clinicianOne.email).token;
+    const oneBrowser = await newBrowser();
+    await registerAndAcceptClinicInvite(oneBrowser, tokenOne, clinicianOne);
+    await oneBrowser.waitPath("/ClinicianDashboard");
+    await oneBrowser.close();
+    await adminBrowser.fill('[data-testid="input-clinician-email"]', clinicianTwo.email);
+    await adminBrowser.click('[data-testid="button-invite-clinician"]');
+    await adminBrowser.waitText("Invitation created; test email captured locally, not sent externally.");
+    const tokenTwo = latestMail(clinicianTwo.email).token;
+    const twoBrowser = await newBrowser();
+    await registerAndAcceptClinicInvite(twoBrowser, tokenTwo, clinicianTwo);
+    await twoBrowser.waitPath("/ClinicianDashboard");
+    await twoBrowser.close();
+    await adminBrowser.navigate(`${webUrl}/ClinicianUsers`);
+    await adminBrowser.waitText("Clinic staff");
+    assert(!(await adminBrowser.text()).includes("Edit role"));
+    await adminBrowser.screenshot("04-clinic-staff-list");
+    const users = await db.select({ id: usersTable.id, email: usersTable.email }).from(usersTable).where(eq(usersTable.email, clinicianOne.email));
+    assert.equal(users.length, 1);
+    const activeMembership = await db.select({ id: clinicMembershipsTable.id, role: clinicMembershipsTable.role }).from(clinicMembershipsTable).where(and(
+      eq(clinicMembershipsTable.userId, users[0].id),
+      eq(clinicMembershipsTable.clinicId, clinicId),
+      eq(clinicMembershipsTable.status, "active"),
+    ));
+    assert.equal(activeMembership[0]?.role, "treating_clinician");
+    await adminBrowser.close();
+    return "Both accounts registered and accepted through the invitation screen; the server assigned treating_clinician, with no role editor.";
+  });
+
+  let familyLink = "";
+  let childId = "";
+  let parentInvite = "";
+  const childName = `Demo Avery ${crypto.randomBytes(3).toString("hex")}`;
+  const parentEmail = `caregiver.${crypto.randomBytes(4).toString("hex")}@example.test`;
+  const parentPassword = `LocalOnly-${crypto.randomBytes(20).toString("base64url")}-8!`;
+  await recordCheck("Treating clinician creates a fictional client and caregiver link in the actual portal", "signed-in browser", async () => {
+    const clinicianBrowser = await newBrowser();
+    await loginClinician(clinicianBrowser, clinicianOne.email, clinicianOne.password);
+    await clinicianBrowser.waitPath("/ClinicianDashboard");
+    await clinicianBrowser.clickText("Add Client");
+    await clinicianBrowser.waitText("Add New Family");
+    await clinicianBrowser.fill('input[placeholder="e.g. The Johnson Family"]', `Fictional ${childName} Family`);
+    await clinicianBrowser.fill('input[placeholder="Full name"]', "Fictional Caregiver");
+    await clinicianBrowser.fill('input[placeholder="parent@email.com"]', parentEmail);
+    await clinicianBrowser.clickText("Next");
+    await clinicianBrowser.fill('input[placeholder="First name or nickname"]', childName);
+    await clinicianBrowser.clickText("Save & Send Invite");
+    await clinicianBrowser.waitText("Family Added!");
+    const bodyText = await clinicianBrowser.text();
+    const match = bodyText.match(/http:\/\/127\.0\.0\.1:\d+\/ParentQuickStart\?invite=[A-Za-z0-9_-]+/);
+    assert(match, "Caregiver invitation link should be displayed in the family confirmation.");
+    familyLink = match[0];
+    parentInvite = new URL(familyLink).searchParams.get("invite") || "";
+    assert(parentInvite.length >= 16);
+    const [child] = await db.select({ id: childrenTable.id }).from(childrenTable).where(eq(childrenTable.childName, childName));
+    assert(child?.id);
+    childId = child.id;
+    // The link includes a single-use token. Do not capture a screenshot or persist its value.
+    await clinicianBrowser.clickText("Done");
+    await clinicianBrowser.close();
+    return "The clinician-created family and one-use caregiver link are present; no external email was sent.";
+  });
+
+  await recordCheck("Clinic administrator assigns the client and the browser reflects the assignment", "signed-in browser", async () => {
+    const adminBrowser = await newBrowser();
+    await loginClinician(adminBrowser, firstAdminEmail, firstAdminPassword);
+    await adminBrowser.navigate(`${webUrl}/ClinicianUsers`);
+    await adminBrowser.waitText(`row-clinic-client-${childId}`, 1_000).catch(() => undefined);
+    await adminBrowser.waitFor(() => adminBrowser.evaluate(`!!document.querySelector('[data-testid="row-clinic-client-${childId}"]')`), 15_000);
+    const trigger = `[data-testid="select-client-clinician-${childId}"]`;
+    await adminBrowser.click(trigger);
+    await adminBrowser.clickText(clinicianTwo.firstName + " " + clinicianTwo.lastName);
+    await adminBrowser.waitText("Client assignment updated.");
+    await adminBrowser.screenshot("05-clinic-client-assignment");
+    const [clinician] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, clinicianTwo.email));
+    const assignments = await db.select({ status: clinicalAssignmentsTable.status }).from(clinicalAssignmentsTable).where(and(
+      eq(clinicalAssignmentsTable.childId, childId),
+      eq(clinicalAssignmentsTable.clinicianId, clinician.id),
+    ));
+    assert(assignments.some((row) => row.status === "active"));
+    await adminBrowser.close();
+    return "The clinic-admin UI changed the assignment to a clinician in the same clinic.";
+  });
+
+  await recordCheck("Assignment changes take effect for an existing clinician session", "signed-in browser", async () => {
+    const browser = await newBrowser();
+    await loginClinician(browser, clinicianOne.email, clinicianOne.password);
+    const result = await browser.evaluate(`fetch('/api/client-detail?child_id=${encodeURIComponent(childId)}', {credentials:'include'}).then(async r=>({status:r.status, body:await r.text()}))`);
+    assert.equal(result.status, 403);
+    assert(!String(result.body).includes(childName));
+    await browser.close();
+    return "The formerly assigned clinician’s direct browser request is denied without the child’s name.";
+  });
+
+  const clinicianTwoBrowser = await newBrowser();
+  await recordCheck("New assignee can access the client through a signed-in browser session", "signed-in browser", async () => {
+    await loginClinician(clinicianTwoBrowser, clinicianTwo.email, clinicianTwo.password);
+    const result = await clinicianTwoBrowser.evaluate(`fetch('/api/client-detail?child_id=${encodeURIComponent(childId)}', {credentials:'include'}).then(async r=>({status:r.status, body:await r.text()}))`);
+    assert.equal(result.status, 200);
+    assert(String(result.body).includes(childName));
+    return "The currently assigned clinician receives the child record.";
+  });
+
+  await recordCheck("Clinic administrator removes active clinician access and revokes its existing session", "signed-in browser", async () => {
+    const adminBrowser = await newBrowser();
+    await loginClinician(adminBrowser, firstAdminEmail, firstAdminPassword);
+    await adminBrowser.navigate(`${webUrl}/ClinicianUsers`);
+    const clinicianTwoUser = (await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, clinicianTwo.email)))[0];
+    await adminBrowser.waitFor(() => adminBrowser.evaluate(`!!document.querySelector('[data-testid="button-remove-clinician-${clinicianTwoUser.id}"]')`));
+    await adminBrowser.click(`[data-testid="button-remove-clinician-${clinicianTwoUser.id}"]`);
+    await adminBrowser.waitText("Remove clinician access?");
+    await adminBrowser.click('[data-testid="button-confirm-remove-clinician"]');
+    await adminBrowser.waitText("Staff access revoked. Existing sessions were signed out; clinical records were retained.");
+    const revoked = await clinicianTwoBrowser.evaluate(`fetch('/api/clinician-data', {credentials:'include'}).then(async r=>({status:r.status, body:await r.text()}))`);
+    assert.equal(revoked.status, 401);
+    await adminBrowser.screenshot("06-clinician-access-revoked");
+    const [stillThere] = await db.select({ id: clinicsTable.id }).from(clinicsTable).where(eq(clinicsTable.id, clinicId));
+    assert(stillThere);
+    await adminBrowser.close();
+    await clinicianTwoBrowser.close();
+    return "The UI revoked the clinician’s existing session; clinic and client records remain present.";
+  });
+
+  await recordCheck("Caregiver invite opens the actual parent account creation and clinic-consent flow", "signed-in browser", async () => {
+    const parentBrowser = await newBrowser();
+    await parentBrowser.navigate(familyLink);
+    await parentBrowser.waitPath("/ParentSignup");
+    await parentBrowser.fill('[data-testid="input-first-name"]', "Fictional Caregiver");
+    await parentBrowser.fill('[data-testid="input-email"]', parentEmail);
+    await parentBrowser.fill('[data-testid="input-password"]', parentPassword);
+    await parentBrowser.fill('[data-testid="input-confirm-password"]', parentPassword);
+    await parentBrowser.setSelect('[data-testid="select-account-holder-age"]', "18_plus");
+    await parentBrowser.click('[data-testid="checkbox-privacy"]');
+    await parentBrowser.click('[data-testid="checkbox-health"]');
+    await parentBrowser.click('[data-testid="checkbox-adult-or-guardian-confirmed"]');
+    await parentBrowser.click('[data-testid="checkbox-parent-guardian-authority"]');
+    await parentBrowser.click('[data-testid="button-submit"]');
+    await parentBrowser.waitText("Add Your Child");
+    await parentBrowser.fill('[data-testid="input-child-name"]', childName);
+    await parentBrowser.click('[data-testid="button-next-profile"]');
+    await parentBrowser.waitText("Choose One or More Behaviors");
+    await parentBrowser.clickFirst('[data-testid^="button-behavior-"]');
+    await parentBrowser.click('[data-testid="button-next-behavior"]');
+    await parentBrowser.waitText("Set a Goal for Each Behavior");
+    await parentBrowser.fill('[data-testid^="input-goal-"]', "Try the family's chosen routine together.");
+    await parentBrowser.click('[data-testid="button-next-goal"]');
+    await parentBrowser.click('[data-testid="button-skip-extras"]');
+    await parentBrowser.waitText("Your support cards are ready.");
+    await parentBrowser.click('[data-testid="button-skip-upload"]');
+    await parentBrowser.waitPath("/ParentHome");
+    await parentBrowser.navigate(`${webUrl}/ParentHome?tab=clinic`);
+    await parentBrowser.waitText("Connect to your clinic");
+    await parentBrowser.waitFor(async () => Boolean(await parentBrowser.evaluate(`document.querySelector('[data-testid="input-invite-token"]')?.value`)));
+    await parentBrowser.click('[data-testid="button-check-invite"]');
+    await parentBrowser.waitText("invited the");
+    await parentBrowser.waitFor(() => parentBrowser.evaluate(`!!document.querySelector('[data-testid="radio-merge-${childId}"]')`));
+    await parentBrowser.click(`[data-testid="radio-merge-${childId}"]`);
+    await parentBrowser.click('[data-testid="checkbox-confirm-merge"]');
+    await parentBrowser.click('[data-testid="checkbox-clinic-consent"]');
+    await parentBrowser.click('[data-testid="button-connect-clinic"]');
+    await parentBrowser.waitText("Connected to a clinician");
+    await parentBrowser.waitText("Connect to clinic");
+    await parentBrowser.screenshot("07-caregiver-connected");
+    await parentBrowser.viewport(390, 844, true);
+    await parentBrowser.screenshot("08-caregiver-mobile");
+    const metrics = await parentBrowser.evaluate("({width:innerWidth, scrollWidth:document.documentElement.scrollWidth, height:innerHeight})");
+    assert(metrics.scrollWidth <= metrics.width, "Caregiver Home should not overflow horizontally at phone width.");
+    await parentBrowser.close();
+    return "The caregiver used the visible signup, child setup, invitation preview, merge confirmation and consent controls; the account connected without external email.";
+  });
+
+  await recordCheck("Responsive clinic-admin page renders at phone width without horizontal overflow", "signed-in browser", async () => {
+    const browser = await newBrowser();
+    await loginClinician(browser, firstAdminEmail, firstAdminPassword);
+    await browser.navigate(`${webUrl}/ClinicianUsers`);
+    await browser.waitText("Clinic team");
+    await browser.viewport(390, 844, true);
+    const metrics = await browser.evaluate("({width:innerWidth, scrollWidth:document.documentElement.scrollWidth})");
+    assert(metrics.scrollWidth <= metrics.width, "Clinic team page should not overflow horizontally at phone width.");
+    await browser.screenshot("09-clinic-admin-mobile");
+    await browser.close();
+    return "At a 390-pixel viewport the clinic team page has no horizontal overflow.";
+  });
+
+  await captureAudit();
+  const summary = {
+    title: "Clinic onboarding first-slice isolated browser acceptance",
+    startedAt: new Date(Date.now() - 1).toISOString(),
+    finishedAt: new Date().toISOString(),
+    testedCommit: spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim(),
+    database: { name: expectedDb, host: "127.0.0.1", fictionalOnly: true },
+    externalEmail: "disabled; test sink accepted messages only on loopback",
+    liveAI: "not configured or called",
+    checks,
+    passed: checks.filter((check) => check.status === "PASS").length,
+    failed: checks.filter((check) => check.status === "FAIL").length,
+    notRun: checks.filter((check) => check.status === "NOT_RUN").length,
+    screenshots: (await fs.readdir(path.join(evidenceDir!, "screenshots"))).map((name) => `screenshots/${name}`),
+    testMailCount: mailMessages.length,
+    auditEvidence: "genuine-audit-events.json",
+  };
+  await saveJson("browser-acceptance-results.json", scrub(summary));
+  console.log(`Browser acceptance: ${summary.passed} passed, ${summary.failed} failed.`);
+  if (summary.failed) process.exitCode = 1;
+}
+
+try {
+  await main();
+} catch (error) {
+  const current = checks.at(-1);
+  if (!current || current.status !== "FAIL") {
+    checks.push({
+      name: "Remaining browser acceptance steps",
+      status: "FAIL",
+      method: "signed-in browser",
+      detail: error instanceof Error ? error.message.slice(0, 300) : "Browser acceptance stopped.",
+    });
+  }
+  const result = {
+    testedCommit: spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim(),
+    checks,
+    passed: checks.filter((check) => check.status === "PASS").length,
+    failed: checks.filter((check) => check.status === "FAIL").length,
+    notRun: checks.filter((check) => check.status === "NOT_RUN").length,
+    stoppedAt: new Date().toISOString(),
+  };
+  try { await saveJson("browser-acceptance-results.json", result); } catch { /* safety or DB guard may stop before evidence creation */ }
+  console.error(`Browser acceptance stopped after ${result.passed} passed and ${result.failed} failed check(s).`);
+  if (error instanceof Error) console.error(error.message);
+  process.exitCode = 1;
+} finally {
+  await currentBrowser?.close().catch(() => undefined);
+  if (staticWebServer?.listening) {
+    await new Promise<void>((resolve) => staticWebServer!.close(() => resolve()));
+  }
+  for (const child of [...serviceChildren].reverse()) {
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
+  }
+  await Promise.all(serviceChildren.map((child) => new Promise<void>((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) return resolve();
+    child.once("exit", () => resolve());
+    setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+      resolve();
+    }, 5_000).unref();
+  })));
+  await new Promise<void>((resolve) => sink?.close(() => resolve()) ?? resolve());
+}

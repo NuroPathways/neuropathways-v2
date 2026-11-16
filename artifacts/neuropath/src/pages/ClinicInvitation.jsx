@@ -67,7 +67,7 @@ export default function ClinicInvitation() {
         setInvitationToken("");
         const user = await refreshUser();
         setNotice(`Invitation accepted for ${result.clinicName}. Your clinic access is ready.`);
-        if (result.role === "clinic_admin") navigate("/PlatformAdminClinics", { replace: true });
+        if (result.role === "clinic_admin") navigate("/ClinicianUsers", { replace: true });
         else if (result.role === "treating_clinician") navigate("/ClinicianDashboard", { replace: true });
         else if (user) navigate("/ClinicianDashboard", { replace: true });
       },
