@@ -42,6 +42,7 @@ function record(row: any) {
     role: row.role,
     status: row.status,
     deliveryStatus: row.deliveryStatus,
+    deliveryAttemptedAt: row.deliveryAttemptedAt ? new Date(row.deliveryAttemptedAt).toISOString() : null,
     createdAt: new Date(row.createdAt).toISOString(),
     expiresAt: new Date(row.expiresAt).toISOString(),
   };

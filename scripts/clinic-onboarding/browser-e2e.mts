@@ -13,9 +13,11 @@ import {
   clinicInvitationsTable,
   clinicMembershipsTable,
   clinicsTable,
+  clinicRequestsTable,
   clinicalAssignmentsTable,
   clinicianCredentialsTable,
   db,
+  parentAccountsTable,
   parentClinicInvitesTable,
   platformAdministratorGrantsTable,
   usersTable,
@@ -25,7 +27,7 @@ import { and, desc, eq, sql } from "../../artifacts/api-server/node_modules/driz
 import { createClinicianPasswordHash } from "../../artifacts/api-server/src/lib/clinicianPassword.js";
 import { clinicalRecordClinicId } from "../../artifacts/api-server/src/lib/clinicAuthorization.js";
 
-type Check = { name: string; status: "PASS" | "FAIL" | "NOT_RUN"; method: "signed-in browser" | "isolated setup"; detail?: string };
+type Check = { name: string; status: "PASS" | "FAIL" | "NOT_RUN"; method: "browser" | "signed-in browser" | "isolated setup"; detail?: string };
 type TestMail = { to: string; text: string; receivedAt: string; token: string };
 
 const root = path.resolve(process.cwd(), "../..");
@@ -40,7 +42,11 @@ const chromiumPath = process.env.CHROMIUM_PATH;
 const storageRoot = process.env.NP_TEST_STORAGE_ROOT;
 const checks: Check[] = [];
 const plannedBrowserChecks = [
+  "Public landing page links each role to its existing sign-in or request flow",
+  "Independent caregiver signup creates a usable account without clinic membership",
+  "Public clinic request creates only a pending request in the real application",
   "Platform operator signs in through the real clinician login form",
+  "Platform administrator reviews and approves a pending request through the actual UI",
   "Platform UI creates a clinic and captures the first-admin invite locally",
   "Wrong-email invite registration does not grant clinic membership",
   "Platform admin can reissue the first-admin invite; current invite activates the real account",
@@ -51,6 +57,8 @@ const plannedBrowserChecks = [
   "Assignment changes take effect for an existing clinician session",
   "New assignee can access the client through a signed-in browser session",
   "Clinic administrator removes active clinician access and revokes its existing session",
+  "A clinic-admin login intent cannot elevate an existing clinician",
+  "A user with two legitimate memberships sees only those workspaces and can switch",
   "Responsive clinic-admin page renders at phone width without horizontal overflow",
 ];
 const mailMessages: TestMail[] = [];
@@ -479,10 +487,9 @@ async function newBrowser() {
   return browser;
 }
 
-async function loginClinician(browser: Browser, email: string, password: string) {
-  await browser.navigate(`${webUrl}/ClinicianLogin`);
-  await browser.screenshot("01-clinician-login");
-  await browser.waitText("CLINICIAN PORTAL", 60_000);
+async function loginClinician(browser: Browser, email: string, password: string, workspaceIntent?: string) {
+  await browser.navigate(`${webUrl}/ClinicianLogin${workspaceIntent ? `?workspace=${encodeURIComponent(workspaceIntent)}` : ""}`);
+  await browser.waitText(workspaceIntent === "clinic-admin" ? "Clinic administrator sign in" : "Clinician sign in", 60_000);
   await browser.clickText("Sign In with Email");
   await browser.waitFor(
     () => browser.evaluate("Boolean(document.querySelector('input[type=\"email\"]')?.getClientRects().length)"),
@@ -492,7 +499,10 @@ async function loginClinician(browser: Browser, email: string, password: string)
   await browser.fill('input[type="email"]', email);
   await browser.fill('input[type="password"]', password);
   await browser.clickText("Sign In");
-  await browser.waitFor(async () => (await browser.text()).includes("Platform clinic access") || (await browser.text()).includes("Clinic team") || await browser.evaluate("location.pathname === '/ClinicianDashboard'"));
+  await browser.waitFor(async () =>
+    (await browser.text()).includes("Clinic management") ||
+    (await browser.text()).includes("Clinic team") ||
+    await browser.evaluate("['/ClinicianDashboard','/WorkspaceSelect'].includes(location.pathname)"));
 }
 
 async function registerAndAcceptClinicInvite(browser: Browser, token: string, invitee: { email: string; password: string; firstName: string; lastName: string }) {
@@ -653,15 +663,128 @@ async function main() {
   const clinicianOne = { email: `clinician.one.${crypto.randomBytes(4).toString("hex")}@example.test`, password: `LocalOnly-${crypto.randomBytes(20).toString("base64url")}-8!`, firstName: "Fictional", lastName: "Clinician One" };
   const clinicianTwo = { email: `clinician.two.${crypto.randomBytes(4).toString("hex")}@example.test`, password: `LocalOnly-${crypto.randomBytes(20).toString("base64url")}-8!`, firstName: "Fictional", lastName: "Clinician Two" };
   let clinicianOneUserId = "";
+  const clinicRequestName = `Fictional Request Clinic ${crypto.randomBytes(3).toString("hex")}`;
+  const clinicRequestEmail = `request.contact.${crypto.randomBytes(4).toString("hex")}@example.test`;
+  const caregiverSignupEmail = `independent.parent.${crypto.randomBytes(4).toString("hex")}@example.test`;
+  let clinicRequestId = "";
+
+  await recordCheck("Public landing page links each role to its existing sign-in or request flow", "browser", async () => {
+    const browser = await newBrowser();
+    await browser.navigate(webUrl!);
+    await browser.waitFor(() => browser.evaluate("Boolean(document.querySelector('[data-testid=\"section-workspace-entry\"]'))"));
+    await browser.waitText("Caregivers and parents");
+    const hrefs = await browser.evaluate(`Object.fromEntries([...document.querySelectorAll('[data-testid^="link-"]')].map(a=>[a.getAttribute('data-testid'),a.getAttribute('href')]))`);
+    assert.equal(hrefs["link-caregiver-sign-in"], "/ParentLogin");
+    assert.equal(hrefs["link-caregiver-create"], "/ParentSignup");
+    assert.equal(hrefs["link-clinician-entry"], "/ClinicianLogin?workspace=clinician");
+    assert.equal(hrefs["link-clinic-admin-entry"], "/ClinicianLogin?workspace=clinic-admin");
+    assert.equal(hrefs["link-register-clinic"], "/ClinicRequest");
+    assert.equal(hrefs["link-family-access-code"], "/UsernameLogin");
+    assert(!Object.keys(hrefs).some((key) => /platform/i.test(key)));
+    await browser.viewport(1440, 1000, false);
+    await browser.screenshot("00-public-landing-desktop");
+    await browser.viewport(390, 844, true);
+    const mobile = await browser.evaluate("({width:innerWidth,scrollWidth:document.documentElement.scrollWidth})");
+    assert(mobile.scrollWidth <= mobile.width);
+    await browser.screenshot("00-public-landing-mobile");
+    await browser.close();
+    return "Public cards preserve existing login/signup routes; platform-admin access is not shown and the mobile landing page does not overflow.";
+  });
+
+  await recordCheck("Independent caregiver signup creates a usable account without clinic membership", "signed-in browser", async () => {
+    const browser = await newBrowser();
+    await browser.navigate(`${webUrl}/ParentSignup`);
+    await browser.waitText("No clinician and no documents needed.");
+    await browser.fill('[data-testid="input-first-name"]', "Fictional Caregiver");
+    await browser.fill('[data-testid="input-email"]', caregiverSignupEmail);
+    await browser.fill('[data-testid="input-password"]', `LocalOnly-${crypto.randomBytes(20).toString("base64url")}-8!`);
+    const password = await browser.evaluate("document.querySelector('[data-testid=\"input-password\"]').value");
+    await browser.fill('[data-testid="input-confirm-password"]', password);
+    await browser.click('[data-testid="checkbox-privacy"]');
+    await browser.click('[data-testid="checkbox-health"]');
+    await browser.setSelect('[data-testid="select-account-holder-age"]', "18_plus");
+    await browser.click('[data-testid="checkbox-adult-or-guardian-confirmed"]');
+    await browser.click('[data-testid="checkbox-parent-guardian-authority"]');
+    await browser.click('[data-testid="button-submit"]');
+    await browser.waitPath("/ParentQuickStart");
+    const [account] = await db.select({
+      id: parentAccountsTable.id,
+      workspaceId: parentAccountsTable.workspaceId,
+    }).from(parentAccountsTable).where(eq(parentAccountsTable.email, caregiverSignupEmail));
+    assert(account, "Independent caregiver signup should create its parent account through the real application.");
+    assert(account.workspaceId, "The independent account should receive its own family workspace.");
+    assert.equal((await db.select().from(clinicMembershipsTable).where(eq(clinicMembershipsTable.userId, account.id))).length, 0);
+    await browser.screenshot("00-independent-caregiver-quickstart");
+    await browser.close();
+    return "The browser signup created an independent caregiver account and family workspace with no clinic membership.";
+  });
+
+  await recordCheck("Public clinic request creates only a pending request in the real application", "browser", async () => {
+    const browser = await newBrowser();
+    await browser.navigate(`${webUrl}/ClinicRequest`);
+    await browser.waitText("Register your clinic");
+    await browser.fill('[data-testid="input-request-clinic-name"]', clinicRequestName);
+    await browser.fill('[data-testid="input-request-contact-name"]', "Jordan Browser");
+    await browser.fill('[data-testid="input-request-work-email"]', clinicRequestEmail);
+    await browser.fill('[data-testid="input-request-website"]', "https://fictional.example.test");
+    await browser.click('[data-testid="button-submit-clinic-request"]');
+    await browser.waitText("A platform administrator must review it");
+    const [request] = await db.select().from(clinicRequestsTable).where(eq(clinicRequestsTable.workEmail, clinicRequestEmail));
+    assert(request);
+    clinicRequestId = request.id;
+    assert.equal(request.status, "pending");
+    assert.equal(request.clinicId, null);
+    assert.equal((await db.select().from(clinicsTable).where(eq(clinicsTable.displayName, clinicRequestName))).length, 0);
+    assert.equal((await db.select().from(clinicInvitationsTable).where(eq(clinicInvitationsTable.invitedEmail, clinicRequestEmail))).length, 0);
+    await browser.screenshot("00-clinic-request-submitted");
+    await browser.close();
+    return "The real form writes only a pending request; no clinic, account, membership, or invitation is created.";
+  });
 
   await recordCheck("Platform operator signs in through the real clinician login form", "signed-in browser", async () => {
     const browser = await newBrowser();
     await loginClinician(browser, operator.email, operator.password);
-    await browser.waitText("Platform clinic access");
-    await browser.screenshot("01-platform-empty-state");
-    assert((await browser.text()).includes("No clinics yet"));
+    await browser.waitText("Clinic management");
+    const page = await browser.text();
+    assert(page.includes("Platform administration"));
+    assert(!page.includes("Clinical team"));
+    assert(!page.includes("Documents"));
+    assert(page.includes("No clinics yet"));
+    await browser.viewport(1440, 1000, false);
+    await browser.screenshot("02-platform-admin-desktop");
+    await browser.viewport(390, 844, true);
+    const metrics = await browser.evaluate("({width:innerWidth,scrollWidth:document.documentElement.scrollWidth})");
+    assert(metrics.scrollWidth <= metrics.width, "Platform clinic management should not overflow at phone width.");
+    await browser.screenshot("02-platform-admin-mobile");
     await browser.close();
     return "The operator logged in through the visible email/password form; no session bypass was used.";
+  });
+
+  await recordCheck("Platform administrator reviews and approves a pending request through the actual UI", "signed-in browser", async () => {
+    const browser = await newBrowser();
+    await loginClinician(browser, operator.email, operator.password);
+    await browser.navigate(`${webUrl}/PlatformAdminClinics`);
+    await browser.waitText(clinicRequestName);
+    const input = `[data-testid="input-request-first-admin-${clinicRequestId}"]`;
+    await browser.fill(input, clinicRequestEmail);
+    await browser.screenshot("01-platform-pending-clinic-request");
+    await browser.click(`[data-testid="button-approve-clinic-request-${clinicRequestId}"]`);
+    await browser.waitText("Invitation created; test email captured locally, not sent externally.");
+    const [request] = await db.select().from(clinicRequestsTable).where(eq(clinicRequestsTable.id, clinicRequestId));
+    assert.equal(request.status, "approved");
+    assert(request.clinicId);
+    const [approvedClinic] = await db.select().from(clinicsTable).where(eq(clinicsTable.id, request.clinicId));
+    assert.equal(approvedClinic.status, "pending");
+    const [invitation] = await db.select().from(clinicInvitationsTable).where(and(
+      eq(clinicInvitationsTable.clinicId, request.clinicId),
+      eq(clinicInvitationsTable.invitedEmail, clinicRequestEmail),
+    ));
+    assert.equal(invitation.role, "clinic_admin");
+    assert.equal(invitation.status, "pending");
+    assert.equal((await db.select().from(usersTable).where(eq(usersTable.email, clinicRequestEmail))).length, 0);
+    await browser.screenshot("01-platform-request-approved");
+    await browser.close();
+    return "An explicit platform-admin action invokes the existing clinic/first-admin invitation flow without activating the clinic or creating an account.";
   });
 
   await recordCheck("Platform UI creates a clinic and captures the first-admin invite locally", "signed-in browser", async () => {
@@ -672,7 +795,7 @@ async function main() {
     await browser.click('[data-testid="button-create-clinic"]');
     await browser.waitText("Invitation created; test email captured locally, not sent externally.");
     await browser.waitText(clinicName);
-    await browser.screenshot("02-platform-clinic-created");
+    await browser.screenshot("03-platform-clinic-created");
     const [clinic] = await db.select({ id: clinicsTable.id }).from(clinicsTable).where(eq(clinicsTable.displayName, clinicName));
     assert(clinic?.id);
     clinicId = clinic.id;
@@ -739,6 +862,10 @@ async function main() {
     await inviteeBrowser.waitPath("/ClinicianUsers");
     await inviteeBrowser.screenshot("03-clinic-admin-team");
     await inviteeBrowser.waitText("Invite a treating clinician");
+    const adminNavigation = await inviteeBrowser.text();
+    assert(adminNavigation.includes("Clinic administration"));
+    assert(!adminNavigation.includes("Clinical team"));
+    assert(!adminNavigation.includes("Intervention Plans"));
     const active = await db.select({ id: clinicMembershipsTable.id }).from(clinicMembershipsTable).where(and(
       eq(clinicMembershipsTable.userId, (await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, firstAdminEmail)))[0].id),
       eq(clinicMembershipsTable.clinicId, clinicId),
@@ -752,6 +879,10 @@ async function main() {
   await recordCheck("Clinic administrator invites and activates two treating clinicians without role editing", "signed-in browser", async () => {
     const adminBrowser = await newBrowser();
     await loginClinician(adminBrowser, firstAdminEmail, firstAdminPassword);
+    const adminNavigation = await adminBrowser.text();
+    assert(adminNavigation.includes("Clinic administration"));
+    assert(!adminNavigation.includes("Clinical team"));
+    assert(!adminNavigation.includes("AI Review"));
     await adminBrowser.navigate(`${webUrl}/ClinicianUsers`);
     await adminBrowser.waitText("Invite a treating clinician");
     await adminBrowser.fill('input[placeholder="clinician@clinic.org"]', clinicianOne.email);
@@ -804,6 +935,7 @@ async function main() {
     assert(dashboardMetrics.scrollWidth <= dashboardMetrics.width, "Clinician dashboard should not overflow horizontally at phone width.");
     await clinicianBrowser.screenshot("06-clinician-dashboard-mobile");
     await clinicianBrowser.viewport(1280, 900, false);
+    await clinicianBrowser.screenshot("06-clinician-dashboard-desktop");
     await clinicianBrowser.clickText("Invite Family");
     await clinicianBrowser.waitText("Add New Family");
     await clinicianBrowser.fill('input[placeholder="e.g. The Johnson Family"]', `Fictional ${childName} Family`);
@@ -866,6 +998,12 @@ async function main() {
     await parentBrowser.click('[data-testid="button-skip-upload"]');
     await parentBrowser.waitPath("/ParentHome");
     await parentBrowser.waitText(childName);
+    const caregiverNavigation = await parentBrowser.text();
+    assert(caregiverNavigation.includes("Home"));
+    assert(caregiverNavigation.includes("Practice"));
+    assert(caregiverNavigation.includes("Goals"));
+    assert(!caregiverNavigation.includes("Clinic administration"));
+    assert(!caregiverNavigation.includes("Platform administration"));
     await parentBrowser.navigate(`${webUrl}/ParentHome?tab=clinic`);
     await parentBrowser.waitFor(() => parentBrowser.evaluate(`!!document.querySelector('[data-testid="input-invite-token"]')`));
     await parentBrowser.fill('[data-testid="input-invite-token"]', parentInvite);
@@ -957,6 +1095,19 @@ async function main() {
     return "The currently assigned clinician receives the child record.";
   });
 
+  await recordCheck("A clinic-admin login intent cannot elevate an existing clinician", "signed-in browser", async () => {
+    const browser = await newBrowser();
+    await loginClinician(browser, clinicianTwo.email, clinicianTwo.password, "clinic-admin");
+    const currentPath = await browser.evaluate("location.pathname");
+    assert.equal(currentPath, "/ClinicianDashboard");
+    const me = await browser.evaluate("fetch('/api/users/me',{credentials:'include'}).then(r=>r.json())");
+    assert.deepEqual(me.authorized_workspaces.map((workspace: any) => workspace.id), ["clinical-workspace"]);
+    assert.equal((await browser.text()).includes("Clinic administration"), false);
+    await browser.screenshot("06-clinician-workspace-desktop");
+    await browser.close();
+    return "The server-authorized clinician membership overrides the clinic-admin navigation intent.";
+  });
+
   await recordCheck("Clinic administrator removes active clinician access and revokes its existing session", "signed-in browser", async () => {
     const adminBrowser = await newBrowser();
     await loginClinician(adminBrowser, firstAdminEmail, firstAdminPassword);
@@ -981,13 +1132,46 @@ async function main() {
     const browser = await newBrowser();
     await loginClinician(browser, firstAdminEmail, firstAdminPassword);
     await browser.navigate(`${webUrl}/ClinicianUsers`);
-    await browser.waitText("Clinic team");
+    await browser.waitText("Clinic management");
     await browser.viewport(390, 844, true);
     const metrics = await browser.evaluate("({width:innerWidth, scrollWidth:document.documentElement.scrollWidth})");
     assert(metrics.scrollWidth <= metrics.width, "Clinic team page should not overflow horizontally at phone width.");
     await browser.screenshot("09-clinic-admin-mobile");
     await browser.close();
     return "At a 390-pixel viewport the clinic team page has no horizontal overflow.";
+  });
+
+  await recordCheck("A user with two legitimate memberships sees only those workspaces and can switch", "signed-in browser", async () => {
+    await db.insert(clinicMembershipsTable).values({
+      clinicId,
+      userId: operator.userId,
+      role: "clinic_admin",
+      status: "active",
+      createdBy: operator.userId,
+    });
+    const browser = await newBrowser();
+    await loginClinician(browser, operator.email, operator.password);
+    await browser.waitPath("/WorkspaceSelect");
+    await browser.waitText("These options come from your active account and clinic permissions.");
+    const links = await browser.evaluate("([...document.querySelectorAll('[data-testid=\"list-authorized-workspaces\"] [data-testid^=\"link-workspace-\"]')]).map(a=>a.getAttribute('href'))");
+    assert.equal(links.length, 2);
+    assert(links.some((href: string) => href?.includes("platform-administration")));
+    assert(links.some((href: string) => href?.includes("clinic-administration")));
+    assert(!links.some((href: string) => href?.includes("clinical-workspace")));
+    await browser.screenshot("10-workspace-selector-desktop");
+    await browser.viewport(390, 844, true);
+    const metrics = await browser.evaluate("({width:innerWidth,scrollWidth:document.documentElement.scrollWidth})");
+    assert(metrics.scrollWidth <= metrics.width);
+    await browser.screenshot("10-workspace-selector-mobile");
+    await browser.click('[data-testid="link-workspace-clinic-administration"]');
+    await browser.waitPath("/ClinicianUsers");
+    await browser.waitText("Invite a treating clinician");
+    await browser.navigate(`${webUrl}/WorkspaceSelect`);
+    await browser.click('[data-testid="link-workspace-platform-administration"]');
+    await browser.waitPath("/PlatformAdminClinics");
+    await browser.waitText("Clinic management");
+    await browser.close();
+    return "The chooser displayed exactly the server-granted platform and clinic-admin workspaces, excluded clinical access, and both workspace links opened their intended existing pages.";
   });
 
   await captureAudit();

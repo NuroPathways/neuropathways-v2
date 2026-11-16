@@ -215,6 +215,7 @@ export default function ClinicianUsers() {
                       {filteredInvitations.map((invitation) => <div className="np-invitation-row" key={invitation.id} data-testid={`row-staff-invitation-${invitation.id}`}>
                         <div className="np-invitation-copy">
                           <strong data-testid={`text-staff-invitation-email-${invitation.id}`}>{invitation.invitedEmail}</strong>
+                          {invitation.status === "pending" && <span data-testid={`text-invitation-account-state-${invitation.id}`}>Account not activated</span>}
                           <span>{statusLabel(invitation.role)} · Created {formatDate(invitation.createdAt)} · Expires {formatDate(invitation.expiresAt)}</span>
                           <span data-testid={`text-staff-invitation-attempt-${invitation.id}`}>Last delivery attempt: {invitation.deliveryAttemptedAt ? formatDate(invitation.deliveryAttemptedAt) : "None recorded"}</span>
                           <div className="np-badges"><StatusBadge tone={toneFor(invitation.status)} data-testid={`status-staff-invitation-${invitation.id}`}>{statusLabel(invitation.status)}</StatusBadge><StatusBadge tone="outline" data-testid={`status-staff-delivery-${invitation.id}`}>Delivery: {statusLabel(invitation.deliveryStatus)}</StatusBadge></div>

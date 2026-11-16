@@ -22,6 +22,7 @@ import { createClinicianPasswordHash, verifyClinicianPassword } from "../lib/cli
 import { PENDING_CLINICIAN_ROLE } from "../lib/securityPolicies";
 import { getClinicianAccessibleChildren } from "../lib/clinicAuthorization";
 import { hashClinicInvitationToken, normalizeInvitationEmail } from "../lib/clinicInvitationSecurity";
+import { defaultWorkspace, listAuthorizedWorkspaces } from "../lib/userWorkspaces";
 
 const router = Router();
 
@@ -323,19 +324,14 @@ async function loginClinician(req: any, res: any) {
       res.json({ token: sid, clinician: { id: user.id, email: user.email, first_name: user.firstName, last_name: user.lastName, role: "clinician" } });
     } else {
       setSessionCookie(res, sid);
-      const activePlatformGrants = await db.select({ id: platformAdministratorGrantsTable.id })
-        .from(platformAdministratorGrantsTable).where(and(
-          eq(platformAdministratorGrantsTable.userId, user.id),
-          eq(platformAdministratorGrantsTable.status, "active"),
-          isNull(platformAdministratorGrantsTable.revokedAt),
-        ));
+      const authorizedWorkspaces = await listAuthorizedWorkspaces(user.id);
       res.json({
         ok: true,
         redirect: pendingInvitationAccess
           ? "/ClinicInvitation"
-          : activePlatformGrants.length
-            ? "/PlatformAdminClinics"
-            : "/ClinicianDashboard",
+          : authorizedWorkspaces.length > 1
+            ? "/WorkspaceSelect"
+            : defaultWorkspace(authorizedWorkspaces)?.homePath || "/RoleSetup?role=clinician",
         invitationAccess: Boolean(pendingInvitationAccess),
       });
     }

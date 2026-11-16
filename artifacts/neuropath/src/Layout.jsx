@@ -14,12 +14,12 @@ export default function Layout({ children, currentPageName }) {
   const { user, isLoadingAuth } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const authorizedWorkspaces = getAuthorizedWorkspaces(user);
-  const activeWorkspace = resolveActiveWorkspace(user, location.pathname, location.search);
-  const role = resolveNavigationRole(user, isIndividualFallback, activeWorkspace);
   const [childrenList, setChildrenList] = useState([]);
   const [isIndividualFallback, setIsIndividualFallback] = useState(false);
   const [supportRequest, setSupportRequest] = useState(0);
+  const authorizedWorkspaces = getAuthorizedWorkspaces(user);
+  const activeWorkspace = resolveActiveWorkspace(user, location.pathname, location.search);
+  const role = resolveNavigationRole(user, isIndividualFallback, activeWorkspace);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,7 +126,9 @@ export default function Layout({ children, currentPageName }) {
       const openSupportOverlay = item.key === "support" && role !== "clinician";
         const hashTarget = typeof item.to === "string" ? item.to.split("#")[1] : null;
         const activeFromRoute = hashTarget
-          ? currentPageName === "ClinicianUsers" && location.hash === `#${hashTarget}`
+          ? currentPageName === "ClinicianUsers" && (
+            location.hash ? location.hash === `#${hashTarget}` : role === "clinic_admin" && item.key === "clinic-overview"
+          )
           : item.pages?.includes(currentPageName) || false;
       return {
         ...item,

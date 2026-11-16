@@ -40,7 +40,7 @@ PORT=5173 scripts/clinic-onboarding/demo-workflow.sh populated
 PORT=5000 scripts/clinic-onboarding/demo-workflow.sh fresh
 ```
 
-For the populated state, open the credential file named in the workflow's private setup output while that workflow is running. Use the labelled Platform Admin, Clinic Admin, Clinician, or Caregiver entry. Do not paste credentials into chat, screenshots, reports, or evidence packages.
+For the populated state, open the credential file named in the workflow's private setup output while that workflow is running. It is stored under `.local/clinic-onboarding-demo/run-<timestamp>-<id>/private/credentials.json` with private file permissions. To locate the current run's file in Replit Shell, run `find .local/clinic-onboarding-demo -path '*/private/credentials.json' -print` and choose the run whose mode and start time match the active populated workflow. Read that file only in the private Shell; use the labelled Platform Admin, Clinic Admin, Clinician, or Caregiver entry. Do not paste credentials into chat, screenshots, reports, or evidence packages.
 
 To discard a run from Shell, confirm the exact demo mode:
 
@@ -56,11 +56,46 @@ The command signals only the positively identified matching demo workflow. Norma
 
 1. Open the **Clinic onboarding — fresh setup** preview and sign in using the private Platform Admin credentials. The clinic list starts empty.
 2. Use **Create a clinic and invite** to create a fictional clinic and enter a fictional first-admin address. The app reports that no email was sent; this demo does not activate the invite automatically.
-3. Open the **Clinic onboarding — populated demo** preview in another run. Sign in as Clinic Admin and open **Clinic team** to view the seeded staff and the client assignment controls.
+3. Open the **Clinic onboarding — populated demo** preview. Sign in as Clinic Admin and use **Clinic overview**, **Staff & invitations**, and **Client assignments** in the navigation. These sections use the existing `ClinicianUsers` page; they do not grant clinical chart access by themselves.
 4. Sign in as a seeded treating clinician to confirm the client list is limited to explicit assignments. Sign in as a caregiver to see the seeded child's Home, support and practice surfaces.
 5. Optionally use the second clinic's clinician to confirm their account is separate. Do not use real email addresses or real client data.
 6. Stop/reset the demo workflow(s) with the exact mode-specific reset command above. Keep the sanitized audit export if you want evidence of the demo interactions.
 
+## Current public entry points and workspaces
+
+The landing page offers **Caregiver sign in**, **Create a caregiver account**, and **Use family username and access code** using the existing caregiver routes. **Clinician sign in** and **Clinic administrator sign in** use the same existing `ClinicianLogin` form; the selected link only supplies a navigation preference and does not grant a role. **Request clinic setup** opens `ClinicRequest`, which submits only a pending request. The platform-admin workspace is not shown among public role cards.
+
+After sign-in, workspace options are derived from the account's active server-side permissions. A platform administrator goes to **Clinic management** (`PlatformAdminClinics`); a clinic administrator goes to `ClinicianUsers` with clinic-only administration; a treating clinician goes to `ClinicianDashboard`; and an independent caregiver goes to the existing caregiver home. Accounts with multiple authorized roles can choose among only those existing workspaces. A workspace link never changes a membership or role.
+
+On a populated demo, open **Staff & invitations** to view membership status and invitation history. Delivery state is separate from invitation state. A pending invitee is labelled **Account not activated**. **Last delivery attempt** is recorded only when the isolated test mail sink was actually invoked; if no attempt is recorded, the interface says so. Reissue actions are labelled **Reissue**, not “Resend,” and the demo does not send real email.
+
+The **Register your clinic** form accepts clinic name, contact name, work email, and optional website, and explicitly says not to submit patient details. Submission alone creates no clinic, account, membership, or invitation. Only an explicitly authorized platform administrator can review a pending request and approve it; approval asks the operator to confirm the first administrator address and invokes the existing clinic-provisioning and invitation service. This demo still uses a local no-send path unless the isolated test sink is deliberately configured.
+
 The formal signed-in browser acceptance run separately exercised first-admin invitation acceptance, clinician invitations, caregiver consent/merge, assignment changes, session revocation, and mobile-sized web navigation through a loopback fake mail sink. That automation does not send live mail and is not reproduced by the fresh interactive setup's no-send invitation.
 
 The populated state is entirely fictional. The parent/clinic consent rows are synthetic seed data for demonstration only; they do not represent real permission or consent. Seeding starts with an empty isolated database and does not alter existing account memberships, clinical records, caregiver consent, or audit rows. UI actions create genuine application audit records for fictional actors; fixture setup itself creates none.
+
+## Role sign-in and navigation
+
+All roles use existing authentication. Public **Clinician sign in** and **Clinic administrator sign in** links reach the same `/ClinicianLogin` page with different heading/navigation intent; the intent never grants a role. Use **Sign In with Email**, enter the selected private account's email and password, then **Sign In**. The platform-admin account also uses this login form; there is intentionally no public platform-admin entry card.
+
+| Demo role | Sign-in route | Authorized landing page | Navigation in that workspace |
+| --- | --- | --- | --- |
+| Platform administrator | `/ClinicianLogin` | `/PlatformAdminClinics` — **Clinic management** | Clinic list and request review/provisioning controls only; no client records or clinical tools |
+| Clinic administrator | `/ClinicianLogin?workspace=clinic-admin` | `/ClinicianUsers` | **Clinic overview**, **Staff & invitations**, and **Client assignments** for their clinic |
+| Treating clinician | `/ClinicianLogin?workspace=clinician` | `/ClinicianDashboard` | Clinical workspace, limited to explicitly assigned clients |
+| Caregiver | `/ParentLogin` or `/UsernameLogin` for family access-code login | `/ParentQuickStart` for a new account; otherwise `/ParentHome` | Home, Help Now, Practice, Goals, AI Chat, history and documents according to account permissions |
+
+Accounts with more than one active authorized workspace see **Choose your workspace** at `/WorkspaceSelect`. Selecting a workspace changes navigation only; it does not change the account's memberships or clinical assignments. A standalone caregiver can use the caregiver workspace without clinic membership.
+
+## Local invitation links
+
+The isolated browser acceptance runner uses a loopback-only fake email sink. It captures invitation messages in process memory and opens their invitation links in its signed-in test browser; no external email is sent. Run `scripts/clinic-onboarding/run-isolated-browser-e2e.sh` to repeat that automated flow. The token is deliberately not printed in the runner logs or included in evidence.
+
+The already-running interactive populated demo does **not** have an operator-only mail-sink inbox configured. Invitations created there are recorded as not sent, and there is no manual invitation link to open in that run. Do not treat that as an activation link or search public logs for tokens. Adding a private, role-authorized link viewer and restarting the demo would be a separate change; restarting the active demo would discard its fictional interaction changes and rotate its private credentials. Ask before doing so.
+
+## Latest local verification
+
+On 2026-11-16, the public landing and workspace changes were checked against an isolated fictional database, temporary local storage, real application authentication/session/API/database writes, and a loopback-only test email sink. The browser run recorded **18 passed, 0 failed, 0 not run**. The API onboarding integration recorded **19 passed, 0 failed**. Frontend unit tests recorded **368 passed** across 40 files. API and frontend typechecks, shared-library generated TypeScript checks, and the production frontend build passed. The browser checks exercised desktop and mobile-sized web layouts; they do not establish native-device behavior or live email/provider delivery.
+
+The sanitized browser evidence, genuine audit-event export, screenshots, and command results are kept in the local ignored directory `.local/verification/clinic-onboarding-browser-20261116T202514Z/run-20261116T202514Z/`. The downloadable evidence archive is separate from the private demo credential file. Do not move `private-run/`, credentials, temporary databases, browser profiles, or raw invitation tokens into the archive.

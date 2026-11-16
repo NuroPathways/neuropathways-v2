@@ -176,10 +176,11 @@ export default function PlatformAdminClinics() {
                           <div className="np-invitation-row" key={invitation.id} data-testid={`row-invitation-${invitation.id}`}>
                             <div className="np-invitation-copy">
                               <strong data-testid={`text-invitation-email-${invitation.id}`}>{invitation.invitedEmail}</strong>
-                              <span data-testid={`text-invitation-role-expiry-${invitation.id}`}>{statusLabel(invitation.role)} · Expires {formatDate(invitation.expiresAt)}</span>
+                              <span data-testid={`text-invitation-role-expiry-${invitation.id}`}>{statusLabel(invitation.role)} · Created {formatDate(invitation.createdAt)} · Expires {formatDate(invitation.expiresAt)}</span>
+                              <span data-testid={`text-platform-invitation-attempt-${invitation.id}`}>Last delivery attempt: {invitation.deliveryAttemptedAt ? formatDate(invitation.deliveryAttemptedAt) : "None recorded"}</span>
                               <div className="np-badges">
                                 <StatusBadge tone={statusTone(invitation.status)} data-testid={`status-invitation-${invitation.id}`}>{statusLabel(invitation.status)}</StatusBadge>
-                                <StatusBadge tone="outline" data-testid={`status-delivery-${invitation.id}`}>Email: {statusLabel(invitation.deliveryStatus)}</StatusBadge>
+                                <StatusBadge tone="outline" data-testid={`status-delivery-${invitation.id}`}>Delivery: {statusLabel(invitation.deliveryStatus)}</StatusBadge>
                               </div>
                             </div>
                             {invitation.status === "pending" && <div className="np-row-actions">

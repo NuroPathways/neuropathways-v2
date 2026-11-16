@@ -5,7 +5,8 @@ const DESTINATIONS = Object.freeze({
 });
 
 export function getAuthorizedWorkspaces(user) {
-  return (Array.isArray(user?.authorizedWorkspaces) ? user.authorizedWorkspaces : [])
+  const authorizedWorkspaces = user?.authorizedWorkspaces ?? user?.authorized_workspaces;
+  return (Array.isArray(authorizedWorkspaces) ? authorizedWorkspaces : [])
     .filter((workspace) => DESTINATIONS[workspace?.id]?.type === workspace?.type)
     .map((workspace) => ({
       id: workspace.id,
@@ -53,5 +54,5 @@ export function resolveActiveWorkspace(user, pathname, search = "") {
         : null;
   const routeWorkspace = workspaces.find((workspace) => workspace.id === routePreference);
   if (routeWorkspace) return routeWorkspace;
-  return workspaces.find((workspace) => workspace.id === user?.defaultWorkspaceId) || workspaces[0] || null;
+  return workspaces.find((workspace) => workspace.id === (user?.defaultWorkspaceId ?? user?.default_workspace_id)) || workspaces[0] || null;
 }

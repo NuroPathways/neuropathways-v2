@@ -42,6 +42,20 @@ describe("server-authorized workspace routing", () => {
     expect(getPostLoginPath(user, "clinic-admin")).toBe("/ClinicianUsers");
   });
 
+  it("accepts the server API's serialized snake-case workspace fields", () => {
+    const user = {
+      authorized_workspaces: [
+        { id: "platform-administration", type: "platform_admin", label: "Platform administration" },
+        { id: "clinic-administration", type: "clinic_admin", label: "Clinic administration" },
+      ],
+      default_workspace_id: "clinic-administration",
+    };
+    expect(getAuthorizedWorkspaces(user).map((workspace) => workspace.id)).toEqual([
+      "platform-administration", "clinic-administration",
+    ]);
+    expect(resolveActiveWorkspace(user, "/WorkspaceSelect")?.id).toBe("clinic-administration");
+  });
+
   it("does not let a URL query create an unauthorized role", () => {
     const user = account([
       { id: "clinical-workspace", type: "clinician", label: "Clinical" },

@@ -284,6 +284,10 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     assert.equal(platformLogin.body.redirect, "/PlatformAdminClinics");
     assert(platformLogin.cookie);
     platformCookie = platformLogin.cookie;
+    const platformMe = await api("/users/me", { cookie: platformLogin.cookie });
+    assert.equal(platformMe.status, 200);
+    assert.deepEqual(platformMe.body.authorized_workspaces.map((workspace: any) => workspace.id), ["platform-administration"]);
+    assert.equal(platformMe.body.default_workspace_id, "platform-administration");
     const emptyList = await api("/platform-management/clinics", { cookie: platformLogin.cookie });
     assert.equal(emptyList.status, 200);
     assert.deepEqual(emptyList.body.clinics, []);
@@ -433,7 +437,11 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     assert.equal(replay.status, 409);
     const postAcceptLogin = await loginCookie(invitedUser.email, invitedAdminPassword);
     assert.equal(postAcceptLogin.response.status, 200, "active clinic admin can return through regular sign-in");
-    assert.equal(postAcceptLogin.body.redirect, "/ClinicianDashboard");
+    assert.equal(postAcceptLogin.body.redirect, "/ClinicianUsers");
+    const adminWorkspaces = await api("/users/me", { cookie: postAcceptLogin.cookie });
+    assert.equal(adminWorkspaces.status, 200);
+    assert.deepEqual(adminWorkspaces.body.authorized_workspaces.map((workspace: any) => workspace.id), ["clinic-administration"]);
+    assert.equal(adminWorkspaces.body.default_workspace_id, "clinic-administration");
     const clientDirectory = await api(`/clinic-management/${clinic.id}/clients`, { cookie: postAcceptLogin.cookie });
     assert.equal(clientDirectory.status, 200);
     assert.deepEqual(clientDirectory.body.clients, []);
@@ -517,6 +525,9 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     assert.equal(loggedIn.response.status, 200);
     const accepted = await api("/clinic-invitations/accept", { method: "POST", cookie: loggedIn.cookie, body: { token: staffToken } });
     assert.equal(accepted.status, 200);
+    const clinicianWorkspaces = await api("/users/me", { cookie: loggedIn.cookie });
+    assert.equal(clinicianWorkspaces.status, 200);
+    assert.deepEqual(clinicianWorkspaces.body.authorized_workspaces.map((workspace: any) => workspace.id), ["clinical-workspace"]);
     assert.equal(accepted.body.role, "treating_clinician");
     staffClinicianCookie = loggedIn.cookie!;
     staffClinicianId = pending.id;
@@ -927,6 +938,39 @@ test("isolated real-backend clinic onboarding flow", async (t) => {
     const declinedAudits = await db.select().from(auditLogsTable).where(eq(auditLogsTable.targetId, declinedRequest.body.requestId));
     assert(declinedAudits.some((event) => event.action === "clinic_request_submitted" && event.success));
     assert(declinedAudits.some((event) => event.action === "clinic_request_declined" && event.success));
+
+    const dualRolePassword = `T-dual-${crypto.randomBytes(18).toString("base64url")}`;
+    sensitiveValues.push(dualRolePassword);
+    const dualRole = await createFixtureUser({
+      email: `dual-role-${crypto.randomUUID()}@example.test`,
+      appRole: "clinician",
+      accountType: "clinician",
+      firstName: "Dual",
+      lastName: "Workspace",
+      password: dualRolePassword,
+    });
+    await db.insert(clinicMembershipsTable).values({
+      clinicId: firstAdminClinicId,
+      userId: dualRole.id,
+      role: "clinic_admin",
+      status: "active",
+      createdBy: platformAdminId,
+    });
+    await db.insert(platformAdministratorGrantsTable).values({
+      userId: dualRole.id,
+      status: "active",
+      grantedBy: platformAdminId,
+    });
+    const dualLogin = await loginCookie(dualRole.email, dualRolePassword);
+    assert.equal(dualLogin.response.status, 200);
+    assert.equal(dualLogin.body.redirect, "/WorkspaceSelect");
+    const dualWorkspaces = await api("/users/me", { cookie: dualLogin.cookie });
+    assert.equal(dualWorkspaces.status, 200);
+    assert.deepEqual(
+      dualWorkspaces.body.authorized_workspaces.map((workspace: any) => workspace.id).sort(),
+      ["clinic-administration", "platform-administration"],
+    );
+    assert.equal(dualWorkspaces.body.default_workspace_id, "platform-administration");
     checks.push({ name: currentScenario, status: "PASS" });
   });
 
