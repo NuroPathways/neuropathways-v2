@@ -213,9 +213,8 @@ export const functions = {
         return { data };
       }
       case "sendInviteEmail": {
-        // Email sending not yet implemented — return success so UI flow continues
-        console.info("[NeuroPath] sendInviteEmail called (no-op):", args);
-        return { data: { sent: true } };
+        // Delivery is not configured. Never log arguments: callers may include credentials or invite tokens.
+        return { data: { delivery_status: "unavailable" } };
       }
       case "buildClientProfile": {
         const data = await apiFetch("/build-client-profile", { method: "POST", body: JSON.stringify(args), onScanProgress: options.onProgress });

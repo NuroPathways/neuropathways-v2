@@ -4,7 +4,7 @@ vi.mock("@workspace/api-client-react", () => ({
   fetchWithServiceRecovery,
   fetchDocumentScan: vi.fn(),
 }));
-import { entities, integrations } from "./entities";
+import { base44, entities, integrations } from "./entities";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -19,6 +19,38 @@ describe("non-blocking engagement tracking", () => {
       child_id: "child-1", event_type: "behavior_viewed", topic: "Transition difficulty",
     })).rejects.toThrow("401");
     expect(location.href).toBe("/ParentHome");
+  });
+});
+
+describe("invitation email adapter", () => {
+  it("reports email delivery as unavailable", async () => {
+    const response = await base44.functions.invoke("sendInviteEmail", {
+      to: "caregiver@example.test",
+      inviteToken: "fictional-invite-token-9573",
+    });
+
+    expect(response).toEqual({ data: { delivery_status: "unavailable" } });
+  });
+
+  it("never logs access codes, passwords, or invitation tokens", async () => {
+    const log = vi.spyOn(console, "info").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const secrets = ["fictional-access-code-4821", "fictional-password-7319", "fictional-invite-token-9573"];
+
+    const response = await base44.functions.invoke("sendInviteEmail", {
+      access_code: secrets[0],
+      password: secrets[1],
+      inviteToken: secrets[2],
+    });
+
+    expect(response.data.delivery_status).toBe("unavailable");
+    expect(log).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+    for (const secret of secrets) {
+      expect([log, warn, error].flatMap((spy) => spy.mock.calls.flat()).join(" ")).not.toContain(secret);
+    }
   });
 });
 

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
+import { getInviteDeliveryStatus } from "@/lib/inviteDelivery";
 
 const ACCOUNT_TYPES = [
   { key: "parent_family", label: "Parent / Family", desc: "A parent or guardian managing care for a child" },
@@ -64,8 +65,7 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [emailSent, setEmailSent] = useState(false);
-  const [emailError, setEmailError] = useState(false);
+  const [emailStatus, setEmailStatus] = useState("idle");
   const [resending, setResending] = useState(false);
   const [accountType, setAccountType] = useState(null);
 
@@ -97,14 +97,13 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
       username,
       access_code: accessCode,
     });
-    if (response.data?.error) throw new Error(response.data.error);
+    return getInviteDeliveryStatus(response.data);
   };
 
   const handleSave = async () => {
     setSaving(true);
     setSaveError("");
-    setEmailError(false);
-    setEmailSent(false);
+    setEmailStatus("idle");
 
     const token = generateToken();
     const username = generateUsername(holder.firstName, holder.lastName);
@@ -161,10 +160,9 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
       // Send invite email with credentials if a real email was provided
       if (realEmail) {
         try {
-          await sendInviteEmail(realEmail, fullName, link, username, accessCode);
-          setEmailSent(true);
+          setEmailStatus(await sendInviteEmail(realEmail, fullName, link, username, accessCode));
         } catch {
-          setEmailError(true);
+          setEmailStatus("failed");
         }
       }
 
@@ -180,12 +178,11 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
   const handleResend = async () => {
     if (!holder.email || !credentials.inviteLink) return;
     setResending(true);
-    setEmailError(false);
+    setEmailStatus("pending");
     try {
-      await sendInviteEmail(holder.email, fullName, credentials.inviteLink, credentials.username, credentials.accessCode);
-      setEmailSent(true);
+      setEmailStatus(await sendInviteEmail(holder.email, fullName, credentials.inviteLink, credentials.username, credentials.accessCode));
     } catch {
-      setEmailError(true);
+      setEmailStatus("failed");
     }
     setResending(false);
   };
@@ -200,8 +197,7 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
     setChildren([emptyChild()]);
     setIndividual({ age: "", diagnosis: "", goals: "", notes: "" });
     setCredentials({ username: "", inviteLink: "", accountEmail: "", isGeneratedEmail: false });
-    setEmailSent(false);
-    setEmailError(false);
+    setEmailStatus("idle");
     onClose();
   };
 
@@ -306,7 +302,7 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
                   Email <span className="normal-case font-normal text-muted-foreground">(optional)</span>
                 </Label>
                 <Input type="email" value={holder.email} onChange={(e) => setHld("email", e.target.value)} placeholder="email@example.com" className="mt-1.5 rounded-xl border-border" />
-                <p className="text-xs text-muted-foreground mt-1">If provided, an invite email will be sent. Otherwise clients log in with their username + access code.</p>
+                <p className="text-xs text-muted-foreground mt-1">Email invitations are not configured right now. Adding an email address will not send a message.</p>
               </div>
 
               {!isFamily && (
@@ -395,11 +391,17 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
                 </div>
                 <h3 className="font-bold text-foreground text-lg">Client Added!</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {!credentials.isGeneratedEmail && emailSent
-                    ? `Invite email sent to ${credentials.accountEmail}.`
-                    : !credentials.isGeneratedEmail && emailError
-                      ? "Email failed — share the login info below manually."
-                      : "Share the login info below with your client."}
+                  {credentials.isGeneratedEmail
+                    ? "Client account created. No invitation email was requested."
+                    : emailStatus === "delivered"
+                      ? `Client account created. Invitation email delivered to ${credentials.accountEmail}.`
+                      : emailStatus === "unavailable"
+                        ? "Client account created, but no invitation email was sent because email delivery is not configured."
+                        : emailStatus === "failed"
+                          ? "Client account created, but the invitation email could not be sent."
+                          : emailStatus === "pending"
+                            ? "Client account created. Checking invitation delivery…"
+                            : "Client account created, but invitation delivery was not confirmed."}
                 </p>
               </div>
 
@@ -417,10 +419,10 @@ export default function AddClientModal({ open, onClose, onSuccess, clinicianId }
                 </p>
               </div>
 
-              {emailError && !credentials.isGeneratedEmail && (
+              {emailStatus === "failed" && !credentials.isGeneratedEmail && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-2">
                   <p className="font-semibold">⚠️ Email delivery failed</p>
-                  <p>Share the setup link below with your client directly.</p>
+                  <p>The client account remains created. Retrying will only retry the invitation; it will not create another account.</p>
                   <Button variant="outline" size="sm" className="w-full rounded-xl gap-1.5" onClick={handleResend} disabled={resending}>
                     {resending ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Resending...</> : <><RefreshCw className="w-3.5 h-3.5" /> Retry Email</>}
                   </Button>

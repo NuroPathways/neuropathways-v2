@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import AddChildToExistingFamilyModal from "@/components/clinician/AddChildToExistingFamilyModal";
 import DocScanButton from "@/components/clinician/DocScanButton";
+import { getFamilyInviteDeliveryMessage, getInviteDeliveryStatus } from "@/lib/inviteDelivery";
 
 export default function FamilyDetail() {
   const navigate = useNavigate();
@@ -71,6 +72,7 @@ export default function FamilyDetail() {
     }
     setReconnecting(true);
     setReconnectMsg("");
+    let inviteRefreshed = false;
     try {
       const result = await base44.functions.invoke('manageClientRecord', {
         action: 'regenerateFamilyInvite',
@@ -78,20 +80,24 @@ export default function FamilyDetail() {
       });
       const newToken = result?.data?.record?.inviteToken || result?.data?.record?.invite_token;
       if (!newToken) throw new Error("Invite was not regenerated.");
+      inviteRefreshed = true;
       setFamily(prev => ({ ...prev, invite_token: newToken, invite_status: "pending" }));
 
       if (family.invite_email) {
-        await base44.functions.invoke("sendInviteEmail", {
+        const delivery = await base44.functions.invoke("sendInviteEmail", {
           to: family.invite_email,
           familyName: family.family_name,
           inviteToken: newToken,
         });
-        setReconnectMsg(`Invite resent to ${family.invite_email}`);
+        const status = getInviteDeliveryStatus(delivery?.data);
+        setReconnectMsg(getFamilyInviteDeliveryMessage(status, family.invite_email));
       } else {
         setReconnectMsg("New invite link generated. Copy it below.");
       }
     } catch {
-      setReconnectMsg("Failed to resend invite. Try copying the link manually.");
+      setReconnectMsg(inviteRefreshed
+        ? "The invite was refreshed, but email delivery could not be confirmed."
+        : "The invitation could not be refreshed.");
     }
     setReconnecting(false);
   };
