@@ -1148,3 +1148,17 @@ mtime_ms = 1794724106664
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/97b6202c-4678-4160-ab1f-24335ecd9aeb/ad334be5-b524-465c-9c3b-8afdb50aa81e"
 storage_version_token = "1794724139352893"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "f2969Fjszf0VS0xlUhFH5"
+uri = "file://.local/verification/clinic-onboarding-first-repair-evidence-20261116T022547Z.zip"
+type = "unspecified"
+title = "Clinic invitation repair evidence"
+description = "Sanitized report, test results, browser screenshot, regression-mutation proof, isolated API evidence, and checksum manifest for commit 777301cf0083f7ce9ffdd332240e0f6350bd4f6b."
+logical_id = "b3164c83-dda2-4cbf-ae74-ab463b12561b"
+content_hash = "sha256:36b9ca160846122bcdff6a4164bf4c776b1e1947157b7f5972ab07ff111da689"
+size = 198809
+mtime_ms = 1794795947938
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/b3164c83-dda2-4cbf-ae74-ab463b12561b/c395d6a4-c1ba-4f54-b379-28cab1c52b30"
+storage_version_token = "1794795965500287"
+content_type = "application/octet-stream"
