@@ -98,6 +98,8 @@ cleanup() {
     wait "$SERVER_PID" 2>/dev/null
   fi
   if [[ "$PG_STARTED" == "1" ]]; then
+    pnpm --filter @workspace/api-server exec tsx ../../scripts/clinic-onboarding/export-demo-audit.mts \
+      >>"$LOG_DIR/audit-export.log" 2>&1
     "$PG_CTL" -D "$PRIVATE/pgdata" -m fast stop >>"$LOG_DIR/postgres-stop.log" 2>&1
   fi
   rm -f "$PRIVATE/credentials.json"
