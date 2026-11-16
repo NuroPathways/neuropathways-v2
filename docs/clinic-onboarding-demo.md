@@ -20,7 +20,7 @@ The seed command requires all of the following before it can alter data:
 - an empty fresh database and a marker row proving which fictional rows were seeded;
 - disabled Replit connectors and a private, run-specific storage directory.
 
-The seed command refuses every other database name, non-loopback host, unmarked pre-existing account/clinic, or active conflicting demo state. The workflow creates its own throwaway PostgreSQL cluster, loopback-only API and file storage; it does not point the normal app at demo data. A reset command first verifies the exact demo mode, run marker, database name/host, private data directory, and owning workflow process. It then stops that workflow; its cleanup removes only that run's entire private cluster, credentials, and storage. Before removal, sanitized demo audit events are exported to `.local/verification/clinic-onboarding-demo/<timestamp>/`. If ownership checks fail, reset stops without deleting anything.
+The seed command refuses every other database name, non-loopback host, unmarked pre-existing account/clinic, or active conflicting demo state. The workflow creates its own throwaway PostgreSQL cluster, loopback-only API and file storage; it does not point the normal app at demo data. Only the fictional UI listener binds to `0.0.0.0` so Replit's preview proxy can display it; API, database, and storage remain private/loopback, and outbound network requests stay blocked. A reset command first verifies the exact demo mode, run marker, database name/host, private data directory, and owning workflow process. It then stops that workflow; its cleanup removes only that run's entire private cluster, credentials, and storage. Before removal, sanitized demo audit events are exported to `.local/verification/clinic-onboarding-demo/<timestamp>/`. If ownership checks fail, reset stops without deleting anything.
 
 ## Demo reset and credentials
 
@@ -31,7 +31,7 @@ The repository has two dedicated, non-artifact demo workflows:
 - **Clinic onboarding — populated demo**: a populated fictional state on port 5173.
 - **Clinic onboarding — fresh setup**: a platform-admin-only starting state on port 5000.
 
-Start only the state you want to show. The command creates a new local PostgreSQL cluster, applies the existing schema, seeds only fictional accounts, writes random credentials to the private file above, and serves the built web app through a same-origin loopback API proxy. Live email, AI, connectors, cloud storage, and the configured app database are not used. Sign in through the visible login page; do not bypass authentication.
+Start only the state you want to show. The command creates a new local PostgreSQL cluster, applies the existing schema, seeds only fictional accounts, writes random credentials to the private file above, and serves the built web app through a same-origin API proxy. Live email, AI, connectors, cloud storage, and the configured app database are not used. Sign in through the visible login page; do not bypass authentication.
 
 The same modes can be started directly from Replit Shell if needed:
 

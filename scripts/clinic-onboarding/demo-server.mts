@@ -136,6 +136,9 @@ await new Promise<void>((resolve, reject) => {
 });
 await new Promise<void>((resolve, reject) => {
   webServer.once("error", reject);
-  webServer.listen(port, "127.0.0.1", resolve);
+  // Replit's preview proxy must reach this fictional UI listener. The API
+  // upstream and disposable database remain loopback-only; outbound requests
+  // are still blocked by the preloaded network guard.
+  webServer.listen(port, "0.0.0.0", resolve);
 });
 console.log(`Fictional clinic demo ready on loopback preview port ${port}.`);
