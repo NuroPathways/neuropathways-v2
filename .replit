@@ -44,6 +44,10 @@ waitForPort = 5173
 [workflows.workflow.metadata]
 outputType = "webview"
 
+[[ports]]
+localPort = 5173
+externalPort = 5173
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true

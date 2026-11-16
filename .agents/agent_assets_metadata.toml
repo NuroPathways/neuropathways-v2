@@ -1204,3 +1204,17 @@ mtime_ms = 1794847252442
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/ed641a42-fef3-4930-8141-f723e8201249/ab6fd9fb-d521-40c6-a012-f7691bece2d6"
 storage_version_token = "1794847375404654"
 content_type = "image/png"
+
+[[outputs]]
+id = "4bEyZOORf53SQAnNJ_uMx"
+uri = "file://.local/verification/clinic-onboarding-demo/20261116T185347Z/screenshots/clinician-login.png"
+type = "image"
+title = "Populated demo clinician login page"
+description = "The actual sign-in page served by the isolated populated demo on Preview port 5173."
+logical_id = "8ff6f7a7-d7bd-48e7-abb9-6c303af0ae9e"
+content_hash = "sha256:cb87c045d8267bb73d3f45a9577c6b9dd841dcd6c369423ac231b65d3a0faf4c"
+size = 42085
+mtime_ms = 1794855460383
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/8ff6f7a7-d7bd-48e7-abb9-6c303af0ae9e/89a37f83-af21-41f2-a814-7959e58cdc3f"
+storage_version_token = "1794855506510339"
+content_type = "image/png"
