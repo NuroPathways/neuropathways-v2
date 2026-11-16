@@ -1046,6 +1046,7 @@ try {
   }
   currentBrowser = undefined;
   if (staticWebServer?.listening) {
+    staticWebServer.closeAllConnections?.();
     await new Promise<void>((resolve) => staticWebServer!.close(() => resolve()));
   }
   for (const child of [...serviceChildren].reverse()) {
@@ -1059,5 +1060,8 @@ try {
       resolve();
     }, 5_000).unref();
   })));
-  await new Promise<void>((resolve) => sink?.close(() => resolve()) ?? resolve());
+  if (sink?.listening) {
+    sink.closeAllConnections?.();
+    await new Promise<void>((resolve) => sink!.close(() => resolve()));
+  }
 }
