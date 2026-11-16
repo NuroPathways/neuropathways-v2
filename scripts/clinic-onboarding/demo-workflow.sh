@@ -56,6 +56,7 @@ SOCKET_DIR="$(mktemp -d /tmp/np-clinic-demo-sock.XXXXXX)"
 chmod 700 "$SOCKET_DIR"
 PG_STARTED=0
 SERVER_PID=""
+CLEANUP_DONE=0
 DB_URL="postgres://runner@127.0.0.1:$PG_PORT/np_demo_clinic_onboarding"
 EVIDENCE_DIR="$LOG_DIR"
 export PATH="$PG_BIN:$PATH"
@@ -92,6 +93,9 @@ export NODE_OPTIONS="--require=$ROOT/scripts/isolated-loopback-network-guard.cjs
 
 cleanup() {
   local prior=$?
+  if [[ "$CLEANUP_DONE" == "1" ]]; then return; fi
+  CLEANUP_DONE=1
+  trap - EXIT INT TERM
   set +e
   if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
     kill -TERM "$SERVER_PID" 2>/dev/null
@@ -109,7 +113,8 @@ cleanup() {
   printf 'Finished UTC: %s\n' "$(date -u +%FT%TZ)" >>"$LOG_DIR/run-info.txt"
   exit "$prior"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 0' INT TERM
 
 {
   printf 'Run ID: %s\nMode: %s\nStarted UTC: %s\n' "$RUN_ID" "$MODE" "$(date -u +%FT%TZ)"
