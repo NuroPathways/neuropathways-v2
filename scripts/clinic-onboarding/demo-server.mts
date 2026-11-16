@@ -136,9 +136,10 @@ await new Promise<void>((resolve, reject) => {
 });
 await new Promise<void>((resolve, reject) => {
   webServer.once("error", reject);
-  // Replit's preview proxy must reach this fictional UI listener. The API
-  // upstream and disposable database remain loopback-only; outbound requests
-  // are still blocked by the preloaded network guard.
-  webServer.listen(port, "0.0.0.0", resolve);
+  // Replit's preview proxy must reach this fictional UI listener. Omitting the
+  // hostname lets Node bind its unspecified wildcard address without a DNS
+  // lookup. The API upstream and disposable database remain loopback-only;
+  // outbound requests are still blocked by the preloaded network guard.
+  webServer.listen(port, resolve);
 });
-console.log(`Fictional clinic demo ready on loopback preview port ${port}.`);
+console.log(`Fictional clinic demo ready on preview port ${port}.`);
