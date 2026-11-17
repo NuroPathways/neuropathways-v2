@@ -1470,3 +1470,17 @@ mtime_ms = 1794889714760
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/d3a83126-191f-4ff4-93a5-4b3719ea9a44/feb8a71b-2eab-4710-9f81-7b669a11635b"
 storage_version_token = "1794889730607931"
 content_type = "image/png"
+
+[[outputs]]
+id = "tNXjbmX-gMZbRMI5U9HR6"
+uri = "file://.local/verification/NeuroPathways-invitation-inbox-verification-20261117T051252Z.zip"
+type = "unspecified"
+title = "Invitation inbox verification evidence"
+description = "Sanitized browser/API/unit results, screenshots, audit evidence, and cleanup notes. Excludes credentials, database files, and invitation tokens."
+logical_id = "a6941fab-43fc-4813-9443-f91f9a7d0d01"
+content_hash = "sha256:e0664bed5f3c6b9327f1d1fe30b154be5d06751bfecb5e54cfcce1246a4503b9"
+size = 749312
+mtime_ms = 1794892394504
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/a6941fab-43fc-4813-9443-f91f9a7d0d01/ee12bcde-af4c-4aa0-aaa3-f6a13354ed48"
+storage_version_token = "1794892405307505"
+content_type = "application/octet-stream"
