@@ -71,6 +71,8 @@ export * from './clinicStaffRevocationResult';
 export * from './clinicStaffRole';
 export * from './clinicStaffStatus';
 export * from './currentAuthUser';
+export * from './demoClinicInvitationLink';
+export * from './demoClinicInvitationLinksResponse';
 export * from './error';
 export * from './healthStatus';
 export * from './managedClinicClient';

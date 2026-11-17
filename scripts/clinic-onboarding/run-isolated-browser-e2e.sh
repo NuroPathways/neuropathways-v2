@@ -41,12 +41,14 @@ unset DEFAULT_OBJECT_STORAGE_BUCKET_ID PUBLIC_OBJECT_SEARCH_PATHS
 export PATH="$PG_BIN:$PATH"
 export NODE_ENV=test
 export REPLIT_CONNECTORS_ENABLED=false
+export NP_CLINIC_ONBOARDING_DEMO_INBOX=1
+export VITE_CLINIC_ONBOARDING_DEMO_INBOX=1
 export SESSION_SECRET="isolated-browser-session-secret-only"
 export FILE_ENCRYPTION_KEY="$(printf 'c%.0s' {1..64})"
 export PRIVATE_OBJECT_DIR="clinic-onboarding-browser-test/fictional"
 export NP_TEST_EVIDENCE_DIR="$ATTEMPT"
 export NP_TEST_STORAGE_DIR="$PRIVATE/storage"
-export NP_DEMO_PRIVATE_DIR="$PRIVATE/demo-private"
+export NP_DEMO_PRIVATE_DIR="$PRIVATE"
 export NP_TEST_API_PORT="$API_PORT"
 export PORT="$WEB_PORT"
 export BASE_PATH="/"
@@ -149,7 +151,7 @@ fi
 
 cp -a "$ROOT/artifacts/neuropath/dist" "$PRIVATE/preexisting-dist"
 DIST_SAVED=1
-if ! pnpm --filter @workspace/neuropath exec vite build --config vite.config.ts --sourcemap >"$ATTEMPT/logs/web-build.log" 2>&1; then
+if ! VITE_CLINIC_ONBOARDING_DEMO_INBOX=1 pnpm --filter @workspace/neuropath exec vite build --config vite.config.ts --sourcemap >"$ATTEMPT/logs/web-build.log" 2>&1; then
   echo "The isolated web build failed; browser checks were not run." >"$ATTEMPT/runner-errors.txt"
   exit 6
 fi

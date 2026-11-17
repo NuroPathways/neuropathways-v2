@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import { test } from "node:test";
 import { createClinicInvitationMailer } from "./clinicInvitationDelivery";
+import {
+  clearCapturedDemoClinicInvitationsForTests,
+  getCapturedDemoClinicInvitations,
+} from "./demoClinicInvitationInbox";
+import { hashClinicInvitationToken } from "./clinicInvitationSecurity";
 
 const invitation = {
   to: "fictional.clinician@example.test",
@@ -59,4 +65,58 @@ test("a failed test sink is reported without exposing its response body", async 
     fetchImpl: async () => new Response("synthetic private error", { status: 500 }),
   });
   assert.equal(await send(invitation), "failed");
+});
+
+test("the isolated interactive demo captures invitation links locally without sending email", async () => {
+  const root = path.resolve(process.cwd(), "../..");
+  const privateDir = path.join(root, ".local", "clinic-onboarding-demo", "run-test-only", "private");
+  const envKeys = [
+    "NODE_ENV",
+    "NP_CLINIC_ONBOARDING_DEMO_INBOX",
+    "NP_CLINIC_ONBOARDING_DEMO_MODE",
+    "REPLIT_CONNECTORS_ENABLED",
+    "DATABASE_URL",
+    "NP_DEMO_PRIVATE_DIR",
+    "NP_TEST_STORAGE_DIR",
+    "NP_CLINIC_INVITATION_BASE_URL",
+    "NP_CLINIC_INVITATION_TEST_SINK_URL",
+  ] as const;
+  const original = new Map(envKeys.map((key) => [key, process.env[key]]));
+  let requests = 0;
+  const demoToken = "fictional-demo-link-0123456789abcdefghijklmnopqrstuvwxyz";
+  try {
+    process.env.NODE_ENV = "test";
+    process.env.NP_CLINIC_ONBOARDING_DEMO_INBOX = "1";
+    process.env.NP_CLINIC_ONBOARDING_DEMO_MODE = "1";
+    process.env.REPLIT_CONNECTORS_ENABLED = "false";
+    process.env.DATABASE_URL = "postgres://fictional@127.0.0.1:5432/np_demo_clinic_onboarding";
+    process.env.NP_DEMO_PRIVATE_DIR = privateDir;
+    process.env.NP_TEST_STORAGE_DIR = path.join(privateDir, "storage");
+    process.env.NP_CLINIC_INVITATION_BASE_URL = "http://127.0.0.1:5173/ClinicInvitation";
+    process.env.NP_CLINIC_INVITATION_TEST_SINK_URL = "";
+    clearCapturedDemoClinicInvitationsForTests();
+    const send = createClinicInvitationMailer({
+      nodeEnv: "test",
+      sinkUrl: "",
+      invitationBaseUrl: process.env.NP_CLINIC_INVITATION_BASE_URL,
+      fetchImpl: async () => {
+        requests += 1;
+        throw new Error("The interactive demo must not call an email service.");
+      },
+    });
+    assert.equal(await send({
+      ...invitation,
+      invitationUrl: `${process.env.NP_CLINIC_INVITATION_BASE_URL}#token=${demoToken}`,
+    }), "not_sent");
+    assert.equal(requests, 0);
+    const captured = getCapturedDemoClinicInvitations();
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0].tokenHash, hashClinicInvitationToken(demoToken));
+  } finally {
+    clearCapturedDemoClinicInvitationsForTests();
+    for (const [key, value] of original) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });

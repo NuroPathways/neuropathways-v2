@@ -36,7 +36,9 @@ Do not run the bootstrap command in an ordinary developer shell or point it at a
 
 The platform clinic page creates a pending clinic and first-admin invitation. The clinic becomes active only when that first administrator accepts. A clinic administrator can create a treating-clinician invitation, revoke or reissue a pending invitation, and assign/reassign a client within that clinic. Each action is checked again on the server and recorded in the audit log.
 
-No production email provider is configured by this implementation. Outside an isolated test run the server records `not_sent` and tells the administrator “Invitation created, email not sent.” The only email sink is enabled when `NODE_ENV=test` and its URL is a loopback `127.0.0.1` address with an explicit port. Never set that test sink to a public URL.
+No production email provider is configured by this implementation. Outside an isolated test run the server records `not_sent` and tells the administrator “Invitation created, email not sent.” In the guarded interactive onboarding demo, invitations are captured only in server memory and can be opened from **Local invitation links** by an authorized platform or clinic administrator. Platform administrators see pending first-administrator links; clinic administrators see pending treating-clinician links for clinics they administer. The panel is absent from normal builds, and signed-out users, caregivers, and treating clinicians cannot retrieve its links. Captured links disappear when that isolated server stops.
+
+The automated browser runner uses a fake email sink enabled only when `NODE_ENV=test` and its URL is loopback `127.0.0.1` with an explicit port. Neither isolated mode sends external email. Never set the test sink to a public URL.
 
 The first-slice browser verification used a local fake mail sink only. A newly clinic-invited clinician's clinic tenant is established on acceptance only when unset; active assignments remain a separate, explicit clinic-admin action.
 
@@ -56,4 +58,4 @@ Before applying in a real environment, use that environment's approved migration
 
 ## Remaining operational prerequisite
 
-Live email delivery is intentionally absent. Before invitations can be used with real recipients, an approved server-side mail integration must be added and reviewed. It must use verified sender configuration, rate limiting, delivery/accepted/failure state, retry/idempotency, and redacted logs. Until then, invitations are created but not sent. This guide does not establish HIPAA compliance.
+Live email delivery is intentionally absent. Before invitations can be used with real recipients, an approved server-side mail integration must be added and reviewed. It must use verified sender configuration, rate limiting, delivery/accepted/failure state, retry/idempotency, and redacted logs. Demo capture is not delivery and does not make invitations usable by real recipients. This guide does not establish HIPAA compliance.

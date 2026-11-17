@@ -1,3 +1,8 @@
+import {
+  captureDemoClinicInvitation,
+  isIsolatedClinicInvitationDemo,
+} from "./demoClinicInvitationInbox";
+
 export type ClinicInvitationDeliveryStatus =
   | "not_sent"
   | "test_sink_accepted"
@@ -39,6 +44,10 @@ function isLoopbackSink(raw: string | undefined): URL | null {
   }
 }
 
+export function hasLoopbackClinicInvitationTestSink(rawUrl = process.env.NP_CLINIC_INVITATION_TEST_SINK_URL): boolean {
+  return Boolean(isLoopbackSink(rawUrl));
+}
+
 export function createClinicInvitationMailer(options: MailerOptions = {}): ClinicInvitationMailer {
   const nodeEnv = options.nodeEnv ?? process.env.NODE_ENV;
   const sinkUrl = options.sinkUrl ?? process.env.NP_CLINIC_INVITATION_TEST_SINK_URL;
@@ -47,6 +56,11 @@ export function createClinicInvitationMailer(options: MailerOptions = {}): Clini
   const sink = nodeEnv === "test" ? isLoopbackSink(sinkUrl) : null;
 
   return async (email) => {
+    const localDemoInbox = nodeEnv === "test" && isIsolatedClinicInvitationDemo();
+    if (localDemoInbox) {
+      if (!captureDemoClinicInvitation(email)) return "failed";
+      if (!sink) return "not_sent";
+    }
     if (!sink || !invitationBaseUrl) return "not_sent";
     try {
       const response = await fetchImpl(sink, {

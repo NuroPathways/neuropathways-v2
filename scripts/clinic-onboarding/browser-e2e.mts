@@ -17,6 +17,7 @@ import {
   clinicalAssignmentsTable,
   clinicianCredentialsTable,
   db,
+  pool,
   parentAccountsTable,
   parentClinicInvitesTable,
   platformAdministratorGrantsTable,
@@ -25,6 +26,7 @@ import {
 } from "../../artifacts/api-server/node_modules/@workspace/db/src/index.ts";
 import { and, desc, eq, sql } from "../../artifacts/api-server/node_modules/drizzle-orm/index.js";
 import { createClinicianPasswordHash } from "../../artifacts/api-server/src/lib/clinicianPassword.js";
+import { hashClinicInvitationToken } from "../../artifacts/api-server/src/lib/clinicInvitationSecurity.js";
 import { clinicalRecordClinicId } from "../../artifacts/api-server/src/lib/clinicAuthorization.js";
 
 type Check = { name: string; status: "PASS" | "FAIL" | "NOT_RUN"; method: "browser" | "signed-in browser" | "isolated setup"; detail?: string };
@@ -43,6 +45,7 @@ const storageRoot = process.env.NP_TEST_STORAGE_ROOT;
 const checks: Check[] = [];
 const plannedBrowserChecks = [
   "Public landing page links each role to its existing sign-in or request flow",
+  "Signed-out visitors cannot retrieve local invitation links",
   "Independent caregiver signup creates a usable account without clinic membership",
   "Public clinic request creates only a pending request in the real application",
   "Platform operator signs in through the real clinician login form",
@@ -639,6 +642,15 @@ async function captureAudit() {
     sanitizedRows.every((row) => typeof row.createdDate === "string" && Number.isFinite(Date.parse(row.createdDate))),
     "Genuine audit evidence must retain parseable event timestamps.",
   );
+  const inboxEvents = rows.filter((row) =>
+    ["demo_clinic_invitation_links_viewed", "demo_clinic_invitation_links_denied"].includes(row.action),
+  );
+  assert(inboxEvents.some((row) => row.action === "demo_clinic_invitation_links_viewed" && row.success), "Authorized local inbox reads must create genuine audit events.");
+  assert(inboxEvents.some((row) => row.action === "demo_clinic_invitation_links_denied" && !row.success), "Denied local inbox reads must create genuine audit events.");
+  const rawInboxAudit = JSON.stringify(inboxEvents);
+  for (const message of mailMessages) {
+    assert(!rawInboxAudit.includes(message.token), "Invitation tokens must never appear in inbox audit records.");
+  }
   await saveJson("genuine-audit-events.json", sanitizedRows);
 }
 
@@ -652,6 +664,17 @@ async function main() {
 
   const operator = await seedPlatformOperator();
   await startWebServices();
+
+  await recordCheck("Signed-out visitors cannot retrieve local invitation links", "browser", async () => {
+    const browser = await newBrowser();
+    await browser.navigate(webUrl!);
+    const result = await browser.evaluate(`fetch('/api/demo/clinic-invitation-links',{credentials:'include',cache:'no-store'}).then(async r=>({status:r.status,cache:r.headers.get('cache-control'),body:await r.text()}))`);
+    assert.equal(result.status, 401);
+    assert(String(result.cache).includes("no-store"));
+    assert(!String(result.body).includes("token"));
+    await browser.close();
+    return "The actual browser session received an authentication denial with no invitation content.";
+  });
 
   let clinicId = "";
   let adminInviteId = "";
@@ -806,6 +829,26 @@ async function main() {
     assert(invitation?.id);
     adminInviteId = invitation.id;
     firstAdminToken = latestMail(firstAdminEmail).token;
+    await browser.click('[data-testid="button-load-demo-invitation-links"]');
+    const localLinkSelector = `[data-testid="link-demo-invitation-${adminInviteId}"]`;
+    await browser.waitFor(() => browser.evaluate(`Boolean(document.querySelector(${JSON.stringify(localLinkSelector)}))`));
+    const localInvitationHref = await browser.evaluate(`document.querySelector(${JSON.stringify(localLinkSelector)})?.getAttribute('href') || ''`);
+    const localInvitationToken = new URLSearchParams(
+      new URL(localInvitationHref, webUrl).hash.replace(/^#/, ""),
+    ).get("token") || "";
+    const [storedInvitation] = await db.select({ tokenHash: clinicInvitationsTable.tokenHash })
+      .from(clinicInvitationsTable).where(eq(clinicInvitationsTable.id, adminInviteId));
+    assert(storedInvitation);
+    assert.equal(hashClinicInvitationToken(localInvitationToken) === storedInvitation.tokenHash, true, "The UI link must identify the stored invitation.");
+    assert.equal(hashClinicInvitationToken(firstAdminToken) === storedInvitation.tokenHash, true, "The loopback mail sink must capture the stored invitation token.");
+    assert(!(await browser.text()).includes(firstAdminToken), "The invitation token must not be printed as page text.");
+    const localInviteBrowser = await newBrowser();
+    await localInviteBrowser.navigate(new URL(localInvitationHref, webUrl).toString());
+    await localInviteBrowser.waitText("Accept clinic invitation");
+    await localInviteBrowser.close();
+    await browser.viewport(390, 844, true);
+    const inboxMobileMetrics = await browser.evaluate("({width:innerWidth,scrollWidth:document.documentElement.scrollWidth})");
+    assert(inboxMobileMetrics.scrollWidth <= inboxMobileMetrics.width, "Platform invitation links must not overflow on a phone-sized screen.");
     await browser.close();
     return "The page reports that the email was captured locally and not sent externally.";
   });
@@ -851,6 +894,21 @@ async function main() {
     await operatorBrowser.waitText("Invitation created; test email captured locally, not sent externally.");
     currentAdminToken = latestMail(firstAdminEmail, Date.now() - 30_000).token;
     assert.notEqual(currentAdminToken, oldToken);
+    const currentPendingInvitations = await db.select({
+      id: clinicInvitationsTable.id,
+      status: clinicInvitationsTable.status,
+    }).from(clinicInvitationsTable).where(and(
+      eq(clinicInvitationsTable.clinicId, clinicId),
+      eq(clinicInvitationsTable.invitedEmail, firstAdminEmail),
+      eq(clinicInvitationsTable.role, "clinic_admin"),
+    ));
+    const currentInvitation = currentPendingInvitations.find((item) => item.status === "pending");
+    assert(currentInvitation);
+    await operatorBrowser.click('[data-testid="button-load-demo-invitation-links"]');
+    const currentLinkSelector = `[data-testid="link-demo-invitation-${currentInvitation.id}"]`;
+    await operatorBrowser.waitFor(() => operatorBrowser.evaluate(`Boolean(document.querySelector(${JSON.stringify(currentLinkSelector)}))`));
+    const supersededLinkVisible = await operatorBrowser.evaluate(`Boolean(document.querySelector('[data-testid="link-demo-invitation-${adminInviteId}"]'))`);
+    assert.equal(supersededLinkVisible, false, "Reissued invitations must remove the superseded link from the local inbox.");
     await operatorBrowser.close();
     const inviteeBrowser = await newBrowser();
     await registerAndAcceptClinicInvite(inviteeBrowser, currentAdminToken, {
@@ -889,6 +947,11 @@ async function main() {
     await adminBrowser.click('[data-testid="button-invite-clinician"]');
     await adminBrowser.waitText("Invitation created; test email captured locally, not sent externally.");
     let tokenOne = latestMail(clinicianOne.email).token;
+    await adminBrowser.click('[data-testid="button-load-demo-invitation-links"]');
+    await adminBrowser.waitFor(() => adminBrowser.evaluate("Boolean(document.querySelector('[data-testid^=\"link-demo-invitation-\"]'))"));
+    const clinicAdminLinks = await adminBrowser.evaluate(`([...document.querySelectorAll('[data-testid^="row-demo-invitation-link-"] strong')]).map((item)=>item.textContent)`);
+    assert.deepEqual(clinicAdminLinks, [clinicianOne.email]);
+    assert(!clinicAdminLinks.includes(firstAdminEmail), "Clinic administrators must not see platform first-admin links.");
     const oneBrowser = await newBrowser();
     await registerAndAcceptClinicInvite(oneBrowser, tokenOne, clinicianOne);
     await oneBrowser.waitPath("/ClinicianDashboard");
@@ -896,6 +959,10 @@ async function main() {
     await adminBrowser.fill('input[placeholder="clinician@clinic.org"]', clinicianTwo.email);
     await adminBrowser.click('[data-testid="button-invite-clinician"]');
     await adminBrowser.waitText("Invitation created; test email captured locally, not sent externally.");
+    await adminBrowser.click('[data-testid="button-load-demo-invitation-links"]');
+    await adminBrowser.waitFor(() => adminBrowser.evaluate(`([...document.querySelectorAll('[data-testid^="row-demo-invitation-link-"] strong')]).some((item)=>item.textContent===${JSON.stringify(clinicianTwo.email)})`), 10_000);
+    const secondClinicAdminLinks = await adminBrowser.evaluate(`([...document.querySelectorAll('[data-testid^="row-demo-invitation-link-"] strong')]).map((item)=>item.textContent)`);
+    assert.deepEqual(secondClinicAdminLinks, [clinicianTwo.email], "Only active pending invitations should remain in the local inbox.");
     const tokenTwo = latestMail(clinicianTwo.email).token;
     const twoBrowser = await newBrowser();
     await registerAndAcceptClinicInvite(twoBrowser, tokenTwo, clinicianTwo);
@@ -915,6 +982,15 @@ async function main() {
     ));
     assert.equal(activeMembership[0]?.role, "treating_clinician");
     await adminBrowser.close();
+    const platformBrowser = await newBrowser();
+    await loginClinician(platformBrowser, operator.email, operator.password);
+    await platformBrowser.navigate(`${webUrl}/PlatformAdminClinics`);
+    await platformBrowser.click('[data-testid="button-load-demo-invitation-links"]');
+    await platformBrowser.waitText("Refresh local links");
+    const platformInboxEmails = await platformBrowser.evaluate(`([...document.querySelectorAll('[data-testid^="row-demo-invitation-link-"] strong')]).map((item)=>item.textContent)`);
+    assert(!platformInboxEmails.includes(clinicianOne.email));
+    assert(!platformInboxEmails.includes(clinicianTwo.email), "Platform inbox access must stay limited to first-administrator invitations.");
+    await platformBrowser.close();
     return "Both accounts registered and accepted through the invitation screen; the server assigned treating_clinician, with no role editor.";
   });
 
@@ -1035,6 +1111,9 @@ async function main() {
     assert.equal(activeParentChild[0].clinicianId, clinicianOneUserId);
     assert.equal(sameNameChildren.find((row) => row.id === invitedClinicChildId)?.status, "merged");
     childId = activeParentChild[0].id;
+    const caregiverInbox = await parentBrowser.evaluate(`fetch('/api/demo/clinic-invitation-links',{credentials:'include',cache:'no-store'}).then(async r=>({status:r.status,body:await r.text()}))`);
+    assert([401, 403].includes(caregiverInbox.status), "A caregiver session must be denied by the clinician-admin-only inbox.");
+    assert(!String(caregiverInbox.body).includes(clinicianOne.email));
     await parentBrowser.screenshot("07-caregiver-connected");
     await parentBrowser.viewport(390, 844, true);
     await parentBrowser.screenshot("08-caregiver-mobile");
@@ -1103,6 +1182,9 @@ async function main() {
     const me = await browser.evaluate("fetch('/api/users/me',{credentials:'include'}).then(r=>r.json())");
     assert.deepEqual(me.authorized_workspaces.map((workspace: any) => workspace.id), ["clinical-workspace"]);
     assert.equal((await browser.text()).includes("Clinic administration"), false);
+    const inbox = await browser.evaluate(`fetch('/api/demo/clinic-invitation-links',{credentials:'include',cache:'no-store'}).then(async r=>({status:r.status,body:await r.text()}))`);
+    assert.equal(inbox.status, 403);
+    assert(!String(inbox.body).includes(firstAdminEmail));
     await browser.screenshot("06-clinician-workspace-desktop");
     await browser.close();
     return "The server-authorized clinician membership overrides the clinic-admin navigation intent.";
@@ -1255,4 +1337,7 @@ try {
     sink.closeAllConnections?.();
     await new Promise<void>((resolve) => sink!.close(() => resolve()));
   }
+  await pool.end().catch(() => undefined);
 }
+
+process.exit(process.exitCode ?? 0);

@@ -1768,6 +1768,21 @@ export interface ClinicRequestSubmissionResult {
   message: string;
 }
 
+export interface DemoClinicInvitationLink {
+  invitationId: string;
+  clinicId: string;
+  clinicName: string;
+  invitedEmail: string;
+  role: ClinicInvitationRole;
+  expiresAt: string;
+  /** Same-origin invitation route with token in the URL fragment */
+  href: string;
+}
+
+export interface DemoClinicInvitationLinksResponse {
+  links: DemoClinicInvitationLink[];
+}
+
 export type PlatformClinicRequestStatus = typeof PlatformClinicRequestStatus[keyof typeof PlatformClinicRequestStatus];
 
 

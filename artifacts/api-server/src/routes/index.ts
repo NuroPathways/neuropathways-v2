@@ -18,6 +18,7 @@ import clinicManagementInvitationsRouter from "./clinic-management-invitations";
 import platformManagementRouter from "./platform-management";
 import clinicInvitationsRouter from "./clinic-invitations";
 import clinicRequestsRouter from "./clinic-requests";
+import demoClinicInvitationInboxRouter from "./demo-clinic-invitation-inbox";
 
 const router: IRouter = Router();
 
@@ -31,6 +32,7 @@ router.use(careTeamRouter);
 router.use(clinicManagementRouter);
 router.use(clinicManagementInvitationsRouter);
 router.use(clinicRequestsRouter);
+router.use(demoClinicInvitationInboxRouter);
 router.use(platformManagementRouter);
 router.use(clinicInvitationsRouter);
 router.use(parentDocumentsRouter);

@@ -2,7 +2,9 @@ import { eq } from "drizzle-orm";
 import { db, clinicInvitationsTable } from "@workspace/db";
 import { writeAuditEventBestEffort } from "./auditEvents";
 import { createClinicInvitationLink } from "./clinicInvitationSecurity";
+import { isIsolatedClinicInvitationDemo } from "./demoClinicInvitationInbox";
 import {
+  hasLoopbackClinicInvitationTestSink,
   sendClinicInvitationEmail,
   type ClinicInvitationDeliveryStatus,
 } from "./clinicInvitationDelivery";
@@ -25,17 +27,24 @@ export async function deliverClinicInvitation(input: {
   let deliveryStatus: ClinicInvitationDeliveryStatus = "not_sent";
   let deliveryAttemptedAt: Date | null = null;
   const baseUrl = process.env.NP_CLINIC_INVITATION_BASE_URL;
-  if (process.env.NODE_ENV === "test" && process.env.NP_CLINIC_INVITATION_TEST_SINK_URL && baseUrl) {
+  const isolatedDemoInbox = isIsolatedClinicInvitationDemo();
+  const testMailSinkEnabled = process.env.NODE_ENV === "test" && hasLoopbackClinicInvitationTestSink();
+  if (
+    baseUrl &&
+    (isolatedDemoInbox || (process.env.NODE_ENV === "test" && process.env.NP_CLINIC_INVITATION_TEST_SINK_URL))
+  ) {
     try {
       const roleLabel = input.role === "clinic_admin" ? "clinic administrator" : "treating clinician";
       const invitationUrl = createClinicInvitationLink(baseUrl, input.token);
-      deliveryAttemptedAt = new Date();
       deliveryStatus = await sendClinicInvitationEmail({
         to: input.invitedEmail,
         clinicName: input.clinicName,
         roleLabel,
         invitationUrl,
       });
+      if (testMailSinkEnabled && deliveryStatus !== "not_sent") {
+        deliveryAttemptedAt = new Date();
+      }
     } catch {
       deliveryStatus = "failed";
     }

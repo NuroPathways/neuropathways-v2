@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form } from "@/components/ui/form";
 import { useAuth } from "@/lib/AuthContext";
 import { createRequestKey, formatDate, getApiMessage, invitationDeliveryMessage, statusLabel } from "@/lib/clinicOnboarding";
+import DemoInvitationLinks from "@/components/clinician/DemoInvitationLinks";
 import "@workspace/neuropathways-foundations/scoped.css";
 import "../clinic-onboarding.css";
 
@@ -140,6 +141,7 @@ export default function ClinicianUsers() {
         <PageHeader title="Clinic management" context="NeuroPathways · Clinic administration" description="View clinic membership, manage staff invitations, and maintain client assignments. This page does not grant clinical record access or allow role editing." data-testid="header-clinician-users" />
         {feedback && <p role="status" className="np-feedback" data-testid="status-clinic-team-feedback">{feedback}</p>}
         {error && <p role="alert" className="np-feedback np-feedback-error" data-testid="status-clinic-team-error">{error}</p>}
+        <DemoInvitationLinks />
 
         {staffQuery.isLoading ? <div className="np-skeleton-stack" role="status" data-testid="status-clinic-staff-loading"><div /><div /><div /></div>
           : staffQuery.isError ? <div className="np-empty-panel" role="alert" data-testid="status-clinic-staff-error"><p>Clinic team information could not be loaded.</p><Button variant="outline" onClick={() => staffQuery.refetch()} data-testid="button-retry-clinic-team">Try again</Button></div>

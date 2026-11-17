@@ -55,6 +55,7 @@ import type {
   ClinicianRegistrationInput,
   ClinicianRegistrationResult,
   CurrentAuthUser,
+  DemoClinicInvitationLinksResponse,
   HealthStatus,
   ManagedClinicClientsResponse,
   ManagedClinicStaffResponse,
@@ -226,6 +227,108 @@ export const useSubmitClinicRequest = <TError = ErrorType<void>,
       > => {
       return useMutation(getSubmitClinicRequestMutationOptions(options), queryClient);
     }
+
+export const getListDemoClinicInvitationLinksUrl = () => {
+
+
+
+
+  return `/api/demo/clinic-invitation-links`
+}
+
+/**
+ * Available only in a guarded loopback demo. Platform administrators see pending first-administrator invitations; clinic administrators see pending treating-clinician invitations for clinics they administer. Tokens are returned only to the authenticated authorized operator and are never persisted in the database or logs.
+ * @summary List locally captured invitation links in an isolated onboarding demo
+ */
+export const listDemoClinicInvitationLinks = async ( options?: Parameters<typeof customFetch>[1]): Promise<DemoClinicInvitationLinksResponse> => {
+
+  return customFetch<DemoClinicInvitationLinksResponse>(getListDemoClinicInvitationLinksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDemoClinicInvitationLinksQueryKey = () => {
+    return [
+    `/api/demo/clinic-invitation-links`
+    ] as const;
+    }
+
+
+export const getListDemoClinicInvitationLinksQueryOptions = <TData = Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDemoClinicInvitationLinksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>> = ({ signal }) => listDemoClinicInvitationLinks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListDemoClinicInvitationLinksQueryResult = NonNullable<Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>>
+export type ListDemoClinicInvitationLinksQueryError = ErrorType<void>
+
+
+export function useListDemoClinicInvitationLinks<TData = Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>,
+          TError,
+          Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListDemoClinicInvitationLinks<TData = Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>,
+          TError,
+          Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListDemoClinicInvitationLinks<TData = Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List locally captured invitation links in an isolated onboarding demo
+ */
+
+export function useListDemoClinicInvitationLinks<TData = Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDemoClinicInvitationLinks>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListDemoClinicInvitationLinksQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListPlatformClinicRequestsUrl = () => {
 

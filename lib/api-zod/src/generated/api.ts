@@ -39,6 +39,23 @@ export const SubmitClinicRequestResponse = zod.object({
 
 
 /**
+ * Available only in a guarded loopback demo. Platform administrators see pending first-administrator invitations; clinic administrators see pending treating-clinician invitations for clinics they administer. Tokens are returned only to the authenticated authorized operator and are never persisted in the database or logs.
+ * @summary List locally captured invitation links in an isolated onboarding demo
+ */
+export const ListDemoClinicInvitationLinksResponse = zod.object({
+  "links": zod.array(zod.object({
+  "invitationId": zod.string(),
+  "clinicId": zod.string(),
+  "clinicName": zod.string(),
+  "invitedEmail": zod.string().email(),
+  "role": zod.enum(['clinic_admin', 'treating_clinician']),
+  "expiresAt": zod.coerce.date(),
+  "href": zod.string().describe('Same-origin invitation route with token in the URL fragment')
+}))
+})
+
+
+/**
  * @summary List clinic requests for a platform administrator
  */
 export const ListPlatformClinicRequestsResponse = zod.object({

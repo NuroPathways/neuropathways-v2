@@ -72,6 +72,7 @@ unset DEFAULT_OBJECT_STORAGE_BUCKET_ID PUBLIC_OBJECT_SEARCH_PATHS
 export NODE_ENV=test
 export REPLIT_CONNECTORS_ENABLED=false
 export NP_CLINIC_ONBOARDING_DEMO_MODE=1
+export NP_CLINIC_ONBOARDING_DEMO_INBOX=1
 export SESSION_SECRET="$(node -e 'process.stdout.write(require("crypto").randomBytes(48).toString("hex"))')"
 export FILE_ENCRYPTION_KEY="$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))')"
 export PRIVATE_OBJECT_DIR="$PRIVATE/storage"
@@ -82,6 +83,7 @@ export NP_DEMO_PUBLIC_DIR="$PRIVATE/public"
 export NP_DEMO_EVIDENCE_DIR="$EVIDENCE_DIR"
 export NP_TEST_EVIDENCE_DIR="$EVIDENCE_DIR"
 export NP_DEMO_API_PORT="$API_PORT"
+export NP_CLINIC_INVITATION_BASE_URL="http://127.0.0.1:$WEB_PORT/ClinicInvitation"
 export PORT="$WEB_PORT"
 export BASE_PATH="/"
 export DATABASE_URL="$DB_URL"
@@ -151,7 +153,7 @@ printf 'Private credentials are available only while the demo runs at: %s\n' "$P
   >"$LOG_DIR/credentials-file-location.txt"
 chmod 600 "$LOG_DIR/credentials-file-location.txt"
 
-PORT="$WEB_PORT" BASE_PATH="/" pnpm --filter @workspace/neuropath exec vite build --config vite.config.ts --outDir "$PRIVATE/public" \
+PORT="$WEB_PORT" BASE_PATH="/" VITE_CLINIC_ONBOARDING_DEMO_INBOX=1 pnpm --filter @workspace/neuropath exec vite build --config vite.config.ts --outDir "$PRIVATE/public" \
   >"$LOG_DIR/web-build.log" 2>&1
 cat >"$PRIVATE/run-marker.json" <<JSON
 {"runId":"$RUN_ID","mode":"$MODE","pid":$$,"databaseName":"np_demo_clinic_onboarding","databaseHost":"127.0.0.1","privateDir":"$PRIVATE","port":$WEB_PORT,"createdAt":"$(date -u +%FT%TZ)"}

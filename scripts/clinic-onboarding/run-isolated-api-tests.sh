@@ -153,6 +153,7 @@ pnpm --filter @workspace/api-server exec tsx --test \
   src/routes/clinic-onboarding.integration.test.ts \
   src/lib/clinicInvitationSecurity.test.ts \
   src/lib/clinicInvitationDelivery.test.ts \
+  src/lib/demoClinicInvitationInbox.test.ts \
   src/lib/platformAdminBootstrap.test.ts \
   src/middlewares/pendingClinicianAccessGuard.test.ts \
   >"$ATTEMPT/logs/test-run.log" 2>&1

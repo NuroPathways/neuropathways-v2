@@ -11,6 +11,7 @@ import { Label } from "@workspace/neuropathways-foundations/components/ui/label"
 import { PageHeader, SectionHeading } from "@workspace/neuropathways-foundations/components/ui/page-header";
 import { StatusBadge } from "@workspace/neuropathways-foundations/components/ui/status-badge";
 import { Form } from "@/components/ui/form";
+import DemoInvitationLinks from "@/components/clinician/DemoInvitationLinks";
 import { createRequestKey, formatDate, getApiMessage, invitationDeliveryMessage, statusLabel } from "@/lib/clinicOnboarding";
 import "@workspace/neuropathways-foundations/scoped.css";
 import "../clinic-onboarding.css";
@@ -95,6 +96,7 @@ export default function PlatformAdminClinics() {
         <PageHeader title="Clinic management" context="NeuroPathways · Platform administration" description="Review clinic requests, provision an approved clinic, and invite its first administrator. Platform access does not grant access to clinical records." data-testid="header-platform-clinics" />
         {feedback && <p role="status" className="np-feedback" data-testid="status-platform-feedback">{feedback}</p>}
         {error && <p role="alert" className="np-feedback np-feedback-error" data-testid="status-platform-error">{error}</p>}
+        <DemoInvitationLinks />
 
         <section className="np-onboarding-section" aria-label="Clinic requests">
           <SectionHeading title="Clinic requests" description="A request creates no clinic, administrator, membership, or invitation until a platform administrator approves it." />
