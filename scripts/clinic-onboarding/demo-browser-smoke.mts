@@ -123,7 +123,10 @@ async function signIn(email: string, password: string, role: "clinician" | "pare
   await send("Page.navigate", { url: `http://127.0.0.1:${port}/${route}` });
   await waitFor(() => evaluate("document.readyState === 'complete' || document.readyState === 'interactive'"), "Login page did not load.");
   if (role === "clinician") {
-    await waitFor(() => evaluate("(document.body?.innerText||'').includes('CLINICIAN PORTAL')"), "Clinician login page did not render.");
+    await waitFor(
+      () => evaluate("(document.querySelector('h1')?.innerText||'').trim() === 'Clinician sign in'"),
+      "Clinician login page did not render.",
+    );
     await clickText("Sign In with Email");
   }
   await waitFor(() => evaluate("Boolean(document.querySelector('input[type=email]')?.getClientRects().length)"), "Email form did not appear.");
