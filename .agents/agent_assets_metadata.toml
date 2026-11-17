@@ -1260,3 +1260,213 @@ mtime_ms = 1794862085809
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/8506846b-7619-4198-855c-42d59cbdd64e/0f9a018b-350d-430c-b6f1-e164117c6309"
 storage_version_token = "1794862125175275"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "hFl6gbC5CfHQvSR9LGjTf"
+uri = "file://.local/verification/NeuroPathways-clinic-onboarding-evidence-20261117T041749Z.zip"
+type = "unspecified"
+title = "Clinic onboarding evidence package"
+description = "Final sanitized report, test results, genuine fictional audit records, screenshots, and checksums."
+logical_id = "ce51bbf9-f899-47d4-af80-7b5136c441d0"
+content_hash = "sha256:d85bd8edb2341f176c2f9ca99c726e31d9053d48a451eaa3d48d4d072570c7d1"
+size = 1660650
+mtime_ms = 1794889085084
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/ce51bbf9-f899-47d4-af80-7b5136c441d0/0146ac24-9abb-4ea0-ad81-50361663c6bc"
+storage_version_token = "1794889117702652"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "_DKh54LL_o2kVV5cqBLF-"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T041749Z/screenshots/00-public-landing-desktop.png"
+type = "image"
+title = "Public landing page — desktop"
+description = "Signed-in browser run, fictional data."
+logical_id = "7bbaea5d-a5b1-4ae2-afb0-f7feadb1c7ca"
+content_hash = "sha256:a9e7c8649efa7e32d932efbb5b17e808dbdbf229c28867fd20b4bf17fce4064a"
+size = 353441
+mtime_ms = 1794889069288
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/7bbaea5d-a5b1-4ae2-afb0-f7feadb1c7ca/0db0996b-b507-404d-b60c-e00419b74ceb"
+storage_version_token = "1794889118303675"
+content_type = "image/png"
+
+[[outputs]]
+id = "TdbXViMKh8vhtM80-8cAU"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T041749Z/screenshots/00-public-landing-mobile.png"
+type = "image"
+title = "Public landing page — mobile web"
+description = "Signed-in browser run, fictional data."
+logical_id = "fa629726-dbdb-485c-b645-ae41900b5b0c"
+content_hash = "sha256:fe0d1411a868ebeecf031b1cc225003834a5e6f3366488e0dcf1827056d224c9"
+size = 136473
+mtime_ms = 1794889069288
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/fa629726-dbdb-485c-b645-ae41900b5b0c/ad7d9b10-e28d-4cf6-a02f-5a1f1d68f0f7"
+storage_version_token = "1794889119122109"
+content_type = "image/png"
+
+[[outputs]]
+id = "Z0Vovt4Ec3VFPzhJTtnAy"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T041749Z/screenshots/02-platform-admin-desktop.png"
+type = "image"
+title = "Platform administrator — desktop"
+description = "Clinic management workspace, fictional data."
+logical_id = "90501c8f-c427-4c21-8c77-abe30bb28a3f"
+content_hash = "sha256:e4e96810d75ed8fcfe36d68472c931faefac447d6b60a9629ec0f40710e4068a"
+size = 116934
+mtime_ms = 1794889069288
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/90501c8f-c427-4c21-8c77-abe30bb28a3f/9b11be01-6c89-44d3-ad29-f6d36e59233b"
+storage_version_token = "1794889119703050"
+content_type = "image/png"
+
+[[outputs]]
+id = "mENxv-o6i47K6h7oG2zG-"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T041749Z/screenshots/02-platform-admin-mobile.png"
+type = "image"
+title = "Platform administrator — mobile web"
+description = "Clinic management workspace, fictional data."
+logical_id = "bb76a078-2666-4dbb-88a5-66f8e6e40609"
+content_hash = "sha256:a104907c746632bfe4d79711df340da6d455bfb32e6e6b6bb5777721ccc779f0"
+size = 71952
+mtime_ms = 1794889069292
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/bb76a078-2666-4dbb-88a5-66f8e6e40609/865588af-08bf-4102-8362-cc1324fc1dfc"
+storage_version_token = "1794889120348557"
+content_type = "image/png"
+
+[[outputs]]
+id = "XmqmR8NIDwZANV3L1Hd1M"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T041749Z/screenshots/03-clinic-admin-team.png"
+type = "image"
+title = "Clinic administrator — desktop"
+description = "Clinic administration and private local-link panel, no link token displayed."
+logical_id = "36aa9306-aec7-4b85-b3fd-bcd5f0fb21f8"
+content_hash = "sha256:266770214a984b3f5319efd4659a4769bc12f079bb56a7bde969bd79555b3155"
+size = 66729
+mtime_ms = 1794889069292
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/36aa9306-aec7-4b85-b3fd-bcd5f0fb21f8/408318f7-db45-4559-9eb3-e509ba3a5c56"
+storage_version_token = "1794889121024085"
+content_type = "image/png"
+
+[[outputs]]
+id = "BUPOPSalvApu9Y-LmxM8X"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T041749Z/screenshots/09-clinic-admin-mobile.png"
+type = "image"
+title = "Clinic administrator — mobile web"
+description = "Clinic administration workspace, fictional data."
+logical_id = "0fa6ce92-446b-47d4-a401-32ee2a84cf84"
+content_hash = "sha256:320db78e39804add916e4d7145091ffdf4be8aa8ca1b1cbab9c39b62ba154a99"
+size = 71032
+mtime_ms = 1794889069300
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/0fa6ce92-446b-47d4-a401-32ee2a84cf84/a706cc5a-95db-46a0-848d-705883bf8d34"
+storage_version_token = "1794889121732962"
+content_type = "image/png"
+
+[[outputs]]
+id = "KPEgpCXI6-_rxKcIHTW3S"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T041749Z/screenshots/06-clinician-dashboard-desktop.png"
+type = "image"
+title = "Treating clinician — desktop"
+description = "Clinician workspace, fictional data."
+logical_id = "db3fb968-82a0-45db-8119-921e29dfed87"
+content_hash = "sha256:ac3d2c22f330f8b9be4c2477b1ee85ad81a25acbf1ab71e575ee99aa306cd797"
+size = 116054
+mtime_ms = 1794889069296
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/db3fb968-82a0-45db-8119-921e29dfed87/11d5c813-61ea-4164-b68f-e7dffcc19859"
+storage_version_token = "1794889122329521"
+content_type = "image/png"
+
+[[outputs]]
+id = "JshOBo86YW8rD7518Vd_H"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T041749Z/screenshots/06-clinician-dashboard-mobile.png"
+type = "image"
+title = "Treating clinician — mobile web"
+description = "Clinician workspace, fictional data."
+logical_id = "8446b6fd-8c42-4e7a-8758-4082698b8da8"
+content_hash = "sha256:3833bf06e4e3979965e56abcee687f0624b5c28e2f9cf98e803ed65523ba09e7"
+size = 55033
+mtime_ms = 1794889069296
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/8446b6fd-8c42-4e7a-8758-4082698b8da8/bd6c8167-6c30-4217-b2e8-3ff89f947fb3"
+storage_version_token = "1794889123125248"
+content_type = "image/png"
+
+[[outputs]]
+id = "niI4F2ZIN6oJohOOOUN8q"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T041749Z/screenshots/07-caregiver-connected.png"
+type = "image"
+title = "Caregiver — desktop"
+description = "Caregiver workspace, fictional data."
+logical_id = "d8677e0a-e476-45b4-90a6-7024225dca0d"
+content_hash = "sha256:37a65c5e23158e78db1e9c2205db5bf06867bdfa075c0636b23f8f3ae423b53a"
+size = 63548
+mtime_ms = 1794889069296
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/d8677e0a-e476-45b4-90a6-7024225dca0d/a906e2d1-063f-4a17-851d-c81da505c530"
+storage_version_token = "1794889123648653"
+content_type = "image/png"
+
+[[outputs]]
+id = "8n240bVrpfXaETu2vU7pT"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T041749Z/screenshots/08-caregiver-mobile.png"
+type = "image"
+title = "Caregiver — mobile web"
+description = "Caregiver workspace, fictional data."
+logical_id = "598c52bf-5a5b-478d-a0d9-5a89a5c94b2e"
+content_hash = "sha256:849a4df47874cdd2ed0611ccd7bac2c49bb585b14c9d9b902c339b2b5466b983"
+size = 60840
+mtime_ms = 1794889069300
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/598c52bf-5a5b-478d-a0d9-5a89a5c94b2e/8a534c6f-0a30-416e-a8ad-63cf75e36972"
+storage_version_token = "1794889124224193"
+content_type = "image/png"
+
+[[outputs]]
+id = "ukm4PHX9rKPJfX4rTkFSz"
+uri = "file://.local/verification/NeuroPathways-clinic-onboarding-evidence-20261117T041749Z-final.zip"
+type = "unspecified"
+title = "Final clinic onboarding evidence package"
+description = "Updated with final HEAD, tested implementation commit, complete verification results, audit records, screenshots, and checksums."
+logical_id = "0848ce8b-c3f9-479e-8f73-a77b0c3b1011"
+content_hash = "sha256:2b4d5f79406b7a148ac243d10eb390285ef6ff5a6f966745e832d6b92a9279e0"
+size = 1661059
+mtime_ms = 1794889223388
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/0848ce8b-c3f9-479e-8f73-a77b0c3b1011/f273d244-e18f-4390-a983-cedf96cb46f0"
+storage_version_token = "1794889228894185"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "geO_VwdIyO37RWlZBNRHF"
+uri = "file://.local/verification/NeuroPathways-clinic-onboarding-evidence-20261117T042800Z.zip"
+type = "unspecified"
+title = "NeuroPathways onboarding evidence"
+description = "Sanitized test results, audit evidence, screenshots, verified populated-demo counts, and rerun instructions. No credentials or database files."
+logical_id = "a855292d-12d2-43f1-8f5a-ccd9b9f733df"
+content_hash = "sha256:57fc4b0ac354a7051fac7fd14f4d25ca8ef10fa6e13066c4e6e9475c762a5f6a"
+size = 1787153
+mtime_ms = 1794889715800
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/a855292d-12d2-43f1-8f5a-ccd9b9f733df/62ef720f-cc9d-476b-9686-f1fe5bfd7824"
+storage_version_token = "1794889729150601"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "cHdvr3dGhQhax-XvgTyEY"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T042800Z/manual-demo/platform-admin-signed-in.png"
+type = "image"
+title = "Populated demo — platform admin"
+description = "Signed-in fictional platform-admin view from the active isolated demo."
+logical_id = "d632a9e1-2ac9-4c21-80e0-d0f226adb1de"
+content_hash = "sha256:c8bd32f951f1f8792e040b52e0dc85269aab85603f0961195cd7e5e2ce3731f2"
+size = 52982
+mtime_ms = 1794889714756
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/d632a9e1-2ac9-4c21-80e0-d0f226adb1de/3edf0f1f-45ea-4292-8b5e-1eb75ba06a88"
+storage_version_token = "1794889729942835"
+content_type = "image/png"
+
+[[outputs]]
+id = "6dasFr02xFVRwaYMrgWQs"
+uri = "file://.local/verification/clinic-onboarding-unified-20261117T042800Z/manual-demo/caregiver-signed-in.png"
+type = "image"
+title = "Populated demo — caregiver"
+description = "Signed-in fictional caregiver view showing only the linked demo child."
+logical_id = "d3a83126-191f-4ff4-93a5-4b3719ea9a44"
+content_hash = "sha256:2e6436d6054c70ed54d5b5acce5c09822993ca71d9647c05b6da84b1416961ec"
+size = 71216
+mtime_ms = 1794889714760
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/d3a83126-191f-4ff4-93a5-4b3719ea9a44/feb8a71b-2eab-4710-9f81-7b669a11635b"
+storage_version_token = "1794889730607931"
+content_type = "image/png"
