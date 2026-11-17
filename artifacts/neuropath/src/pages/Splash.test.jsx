@@ -29,5 +29,7 @@ describe("public workspace entry points", () => {
     render(<MemoryRouter><Splash /></MemoryRouter>);
     await screen.findByTestId("section-workspace-entry");
     expect(screen.queryByRole("link", { name: /platform administrator sign in/i })).toBeNull();
+    expect(screen.getByTestId("link-operator-login").getAttribute("href")).toBe("/OperatorLogin");
+    expect(screen.getByTestId("link-operator-login").textContent).toBe("NeuroPathways operator sign in");
   });
 });

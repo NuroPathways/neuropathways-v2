@@ -45,15 +45,19 @@ const storageRoot = process.env.NP_TEST_STORAGE_ROOT;
 const checks: Check[] = [];
 const plannedBrowserChecks = [
   "Public landing page links each role to its existing sign-in or request flow",
+  "Operator sign-in exposes the shared form and a generic invalid-credential error",
+  "Anonymous access to platform management page and APIs is denied",
   "Signed-out visitors cannot retrieve local invitation links",
   "Independent caregiver signup creates a usable account without clinic membership",
   "Public clinic request creates only a pending request in the real application",
-  "Platform operator signs in through the real clinician login form",
+  "Platform operator signs in through the dedicated shared-auth entry",
   "Platform administrator reviews and approves a pending request through the actual UI",
   "Platform UI creates a clinic and captures the first-admin invite locally",
   "Wrong-email invite registration does not grant clinic membership",
   "Platform admin can reissue the first-admin invite; current invite activates the real account",
+  "Clinic administrators cannot use operator access and can return to their workspace",
   "Clinic administrator invites and activates two treating clinicians without role editing",
+  "Treating clinicians cannot use operator access and can open their assigned-workspace entry",
   "Treating clinician invites a fictional family through the browser",
   "Caregiver accepts the invite and chooses clinic sharing in the actual parent flow",
   "Clinic administrator assigns the client and the browser reflects the assignment",
@@ -415,8 +419,9 @@ class Browser {
   }
 
   async click(selector: string) {
-    const script = `(() => { const e=document.querySelector(${JSON.stringify(selector)}); if(!e || !e.getClientRects().length || e.disabled || e.getAttribute('aria-disabled')==='true') return false; e.scrollIntoView({block:'center',inline:'nearest'}); e.click(); return true; })()`;
-    if (!await this.evaluate(script)) throw new Error(`Visible control not found: ${selector}`);
+    const script = `(() => { const e=document.querySelector(${JSON.stringify(selector)}); if(!e || !e.getClientRects().length || e.disabled || e.getAttribute('aria-disabled')==='true') return {ok:false,path:location.pathname,controls:[...document.querySelectorAll('button,a,[role="button"]')].filter(x=>x.getClientRects().length).map(x=>({testid:x.getAttribute('data-testid'),text:(x.innerText||'').trim().slice(0,80)})).slice(0,30)}; e.scrollIntoView({block:'center',inline:'nearest'}); e.click(); return {ok:true}; })()`;
+    const result = await this.evaluate(script);
+    if (!result?.ok) throw new Error(`Visible control not found: ${selector}; observed UI ${JSON.stringify(result).slice(0, 600)}`);
   }
 
   async clickText(text: string) {
@@ -449,6 +454,26 @@ class Browser {
       height,
       deviceScaleFactor: 1,
       mobile,
+    });
+  }
+
+  async pressKey(key: string, modifiers = 0) {
+    const keyCode = key === "Tab" ? 9 : key === "Enter" ? 13 : 0;
+    await this.send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key,
+      code: key,
+      modifiers,
+      windowsVirtualKeyCode: keyCode,
+      nativeVirtualKeyCode: keyCode,
+    });
+    await this.send("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key,
+      code: key,
+      modifiers,
+      windowsVirtualKeyCode: keyCode,
+      nativeVirtualKeyCode: keyCode,
     });
   }
 
@@ -490,10 +515,16 @@ async function newBrowser() {
   return browser;
 }
 
-async function loginClinician(browser: Browser, email: string, password: string, workspaceIntent?: string) {
-  await browser.navigate(`${webUrl}/ClinicianLogin${workspaceIntent ? `?workspace=${encodeURIComponent(workspaceIntent)}` : ""}`);
-  await browser.waitText(workspaceIntent === "clinic-admin" ? "Clinic administrator sign in" : "Clinician sign in", 60_000);
-  await browser.clickText("Sign In with Email");
+async function loginClinician(browser: Browser, email: string, password: string, workspaceIntent?: string, operatorEntry = false) {
+  const route = operatorEntry
+    ? "/OperatorLogin"
+    : `/ClinicianLogin${workspaceIntent ? `?workspace=${encodeURIComponent(workspaceIntent)}` : ""}`;
+  await browser.navigate(`${webUrl}${route}`);
+  await browser.waitText(operatorEntry
+    ? "NeuroPathways Operator Sign In"
+    : workspaceIntent === "clinic-admin" ? "Clinic administrator sign in" : "Clinician sign in", 60_000);
+  if (operatorEntry) await browser.waitText("For authorized NeuroPathways platform administrators.");
+  await browser.click('[data-testid="button-email-login"]');
   await browser.waitFor(
     () => browser.evaluate("Boolean(document.querySelector('input[type=\"email\"]')?.getClientRects().length)"),
     10_000,
@@ -506,6 +537,15 @@ async function loginClinician(browser: Browser, email: string, password: string,
     (await browser.text()).includes("Clinic management") ||
     (await browser.text()).includes("Clinic team") ||
     await browser.evaluate("['/ClinicianDashboard','/WorkspaceSelect'].includes(location.pathname)"));
+}
+
+async function loadLocalInvitationLinks(browser: Browser) {
+  await browser.waitFor(
+    () => browser.evaluate("Boolean(document.querySelector('[data-testid=\"button-load-demo-invitation-links\"]')?.getClientRects().length)"),
+    15_000,
+    "The authorized local invitation-link control did not appear.",
+  );
+  await browser.click('[data-testid="button-load-demo-invitation-links"]');
 }
 
 async function registerAndAcceptClinicInvite(browser: Browser, invitationUrl: string, invitee: { email: string; password: string; firstName: string; lastName: string }) {
@@ -703,6 +743,7 @@ async function main() {
     assert.equal(hrefs["link-clinic-admin-entry"], "/ClinicianLogin?workspace=clinic-admin");
     assert.equal(hrefs["link-register-clinic"], "/ClinicRequest");
     assert.equal(hrefs["link-family-access-code"], "/UsernameLogin");
+    assert.equal(hrefs["link-operator-login"], "/OperatorLogin");
     assert(!Object.keys(hrefs).some((key) => /platform/i.test(key)));
     await browser.viewport(1440, 1000, false);
     await browser.screenshot("00-public-landing-desktop");
@@ -712,6 +753,52 @@ async function main() {
     await browser.screenshot("00-public-landing-mobile");
     await browser.close();
     return "Public cards preserve existing login/signup routes; platform-admin access is not shown and the mobile landing page does not overflow.";
+  });
+
+  await recordCheck("Operator sign-in exposes the shared form and a generic invalid-credential error", "browser", async () => {
+    const browser = await newBrowser();
+    await browser.navigate(`${webUrl}/OperatorLogin`);
+    await browser.waitText("NeuroPathways Operator Sign In");
+    await browser.click('[data-testid="button-email-login"]');
+    await browser.waitFor(
+      () => browser.evaluate("Boolean(document.querySelector('input[type=\"email\"]')?.getClientRects().length)"),
+      15_000,
+      "The operator sign-in email form did not appear.",
+    );
+    const labeledFields = await browser.evaluate(`[...document.querySelectorAll('#operator-login-email,#operator-login-password')].map(input=>({id:input.id,label:input.labels?.[0]?.innerText?.trim()||''}))`);
+    assert.deepEqual(labeledFields, [
+      { id: "operator-login-email", label: "EMAIL" },
+      { id: "operator-login-password", label: "PASSWORD" },
+    ]);
+    await browser.viewport(1440, 900, false);
+    await browser.screenshot("00-operator-login-desktop");
+    await browser.viewport(390, 844, true);
+    const metrics = await browser.evaluate("({width:innerWidth,scrollWidth:document.documentElement.scrollWidth})");
+    assert(metrics.scrollWidth <= metrics.width, "Operator sign-in should fit a mobile-width viewport.");
+    await browser.screenshot("00-operator-login-mobile");
+    await browser.evaluate("document.querySelector('#operator-login-email').focus()");
+    await browser.pressKey("Tab");
+    assert.equal(await browser.evaluate("document.activeElement?.id"), "operator-login-password");
+    await browser.fill('input[type="email"]', `unregistered.${crypto.randomBytes(4).toString("hex")}@example.test`);
+    await browser.fill('input[type="password"]', `LocalOnly-${crypto.randomBytes(20).toString("base64url")}-8!`);
+    await browser.clickText("Sign In");
+    await browser.waitText("Invalid email or password");
+    assert.notEqual(await browser.evaluate("location.pathname"), "/PlatformAdminClinics");
+    await browser.close();
+    return "Invalid credentials were rejected by the existing staff sign-in endpoint with its generic response; no operator session or route was granted.";
+  });
+
+  await recordCheck("Anonymous access to platform management page and APIs is denied", "browser", async () => {
+    const browser = await newBrowser();
+    await browser.navigate(`${webUrl}/PlatformAdminClinics`);
+    await browser.waitPath("/OperatorLogin");
+    await browser.waitText("NeuroPathways Operator Sign In");
+    const result = await browser.evaluate(`fetch('/api/platform-management/clinics',{credentials:'include',cache:'no-store'}).then(async r=>({status:r.status,body:await r.text()}))`);
+    assert.equal(result.status, 401);
+    assert(!/clinicName|displayName|invitedEmail|requestId/i.test(String(result.body)));
+    assert.equal(await browser.evaluate("document.querySelector('[data-testid=\"button-create-clinic\"]')"), null);
+    await browser.close();
+    return "The direct management URL redirected to operator sign-in; an unauthenticated API request returned 401 with no clinic data.";
   });
 
   await recordCheck("Independent caregiver signup creates a usable account without clinic membership", "signed-in browser", async () => {
@@ -764,15 +851,17 @@ async function main() {
     return "The real form writes only a pending request; no clinic, account, membership, or invitation is created.";
   });
 
-  await recordCheck("Platform operator signs in through the real clinician login form", "signed-in browser", async () => {
+  await recordCheck("Platform operator signs in through the dedicated shared-auth entry", "signed-in browser", async () => {
     const browser = await newBrowser();
-    await loginClinician(browser, operator.email, operator.password);
+    await loginClinician(browser, operator.email, operator.password, undefined, true);
     await browser.waitText("Clinic management");
     const page = await browser.text();
     assert(page.includes("Platform administration"));
     assert(!page.includes("Clinical team"));
     assert(!page.includes("Documents"));
     assert(page.includes("No clinics yet"));
+    await browser.navigate(`${webUrl}/OperatorLogin`);
+    await browser.waitPath("/PlatformAdminClinics");
     await browser.viewport(1440, 1000, false);
     await browser.screenshot("02-platform-admin-desktop");
     await browser.viewport(390, 844, true);
@@ -780,7 +869,7 @@ async function main() {
     assert(metrics.scrollWidth <= metrics.width, "Platform clinic management should not overflow at phone width.");
     await browser.screenshot("02-platform-admin-mobile");
     await browser.close();
-    return "The operator logged in through the visible email/password form; no session bypass was used.";
+    return "The dedicated operator route reused the existing email/password session and redirected the already-signed-in operator to Clinic Management.";
   });
 
   await recordCheck("Platform administrator reviews and approves a pending request through the actual UI", "signed-in browser", async () => {
@@ -829,7 +918,7 @@ async function main() {
     assert(invitation?.id);
     adminInviteId = invitation.id;
     firstAdminToken = latestMail(firstAdminEmail).token;
-    await browser.click('[data-testid="button-load-demo-invitation-links"]');
+    await loadLocalInvitationLinks(browser);
     const localLinkSelector = `[data-testid="link-demo-invitation-${adminInviteId}"]`;
     await browser.waitFor(() => browser.evaluate(`Boolean(document.querySelector(${JSON.stringify(localLinkSelector)}))`));
     const localInvitationHref = await browser.evaluate(`document.querySelector(${JSON.stringify(localLinkSelector)})?.getAttribute('href') || ''`);
@@ -876,8 +965,21 @@ async function main() {
     assert(wrongUser?.id);
     const memberships = await db.select({ id: clinicMembershipsTable.id }).from(clinicMembershipsTable).where(eq(clinicMembershipsTable.userId, wrongUser.id));
     assert.equal(memberships.length, 0);
+    await wrongBrowser.navigate(`${webUrl}/OperatorLogin`);
+    await wrongBrowser.waitText("NeuroPathways Operator Sign In");
+    await wrongBrowser.click('[data-testid="button-email-login"]');
+    await wrongBrowser.waitFor(
+      () => wrongBrowser.evaluate("Boolean(document.querySelector('input[type=\"email\"]')?.getClientRects().length)"),
+      15_000,
+      "Operator sign-in did not open its shared email/password form.",
+    );
+    await wrongBrowser.fill('input[type="email"]', wrong.email);
+    await wrongBrowser.fill('input[type="password"]', wrong.password);
+    await wrongBrowser.clickText("Sign In");
+    await wrongBrowser.waitText("awaiting clinic administrator approval");
+    assert.notEqual(await wrongBrowser.evaluate("location.pathname"), "/PlatformAdminClinics");
     await wrongBrowser.close();
-    return "A mismatched identity stays pending and has no clinic membership.";
+    return "A mismatched invite stays pending with no membership; its pending account is still denied at the operator sign-in entry.";
   });
 
   await recordCheck("Platform admin can reissue the first-admin invite; current invite activates the real account", "signed-in browser", async () => {
@@ -904,7 +1006,7 @@ async function main() {
     ));
     const currentInvitation = currentPendingInvitations.find((item) => item.status === "pending");
     assert(currentInvitation);
-    await operatorBrowser.click('[data-testid="button-load-demo-invitation-links"]');
+    await loadLocalInvitationLinks(operatorBrowser);
     const currentLinkSelector = `[data-testid="link-demo-invitation-${currentInvitation.id}"]`;
     await operatorBrowser.waitFor(() => operatorBrowser.evaluate(`Boolean(document.querySelector(${JSON.stringify(currentLinkSelector)}))`));
     const supersededLinkVisible = await operatorBrowser.evaluate(`Boolean(document.querySelector('[data-testid="link-demo-invitation-${adminInviteId}"]'))`);
@@ -941,6 +1043,43 @@ async function main() {
     return "Invitation activation ends in the clinic team page; the account receives only clinic-admin membership.";
   });
 
+  await recordCheck("Clinic administrators cannot use operator access and can return to their workspace", "signed-in browser", async () => {
+    const browser = await newBrowser();
+    await loginClinician(browser, firstAdminEmail, firstAdminPassword);
+    await browser.navigate(`${webUrl}/PlatformAdminClinics?workspace=platform-administration`);
+    await browser.waitPath("/OperatorLogin");
+    await browser.waitText("This account does not have operator access.");
+    const body = await browser.text();
+    assert(!body.includes("Clinic management"));
+    assert(body.includes("Sign out and use another account"));
+    const destination = await browser.evaluate("document.querySelector('[data-testid=\"link-authorized-workspace\"]')?.getAttribute('href')");
+    assert.equal(destination, "/ClinicianUsers");
+    await browser.screenshot("02-operator-access-denied-clinic-admin");
+    await browser.click('[data-testid="link-authorized-workspace"]');
+    await browser.waitPath("/ClinicianUsers");
+    await browser.close();
+    const loginBrowser = await newBrowser();
+    await loginBrowser.navigate(`${webUrl}/OperatorLogin`);
+    await loginBrowser.waitText("NeuroPathways Operator Sign In");
+    await loginBrowser.click('[data-testid="button-email-login"]');
+    await loginBrowser.waitFor(
+      () => loginBrowser.evaluate("Boolean(document.querySelector('input[type=\"email\"]')?.getClientRects().length)"),
+      15_000,
+      "The operator form did not appear for the clinic administrator.",
+    );
+    await loginBrowser.fill('input[type="email"]', firstAdminEmail);
+    await loginBrowser.fill('input[type="password"]', firstAdminPassword);
+    await loginBrowser.clickText("Sign In");
+    await loginBrowser.waitText("This account does not have operator access.");
+    assert.equal(
+      await loginBrowser.evaluate("document.querySelector('[data-testid=\"link-authorized-workspace\"]')?.getAttribute('href')"),
+      "/ClinicianUsers",
+    );
+    assert.notEqual(await loginBrowser.evaluate("location.pathname"), "/PlatformAdminClinics");
+    await loginBrowser.close();
+    return "Both a direct platform-page request and a successful clinic-admin login through the operator entry were denied; only the clinic workspace was offered.";
+  });
+
   await recordCheck("Clinic administrator invites and activates two treating clinicians without role editing", "signed-in browser", async () => {
     const adminBrowser = await newBrowser();
     await loginClinician(adminBrowser, firstAdminEmail, firstAdminPassword);
@@ -954,7 +1093,7 @@ async function main() {
     await adminBrowser.click('[data-testid="button-invite-clinician"]');
     await adminBrowser.waitText("Invitation created; test email captured locally, not sent externally.");
     let tokenOne = latestMail(clinicianOne.email).token;
-    await adminBrowser.click('[data-testid="button-load-demo-invitation-links"]');
+    await loadLocalInvitationLinks(adminBrowser);
     await adminBrowser.waitFor(() => adminBrowser.evaluate("Boolean(document.querySelector('[data-testid^=\"link-demo-invitation-\"]'))"));
     const clinicAdminLinks = await adminBrowser.evaluate(`([...document.querySelectorAll('[data-testid^="row-demo-invitation-link-"] strong')]).map((item)=>item.textContent)`);
     assert.deepEqual(clinicAdminLinks, [clinicianOne.email]);
@@ -972,7 +1111,7 @@ async function main() {
     await adminBrowser.fill('input[placeholder="clinician@clinic.org"]', clinicianTwo.email);
     await adminBrowser.click('[data-testid="button-invite-clinician"]');
     await adminBrowser.waitText("Invitation created; test email captured locally, not sent externally.");
-    await adminBrowser.click('[data-testid="button-load-demo-invitation-links"]');
+    await loadLocalInvitationLinks(adminBrowser);
     await adminBrowser.waitFor(() => adminBrowser.evaluate(`([...document.querySelectorAll('[data-testid^="row-demo-invitation-link-"] strong')]).some((item)=>item.textContent===${JSON.stringify(clinicianTwo.email)})`), 10_000);
     const secondClinicAdminLinks = await adminBrowser.evaluate(`([...document.querySelectorAll('[data-testid^="row-demo-invitation-link-"] strong')]).map((item)=>item.textContent)`);
     assert.deepEqual(secondClinicAdminLinks, [clinicianTwo.email], "Only active pending invitations should remain in the local inbox.");
@@ -1004,13 +1143,32 @@ async function main() {
     const platformBrowser = await newBrowser();
     await loginClinician(platformBrowser, operator.email, operator.password);
     await platformBrowser.navigate(`${webUrl}/PlatformAdminClinics`);
-    await platformBrowser.click('[data-testid="button-load-demo-invitation-links"]');
+    await platformBrowser.waitText("Clinic management");
+    await loadLocalInvitationLinks(platformBrowser);
     await platformBrowser.waitText("Refresh local links");
     const platformInboxEmails = await platformBrowser.evaluate(`([...document.querySelectorAll('[data-testid^="row-demo-invitation-link-"] strong')]).map((item)=>item.textContent)`);
     assert(!platformInboxEmails.includes(clinicianOne.email));
     assert(!platformInboxEmails.includes(clinicianTwo.email), "Platform inbox access must stay limited to first-administrator invitations.");
     await platformBrowser.close();
     return "Both accounts registered and accepted through the invitation screen; the server assigned treating_clinician, with no role editor.";
+  });
+
+  await recordCheck("Treating clinicians cannot use operator access and can open their assigned-workspace entry", "signed-in browser", async () => {
+    const browser = await newBrowser();
+    await loginClinician(browser, clinicianOne.email, clinicianOne.password);
+    await browser.navigate(`${webUrl}/OperatorLogin`);
+    await browser.waitText("This account does not have operator access.");
+    const page = await browser.text();
+    assert(page.includes("Sign out and use another account"));
+    assert(!page.includes("Create a clinic"));
+    assert.equal(
+      await browser.evaluate("document.querySelector('[data-testid=\"link-authorized-workspace\"]')?.getAttribute('href')"),
+      "/ClinicianDashboard",
+    );
+    await browser.click('[data-testid="link-authorized-workspace"]');
+    await browser.waitPath("/ClinicianDashboard");
+    await browser.close();
+    return "A treating clinician remained in their assigned clinical workspace and did not gain platform navigation.";
   });
 
   let childId = "";
@@ -1138,6 +1296,13 @@ async function main() {
     await parentBrowser.screenshot("08-caregiver-mobile");
     const metrics = await parentBrowser.evaluate("({width:innerWidth, scrollWidth:document.documentElement.scrollWidth, height:innerHeight})");
     assert(metrics.scrollWidth <= metrics.width, "Caregiver Home should not overflow horizontally at phone width.");
+    await parentBrowser.navigate(`${webUrl}/OperatorLogin?workspace=platform-administration`);
+    await parentBrowser.waitText("This account does not have operator access.");
+    assert.equal(
+      await parentBrowser.evaluate("document.querySelector('[data-testid=\"link-authorized-workspace\"]')?.getAttribute('href')"),
+      "/ParentHome",
+    );
+    assert(!(await parentBrowser.text()).includes("Clinic management"));
     await parentBrowser.close();
     return "The caregiver used the visible account, child setup, clinic-invite preview, merge confirmation and sharing-consent controls; no email was sent.";
   });

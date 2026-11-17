@@ -9,22 +9,54 @@ import { Input } from "@workspace/neuropathways-foundations/components/ui/input"
 import { Label } from "@workspace/neuropathways-foundations/components/ui/label";
 import { Shell } from "@/components/parentfree/common";
 import SignupAuthorityFields from "@/components/signup/SignupAuthorityFields";
-import { getPostLoginPath } from "@/lib/workspaceRouting";
+import { getAuthorizedWorkspaces, getPostLoginPath } from "@/lib/workspaceRouting";
 
-export default function ClinicianLogin() {
+function hasPlatformAdministratorAccess(user) {
+  return getAuthorizedWorkspaces(user).some((workspace) =>
+    workspace.id === "platform-administration" && workspace.type === "platform_admin"
+  );
+}
+
+function getAccountDestination(user) {
+  const destination = getPostLoginPath(user);
+  if (destination && destination !== "/RoleSetup?role=clinician") return destination;
+  if (user?.invite_token) return "/ClientHome";
+  if (user?.account_type === "individual") return "/ParentDashboard";
+  return null;
+}
+
+export default function ClinicianLogin({ operatorMode = false }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const workspaceIntent = searchParams.get("workspace");
-  const { checkUserAuth } = useAuth();
+  const workspaceIntent = operatorMode ? null : searchParams.get("workspace");
+  const {
+    user: authenticatedUser,
+    isAuthenticated,
+    isLoadingAuth,
+    checkUserAuth,
+    logout,
+  } = useAuth();
   const [mode, setMode] = useState("choose"); // choose | email-login | email-register | registration-pending
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [operatorDeniedUser, setOperatorDeniedUser] = useState(null);
   const [form, setForm] = useState({ email: "", password: "", firstName: "", lastName: "" });
   const [ageGroup, setAgeGroup] = useState("");
   const [adultConfirmed, setAdultConfirmed] = useState(false);
 
   useEffect(() => {
+    if (!operatorMode || isLoadingAuth || !isAuthenticated || !authenticatedUser) return;
+    if (hasPlatformAdministratorAccess(authenticatedUser)) {
+      setOperatorDeniedUser(null);
+      navigate("/PlatformAdminClinics", { replace: true });
+    } else {
+      setOperatorDeniedUser(authenticatedUser);
+    }
+  }, [operatorMode, isLoadingAuth, isAuthenticated, authenticatedUser, navigate]);
+
+  useEffect(() => {
+    if (operatorMode) return;
     base44.auth.isAuthenticated().then(async (authed) => {
       if (authed) {
         const user = await base44.auth.me();
@@ -33,7 +65,7 @@ export default function ClinicianLogin() {
         else if ((user.app_role || user.appRole) === "pending_clinician") navigate("/RoleSetup?role=clinician", { replace: true });
       }
     });
-  }, [navigate, workspaceIntent]);
+  }, [operatorMode, navigate, workspaceIntent]);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -51,6 +83,18 @@ export default function ClinicianLogin() {
       const data = await res.json();
       if (!res.ok || data.error) { setError(data.error || "Login failed"); setLoading(false); return; }
       const currentUser = await checkUserAuth();
+      if (operatorMode) {
+        setForm({ email: "", password: "", firstName: "", lastName: "" });
+        if (hasPlatformAdministratorAccess(currentUser)) {
+          navigate("/PlatformAdminClinics", { replace: true });
+        } else if (currentUser) {
+          setOperatorDeniedUser(currentUser);
+        } else {
+          setError("We could not verify operator access for this account. Please try signing in again.");
+        }
+        setLoading(false);
+        return;
+      }
       const destination = data.invitationAccess
         ? "/ClinicInvitation"
         : getPostLoginPath(currentUser, workspaceIntent) || data.redirect || "/RoleSetup?role=clinician";
@@ -88,26 +132,52 @@ export default function ClinicianLogin() {
     setLoading(false);
   };
 
+  const deniedUser = operatorMode
+    ? operatorDeniedUser || (isAuthenticated && authenticatedUser && !hasPlatformAdministratorAccess(authenticatedUser) ? authenticatedUser : null)
+    : null;
+  const authorizedDestination = getAccountDestination(deniedUser);
+  const pendingClinician = ["pending_clinician", "pending"].includes(deniedUser?.app_role || deniedUser?.appRole);
+
   return (
-    <Shell right={<Link to="/UsernameLogin" className="pf-btn small ghost">Client sign in</Link>}>
+    <Shell right={operatorMode ? null : <Link to="/UsernameLogin" className="pf-btn small ghost">Client sign in</Link>}>
     <main className="pf-narrow" style={{ paddingTop: 24, paddingBottom: 56 }}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
 
         <div className="text-center mb-8">
           <p className="pf-eyebrow" style={{ marginBottom: 8 }}>
-            {workspaceIntent === "clinic-admin" ? "Clinic administration" : "Clinical workspace"}
+            {operatorMode ? "Platform administration" : workspaceIntent === "clinic-admin" ? "Clinic administration" : "Clinical workspace"}
           </p>
           <h1 style={{ fontSize: "clamp(2rem,7vw,2.8rem)", margin: "8px 0" }}>
-            {workspaceIntent === "clinic-admin" ? "Clinic administrator sign in" : "Clinician sign in"}
+            {operatorMode
+              ? "NeuroPathways Operator Sign In"
+              : workspaceIntent === "clinic-admin" ? "Clinic administrator sign in" : "Clinician sign in"}
           </h1>
           <p className="pf-hint">
-            {workspaceIntent === "clinic-admin"
-              ? "Manage staff, invitations, and assignments for clinics where you hold an active administrator membership. Sign-in uses your existing account."
-              : "Access clinical tools only for clients you are authorized to support. Sign-in uses your existing account."}
-            {" "}The server sends each account to its authorized workspace.
+            {operatorMode
+              ? "For authorized NeuroPathways platform administrators."
+              : workspaceIntent === "clinic-admin"
+                ? "Manage staff, invitations, and assignments for clinics where you hold an active administrator membership. Sign-in uses your existing account."
+                : "Access clinical tools only for clients you are authorized to support. Sign-in uses your existing account."}
+            {!operatorMode && <> The server sends each account to its authorized workspace.</>}
           </p>
         </div>
 
+        {operatorMode && deniedUser ? (
+          <section className="pf-card space-y-4" role="alert" data-testid="operator-access-denied">
+            <h2 className="font-semibold text-foreground">This account does not have operator access.</h2>
+            {pendingClinician && (
+              <p className="pf-hint">This clinician account is still waiting for approval from an authorized clinic administrator.</p>
+            )}
+            {authorizedDestination && (
+              <Link to={authorizedDestination} className="pf-btn primary w-full" data-testid="link-authorized-workspace">
+                Open your authorized workspace
+              </Link>
+            )}
+            <Button type="button" variant="outline" className="w-full" onClick={logout} data-testid="button-operator-sign-out">
+              Sign out and use another account
+            </Button>
+          </section>
+        ) : (
         <div className="pf-card" style={{ display: "grid", gap: 14 }}>
 
           {/* Email / Password Login */}
@@ -117,10 +187,11 @@ export default function ClinicianLogin() {
                 <Button
                   className="w-full rounded-xl py-5 font-semibold text-sm gap-2"
                   onClick={() => setMode("email-login")}
+                  data-testid="button-email-login"
                 >
                   <Mail className="w-4 h-4" /> Sign In with Email
                 </Button>
-                {workspaceIntent !== "clinic-admin" && <>
+                {!operatorMode && workspaceIntent !== "clinic-admin" && <>
                   <Button
                     type="button"
                     variant="outline"
@@ -133,7 +204,7 @@ export default function ClinicianLogin() {
                     New clinician accounts stay locked until an authorized clinic administrator approves them.
                   </p>
                 </>}
-                {workspaceIntent === "clinic-admin" && (
+                {!operatorMode && workspaceIntent === "clinic-admin" && (
                   <p className="text-xs text-center text-muted-foreground">
                     Need a new clinic? <Link className="text-primary font-medium hover:underline" to="/ClinicRequest">Submit a clinic request</Link>. Administrator access is issued only after platform review.
                   </p>
@@ -150,13 +221,13 @@ export default function ClinicianLogin() {
                 <h2 className="font-semibold text-foreground">Sign In</h2>
 
                 <div>
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</Label>
-                  <Input type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="you@clinic.com" required className="mt-1.5 rounded-xl" />
+                  <Label htmlFor={operatorMode ? "operator-login-email" : "clinician-login-email"} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</Label>
+                  <Input id={operatorMode ? "operator-login-email" : "clinician-login-email"} type="email" value={form.email} onChange={e => set("email", e.target.value)} placeholder="you@clinic.com" required className="mt-1.5 rounded-xl" />
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Password</Label>
+                  <Label htmlFor={operatorMode ? "operator-login-password" : "clinician-login-password"} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Password</Label>
                   <div className="relative mt-1.5">
-                    <Input type={showPassword ? "text" : "password"} value={form.password} onChange={e => set("password", e.target.value)} placeholder="••••••••" required className="rounded-xl pr-10" />
+                    <Input id={operatorMode ? "operator-login-password" : "clinician-login-password"} type={showPassword ? "text" : "password"} value={form.password} onChange={e => set("password", e.target.value)} placeholder="••••••••" required className="rounded-xl pr-10" />
                     <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -172,12 +243,12 @@ export default function ClinicianLogin() {
                   {loading ? "Signing in…" : "Sign In"}
                 </Button>
 
-                <p className="text-xs text-center text-muted-foreground">
+                {!operatorMode && <p className="text-xs text-center text-muted-foreground">
                   Need an account?{" "}
                   <button type="button" onClick={() => { setMode("email-register"); setError(""); }} className="text-primary font-medium hover:underline">
                     Request clinician access
                   </button>
-                </p>
+                </p>}
               </motion.form>
             )}
 
@@ -241,6 +312,7 @@ export default function ClinicianLogin() {
             )}
           </AnimatePresence>
         </div>
+        )}
 
         <button onClick={() => navigate("/")} className="pf-link" style={{ margin: "18px auto 0", display: "block" }}>
           ← Back to welcome page

@@ -52,7 +52,7 @@ The command signals only the positively identified matching demo workflow. Norma
 
 ## Five-minute demonstration
 
-1. Open the **Clinic onboarding — fresh setup** preview and sign in using the private Platform Admin credentials. The clinic list starts empty.
+1. Open the **Clinic onboarding — fresh setup** preview and use the private Platform Admin credentials at `/OperatorLogin`. The same staff sign-in service is used; the clinic list starts empty.
 2. Use **Create a clinic and invite** to create a fictional clinic and enter a fictional first-admin address. No real email is sent. In the isolated demo, open **Local invitation links**, choose **Show local links**, and use **Open invitation** to continue the first-admin activation in the browser.
 3. Open the **Clinic onboarding — populated demo** preview. Sign in as Clinic Admin and use **Clinic overview**, **Staff & invitations**, and **Client assignments** in the navigation. These sections use the existing `ClinicianUsers` page; they do not grant clinical chart access by themselves.
 4. Sign in as a seeded treating clinician to confirm the client list is limited to explicit assignments. Sign in as a caregiver to see the seeded child's Home, support and practice surfaces.
@@ -61,7 +61,7 @@ The command signals only the positively identified matching demo workflow. Norma
 
 ## Current public entry points and workspaces
 
-The landing page offers **Caregiver sign in**, **Create a caregiver account**, and **Use family username and access code** using the existing caregiver routes. **Clinician sign in** and **Clinic administrator sign in** use the same existing `ClinicianLogin` form; the selected link only supplies a navigation preference and does not grant a role. **Request clinic setup** opens `ClinicRequest`, which submits only a pending request. The platform-admin workspace is not shown among public role cards.
+The landing page offers **Caregiver sign in**, **Create a caregiver account**, and **Use family username and access code** using the existing caregiver routes. **Clinician sign in** and **Clinic administrator sign in** use the same existing `ClinicianLogin` form; the selected link only supplies a navigation preference and does not grant a role. **Request clinic setup** opens `ClinicRequest`, which submits only a pending request. The discreet **NeuroPathways operator sign in** link in the footer opens `/OperatorLogin`; it is not a role card and does not grant access.
 
 After sign-in, workspace options are derived from the account's active server-side permissions. A platform administrator goes to **Clinic management** (`PlatformAdminClinics`); a clinic administrator goes to `ClinicianUsers` with clinic-only administration; a treating clinician goes to `ClinicianDashboard`; and an independent caregiver goes to the existing caregiver home. Accounts with multiple authorized roles can choose among only those existing workspaces. A workspace link never changes a membership or role.
 
@@ -75,11 +75,11 @@ The populated state is entirely fictional. The parent/clinic consent rows are sy
 
 ## Role sign-in and navigation
 
-All roles use existing authentication. Public **Clinician sign in** and **Clinic administrator sign in** links reach the same `/ClinicianLogin` page with different heading/navigation intent; the intent never grants a role. Use **Sign In with Email**, enter the selected private account's email and password, then **Sign In**. The platform-admin account also uses this login form; there is intentionally no public platform-admin entry card.
+All roles use existing authentication. Public **Clinician sign in** and **Clinic administrator sign in** links reach the same `/ClinicianLogin` page with different heading/navigation intent; the intent never grants a role. **NeuroPathways operator sign in** opens `/OperatorLogin`, which renders that same shared staff sign-in component with an operator-specific heading. It offers no registration or role selection. Use **Sign In with Email**, enter the selected private account's email and password, then **Sign In**. The server-provided active platform-administrator workspace determines access; any other signed-in account receives an access-denied message and a link only to its authorized workspace. Direct access to `/PlatformAdminClinics` redirects to operator sign-in for other accounts, and platform-management API authorization remains enforced server-side.
 
 | Demo role | Sign-in route | Authorized landing page | Navigation in that workspace |
 | --- | --- | --- | --- |
-| Platform administrator | `/ClinicianLogin` | `/PlatformAdminClinics` — **Clinic management** | Clinic list and request review/provisioning controls only; no client records or clinical tools |
+| Platform administrator | `/OperatorLogin` (or existing `/ClinicianLogin`) | `/PlatformAdminClinics` — **Clinic management** | Clinic list and request review/provisioning controls only; no client records or clinical tools |
 | Clinic administrator | `/ClinicianLogin?workspace=clinic-admin` | `/ClinicianUsers` | **Clinic overview**, **Staff & invitations**, and **Client assignments** for their clinic |
 | Treating clinician | `/ClinicianLogin?workspace=clinician` | `/ClinicianDashboard` | Clinical workspace, limited to explicitly assigned clients |
 | Caregiver | `/ParentLogin` or `/UsernameLogin` for family access-code login | `/ParentQuickStart` for a new account; otherwise `/ParentHome` | Home, Help Now, Practice, Goals, AI Chat, history and documents according to account permissions |
@@ -104,4 +104,4 @@ The guarded inbox was tested with actual signed-in browser sessions and isolated
 
 The isolated API runner recorded **22 passed, 0 failed**; focused invitation-inbox unit tests recorded **6 passed, 0 failed** (included in the API runner total). Frontend tests passed **368/368 across 40 files**. API and frontend typechecks, shared-library typecheck, API build, and demo-flagged production web build passed. No native-device test, live email delivery, live AI, AWS/staging deployment, or real-family test was performed.
 
-The final sanitized browser run and screenshots are in `.local/verification/clinic-onboarding-browser-20261117T040903Z/run-20261117T040903Z/`; the isolated API run is in `.local/verification/clinic-onboarding-first-slice-20261117T040738Z/api-20261117T040738Z/`. The test runner removed only its own database, storage, and browser profiles. The current populated interactive demo remains stopped; its preserved private state was not reset.
+The final sanitized browser run and screenshots are in `.local/verification/clinic-onboarding-browser-20261117T040903Z/run-20261117T040903Z/`; the isolated API run is in `.local/verification/clinic-onboarding-first-slice-20261117T040738Z/api-20261117T040738Z/`. The test runner removed only its own database, storage, and browser profiles, and did not start, stop, or reset the separate interactive demo. Check its current workflow status before using or resetting it.

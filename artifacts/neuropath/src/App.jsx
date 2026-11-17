@@ -49,9 +49,10 @@ import DataRequests from '@/pages/DataRequests';
 import ParentMenu from '@/pages/ParentMenu';
 import ParentHistory from '@/pages/ParentHistory';
 import { getAccountHomeRedirect } from '@/lib/accountHomeRouting';
+import { getAuthorizedWorkspaces } from '@/lib/workspaceRouting';
 
 // Free email parents only ever use the parent-owned screens, never legacy CRUD pages.
-const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/DataRequests', '/Settings', '/privacy', '/Practice', '/Menu', '/History', '/GoalsMilestones', '/DocumentCenter', '/Messages'];
+const PARENT_FREE_PATHS = ['/ParentHome', '/ParentQuickStart', '/DataRequests', '/Settings', '/privacy', '/Practice', '/Menu', '/History', '/GoalsMilestones', '/DocumentCenter', '/Messages', '/OperatorLogin'];
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -106,6 +107,9 @@ const AuthenticatedApp = () => {
     || user?.app_role === "caregiver" || user?.role === "caregiver"
     || ["parent", "parent_family", "family", "caregiver"].includes(user?.account_type);
   const accountHomeRedirect = getAccountHomeRedirect(user, location.pathname, location.search);
+  const hasPlatformAdministration = getAuthorizedWorkspaces(user).some((workspace) =>
+    workspace.id === "platform-administration" && workspace.type === "platform_admin"
+  );
 
   useEffect(() => {
     const identity = user?.id;
@@ -177,6 +181,7 @@ const AuthenticatedApp = () => {
         />
       ))}
       <Route path="/ClinicianLogin" element={<ClinicianLogin />} />
+      <Route path="/OperatorLogin" element={<ClinicianLogin operatorMode />} />
       <Route path="/ClinicRequest" element={<ClinicRequest />} />
       <Route path="/WorkspaceSelect" element={<WorkspaceSelect />} />
       <Route path="/ParentLogin" element={<ParentLogin />} />
@@ -190,7 +195,12 @@ const AuthenticatedApp = () => {
       <Route path="/ClientDetail" element={<LayoutWrapper currentPageName="ClientDetail"><ClientDetail /></LayoutWrapper>} />
       <Route path="/ChildProfile" element={<LayoutWrapper currentPageName="ChildProfile"><ChildProfile /></LayoutWrapper>} />
       <Route path="/ClinicianUsers" element={<LayoutWrapper currentPageName="ClinicianUsers"><ClinicianUsers /></LayoutWrapper>} />
-      <Route path="/PlatformAdminClinics" element={<LayoutWrapper currentPageName="PlatformAdminClinics"><PlatformAdminClinics /></LayoutWrapper>} />
+      <Route
+        path="/PlatformAdminClinics"
+        element={hasPlatformAdministration
+          ? <LayoutWrapper currentPageName="PlatformAdminClinics"><PlatformAdminClinics /></LayoutWrapper>
+          : <Navigate to="/OperatorLogin" replace />}
+      />
       <Route path="/Settings" element={<LayoutWrapper currentPageName="Settings"><Settings /></LayoutWrapper>} />
       <Route path="/DataRequests" element={<DataRequests />} />
       <Route path="/HelpNow" element={<HelpNow />} />

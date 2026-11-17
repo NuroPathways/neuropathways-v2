@@ -194,6 +194,7 @@ export default function Splash() {
           <div>
             <Link to="/ClinicianLogin?workspace=clinician" className="np-link">Clinician login</Link>
             <Link to="/ClinicianLogin?workspace=clinic-admin" className="np-link">Clinic administrator login</Link>
+            <Link to="/OperatorLogin" className="np-link" data-testid="link-operator-login">NeuroPathways operator sign in</Link>
             <Link to="/ClinicRequest" className="np-link">Register your clinic</Link>
             <Link to="/UsernameLogin" className="np-link" data-testid="link-username-login">Username login</Link>
             <Link to="/privacy" className="np-link" data-testid="link-privacy">Privacy policy</Link>

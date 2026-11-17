@@ -8,7 +8,7 @@ import RoleAwareShell from "@/components/navigation/RoleAwareShell";
 import { createRoleNavigation, mobilePrimaryKeysForRole, resolveNavigationRole } from "@/components/navigation/navigationModels";
 import { getAuthorizedWorkspaces, resolveActiveWorkspace } from "@/lib/workspaceRouting";
 
-const noLayoutPages = ["Splash", "Login", "RoleSelection", "ClinicianLogin", "ParentLogin", "ParentSignup", "ParentQuickStart", "ParentHome", "ClientLogin", "RoleSetup", "HelpNow", "AIChat", "WorkspaceSelect", "ClinicRequest"];
+const noLayoutPages = ["Splash", "Login", "RoleSelection", "ClinicianLogin", "OperatorLogin", "ParentLogin", "ParentSignup", "ParentQuickStart", "ParentHome", "ClientLogin", "RoleSetup", "HelpNow", "AIChat", "WorkspaceSelect", "ClinicRequest"];
 
 export default function Layout({ children, currentPageName }) {
   const { user, isLoadingAuth } = useAuth();
