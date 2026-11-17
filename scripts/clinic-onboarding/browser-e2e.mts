@@ -479,7 +479,7 @@ class Browser {
 
   async close() {
     try { this.ws?.close(); } catch { /* already closed */ }
-    if (this.process && !this.process.killed) {
+    if (this.process && !this.process.killed && this.process.exitCode === null && this.process.signalCode === null) {
       try { process.kill(-this.process.pid!, "SIGTERM"); }
       catch { this.process.kill("SIGTERM"); }
       await Promise.race([
@@ -1433,6 +1433,12 @@ async function main() {
     await browser.waitPath("/ClinicianUsers");
     await browser.waitText("Invite a treating clinician");
     await browser.navigate(`${webUrl}/WorkspaceSelect`);
+    await browser.waitText("These options come from your active account and clinic permissions.");
+    await browser.waitFor(
+      () => browser.evaluate("Boolean(document.querySelector('[data-testid=\"link-workspace-platform-administration\"]')?.getClientRects().length)"),
+      15_000,
+      "The authorized platform workspace choice did not appear after returning to the selector.",
+    );
     await browser.click('[data-testid="link-workspace-platform-administration"]');
     await browser.waitPath("/PlatformAdminClinics");
     await browser.waitText("Clinic management");
