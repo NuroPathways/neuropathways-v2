@@ -35,9 +35,15 @@ const accounts = JSON.parse(await fs.readFile(credentialsFile, "utf8")).logins a
   role: string; email: string; password: string;
 }>;
 const platform = accounts.find((account) => account.role === "platform_admin");
+const clinicAdmin = accounts.find((account) => account.role === "clinic_admin");
+const clinician = accounts.find((account) => account.role === "treating_clinician");
 const caregiver = accounts.find((account) => account.role === "parent");
 assert(platform, "No fictional platform administrator exists in the demo credentials.");
-if (mode === "populated") assert(caregiver, "No fictional caregiver exists in the populated demo.");
+if (mode === "populated") {
+  assert(clinicAdmin, "No fictional clinic administrator exists in the populated demo.");
+  assert(clinician, "No fictional treating clinician exists in the populated demo.");
+  assert(caregiver, "No fictional caregiver exists in the populated demo.");
+}
 await fs.mkdir(path.join(evidenceDir, "screenshots"), { recursive: true, mode: 0o700 });
 await fs.mkdir(browserProfile, { recursive: true, mode: 0o700 });
 
@@ -118,13 +124,16 @@ async function screenshot(name: string) {
   return relative;
 }
 
-async function signIn(email: string, password: string, role: "clinician" | "parent") {
-  const route = role === "clinician" ? "ClinicianLogin" : "ParentLogin";
+async function signIn(email: string, password: string, role: "clinician" | "parent", workspaceIntent?: "clinic-admin" | "clinician") {
+  const route = role === "clinician"
+    ? `ClinicianLogin${workspaceIntent ? `?workspace=${workspaceIntent}` : ""}`
+    : "ParentLogin";
   await send("Page.navigate", { url: `http://127.0.0.1:${port}/${route}` });
   await waitFor(() => evaluate("document.readyState === 'complete' || document.readyState === 'interactive'"), "Login page did not load.");
   if (role === "clinician") {
+    const heading = workspaceIntent === "clinic-admin" ? "Clinic administrator sign in" : "Clinician sign in";
     await waitFor(
-      () => evaluate("(document.querySelector('h1')?.innerText||'').trim() === 'Clinician sign in'"),
+      () => evaluate(`(document.querySelector('h1')?.innerText||'').trim() === ${JSON.stringify(heading)}`),
       "Clinician login page did not render.",
     );
     await clickText("Sign In with Email");
@@ -144,6 +153,13 @@ async function signIn(email: string, password: string, role: "clinician" | "pare
       "Caregiver login did not leave the login page.",
     );
   }
+}
+
+async function clearBrowserAuthState() {
+  await send("Network.clearBrowserCookies");
+  await send("Page.navigate", { url: `http://127.0.0.1:${port}/` });
+  await waitFor(() => evaluate("document.readyState === 'complete' || document.readyState === 'interactive'"), "The app did not reload before the next demo role.");
+  await evaluate("localStorage.clear(); sessionStorage.clear(); true");
 }
 
 async function main() {
@@ -192,6 +208,19 @@ async function main() {
   await send("Runtime.enable");
   await send("Network.enable");
 
+  await send("Page.navigate", { url: `http://127.0.0.1:${port}/` });
+  await waitFor(() => evaluate("Boolean(document.querySelector('[data-testid=\"section-workspace-entry\"]'))"), "The redesigned public landing page did not render.");
+  const landingText = String(await evaluate("document.body?.innerText||''"));
+  const landingLinks = await evaluate(`Object.fromEntries([...document.querySelectorAll('[data-testid^="link-"]')].map(a=>[a.getAttribute('data-testid'),a.getAttribute('href')]))`);
+  assert.match(landingText, /Caregivers and parents/i);
+  assert.match(landingText, /Clinicians/i);
+  assert.match(landingText, /Clinic administrators/i);
+  assert.equal(landingLinks["link-caregiver-sign-in"], "/ParentLogin");
+  assert.equal(landingLinks["link-clinician-entry"], "/ClinicianLogin?workspace=clinician");
+  assert.equal(landingLinks["link-clinic-admin-entry"], "/ClinicianLogin?workspace=clinic-admin");
+  const landingShot = await screenshot("public-landing");
+  checks.push({ name: "Redesigned landing page shows distinct role entry points", status: "PASS", evidence: landingShot });
+
   await signIn(platform.email, platform.password, "clinician");
   await waitFor(
     () => evaluate("(document.body?.innerText||'').includes('Create a clinic') || (document.body?.innerText||'').includes('Platform clinic access')"),
@@ -202,11 +231,34 @@ async function main() {
   const platformShot = await screenshot("platform-admin-signed-in");
   assert.equal(platformRoute, "/PlatformAdminClinics", `Platform administrator landed on ${platformRoute}.`);
   assert.match(pageText, /Create a clinic|Platform clinic access|Clinics/i);
+  assert.match(pageText, /Clinic management/i);
   checks.push({ name: "Platform administrator signs in through the visible UI", status: "PASS", evidence: platformShot });
 
-  if (mode === "populated" && caregiver) {
-    // Clear the prior clinician session, then use the normal caregiver login page.
-    await send("Network.clearBrowserCookies");
+  if (mode === "populated" && clinicAdmin && clinician && caregiver) {
+    await clearBrowserAuthState();
+    await signIn(clinicAdmin.email, clinicAdmin.password, "clinician", "clinic-admin");
+    await waitFor(() => evaluate("location.pathname === '/ClinicianUsers'"), "Clinic administrator did not reach the clinic-management workspace.");
+    pageText = String(await evaluate("document.body?.innerText||''"));
+    assert.match(pageText, /Clinic administration/i);
+    assert.match(pageText, /Clinic overview/i);
+    assert.match(pageText, /Staff & invitations/i);
+    assert.match(pageText, /Client assignments/i);
+    assert.doesNotMatch(pageText, /Create a clinic directly/i);
+    const clinicAdminShot = await screenshot("clinic-admin-signed-in");
+    checks.push({ name: "Clinic administrator sees only clinic staff and assignment navigation", status: "PASS", evidence: clinicAdminShot });
+
+    await clearBrowserAuthState();
+    await signIn(clinician.email, clinician.password, "clinician", "clinician");
+    await waitFor(() => evaluate("location.pathname === '/ClinicianDashboard'"), "Treating clinician did not reach the clinical dashboard.");
+    pageText = String(await evaluate("document.body?.innerText||''"));
+    assert.match(pageText, /My Clients/i);
+    assert.match(pageText, /Dashboard/i);
+    assert.match(pageText, /Documents/i);
+    assert.doesNotMatch(pageText, /Create a clinic directly/i);
+    const clinicianShot = await screenshot("treating-clinician-signed-in");
+    checks.push({ name: "Treating clinician sees the clinical workspace menu", status: "PASS", evidence: clinicianShot });
+
+    await clearBrowserAuthState();
     await send("Page.addScriptToEvaluateOnNewDocument", {
       source: `(() => { const original=window.fetch.bind(window); window.fetch=async (...args)=>{const response=await original(...args);const url=typeof args[0]==='string'?args[0]:args[0]?.url||'';if(url.includes('/api/parent/auth/login')){try{const body=await response.clone().json();window.__demoLoginChildrenCount=Array.isArray(body.children)?body.children.length:null}catch{window.__demoLoginChildrenCount=null}}return response} })()`,
     });
