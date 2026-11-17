@@ -29,6 +29,8 @@ function manualDemoEnvironment() {
 test("demo invitation inbox is restricted to exact isolated loopback environments", () => {
   const manual = manualDemoEnvironment();
   assert.equal(isIsolatedClinicInvitationDemo(manual.env, manual.cwd), true);
+  assert.equal(isIsolatedClinicInvitationDemo({ ...manual.env, NODE_ENV: "production" }, manual.cwd), false);
+  assert.equal(isIsolatedClinicInvitationDemo({ ...manual.env, NODE_ENV: "development" }, manual.cwd), false);
   assert.equal(isIsolatedClinicInvitationDemo({ ...manual.env, REPLIT_CONNECTORS_ENABLED: "true" }, manual.cwd), false);
   assert.equal(isIsolatedClinicInvitationDemo({
     ...manual.env,

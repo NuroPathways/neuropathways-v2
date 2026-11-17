@@ -508,8 +508,8 @@ async function loginClinician(browser: Browser, email: string, password: string,
     await browser.evaluate("['/ClinicianDashboard','/WorkspaceSelect'].includes(location.pathname)"));
 }
 
-async function registerAndAcceptClinicInvite(browser: Browser, token: string, invitee: { email: string; password: string; firstName: string; lastName: string }) {
-  await browser.navigate(`${webUrl}/ClinicInvitation#token=${encodeURIComponent(token)}`);
+async function registerAndAcceptClinicInvite(browser: Browser, invitationUrl: string, invitee: { email: string; password: string; firstName: string; lastName: string }) {
+  await browser.navigate(invitationUrl);
   await browser.waitText("Accept clinic invitation");
   await browser.click('[data-testid="button-mode-register"]');
   await browser.fill('[data-testid="input-invite-first-name"]', invitee.firstName);
@@ -909,9 +909,16 @@ async function main() {
     await operatorBrowser.waitFor(() => operatorBrowser.evaluate(`Boolean(document.querySelector(${JSON.stringify(currentLinkSelector)}))`));
     const supersededLinkVisible = await operatorBrowser.evaluate(`Boolean(document.querySelector('[data-testid="link-demo-invitation-${adminInviteId}"]'))`);
     assert.equal(supersededLinkVisible, false, "Reissued invitations must remove the superseded link from the local inbox.");
+    const currentInvitationHref = await operatorBrowser.evaluate(
+      `document.querySelector(${JSON.stringify(currentLinkSelector)})?.getAttribute('href') || ''`,
+    );
+    const currentInvitationUrl = new URL(currentInvitationHref, webUrl).toString();
+    const currentInboxToken = new URLSearchParams(new URL(currentInvitationUrl).hash.replace(/^#/, "")).get("token");
+    assert(currentInboxToken);
+    assert.equal(currentInboxToken, currentAdminToken, "The captured first-admin link must match the invitation delivered to the local test sink.");
     await operatorBrowser.close();
     const inviteeBrowser = await newBrowser();
-    await registerAndAcceptClinicInvite(inviteeBrowser, currentAdminToken, {
+    await registerAndAcceptClinicInvite(inviteeBrowser, currentInvitationUrl, {
       email: firstAdminEmail,
       password: firstAdminPassword,
       firstName: "Fictional",
@@ -952,8 +959,14 @@ async function main() {
     const clinicAdminLinks = await adminBrowser.evaluate(`([...document.querySelectorAll('[data-testid^="row-demo-invitation-link-"] strong')]).map((item)=>item.textContent)`);
     assert.deepEqual(clinicAdminLinks, [clinicianOne.email]);
     assert(!clinicAdminLinks.includes(firstAdminEmail), "Clinic administrators must not see platform first-admin links.");
+    const clinicianOneHref = await adminBrowser.evaluate(
+      `document.querySelector('[data-testid^="link-demo-invitation-"]')?.getAttribute('href') || ''`,
+    );
+    const clinicianOneInvitationUrl = new URL(clinicianOneHref, webUrl).toString();
+    const clinicianOneInboxToken = new URLSearchParams(new URL(clinicianOneInvitationUrl).hash.replace(/^#/, "")).get("token");
+    assert.equal(clinicianOneInboxToken, tokenOne, "The captured clinician link must match the invitation delivered to the local test sink.");
     const oneBrowser = await newBrowser();
-    await registerAndAcceptClinicInvite(oneBrowser, tokenOne, clinicianOne);
+    await registerAndAcceptClinicInvite(oneBrowser, clinicianOneInvitationUrl, clinicianOne);
     await oneBrowser.waitPath("/ClinicianDashboard");
     await oneBrowser.close();
     await adminBrowser.fill('input[placeholder="clinician@clinic.org"]', clinicianTwo.email);
@@ -964,8 +977,14 @@ async function main() {
     const secondClinicAdminLinks = await adminBrowser.evaluate(`([...document.querySelectorAll('[data-testid^="row-demo-invitation-link-"] strong')]).map((item)=>item.textContent)`);
     assert.deepEqual(secondClinicAdminLinks, [clinicianTwo.email], "Only active pending invitations should remain in the local inbox.");
     const tokenTwo = latestMail(clinicianTwo.email).token;
+    const clinicianTwoHref = await adminBrowser.evaluate(
+      `document.querySelector('[data-testid^="link-demo-invitation-"]')?.getAttribute('href') || ''`,
+    );
+    const clinicianTwoInvitationUrl = new URL(clinicianTwoHref, webUrl).toString();
+    const clinicianTwoInboxToken = new URLSearchParams(new URL(clinicianTwoInvitationUrl).hash.replace(/^#/, "")).get("token");
+    assert.equal(clinicianTwoInboxToken, tokenTwo, "The captured clinician link must match the invitation delivered to the local test sink.");
     const twoBrowser = await newBrowser();
-    await registerAndAcceptClinicInvite(twoBrowser, tokenTwo, clinicianTwo);
+    await registerAndAcceptClinicInvite(twoBrowser, clinicianTwoInvitationUrl, clinicianTwo);
     await twoBrowser.waitPath("/ClinicianDashboard");
     await twoBrowser.close();
     await adminBrowser.navigate(`${webUrl}/ClinicianUsers`);
