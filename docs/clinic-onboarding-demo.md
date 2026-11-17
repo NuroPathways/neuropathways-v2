@@ -8,7 +8,7 @@ The demo is a local, fictional-data rehearsal. It is not a production onboarding
 2. **Populated clinic:** two fictional clinics exist. Clinic North has one administrator, two treating clinicians, and five caregiver/child pairs with explicit clinician assignments. Clinic South has an unrelated clinician to demonstrate tenant boundaries.
 3. **Optional activity:** any seeded activity data must be labelled as simulated demo content, not as real caregiver or clinical history.
 
-Use unique, randomly generated credentials for each rehearsal. The demo tooling writes them to `.local/clinic-onboarding-demo/run-<timestamp>-<id>/private/credentials.json` with mode `0600`; it never prints password values, uses a shared password, or includes credentials in evidence ZIPs. The private file exists only while the corresponding demo workflow is running. This repository intentionally does not seed or activate a user when an ordinary person first registers.
+Use unique, randomly generated credentials for each rehearsal. The demo tooling writes them to `.local/clinic-onboarding-demo/run-<timestamp>-<id>/private/credentials.json` with mode `0600`; it never prints password values, uses a shared password, or includes credentials in evidence ZIPs. A normal clean stop removes the private run directory. If the Replit workflow is terminated unexpectedly, a stale marker and private files can remain; do not use those credentials unless the matching demo workflow and preview port are confirmed active. Clean up stale state only through the guarded reset flow after confirming that the fictional changes can be discarded. This repository intentionally does not seed or activate a user when an ordinary person first registers.
 
 ## Safety requirements for demo tooling
 
