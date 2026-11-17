@@ -1484,3 +1484,17 @@ mtime_ms = 1794892394504
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/a6941fab-43fc-4813-9443-f91f9a7d0d01/ee12bcde-af4c-4aa0-aaa3-f6a13354ed48"
 storage_version_token = "1794892405307505"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "65D3WV6jWv98L2NPLZ9P-"
+uri = "file://.local/verification/neuropath-operator-sign-in-20261117T065400Z/neuropath-operator-sign-in-evidence.zip"
+type = "unspecified"
+title = "Final operator sign-in evidence ZIP"
+description = "Checksum-verified package with 23 passing isolated browser checks, genuine fictional audit events, screenshots, and rerun commands. No credentials or tokens."
+logical_id = "836e2fd0-a403-4f5b-aea4-9d43db597467"
+content_hash = "sha256:5acf785f3ff2d05dee6afdfa7e00be5563252e572dbe15173f934cbc660bbf0b"
+size = 2011298
+mtime_ms = 1794898563688
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/836e2fd0-a403-4f5b-aea4-9d43db597467/ce44f01c-75d1-4758-85bb-1c2301f2ecce"
+storage_version_token = "1794898627572714"
+content_type = "application/octet-stream"
