@@ -1498,3 +1498,115 @@ mtime_ms = 1794898563688
 storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/836e2fd0-a403-4f5b-aea4-9d43db597467/ce44f01c-75d1-4758-85bb-1c2301f2ecce"
 storage_version_token = "1794898627572714"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "NPuFm6XdcG8BsBiFTavp-"
+uri = "file://.local/verification/landing-cleanup/neuro-pathways-landing-verification-20261118T202412Z.zip"
+type = "unspecified"
+title = "Landing-page verification evidence"
+description = "Sanitized test results, 79 genuine isolated audit events, screenshots, checksums, and the tested commit."
+logical_id = "f421ce89-57f2-416d-8171-83ad60eefdf3"
+content_hash = "sha256:174d75e9a9aa32149966e3b72da60279c22f7bbbd7bfe736d7a70c4646deb8eb"
+size = 1194461
+mtime_ms = 1795033454774
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/f421ce89-57f2-416d-8171-83ad60eefdf3/418d519b-77cd-44ba-83b3-00cff3851d9d"
+storage_version_token = "1795033489252489"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "mqeCZ_ipfkeTBe-xd5N_P"
+uri = "file://.local/verification/landing-cleanup/final-desktop.jpg"
+type = "image"
+title = "NeuroPathways landing page — desktop"
+description = "Full-page view of the public landing page at desktop width."
+logical_id = "53b89ac4-ecb0-47de-8dbc-19a3987832f8"
+content_hash = "sha256:d5deb44737e68ba27907891fda7e6d982284d364fb9d82ce7b3d1a823c961c77"
+size = 246780
+mtime_ms = 1795033131074
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/53b89ac4-ecb0-47de-8dbc-19a3987832f8/81db1645-7d12-476c-beab-d36ead7f96e5"
+storage_version_token = "1795033489836624"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "7OPB1JxGVg_WTQyOD75y1"
+uri = "file://.local/verification/landing-cleanup/final-mobile.jpg"
+type = "image"
+title = "NeuroPathways landing page — mobile"
+description = "Full-page mobile layout with the role sign-in control and no horizontal overflow."
+logical_id = "dbc7e91d-e594-4ad4-81cf-2d876a9fbbea"
+content_hash = "sha256:dae8b20dc9269561de85da3172ca337e8c874ec5bf722e706cc0c48864949f30"
+size = 212047
+mtime_ms = 1795033133998
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/dbc7e91d-e594-4ad4-81cf-2d876a9fbbea/6cb733d5-1968-431a-853a-23e71be65cf3"
+storage_version_token = "1795033490415936"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "cYoafVd_2DKKihwhZ0oIM"
+uri = "file://.local/verification/landing-restore/neuro-pathways-landing-restore-20261118.zip"
+type = "unspecified"
+title = "NeuroPathways landing restoration evidence"
+description = "Before-and-after desktop and mobile screenshots, test results, isolated browser evidence, and audit records."
+logical_id = "83e7586f-e9ad-47d6-bb8d-64d0d0113845"
+content_hash = "sha256:de45709ba78a3e5f6b1b270ec93b036933efbc05aa1337caa041010b718e539c"
+size = 1531961
+mtime_ms = 1795034782101
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/83e7586f-e9ad-47d6-bb8d-64d0d0113845/70f3225b-5c11-4b35-a476-18101331f011"
+storage_version_token = "1795034805991579"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "l0cQ3IdZuwSSIXP71bN_5"
+uri = "file://.local/verification/landing-restore/before-desktop.jpg"
+type = "image"
+title = "Landing page before restoration — desktop"
+description = "The cleaned-up landing page captured at the starting commit."
+logical_id = "26d11539-19c2-400d-9321-40f8baf3309f"
+content_hash = "sha256:d5deb44737e68ba27907891fda7e6d982284d364fb9d82ce7b3d1a823c961c77"
+size = 246780
+mtime_ms = 1795034256669
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/26d11539-19c2-400d-9321-40f8baf3309f/0d3d10a9-66b3-4c86-824b-f9acf3a50d36"
+storage_version_token = "1795034806640482"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "BXHGNIxshU2ZQfluY9I54"
+uri = "file://.local/verification/landing-restore/after-final-desktop.jpg"
+type = "image"
+title = "Landing page after restoration — desktop"
+description = "The earlier workspace-card layout restored, captured after the final responsive fix."
+logical_id = "3e376492-01db-4b64-9c93-51bec743891a"
+content_hash = "sha256:31e7ac858cf56c1f89e5e57537cb119df8e7dd4beeefa8c83ceb4dd3761e121b"
+size = 360289
+mtime_ms = 1795034205765
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/3e376492-01db-4b64-9c93-51bec743891a/6c288ad0-9ee2-4702-849b-3fe42ac6528f"
+storage_version_token = "1795034807320496"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "u650JW7QtAxcXfl5BoHed"
+uri = "file://.local/verification/landing-restore/before-mobile.jpg"
+type = "image"
+title = "Landing page before restoration — mobile"
+description = "The cleaned-up mobile landing page captured at the starting commit."
+logical_id = "e6f936c9-a58f-453a-a761-82c4f044cd12"
+content_hash = "sha256:dae8b20dc9269561de85da3172ca337e8c874ec5bf722e706cc0c48864949f30"
+size = 212047
+mtime_ms = 1795034256702
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/e6f936c9-a58f-453a-a761-82c4f044cd12/51d0219b-89bc-436a-848a-6ca20fbaeee7"
+storage_version_token = "1795034807959344"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "AjWcAosX4odoSKFiokWZC"
+uri = "file://.local/verification/landing-restore/after-final-mobile.jpg"
+type = "image"
+title = "Landing page after restoration — mobile"
+description = "The earlier mobile layout restored, with the workspace cards stacked and no horizontal overflow."
+logical_id = "d1df22ad-554c-4849-9fe9-105446b500c0"
+content_hash = "sha256:2e28af2f016d5512dc5dd3f76ac157e146f8d5620b62bf4943909fc998fa2a78"
+size = 302738
+mtime_ms = 1795034207985
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:7417e69e-621a-4884-b51c-d5188c57d8b5/d1df22ad-554c-4849-9fe9-105446b500c0/26808657-1a34-4761-8f61-791db182fe35"
+storage_version_token = "1795034808490855"
+content_type = "image/jpeg"
