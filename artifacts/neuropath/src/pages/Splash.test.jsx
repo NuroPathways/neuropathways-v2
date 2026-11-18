@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import Splash from "./Splash";
 
@@ -15,32 +15,34 @@ vi.mock("@/api/entities", () => ({
 afterEach(() => cleanup());
 
 describe("public workspace entry points", () => {
-  it("shows one accessible sign-in control with the existing role destinations", async () => {
+  it("restores the earlier workspace-card layout with the existing sign-in destinations", () => {
     render(<MemoryRouter><Splash /></MemoryRouter>);
 
-    const signInButton = screen.getByTestId("button-sign-in");
-    expect(signInButton.textContent).toMatch(/sign in/i);
-    expect(screen.getAllByRole("button", { name: /sign in/i })).toHaveLength(1);
-    fireEvent.pointerDown(signInButton, { button: 0, pointerType: "mouse" });
-
-    await screen.findByRole("menu");
-    expect(screen.getByTestId("link-sign-in-caregiver").getAttribute("href")).toBe("/ParentLogin");
-    expect(screen.getByTestId("link-sign-in-family-code").getAttribute("href")).toBe("/UsernameLogin");
-    expect(screen.getByTestId("link-sign-in-clinician").getAttribute("href")).toBe("/ClinicianLogin?workspace=clinician");
-    expect(screen.getByTestId("link-sign-in-clinic-admin").getAttribute("href")).toBe("/ClinicianLogin?workspace=clinic-admin");
-    expect(screen.getByText(/does not assign a role or grant access/i)).toBeTruthy();
+    expect(screen.getByTestId("link-nav-clinicians").getAttribute("href")).toBe("#access");
+    expect(screen.getByTestId("link-parent-login").getAttribute("href")).toBe("/ParentLogin");
+    expect(screen.getByTestId("link-caregiver-sign-in").getAttribute("href")).toBe("/ParentLogin");
+    expect(screen.getByTestId("link-caregiver-create").getAttribute("href")).toBe("/ParentSignup");
+    expect(screen.getByTestId("link-family-access-code").getAttribute("href")).toBe("/UsernameLogin");
+    expect(screen.getByTestId("link-clinician-entry").getAttribute("href")).toBe("/ClinicianLogin?workspace=clinician");
+    expect(screen.getByTestId("link-clinic-admin-entry").getAttribute("href")).toBe("/ClinicianLogin?workspace=clinic-admin");
+    expect(screen.queryByTestId("button-sign-in")).toBeNull();
+    expect(screen.getByTestId("card-caregiver-entry")).toBeTruthy();
+    expect(screen.getByTestId("card-clinician-entry")).toBeTruthy();
+    expect(screen.getByTestId("card-clinic-admin-entry")).toBeTruthy();
   });
 
-  it("keeps caregiver signup and clinic request separate from the sign-in menu", async () => {
+  it("keeps clinic requests separate and explains invitation-based staff access", () => {
     render(<MemoryRouter><Splash /></MemoryRouter>);
 
-    expect(screen.getByTestId("link-create-caregiver").getAttribute("href")).toBe("/ParentSignup");
+    expect(screen.getByTestId("link-caregiver-create").getAttribute("href")).toBe("/ParentSignup");
     expect(screen.getByTestId("link-register-clinic").getAttribute("href")).toBe("/ClinicRequest");
     expect(screen.getByText(/a request does not create a clinic, administrator account, or access/i)).toBeTruthy();
-    expect(screen.getByTestId("section-security").compareDocumentPosition(screen.getByTestId("section-how-it-works")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText(/new clinician access remains locked until an authorized clinic approves it/i)).toBeTruthy();
+    expect(screen.getByText(/administrator access is issued through an authorized clinic invitation/i)).toBeTruthy();
+    expect(screen.getByText(/access still follows each account’s approved permissions/i)).toBeTruthy();
   });
 
-  it("keeps operator sign-in discreetly in the footer", async () => {
+  it("keeps the restricted operator sign-in link in the footer", () => {
     render(<MemoryRouter><Splash /></MemoryRouter>);
 
     const operatorLink = screen.getByTestId("link-operator-sign-in");

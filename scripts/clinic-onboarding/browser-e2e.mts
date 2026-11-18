@@ -44,7 +44,7 @@ const chromiumPath = process.env.CHROMIUM_PATH;
 const storageRoot = process.env.NP_TEST_STORAGE_ROOT;
 const checks: Check[] = [];
 const plannedBrowserChecks = [
-  "Public landing page links each role to its existing sign-in or request flow",
+  "Public landing workspace cards link to the existing sign-in and clinic-request flows",
   "Operator sign-in exposes the shared form and a generic invalid-credential error",
   "Anonymous access to platform management page and APIs is denied",
   "Signed-out visitors cannot retrieve local invitation links",
@@ -753,78 +753,74 @@ async function main() {
   const caregiverSignupEmail = `independent.parent.${crypto.randomBytes(4).toString("hex")}@example.test`;
   let clinicRequestId = "";
 
-  await recordCheck("Public landing menu links each role to its existing sign-in or request flow", "browser", async () => {
+  await recordCheck("Public landing workspace cards link to the existing sign-in and clinic-request flows", "browser", async () => {
     const browser = await newBrowser();
     await browser.navigate(webUrl!);
     await browser.waitFor(
-      () => browser.evaluate("Boolean(document.querySelector('[data-testid=\"button-sign-in\"]'))"),
+      () => browser.evaluate("Boolean(document.querySelector('[data-testid=\"link-caregiver-sign-in\"]'))"),
       15_000,
-      "The public landing Sign in control did not render.",
+      "The caregiver workspace entry did not render.",
     );
     await browser.waitText("Create a caregiver account");
-    await browser.clickPointer('[data-testid="button-sign-in"]');
-    await browser.waitFor(
-      () => browser.evaluate("Boolean(document.querySelector('[role=\"menu\"]'))"),
-      5_000,
-      "The Sign in menu did not open from the real browser pointer interaction.",
-    );
-    const hrefs = await browser.evaluate(`Object.fromEntries([...document.querySelectorAll('[role="menu"] a[data-testid^="link-sign-in-"]')].map(a=>[a.getAttribute('data-testid'),a.getAttribute('href')]))`);
-    assert.equal(hrefs["link-sign-in-caregiver"], "/ParentLogin");
-    assert.equal(hrefs["link-sign-in-family-code"], "/UsernameLogin");
-    assert.equal(hrefs["link-sign-in-clinician"], "/ClinicianLogin?workspace=clinician");
-    assert.equal(hrefs["link-sign-in-clinic-admin"], "/ClinicianLogin?workspace=clinic-admin");
-    assert(await browser.evaluate("document.querySelector('[role=\"menu\"]')?.innerText.includes('does not assign a role or grant access')"));
-    assert(!await browser.evaluate("document.querySelector('[role=\"menu\"] a[href*=\"platform\"]')"));
-    assert.equal(await browser.evaluate("document.querySelector('[role=\"menu\"] a[data-testid=\"link-sign-in-caregiver\"]')?.getAttribute('href')"), "/ParentLogin");
-    await browser.clickPointer('[data-testid="link-sign-in-caregiver"]');
+    const hrefs = await browser.evaluate(`Object.fromEntries([
+      "link-parent-login",
+      "link-caregiver-sign-in",
+      "link-caregiver-create",
+      "link-family-access-code",
+      "link-clinician-entry",
+      "link-clinic-admin-entry",
+      "link-register-clinic",
+      "link-operator-sign-in"
+    ].map(id => [id, document.querySelector('[data-testid="' + id + '"]')?.getAttribute('href')]))`);
+    assert.equal(hrefs["link-parent-login"], "/ParentLogin");
+    assert.equal(hrefs["link-caregiver-sign-in"], "/ParentLogin");
+    assert.equal(hrefs["link-caregiver-create"], "/ParentSignup");
+    assert.equal(hrefs["link-family-access-code"], "/UsernameLogin");
+    assert.equal(hrefs["link-clinician-entry"], "/ClinicianLogin?workspace=clinician");
+    assert.equal(hrefs["link-clinic-admin-entry"], "/ClinicianLogin?workspace=clinic-admin");
+    assert.equal(hrefs["link-register-clinic"], "/ClinicRequest");
+    assert.equal(hrefs["link-operator-sign-in"], "/OperatorLogin");
+    assert.equal(await browser.evaluate("document.querySelector('[data-testid=\"link-operator-sign-in\"]')?.closest('footer') !== null"), true);
+    assert(await browser.evaluate("document.querySelector('[data-testid=\"card-clinic-request-entry\"]')?.innerText.includes('does not create a clinic')"));
+    assert(await browser.evaluate("document.querySelector('[data-testid=\"section-workspace-entry\"]')?.innerText.includes('access still follows each account')"));
+    assert.equal(await browser.evaluate("Boolean(document.querySelector('[data-testid=\"button-sign-in\"]'))"), false);
+    assert.equal(await browser.evaluate("Boolean(document.querySelector('[role=\"menu\"]'))"), false);
+
+    await browser.viewport(1440, 1000, false);
+    await browser.screenshot("00-public-landing-desktop");
+    await browser.clickPointer('[data-testid="link-caregiver-sign-in"]');
     await browser.waitPath("/ParentLogin");
     await browser.navigate(webUrl!);
-    await browser.clickPointer('[data-testid="button-sign-in"]');
-    await browser.waitFor(() => browser.evaluate("Boolean(document.querySelector('[role=\"menu\"]'))"), 5_000, "The family access-code option menu did not open.");
-    await browser.clickPointer('[data-testid="link-sign-in-family-code"]');
+    await browser.clickPointer('[data-testid="link-family-access-code"]');
     await browser.waitPath("/UsernameLogin");
     await browser.navigate(webUrl!);
-    await browser.clickPointer('[data-testid="button-sign-in"]');
-    await browser.waitFor(() => browser.evaluate("Boolean(document.querySelector('[role=\"menu\"]'))"), 5_000, "The clinician option menu did not open.");
-    await browser.clickPointer('[data-testid="link-sign-in-clinician"]');
+    await browser.clickPointer('[data-testid="link-clinician-entry"]');
     await browser.waitFor(() => browser.evaluate("location.pathname === '/ClinicianLogin' && location.search === '?workspace=clinician'"));
     await browser.navigate(webUrl!);
-    await browser.clickPointer('[data-testid="button-sign-in"]');
-    await browser.waitFor(() => browser.evaluate("Boolean(document.querySelector('[role=\"menu\"]'))"), 5_000, "The clinic administrator option menu did not open.");
-    await browser.clickPointer('[data-testid="link-sign-in-clinic-admin"]');
+    await browser.clickPointer('[data-testid="link-clinic-admin-entry"]');
     await browser.waitFor(() => browser.evaluate("location.pathname === '/ClinicianLogin' && location.search === '?workspace=clinic-admin'"));
     await browser.navigate(webUrl!);
     await browser.waitFor(
-      () => browser.evaluate("Boolean(document.querySelector('[data-testid=\"link-create-caregiver\"]'))"),
+      () => browser.evaluate("Boolean(document.querySelector('[data-testid=\"link-caregiver-create\"]'))"),
       15_000,
       "The caregiver signup action did not render after returning to the public landing page.",
     );
-    assert.equal(await browser.evaluate("document.querySelector('[data-testid=\"link-create-caregiver\"]')?.getAttribute('href')"), "/ParentSignup");
-    assert.equal(await browser.evaluate("document.querySelector('[data-testid=\"link-register-clinic\"]')?.getAttribute('href')"), "/ClinicRequest");
-    assert.equal(await browser.evaluate("document.querySelector('[data-testid=\"link-operator-sign-in\"]')?.getAttribute('href')"), "/OperatorLogin");
-    assert.equal(await browser.evaluate("document.querySelector('[data-testid=\"link-operator-sign-in\"]')?.closest('footer') !== null"), true);
-    assert(!await browser.evaluate("document.querySelector('[role=\"menu\"] a[href*=\"platform\"]')"));
-    await browser.viewport(1440, 1000, false);
-    await browser.screenshot("00-public-landing-desktop");
     await browser.viewport(390, 844, true);
-    await browser.evaluate("document.querySelector('[data-testid=\"button-sign-in\"]')?.focus()");
+    const mobile = await browser.evaluate("({width:innerWidth,scrollWidth:document.documentElement.scrollWidth})");
+    assert(mobile.scrollWidth <= mobile.width, "The previous landing layout should not overflow horizontally on mobile.");
+    await browser.screenshot("00-public-landing-mobile");
+    await browser.evaluate("document.querySelector('[data-testid=\"link-clinician-entry\"]')?.focus()");
     await browser.pressKey("Enter");
     await browser.waitFor(
-      () => browser.evaluate("Boolean(document.querySelector('[role=\"menu\"]'))"),
+      () => browser.evaluate("location.pathname === '/ClinicianLogin' && location.search === '?workspace=clinician'"),
       5_000,
-      "The Sign in menu did not open with the keyboard.",
+      "Keyboard activation did not open the existing clinician sign-in route.",
     );
-    const mobile = await browser.evaluate("({width:innerWidth,scrollWidth:document.documentElement.scrollWidth})");
-    assert(mobile.scrollWidth <= mobile.width);
-    await browser.screenshot("00-public-landing-mobile-sign-in-menu");
-    await browser.pressKey("Escape");
-    await browser.waitFor(
-      () => browser.evaluate("!document.querySelector('[role=\"menu\"]')"),
-      5_000,
-      "The Sign in menu did not close with Escape.",
-    );
+    await browser.navigate(webUrl!);
+    await browser.clickPointer('[data-testid="link-operator-sign-in"]');
+    await browser.waitPath("/OperatorLogin");
     await browser.close();
-    return "The visible sign-in menu navigated to the existing caregiver, family-code, clinician, and clinic-admin routes; caregiver signup and clinic registration remain separate; operator access remains in the footer; mobile has no horizontal overflow.";
+    return "The restored layout links to the existing caregiver, family-code, clinician, clinic-admin, clinic-request, and operator destinations; role access remains server-authorized; pointer and keyboard navigation work without mobile horizontal overflow.";
   });
 
   await recordCheck("Operator sign-in exposes the shared form and a generic invalid-credential error", "browser", async () => {
