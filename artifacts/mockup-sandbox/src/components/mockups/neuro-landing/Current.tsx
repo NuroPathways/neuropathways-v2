@@ -1,0 +1,204 @@
+// @ts-nocheck
+import { useEffect } from "react";
+import { ShieldCheck, ArrowRight, LockKeyhole, TimerReset, UserRoundCheck } from "lucide-react";
+import "./_group.css";
+import "./splash-landing.css";
+
+function Link({ to, ...props }) {
+  return <a href={to} {...props} />;
+}
+
+function BrandMark({ size = 32 }) {
+  return <img src="/__mockup/neuro-pathways-mark.png" alt="" aria-hidden="true" width={size} height={size} />;
+}
+
+const STEPS = [
+  ["Add your child", "Create a quick profile with just a name or nickname."],
+  ["Choose behaviors and goals", "Start with one, or add several. Each behavior keeps its own goal."],
+  ["Get support steps", "See what to do right now, what to avoid, and what to track."],
+];
+
+const BEHAVIORS = [
+  ["Elopement / Running Away", "Leaving the area, bolting, or moving toward unsafe places."],
+  ["Self-Injury", "Head hitting, biting, scratching, or other unsafe self-directed behavior."],
+  ["Aggression", "Hitting, kicking, biting, throwing, or unsafe physical behavior."],
+  ["Meltdowns", "Crying, screaming, shutting down, or becoming overwhelmed."],
+  ["Task Refusal", "Refusing homework, chores, hygiene, or other non-preferred tasks."],
+  ["Transition Difficulty", "Struggling to stop one activity and move to the next."],
+  ["Other / Custom Behavior", "Name something specific to your child and set your own goal."],
+];
+
+const PREVIEW_STATUS = [["Meltdowns", "Active"], ["Task Refusal", "Active"], ["Aggression", "Available to Add"]];
+
+export default function Splash() {
+  useEffect(() => {
+    document.title = "NeuroPathways | What to do in the moment, for parents";
+    let meta = document.querySelector('meta[name="description"]');
+    if (!meta) { meta = document.createElement("meta"); meta.name = "description"; document.head.appendChild(meta); }
+    meta.content = "NeuroPathways helps parents access simple behavior support steps, add goals, and upload plans when they are ready.";
+  }, []);
+
+  return (
+    <div className="np np-foundations">
+      <nav className="np-nav">
+        <span className="np-brand"><span className="np-mark"><BrandMark size={34} /></span>NeuroPathways</span>
+        <div className="np-navr">
+          <a href="#access" className="np-textbtn" data-testid="link-nav-clinicians">Choose your workspace</a>
+          <Link to="/ParentLogin" className="np-btn small primary" data-testid="link-parent-login">Caregiver sign in</Link>
+        </div>
+      </nav>
+
+      <section className="np-top">
+        <div className="np-pill"><i />Behavior support for parents</div>
+        <h1 className="np-rise">What to do in the moment, based on your child’s support needs.</h1>
+        <p className="np-rise np-lead" style={{ animationDelay: ".1s" }}>NeuroPathways helps parents access simple behavior support steps, add goals, and upload plans when they are ready.</p>
+        <section className="np-security" aria-labelledby="np-security-title" data-testid="section-security-at-a-glance">
+          <h2 id="np-security-title">How we protect account and care information</h2>
+          <div className="np-security-list">
+            <div className="np-security-item"><LockKeyhole size={18} aria-hidden="true" /><span>Stored passwords are one-way hashed, not kept as readable text.</span></div>
+            <div className="np-security-item"><TimerReset size={18} aria-hidden="true" /><span>Sign-in attempts are rate-limited.</span></div>
+            <div className="np-security-item"><UserRoundCheck size={18} aria-hidden="true" /><span>Private records require an authenticated, role-checked account.</span></div>
+          </div>
+          <Link to="/privacy" className="np-security-link">Read our privacy notice</Link>
+        </section>
+        <div className="np-cta np-rise" style={{ animationDelay: ".2s" }}>
+          <Link to="/ParentSignup" className="np-btn primary" data-testid="link-start-parent">Start Parent Account</Link>
+          <a href="#explore" className="np-btn" data-testid="link-explore">Explore Behavior Support</a>
+          <Link to="/ParentLogin" className="np-btn ghost" data-testid="link-top-login">Caregiver sign in</Link>
+        </div>
+
+        <section className="np-entry-grid" id="access" aria-label="Choose your NeuroPathways workspace" data-testid="section-workspace-entry">
+          <article className="np-entry-card np-surface-separated">
+            <p className="np-muted np-text-support">FAMILY WORKSPACE</p>
+            <h2 className="np-card-title">Caregivers and parents</h2>
+            <p className="np-text-body-sm">Get to your child’s home, support, goals, practice, documents, and family tools.</p>
+            <div className="np-entry-actions">
+              <Link to="/ParentLogin" className="np-btn primary" data-testid="link-caregiver-sign-in">Caregiver sign in</Link>
+              <Link to="/ParentSignup" className="np-btn" data-testid="link-caregiver-create">Create a caregiver account</Link>
+            </div>
+            <Link to="/UsernameLogin" className="np-entry-secondary" data-testid="link-family-access-code">Use family username and access code</Link>
+          </article>
+          <article className="np-entry-card np-surface-separated">
+            <p className="np-muted np-text-support">CLINICAL WORKSPACE</p>
+            <h2 className="np-card-title">Treating clinicians</h2>
+            <p className="np-text-body-sm">Use clinical tools for clients you are explicitly assigned to support.</p>
+            <div className="np-entry-actions">
+              <Link to="/ClinicianLogin?workspace=clinician" className="np-btn" data-testid="link-clinician-entry">Clinician sign in</Link>
+            </div>
+            <p className="np-entry-note">New clinician access remains locked until an authorized clinic approves it.</p>
+          </article>
+          <article className="np-entry-card np-surface-separated">
+            <p className="np-muted np-text-support">CLINIC WORKSPACE</p>
+            <h2 className="np-card-title">Clinic administrators</h2>
+            <p className="np-text-body-sm">Manage your clinic’s staff, invitations, and client assignments. Administration alone does not grant access to clinical records.</p>
+            <div className="np-entry-actions">
+              <Link to="/ClinicianLogin?workspace=clinic-admin" className="np-btn" data-testid="link-clinic-admin-entry">Clinic administrator sign in</Link>
+            </div>
+            <p className="np-entry-note">Administrator access is issued through an authorized clinic invitation.</p>
+          </article>
+          <article className="np-entry-card np-surface-separated">
+            <p className="np-muted np-text-support">CLINIC ONBOARDING</p>
+            <h2 className="np-card-title">Register your clinic</h2>
+            <p className="np-text-body-sm">Send a request for platform review. A request does not create a clinic or an administrator account.</p>
+            <div className="np-entry-actions">
+              <Link to="/ClinicRequest" className="np-btn" data-testid="link-register-clinic">Request clinic setup</Link>
+            </div>
+          </article>
+        </section>
+
+        <div className="np-preview np-rise" style={{ animationDelay: ".3s" }} aria-hidden="true" data-testid="preview-dashboard">
+          <div className="np-pbar"><i /><i /><i /><span>Today’s Support</span></div>
+          <div className="np-pbody">
+            <div className="np-pside"><b>Today’s Support</b><span>Support Steps</span><span>Log What Happened</span><span>Upload Plan</span><span>Ask</span></div>
+            <div className="np-pmain">
+              <div className="np-pgrid">
+                <div className="np-pcard warm"><small>Need help right now?</small><div className="np-pbtn">I Need Help Now</div></div>
+                <div className="np-pcard blue"><small>Current Focus</small><strong>Meltdowns</strong><span>Goal: Use a calm-down break</span></div>
+              </div>
+              <div className="np-plib">
+                {PREVIEW_STATUS.map(([n, s]) => <div key={n} className="np-pcard"><strong>{n}</strong><em className={s === "Active" ? "on" : ""}>{s}</em></div>)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="np-wrap">
+        <section className="np-sec" id="how">
+          <h2>How it works</h2>
+          <div className="np-grid three">
+            {STEPS.map(([t, d], i) => (
+              <div key={t} className="np-card" data-testid={`card-step-${i + 1}`}>
+                <div className="np-num">{i + 1}</div>
+                <h3>{t}</h3><p>{d}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="np-sec" id="explore">
+          <h2>The Behavior Support Library</h2>
+          <p className="np-sub">Start with one behavior, or add several now or later. Short steps here, full support after you sign up.</p>
+          <div className="np-grid six">
+            {BEHAVIORS.map(([t, d], i) => (
+              <div key={t} className="np-card" data-testid={`card-behavior-${i}`}><h3>{t}</h3><p>{d}</p></div>
+            ))}
+          </div>
+        </section>
+
+        <section className="np-sec">
+          <div className="np-split">
+            <div className="np-card"><p className="np-eyebrow">I Need Help Now</p><h3>One tap, then clear steps.</h3>
+              <p>With one active behavior, steps open right away. With several, you choose what you need help with first. No guessing for you.</p></div>
+            <div className="np-card"><p className="np-eyebrow">Parent dashboard</p><h3>Everything in one place.</h3>
+              <p>Progress and goals, your library, and quick actions to log what happened, upload a plan, add a behavior, add a goal, or edit your child’s profile.</p></div>
+          </div>
+        </section>
+
+        <section className="np-sec">
+          <div className="np-panel blue" data-testid="section-upload-later">
+            <h2 style={{ marginBottom: 0 }}>Have a plan? Upload it later.</h2>
+            <p>Start with starter support now. When you’re ready, upload a behavior plan, treatment plan, BIP, FBA, school support plan, or safety plan. Support based on your upload is labeled as such and is not clinician-reviewed unless a clinician reviews it.</p>
+            <Link to="/ParentSignup" className="np-btn primary" data-testid="link-upload-later">Start Parent Account <ArrowRight size={18} style={{ marginLeft: 8 }} /></Link>
+          </div>
+        </section>
+
+        <section className="np-sec" id="clinicians">
+          <div className="np-card np-clin" data-testid="section-clinicians">
+            <div><h2 style={{ marginBottom: 8 }}>For clinics and clinicians</h2>
+              <p>Clinical access is based on active clinic membership and explicit client assignments. Clinic administration and clinical care remain separate workspace permissions.</p></div>
+            <Link to="/ClinicRequest" className="np-btn" data-testid="link-clinic-request-lower">Request clinic setup</Link>
+          </div>
+        </section>
+
+        <section className="np-sec" style={{ paddingTop: 0 }}>
+          <div className="np-panel green" data-testid="section-privacy">
+            <ShieldCheck size={28} />
+            <p>Your notes are accessed through your account and authorized sharing. AI features may process information using service providers. Starter support is general guidance, not a clinician-approved treatment plan.</p>
+          </div>
+        </section>
+
+        <section className="np-final">
+          <h2>Know what to do in the moment. Add plans, goals, and clinician support over time.</h2>
+          <Link to="/ParentSignup" className="np-btn primary" data-testid="link-final-start">Start Parent Account</Link>
+        </section>
+
+        <footer className="np-foot">
+          <span>NeuroPathways</span>
+          <div>
+            <Link to="/ClinicianLogin?workspace=clinician" className="np-link">Clinician login</Link>
+            <Link to="/ClinicianLogin?workspace=clinic-admin" className="np-link">Clinic administrator login</Link>
+            <Link to="/OperatorLogin" className="np-link" data-testid="link-operator-login">NeuroPathways operator sign in</Link>
+            <Link to="/ClinicRequest" className="np-link">Register your clinic</Link>
+            <Link to="/UsernameLogin" className="np-link" data-testid="link-username-login">Username login</Link>
+            <Link to="/privacy" className="np-link" data-testid="link-privacy">Privacy policy</Link>
+            <Link to="/terms" className="np-link">Terms of use</Link>
+            <Link to="/contact" className="np-link">Contact</Link>
+            <Link to="/copyright" className="np-link">Copyright</Link>
+            <Link to="/data-requests" className="np-link">Data requests</Link>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+}

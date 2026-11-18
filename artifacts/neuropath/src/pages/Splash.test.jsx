@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import Splash from "./Splash";
 
@@ -15,21 +15,37 @@ vi.mock("@/api/entities", () => ({
 afterEach(() => cleanup());
 
 describe("public workspace entry points", () => {
-  it("shows distinct caregiver, clinician, clinic-admin and clinic-request routes", async () => {
+  it("shows one accessible sign-in control with the existing role destinations", async () => {
     render(<MemoryRouter><Splash /></MemoryRouter>);
-    expect((await screen.findByTestId("link-caregiver-sign-in")).getAttribute("href")).toBe("/ParentLogin");
-    expect(screen.getByTestId("link-caregiver-create").getAttribute("href")).toBe("/ParentSignup");
-    expect(screen.getByTestId("link-clinician-entry").getAttribute("href")).toBe("/ClinicianLogin?workspace=clinician");
-    expect(screen.getByTestId("link-clinic-admin-entry").getAttribute("href")).toBe("/ClinicianLogin?workspace=clinic-admin");
-    expect(screen.getByTestId("link-register-clinic").getAttribute("href")).toBe("/ClinicRequest");
-    expect(screen.getByTestId("link-family-access-code").getAttribute("href")).toBe("/UsernameLogin");
+
+    const signInButton = screen.getByTestId("button-sign-in");
+    expect(signInButton.textContent).toMatch(/sign in/i);
+    expect(screen.getAllByRole("button", { name: /sign in/i })).toHaveLength(1);
+    fireEvent.pointerDown(signInButton, { button: 0, pointerType: "mouse" });
+
+    await screen.findByRole("menu");
+    expect(screen.getByTestId("link-sign-in-caregiver").getAttribute("href")).toBe("/ParentLogin");
+    expect(screen.getByTestId("link-sign-in-family-code").getAttribute("href")).toBe("/UsernameLogin");
+    expect(screen.getByTestId("link-sign-in-clinician").getAttribute("href")).toBe("/ClinicianLogin?workspace=clinician");
+    expect(screen.getByTestId("link-sign-in-clinic-admin").getAttribute("href")).toBe("/ClinicianLogin?workspace=clinic-admin");
+    expect(screen.getByText(/does not assign a role or grant access/i)).toBeTruthy();
   });
 
-  it("does not expose a platform-administrator login from public workspace cards", async () => {
+  it("keeps caregiver signup and clinic request separate from the sign-in menu", async () => {
     render(<MemoryRouter><Splash /></MemoryRouter>);
-    await screen.findByTestId("section-workspace-entry");
-    expect(screen.queryByRole("link", { name: /platform administrator sign in/i })).toBeNull();
-    expect(screen.getByTestId("link-operator-login").getAttribute("href")).toBe("/OperatorLogin");
-    expect(screen.getByTestId("link-operator-login").textContent).toBe("NeuroPathways operator sign in");
+
+    expect(screen.getByTestId("link-create-caregiver").getAttribute("href")).toBe("/ParentSignup");
+    expect(screen.getByTestId("link-register-clinic").getAttribute("href")).toBe("/ClinicRequest");
+    expect(screen.getByText(/a request does not create a clinic, administrator account, or access/i)).toBeTruthy();
+    expect(screen.getByTestId("section-security").compareDocumentPosition(screen.getByTestId("section-how-it-works")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("keeps operator sign-in discreetly in the footer", async () => {
+    render(<MemoryRouter><Splash /></MemoryRouter>);
+
+    const operatorLink = screen.getByTestId("link-operator-sign-in");
+    expect(operatorLink.getAttribute("href")).toBe("/OperatorLogin");
+    expect(operatorLink.textContent).toBe("NeuroPathways operator sign in");
+    expect(operatorLink.closest("footer")).toBeTruthy();
   });
 });
